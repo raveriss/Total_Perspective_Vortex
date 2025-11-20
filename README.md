@@ -82,7 +82,19 @@ Total_Perspective_Vortex/
 │   ├── test_classifier.py
 │   └── test_realtime.py
 │
+├── docs/
+|   ├── project/
+|   |    ├── wbs_tpv_v1.md        # ton WBS
+|   |    ├── gantt_tpv.png        # (optionnel)
+│   |    └── roadmap.md
+|   ├── risk/
+│   │   └── tpv_murphy_map_v8.csv
+│   ├── Total_Perspective_Vortex.en.subject.pdf
+|   └── total_perspective_vortex.en.checklist.pdf
+│
 ├── .github/workflows/ci.yml
+├── .pre-commit-config.yaml
+├── .gitignore
 ├── pyproject.toml
 ├── README.md
 └── LICENSE
