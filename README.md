@@ -83,6 +83,7 @@ Total_Perspective_Vortex/
 │   └── test_realtime.py
 │
 ├── docs/
+│   ├── assets/
 |   ├── project/
 |   |   ├── wbs_tpv_v1.md        # ton WBS
 |   |   ├── gantt_tpv.png        # (optionnel)
@@ -98,7 +99,10 @@ Total_Perspective_Vortex/
 ├── .pre-commit-config.yaml
 ├── .gitignore
 ├── pyproject.toml
+├── poetry.lock
+├── poetry.toml
 ├── README.md
+├── Makefile
 └── LICENSE
 ```
 
