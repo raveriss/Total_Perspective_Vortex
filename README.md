@@ -59,6 +59,7 @@ Le travail final ne contient **que le code Python** ; le dataset EEG Physionet n
 Total_Perspective_Vortex/
 ├── src/
 │   └── tpv/
+│       ├── __init__.py
 │       ├── preprocessing.py        # Parsing + filtrage EEG (MNE)
 │       ├── features.py             # Extraction spectre, puissance, channels
 │       ├── dimensionality.py       # PCA/CSP implémenté manuellement
