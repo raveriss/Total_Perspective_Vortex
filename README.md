@@ -87,8 +87,10 @@ Total_Perspective_Vortex/
 |   |    ├── wbs_tpv_v1.md        # ton WBS
 |   |    ├── gantt_tpv.png        # (optionnel)
 │   |    └── roadmap.md
+│   |
 |   ├── risk/
 │   │   └── tpv_murphy_map_v8.csv
+│   |
 │   ├── Total_Perspective_Vortex.en.subject.pdf
 |   └── total_perspective_vortex.en.checklist.pdf
 │
