@@ -57,56 +57,46 @@ Le travail final ne contient **que le code Python** ; le dataset EEG Physionet n
 
 ```
 Total_Perspective_Vortex/
-├── src/
-│   └── tpv/
-│       ├── __init__.py
-│       ├── preprocessing.py        # Parsing + filtrage EEG (MNE)
-│       ├── features.py             # Extraction spectre, puissance, channels
-│       ├── dimensionality.py       # PCA/CSP implémenté manuellement
-│       ├── pipeline.py             # Pipeline sklearn complet
-│       ├── classifier.py           # Classif sklearn (LDA/Ridge/SVM…)
-│       ├── realtime.py             # Lecture playback + prédiction <2s
-│       ├── train.py                # Script d'entraînement
-│       ├── predict.py              # Script de prédiction
-│       └── utils.py
-│
-├── scripts/
-│   ├── train.py
-│   ├── predict.py
-│   └── visualize_raw_filtered.py
-│
-├── tests/
-│   ├── test_preprocessing.py
-│   ├── test_dimensionality.py
-│   ├── test_pipeline.py
-│   ├── test_classifier.py
-│   └── test_realtime.py
-│
-├── docs/
-│   ├── assets/
-|   |   ├── image01.png
-│   |   └── image02.png
-│   |
-|   ├── project/
-|   |   ├── wbs_tpv_v1.md        # ton WBS
-|   |   ├── gantt_tpv.png        # (optionnel)
-│   |   └── roadmap.md
-│   |
-|   ├── risk/
+├── docs
+│   ├── assets
+│   │   ├── image01.png
+│   │   └── image02.png
+│   ├── project
+│   │   ├── gantt_tpv.png
+│   │   ├── roadmap.md
+│   │   └── wbs_tpv_v1.md
+│   ├── risk
 │   │   └── tpv_murphy_map_v8.csv
-│   |
-│   ├── Total_Perspective_Vortex.en.subject.pdf
-|   └── total_perspective_vortex.en.checklist.pdf
-│
-├── .github/workflows/ci.yml
-├── .pre-commit-config.yaml
-├── .gitignore
-├── pyproject.toml
+│   ├── total_perspective_vortex.en.checklist.pdf
+│   └── Total_Perspective_Vortex.en.subject.pdf
+├── LICENSE
+├── Makefile
 ├── poetry.lock
 ├── poetry.toml
+├── pyproject.toml
 ├── README.md
-├── Makefile
-└── LICENSE
+├── scripts
+│   ├── predict.py
+│   ├── train.py
+│   └── visualize_raw_filtered.py
+├── src
+│   └── tpv
+│       ├── classifier.py
+│       ├── dimensionality.py
+│       ├── features.py
+│       ├── __init__.py
+│       ├── pipeline.py
+│       ├── predict.py
+│       ├── preprocessing.py
+│       ├── realtime.py
+│       ├── train.py
+│       └── utils.py
+└── tests
+    ├── test_classifier.py
+    ├── test_dimensionality.py
+    ├── test_pipeline.py
+    ├── test_preprocessing.py
+    └── test_realtime.py
 ```
 
 ---
