@@ -207,11 +207,16 @@ Contraintes :
 
 * **scikit-learn** (pipeline, classif, cross-validation)
 
-### Qualité
+### Qualité & Murphy Map
 
 * ruff, black, mypy
 * pytest, coverage, mutmut
 * GitHub Actions, Codecov
+
+Les fichiers de cartographie des risques (Loi de Murphy) se trouvent dans :
+
+- `docs/qa/murphy_map_tpv_v1.csv`
+- `docs/qa/murphy_map_tpv_v2.csv`
 
 ---
 
