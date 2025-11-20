@@ -84,6 +84,9 @@ Total_Perspective_Vortex/
 │
 ├── docs/
 │   ├── assets/
+|   |   ├── image01.png
+│   |   └── image02.png
+│   |
 |   ├── project/
 |   |   ├── wbs_tpv_v1.md        # ton WBS
 |   |   ├── gantt_tpv.png        # (optionnel)
