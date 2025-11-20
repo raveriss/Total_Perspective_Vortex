@@ -8,7 +8,7 @@
 ![lint](https://img.shields.io/badge/lint-ruff%20✔-yellow)
 ![mypy](https://img.shields.io/badge/mypy-checked-purple)
 [![Mutation](https://img.shields.io/badge/mutmut-≥90%25-orange.svg)]()
-![coverage](https://img.shields.io/badge/coverage-codecov-brightgreen)
+[![codecov](https://codecov.io/github/raveriss/Total_Perspective_Vortex/graph/badge.svg?token=LSR1U908CU)](https://codecov.io/github/raveriss/Total_Perspective_Vortex)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?label=pre--commit)]()
 ![sklearn](https://img.shields.io/badge/scikit--learn-pipeline-blue)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)]()
