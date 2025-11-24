@@ -1,0 +1,96 @@
+repos:
+  # Hygiène de base (YAML/TOML, EOF, espaces)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+
+  # Formatage
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/pycqa/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+
+  # Lint Python (remplace flake8)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.2
+    hooks:
+      - id: ruff
+
+  # Typage (configuration dans pyproject.toml)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.16.1
+    hooks:
+      - id: mypy
+        pass_filenames: false
+        args:
+          - "--config-file=pyproject.toml"
+          - "src"
+          - "scripts"
+          - "tests"
+        additional_dependencies:
+          - pytest
+          - hypothesis
+          - matplotlib-stubs
+
+  # Sécurité code (Bandit sur src + scripts temps réel)
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        pass_filenames: false
+        args:
+          - "-r"
+          - "src"
+          - "scripts"
+
+  # Audit dépendances (sécurité supply chain)
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.7.3
+    hooks:
+      - id: pip-audit
+        args:
+          - "--requirement=requirements.txt"
+        stages: [push]
+
+  # Analyse complexité + mutation testing + tests
+  - repo: local
+    hooks:
+      # Complexité cyclomatique (radon)
+      - id: radon
+        name: radon
+        entry: radon cc src/tpv scripts --min C
+        language: system
+        pass_filenames: false
+
+      # Budget de complexité (xenon)
+      - id: xenon
+        name: xenon
+        entry: xenon --max-absolute B --max-modules A --max-average A src/tpv scripts
+        language: system
+        pass_filenames: false
+
+      # Tests unitaires + coverage (rapide, via Poetry)
+      - id: pytest
+        name: pytest
+        entry: poetry run pytest
+        language: system
+        pass_filenames: false
+        stages: [push]
+
+      # Mutation testing sur le cœur ML/BCI
+      - id: mutmut
+        name: mutmut
+        entry: poetry run mutmut run --paths-to-mutate src/tpv
+        language: system
+        pass_filenames: false
+        stages: [push]

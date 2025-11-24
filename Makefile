@@ -1,0 +1,94 @@
+# ========================================================================================
+# Makefile - Automatisation pour le projet ft_linear_regression
+# Objectifs :
+#   - Simplifier l’installation et la gestion de l’environnement (Poetry / venv)
+#   - Automatiser les vérifications (lint, format, type-check, tests, coverage, mutation)
+#   - Fournir des commandes pratiques pour l’entraînement et la prédiction du modèle
+# ========================================================================================
+
+.PHONY: install lint format type test cov mut train predict-nocheck viz tv-bench-all tv-bench-% activate deactivate
+
+VENV = .venv
+VENV_BIN = $(VENV)/bin/activate
+
+# --- Benchmarks ---------------------------------------------------------------
+BENCH_DIR   := data/benchmarks
+BENCH_CSVS  := $(wildcard $(BENCH_DIR)/*.csv)
+
+# Utilisation raccourcie de Poetry
+POETRY = poetry run
+
+# ----------------------------------------------------------------------------------------
+# Installation des dépendances (dev inclus)
+# ----------------------------------------------------------------------------------------
+install:
+	poetry install --with dev
+
+# ----------------------------------------------------------------------------------------
+# Vérifications de qualité du code
+# ----------------------------------------------------------------------------------------
+
+# Linting avec Ruff (analyse statique rapide)
+lint:
+	$(POETRY) ruff check .
+
+# Formatage + correction auto avec Ruff
+format:
+	$(POETRY) ruff format . && $(POETRY) ruff check --fix .
+
+# Vérification des types avec Mypy
+type:
+	$(POETRY) mypy src
+
+# ----------------------------------------------------------------------------------------
+# Tests et couverture
+# ----------------------------------------------------------------------------------------
+
+# Exécution des tests unitaires
+test:
+	$(POETRY) pytest -vv
+
+# Analyse de la couverture avec rapport JSON, HTML et console (100% requis)
+cov:
+	$(POETRY) coverage run -m pytest && \
+	$(POETRY) coverage json -o coverage.json && \
+	$(POETRY) coverage html --skip-empty --show-contexts && \
+	$(POETRY) coverage report --fail-under=100
+
+# Mutation testing avec Mutmut (robustesse des tests)
+mut:
+	$(POETRY) mutmut run
+	$(POETRY) mutmut results > mutmut-results.txt
+
+# ----------------------------------------------------------------------------------------
+# Commandes liées au modèle (Poetry)
+# ----------------------------------------------------------------------------------------
+
+# Entraînement du modèle : génère le fichier theta.json
+train:
+	$(POETRY) train
+
+# Prédiction du prix pour une valeur donnée (km)
+predict-nocheck:
+	@$(POETRY) predict
+
+
+
+# Affiche la commande pour activer le venv
+activate:
+	@echo "Chemin de l'environnement Poetry :"
+	@poetry env info -p
+	@echo
+	@echo "Pour activer manuellement cet environnement :"
+	@echo "  source $$(poetry env info -p)/bin/activate"
+
+# Affiche la commande pour désactiver le venv
+deactivate:
+	@echo "Pour quitter l'environnement :"
+	@echo "  deactivate"
+
+# ----------------------------------------------------------------------------------------
+# Règle générique pour ignorer les cibles numériques (ex. make predict-nocheck 23000)
+# ----------------------------------------------------------------------------------------
+%:
+	@:
