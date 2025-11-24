@@ -6,7 +6,7 @@
 #   - Fournir des commandes pratiques pour l’entraînement et la prédiction du modèle
 # ========================================================================================
 
-.PHONY: install lint format type test cov mut train predict-nocheck viz tv-bench-all tv-bench-% activate deactivate
+.PHONY: install lint format type test cov mut train predict viz tv-bench-all tv-bench-% activate deactivate
 
 VENV = .venv
 VENV_BIN = $(VENV)/bin/activate
@@ -64,13 +64,18 @@ mut:
 # Commandes liées au modèle (Poetry)
 # ----------------------------------------------------------------------------------------
 
-# Entraînement du modèle : génère le fichier theta.json
-train:
-	$(POETRY) train
+TRAIN_SUBJECT ?= S01
+TRAIN_RUN ?= R01
+PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
+PREDICT_RUN ?= $(TRAIN_RUN)
 
-# Prédiction du prix pour une valeur donnée (km)
-predict-nocheck:
-	@$(POETRY) predict
+# Entraînement du modèle : exemple minimal avec sujet et run de démonstration
+train:
+        $(POETRY) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train
+
+# Prédiction : exemple minimal réutilisant les identifiants ci-dessus
+predict:
+        $(POETRY) python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict
 
 
 
