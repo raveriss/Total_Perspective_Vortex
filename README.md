@@ -169,8 +169,17 @@ pipeline = Pipeline([
 
 # 🔍 5. Entraînement
 
+L’interface CLI unifiée `mybci.py` lance les modules `tpv.train` et `tpv.predict` avec
+des identifiants explicites :
+
 ```bash
-poetry run python scripts/train.py subject_id run_id
+python mybci.py S01 R01 train
+```
+
+Raccourci Makefile avec des valeurs par défaut modifiables :
+
+```bash
+make train TRAIN_SUBJECT=S01 TRAIN_RUN=R01
 ```
 
 Affiche :
@@ -183,8 +192,16 @@ Affiche :
 
 # ⚡ 6. Prédiction en pseudo temps réel
 
+Réutilise la même CLI pour la phase inference :
+
 ```bash
-poetry run python scripts/predict.py subject_id run_id
+python mybci.py S01 R01 predict
+```
+
+Ou via le Makefile :
+
+```bash
+make predict PREDICT_SUBJECT=S01 PREDICT_RUN=R01
 ```
 
 Contraintes :
