@@ -37,5 +37,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     return _call_module("tpv.predict", args.subject, args.run)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     raise SystemExit(main())
