@@ -81,7 +81,7 @@ run-train:
 	poetry run python3 -m src.train
 run-predict:
         poetry run python3 -m src.predict
-	
+
 install-venv:
 	python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 
@@ -90,7 +90,7 @@ run-train-nopoetry:
 
 run-predict-nopoetry:
         . .venv/bin/activate && python3 -m src.predict 85000 --theta theta.json
-	
+
 mut:
 	poetry run mutmut run --paths-to-mutate src --tests-dir tests --runner "pytest -q" --use-coverage --simple-output
 
@@ -172,19 +172,19 @@ PY
 ---
 
 ## 1) 🧩 Architecture minimale (agents)
-- **`src/classifier.py`** : 
-- **`src/dimensionality.py`** : 
-- **`src/features.py`** : 
-- **`src/__init__.py`** : 
-- **`src/pipeline.py`** : 
-- **`src/predict.py`** : 
-- **`src/preprocessing.py`** : 
-- **`src/realtime.py`** : 
-- **`src/train.py`** : 
-- **`src/utils.py`** : 
+- **`src/classifier.py`** :
+- **`src/dimensionality.py`** :
+- **`src/features.py`** :
+- **`src/__init__.py`** :
+- **`src/pipeline.py`** :
+- **`src/predict.py`** :
+- **`src/preprocessing.py`** :
+- **`src/realtime.py`** :
+- **`src/train.py`** :
+- **`src/utils.py`** :
 
 - **`tests/`** : unitaires + E2E + erreurs I/O + contrats.
-- **Bonus isolé** : 
+- **Bonus isolé** :
 
 > **Main guard requis** partout : `if __name__ == "__main__": main()` et exécution via `python3 -m src.train` / `python3 -m src.predict`.
 
@@ -203,7 +203,7 @@ PY
 - [ ] **Prédiction avant entraînement = 0** : tant que theta.json n’a pas été entraîné/écrit, predict doit renvoyer 0 pour tout kilométrage (hypothèse avec θ0=0, θ1=0). Testable en défense.
 
 **Scénario E2E “défense” (à garder en sous‑puces) :**
-- [ ] Étape 
+- [ ] Étape
 ...
 
 ---
@@ -212,13 +212,13 @@ PY
 **Objectifs** : 100 % couverture (branches + diff), **contrôle par fichier**, tests rapides.
 
 ### 3.1 Unitaires
-- 
+-
 ...
 
 ### 3.2 E2E
-- 
+-
 - CLI `--help` (exit 0), erreurs d’options (exit ≠ 0, message)
-- **Entrée interactive** : prompt 
+- **Entrée interactive** : prompt
 
 ### 3.3 Couverture (outil `coverage`)
 - `.coveragerc` implicite via commandes : `branch=True`, `--skip-empty`, `--show-contexts`
@@ -237,13 +237,13 @@ PY
 - CI : publier le rapport des survivants en artefact et lister les justifications résiduelles.
 
 ### 3.5 Tolérances numériques (si tests internes)
-- 
+-
 ...
 
 ## 4) ⚙️ Spécifications d’implémentation
 
 ### 4.1 Formules
-- 
+-
 ...
 
 ### 4.2 CLI (exemples)
@@ -252,9 +252,9 @@ PY
 ```
 
 ### 4.3 Persistance
-- 
+-
   ```
-- **Ne jamais** committer 
+- **Ne jamais** committer
 
 ### 4.4 Structure projet
 ```
@@ -334,9 +334,9 @@ usage: predict.py
 ```
 
 ### 7.2 Modèle de messages d’erreurs (tests de régression)
-- `ERROR: 
-- `ERROR: 
-- `ERROR: 
+- `ERROR:
+- `ERROR:
+- `ERROR:
 
 ---
 
@@ -351,4 +351,3 @@ usage: predict.py
 - **Efficace** : CI courte, messages d’erreurs testés, contrôle par fichier
 - **Évolutive** : bonus CI perso **isolés** ; viz en groupe Poetry optionnel
 - **Lisible** : checklists concises, extraits directement copiables
-
