@@ -150,11 +150,7 @@ jobs:
 
       - name: Run mutation tests (scoped, avec coverage)
         run: |
-          poetry run mutmut run \
-            --paths-to-mutate src/tpv \
-            --tests-dir tests \
-            --runner "pytest -q" \
-            --use-coverage
+          poetry run mutmut run
 
       - name: Show mutation results
         run: |
