@@ -12,7 +12,7 @@ _Risque Murphy (section 1.1) : à lier à TPV-XXX… (Phase: Source & Repo)_
 
 ### 1.2 CLI & script principal
 
-* **1.2.1** Définir les modes obligatoires `train` et `predict` (cf. sujet TPV) 
+* **1.2.1** Définir les modes obligatoires `train` et `predict` (cf. sujet TPV)
 * **1.2.2** Concevoir l’interface CLI `mybci.py` (arguments: sujet, run, mode)
 * **1.2.3** Assurer la compatibilité avec `src/tpv/train.py` et `src/tpv/predict.py`
 * **1.2.4** Ajouter commandes Makefile `make train`, `make predict`
@@ -38,7 +38,7 @@ _Risque Murphy (section 1.3) : à lier à TPV-XXX… (Phase: Source & Repo / Rob
 
 ### 2.1 Gestion des datasets Physionet
 
-* **2.1.1** Documenter les datasets EEG requis (lien Physionet, format) 
+* **2.1.1** Documenter les datasets EEG requis (lien Physionet, format)
 * **2.1.2** Définir la structure locale `data/raw/` (non versionnée)
 * **2.1.3** Créer script de téléchargement / copie des données (si autorisé)
 * **2.1.4** Vérifier l’intégrité (taille, hash, nb de sujets/runs attendus)
@@ -73,7 +73,7 @@ _Risque Murphy (section 2.3) : à lier à TPV-XXX… (Phase: Events & labels / R
 
 ### 3.1 Filtrage de base
 
-* **3.1.1** Implémenter le filtre passe-bande 8–40 Hz (motor imagery) 
+* **3.1.1** Implémenter le filtre passe-bande 8–40 Hz (motor imagery)
 * **3.1.2** Tester filtre FIR vs IIR et choisir un compromis latence/stabilité
 * **3.1.3** Gérer les effets de bord (edge effects) sur les segments fenêtrés
 * **3.1.4** Documenter les paramètres (ordre filtre, fréquence coupure)
@@ -92,7 +92,7 @@ _Risque Murphy (section 3.2) : à lier à TPV-XXX… (Phase: Filtrage / Robustes
 ### 3.3 Visualisation raw vs filtré
 
 * **3.3.1** Implémenter `scripts/visualize_raw_filtered.py`
-* **3.3.2** Générer les plots comparatifs raw/filtered pour un sujet/run type 
+* **3.3.2** Générer les plots comparatifs raw/filtered pour un sujet/run type
 * **3.3.3** Sauvegarder des figures dans `docs/viz/`
 * **3.3.4** Ajouter un check dans la checklist de défense : “plots conformes à la vidéo de référence”
 * **3.3.5** Vérifier ✓ dans la checklist TPV tous les items relatifs aux visualisations de signaux (brut vs filtré) et à la conformité avec les exemples fournis
@@ -105,9 +105,9 @@ _Risque Murphy (section 3.3) : à lier à TPV-XXX… (Phase: Viz / Filtrage)_
 
 ### 4.1 Définition des features
 
-* **4.1.1** Choisir les features spectrales (puissance par bande de fréquence) 
+* **4.1.1** Choisir les features spectrales (puissance par bande de fréquence)
 * **4.1.2** Décider des bandes (theta/alpha/beta/gamma) pertinentes pour la tâche
-* **4.1.3** Choisir la résolution fréquentielle (FFT, STFT, wavelets – bonus) 
+* **4.1.3** Choisir la résolution fréquentielle (FFT, STFT, wavelets – bonus)
 * **4.1.4** Fixer la taille de fenêtre temporelle et l’overlap (pour temps réel)
 
 _Risque Murphy (section 4.1) : à lier à TPV-XXX… (Phase: Feature engineering)_
@@ -146,7 +146,7 @@ _Risque Murphy (section 5.1) : à lier à TPV-XXX… (Phase: Réduction dimensio
 
 ### 5.2 Implémentation dans `dimensionality.py`
 
-* **5.2.1** Implémenter la construction de la matrice de covariance/from data 
+* **5.2.1** Implémenter la construction de la matrice de covariance/from data
 * **5.2.2** Calculer la décomposition (eigen/SVD via numpy/scipy)
 * **5.2.3** Construire la matrice de projection W
 * **5.2.4** Implémenter la transformation `transform(X)` vers l’espace réduit
@@ -155,7 +155,7 @@ _Risque Murphy (section 5.2) : à lier à TPV-XXX… (Phase: Réduction dimensio
 
 ### 5.3 Intégration sklearn
 
-* **5.3.1** Créer une classe `TPVDimReducer` héritant de `BaseEstimator`, `TransformerMixin` 
+* **5.3.1** Créer une classe `TPVDimReducer` héritant de `BaseEstimator`, `TransformerMixin`
 * **5.3.2** Implémenter `fit(X, y)` et `transform(X)` conformes à sklearn
 * **5.3.3** Gérer la sérialisation (pickle/joblib) de la matrice W
 * **5.3.4** Ajouter tests unitaires `test_dimensionality.py` (cas simples, matrice jouet)
@@ -169,7 +169,7 @@ _Risque Murphy (section 5.3) : à lier à TPV-XXX… (Phase: Pipeline sklearn / 
 
 ### 6.1 Construction du pipeline
 
-* **6.1.1** Définir le pipeline sklearn complet : preprocessing → features → dim-reduction → classifier 
+* **6.1.1** Définir le pipeline sklearn complet : preprocessing → features → dim-reduction → classifier
 * **6.1.2** Créer `pipeline.py` avec fonction `build_pipeline(config)`
 * **6.1.3** Prévoir l’injection de scalers (StandardScaler/RobustScaler)
 * **6.1.4** Paramétrer le choix du classifieur (LDA, Logistic, SVM…)
@@ -188,7 +188,7 @@ _Risque Murphy (section 6.2) : à lier à TPV-XXX… (Phase: Classification)_
 ### 6.3 Tests pipeline
 
 * **6.3.1** Écrire `test_pipeline.py` (pipelines jouets, X synthétique)
-* **6.3.2** Tester la compatibilité avec `cross_val_score` (pas de fuite de données) 
+* **6.3.2** Tester la compatibilité avec `cross_val_score` (pas de fuite de données)
 * **6.3.3** Vérifier que le pipeline est picklable
 * **6.3.4** Mesurer le temps d’inférence par batch d’epochs
 * **6.3.5** Vérifier ✓ dans la checklist TPV les items liés au pipeline global, à la non-fuite de labels et à la stabilité des scores
@@ -201,7 +201,7 @@ _Risque Murphy (section 6.3) : à lier à TPV-XXX… (Phase: Pipeline sklearn / 
 
 ### 7.1 Stratégie de split
 
-* **7.1.1** Définir la stratégie Train/Val/Test (par sujet, par runs) 
+* **7.1.1** Définir la stratégie Train/Val/Test (par sujet, par runs)
 * **7.1.2** Gérer le non-overfitting (splits figés, random_state)
 * **7.1.3** Documenter la stratégie dans `docs/project/` (pour la défense)
 
@@ -221,15 +221,15 @@ _Risque Murphy (section 7.2) : à lier à TPV-XXX… (Phase: Train/Val/Test / Ro
 * **7.3.1** Implémenter la CLI `mybci.py subject run predict`
 * **7.3.2** Charger artefacts (pipeline entraîné)
 * **7.3.3** Prédire sur données jamais vues (Test set)
-* **7.3.4** Calculer l’accuracy par run, par sujet, et globale (6 runs) 
+* **7.3.4** Calculer l’accuracy par run, par sujet, et globale (6 runs)
 
 _Risque Murphy (section 7.3) : à lier à TPV-XXX… (Phase: Score global / Classification)_
 
 ### 7.4 Score global & contraintes de réussite
 
 * **7.4.1** Implémenter le script global “tous sujets / toutes expériences”
-* **7.4.2** Calculer la mean accuracy par expérience, puis moyenne des 6 expériences sur données jamais vues, et **garantir ≥ 60 %** (exigence minimale du sujet) 
-* **7.4.3** Définir une tâche d’optimisation dédiée pour viser **≥ 75 % de mean accuracy** (exigence du scale pour notation max + bonus) 
+* **7.4.2** Calculer la mean accuracy par expérience, puis moyenne des 6 expériences sur données jamais vues, et **garantir ≥ 60 %** (exigence minimale du sujet)
+* **7.4.3** Définir une tâche d’optimisation dédiée pour viser **≥ 75 % de mean accuracy** (exigence du scale pour notation max + bonus)
 * **7.4.4** Ajouter un rapport texte/CSV avec ces scores (par sujet, par expérience, global)
 * **7.4.5** Ajouter tests `test_realtime.py` / `test_classifier.py` pour la stabilité du score sur dataset jouet
 * **7.4.6** Vérifier ✓ dans la checklist TPV les items relatifs au score global, aux contraintes d’accuracy et à l’interprétation des résultats
@@ -243,7 +243,7 @@ _Risque Murphy (section 7.4) : à lier à TPV-XXX… (Phase: Score global / Robu
 ### 8.1 Lecture en flux
 
 * **8.1.1** Définir le format du stream (lecture fichier simulant le temps réel)
-* **8.1.2** Implémenter le playback avec latence contrôlée (< 2 s) 
+* **8.1.2** Implémenter le playback avec latence contrôlée (< 2 s)
 * **8.1.3** Gérer la taille de fenêtre et l’overlap (stride)
 * **8.1.4** Synchroniser les événements (labels) avec les fenêtres
 
@@ -332,7 +332,7 @@ _Risque Murphy (section 10.3) : à lier à TPV-XXX… (Phase: Viz / Score global
 
 ### 10.4 Préparation défense 42
 
-* **10.4.1** Préparer le pitch de 5–10 minutes (objectifs, pipeline, résultats) 
+* **10.4.1** Préparer le pitch de 5–10 minutes (objectifs, pipeline, résultats)
 * **10.4.2** Préparer la démonstration live (train rapide + predict + temps réel)
 * **10.4.3** Lister les questions attendues (filtrage, CSP, overfitting, bonus)
 * **10.4.4** Relire la checklist officielle pour valider chaque point avant soutenance
@@ -354,7 +354,7 @@ _Risque Murphy (section 10.5) : à lier à TPV-XXX… (Phase: Documentation & d�
 
 ### 11.1 Bonus preprocessing / spectre
 
-* **11.1.1** Explorer l’usage de **wavelet transform** sur le signal EEG (variation spectrale fine) 
+* **11.1.1** Explorer l’usage de **wavelet transform** sur le signal EEG (variation spectrale fine)
 * **11.1.2** Comparer FFT vs wavelets sur un jeu d’epochs (qualité des features / coût)
 * **11.1.3** Intégrer une option “wavelets” dans `features.py` (configurable)
 * **11.1.4** Documenter l’impact sur le score et la robustesse (rapport bonus)
@@ -364,7 +364,7 @@ _Risque Murphy (section 11.1) : à lier à TPV-XXX… (Phase: Feature engineerin
 
 ### 11.2 Bonus classifier
 
-* **11.2.1** Concevoir un **classifieur maison** (ex: réseau simple, modèle custom) 
+* **11.2.1** Concevoir un **classifieur maison** (ex: réseau simple, modèle custom)
 * **11.2.2** L’intégrer dans `classifier.py` avec la même API que les classifieurs sklearn
 * **11.2.3** Comparer la performance vs LDA / Logistic / SVM (tableau de scores)
 * **11.2.4** Ajouter une option CLI pour sélectionner ce classifier bonus
@@ -374,7 +374,7 @@ _Risque Murphy (section 11.2) : à lier à TPV-XXX… (Phase: Classification / B
 
 ### 11.3 Bonus datasets
 
-* **11.3.1** Identifier au moins un **autre dataset EEG** compatible (BCI competition / autre Physionet) 
+* **11.3.1** Identifier au moins un **autre dataset EEG** compatible (BCI competition / autre Physionet)
 * **11.3.2** Adapter `preprocessing.py` pour supporter ce dataset additionnel
 * **11.3.3** Lancer le pipeline complet sur ce dataset et mesurer le score
 * **11.3.4** Documenter différences de qualité de signal et d’accuracy (section Bonus)
@@ -383,7 +383,7 @@ _Risque Murphy (section 11.3) : à lier à TPV-XXX… (Phase: Train/Val/Test / B
 
 ### 11.4 Bonus implémentations bas niveau
 
-* **11.4.1** Implémenter (optionnellement) une fonction maison pour **covariance matrix estimation** sur signaux bruités 
+* **11.4.1** Implémenter (optionnellement) une fonction maison pour **covariance matrix estimation** sur signaux bruités
 * **11.4.2** Implémenter (optionnellement) une SVD ou eigendecomposition custom et la comparer à numpy/scipy (stabilité numérique)
 * **11.4.3** Brancher cette implémentation dans `dimensionality.py` via un flag de config
 * **11.4.4** Évaluer l’impact sur le score, le temps de calcul et la stabilité
