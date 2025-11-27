@@ -305,20 +305,20 @@ Les contenus suivants ont été essentiels pour comprendre l’EEG, les
 filtres spatiaux (CSP) et la mise en place d’un pipeline d’analyse
 monotrial robuste :
 
-- 🎥 [Playlist YouTube — Machine Learning from Scratch](https://www.youtube.com/playlist?list=PLO_fdPEVlfKqUF5BPKjGSh7aV9aBshrpY)  
+- 🎥 [Playlist YouTube — Machine Learning from Scratch](https://www.youtube.com/playlist?list=PLO_fdPEVlfKqUF5BPKjGSh7aV9aBshrpY)
   Série pédagogique pour consolider les bases de l’apprentissage supervisé
   (modèles linéaires, descente de gradient, régularisation) utilisées pour
   entraîner le classifieur sur les features EEG.
 
-- 📄 [Wikipédia — Électroencéphalographie](https://fr.wikipedia.org/wiki/%C3%89lectroenc%C3%A9phalographie)  
+- 📄 [Wikipédia — Électroencéphalographie](https://fr.wikipedia.org/wiki/%C3%89lectroenc%C3%A9phalographie)
   Notions fondamentales sur l’EEG, l’acquisition du signal et le rôle des
   électrodes, indispensables pour interpréter les données brutes.
 
-- 📄 [Wikipédia — Common spatial pattern](https://en.wikipedia.org/wiki/Common_spatial_pattern)  
+- 📄 [Wikipédia — Common spatial pattern](https://en.wikipedia.org/wiki/Common_spatial_pattern)
   Présentation du principe des filtres spatiaux CSP, de la maximisation de
   la variance entre classes et de leur utilisation en BCI.
 
-- 📄 [Blankertz et al., *Optimizing Spatial Filters for Robust EEG Single-Trial Analysis*](https://doc.ml.tu-berlin.de/bbci/publications/BlaTomLemKawMue08.pdf)  
+- 📄 [Blankertz et al., *Optimizing Spatial Filters for Robust EEG Single-Trial Analysis*](https://doc.ml.tu-berlin.de/bbci/publications/BlaTomLemKawMue08.pdf)
   Article de référence décrivant les stratégies d’optimisation de filtres
   spatiaux pour améliorer la robustesse de l’analyse EEG monotrial.
 
@@ -331,7 +331,7 @@ MIT License.
 ---
 # 👤 Auteur
 
-**Rafael Verissimo**  
-Étudiant IA/Data — École 42 Paris  
-GitHub : https://github.com/raveriss  
-LinkedIn : https://www.linkedin.com/in/verissimo-rafael/  
+**Rafael Verissimo**
+Étudiant IA/Data — École 42 Paris
+GitHub : https://github.com/raveriss
+LinkedIn : https://www.linkedin.com/in/verissimo-rafael/
