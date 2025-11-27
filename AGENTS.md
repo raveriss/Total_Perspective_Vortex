@@ -2,7 +2,24 @@
 
 **Contexte cible** : Ubuntu 22.04.5 (Jammy), Python 3.10.18, **pas de sudo**, **Poetry**, exécution **uniquement sur Ubuntu**.
 
-Ce document sert de **plan d’action exécutable** pour implémenter `ft_linear_regression` à la 42, avec une posture **défense‑proof** : TDD systématique, couverture **100 %** (statements **et** branches), **diff=100 %**, contrôle **par fichier**, CI Ubuntu‑only. Les bonus CI perso sont isolés.
+Ce document sert de **plan d’action exécutable**
+
+---
+
+## 🎯 Contraintes BCI obligatoires
+
+Les contraintes suivantes doivent figurer simultanément dans README, AGENTS et Murphy Map et être respectées dans le code :
+
+1. **Finalité** : classer en temps « réel » un signal EEG (imagination de mouvement A ou B).
+2. **Source des données** : jeu **Physionet EEG motor imagery** obligatoire ; signaux structurés en matrice **channels × time** avec runs découpés et labellisés proprement.
+3. **Prétraitement obligatoire** : visualisation du brut (script dédié), filtrage des bandes utiles (theta/alpha/beta…), visualisation après prétraitement, extraction des features (spectre/PSD…), et interdiction implicite d’utiliser `mne-realtime`.
+4. **Pipeline ML** : utilisation de `sklearn.pipeline.Pipeline`, transformer maison héritant de `BaseEstimator` et `TransformerMixin`, réduction de dimension **PCA/ICA/CSP/CSSP implémentée à la main** (NumPy/SciPy autorisés, pas de version prête de sklearn/MNE).
+5. **Entraînement/validation/test** : `cross_val_score` sur le pipeline complet, splits **Train/Validation/Test** distincts (pas d’overfit), accuracy moyenne **≥ 60 %** sur **tous les sujets de test** et les **6 runs** sur données **jamais apprises**.
+6. **Temps réel** : le script `predict` lit un flux simulé (lecture progressive) et fournit chaque prédiction en **moins de 2 secondes** après réception d’un chunk.
+7. **Architecture** : présence d’un script **train** et d’un script **predict** ; le dépôt final versionné contient **uniquement le code Python** (dataset exclu).
+8. **Bonus facultatifs** : wavelets pour le spectre, classifieur maison, autres datasets EEG.
+9. **Formalisme mathématique** : pour le transformer, avec X ∈ R^{d × N}, produire une matrice W telle que W^T X = X_{CSP}/X_{PCA}/X_{ICA}.
+ pour implémenter `ft_linear_regression` à la 42, avec une posture **défense‑proof** : TDD systématique, couverture **100 %** (statements **et** branches), **diff=100 %**, contrôle **par fichier**, CI Ubuntu‑only. Les bonus CI perso sont isolés.
 
 ---
 

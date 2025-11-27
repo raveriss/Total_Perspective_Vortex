@@ -33,6 +33,7 @@
 - [🔍 5. Entraînement](#5-entraînement)
 - [⚡ 6. Prédiction en pseudo temps réel](#6-prédiction-en-pseudo-temps-réel)
 - [🧪 Tests & qualité logicielle](#tests--qualité-logicielle)
+- [✅ Contraintes officielles du sujet](#-contraintes-officielles-du-sujet)
 - [📚 Stack technique](#stack-technique)
   - [Traitement du signal / maths](#traitement-du-signal--maths)
   - [Machine Learning](#machine-learning)
@@ -246,6 +247,32 @@ Contraintes :
 * CI GitHub Actions + Codecov
 
 ---
+
+
+# ✅ Contraintes officielles du sujet
+
+Ces exigences doivent être **présentes et respectées** dans toute la documentation et le code :
+
+1. **Finalité** : classer en temps « réel » un signal EEG (imagination de mouvement A ou B).
+2. **Source des données** : utiliser **exclusivement Physionet (EEG motor imagery)** ; les signaux sont des matrices **channels × time** avec runs découpés et labellisés proprement.
+3. **Prétraitement obligatoire** :
+   - visualiser le signal brut dans un script dédié ;
+   - filtrer les bandes utiles (theta, alpha, beta… au choix) ;
+   - visualiser après prétraitement ;
+   - extraire les features (spectre, PSD, etc.) ;
+   - 🚫 interdiction implicite : ne pas utiliser `mne-realtime`.
+4. **Pipeline ML** :
+   - utilisation obligatoire de `sklearn.pipeline.Pipeline` ;
+   - transformer maison héritant de `BaseEstimator` et `TransformerMixin` ;
+   - implémenter soi-même la réduction **PCA, ICA, CSP ou CSSP** (NumPy/SciPy autorisés, pas de version prête de sklearn ou MNE).
+5. **Entraînement/validation/test** :
+   - `cross_val_score` sur l’ensemble du pipeline ;
+   - splits **Train / Validation / Test** distincts pour éviter l’overfit ;
+   - moyenne d’**accuracy ≥ 60 %** sur **tous les sujets du jeu de test** et les **6 runs** d’expériences, sur des données **jamais apprises**.
+6. **Temps réel** : le script `predict` lit un flux simulé (lecture progressive d’un fichier) et produit une prédiction en **< 2 secondes** après chaque chunk.
+7. **Architecture** : fournir un script **train** et un script **predict** ; le dépôt final contient **uniquement le code Python** (pas le dataset).
+8. **Bonus facultatifs** : wavelets pour le spectre, classifieur maison ou autres datasets EEG.
+9. **Formalisme mathématique** : pour le transformer, avec X ∈ R^{d × N}, produire une matrice W telle que W^T X = X_{CSP}/X_{PCA}/X_{ICA}.
 
 # 📚 Stack technique
 
