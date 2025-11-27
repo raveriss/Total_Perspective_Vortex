@@ -125,6 +125,24 @@ Total_Perspective_Vortex/
 
 ---
 
+## 🚀 Installation et gestion des dépendances (Poetry uniquement)
+
+L’environnement est géré exclusivement avec **Poetry** (aucun fichier
+`requirements.txt` n’est utilisé).
+
+```bash
+poetry install --with dev
+```
+
+Les commandes CLI existantes restent accessibles via Poetry, par exemple :
+
+```bash
+poetry run python mybci.py S01 R01 train
+poetry run python mybci.py S01 R01 predict
+```
+
+---
+
 # 🔬 1. Préprocessing & parsing EEG (MNE)
 
 * Lecture des fichiers Physionet

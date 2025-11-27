@@ -74,42 +74,28 @@ Les contraintes suivantes doivent figurer simultanément dans README, AGENTS et 
 
 ### 0.3 Makefile (raccourcis non intrusifs)
 ```Makefile
-.PHONY: install lint format type test cov mut run-train run-predict reqs install-venv run-train-nopoetry run-predict-nopoetry mut
+.PHONY: install lint format type test cov mut run-train run-predict
 install:
-	poetry install --with dev
-reqs:
-	poetry export -f requirements.txt -o requirements.txt --without-hashes
+        poetry install --with dev
 lint:
-	poetry run ruff check .
+        poetry run ruff check .
 format:
-	poetry run ruff format . && poetry run ruff check --fix .
+        poetry run ruff format . && poetry run ruff check --fix .
 type:
-	poetry run mypy src
+        poetry run mypy src
 test:
-	poetry run pytest -q
+        poetry run pytest -q
 cov:
-	poetry run coverage run -m pytest && \
-	poetry run coverage json -o coverage.json && \
-	poetry run coverage html --skip-empty --show-contexts && \
-	poetry run coverage report --fail-under=100
+        poetry run coverage run -m pytest && \
+        poetry run coverage json -o coverage.json && \
+        poetry run coverage html --skip-empty --show-contexts && \
+        poetry run coverage report --fail-under=100
 mut:
-	poetry run mutmut run --simple-output
+        poetry run mutmut run --paths-to-mutate src --tests-dir tests --runner "pytest -q" --use-coverage --simple-output
 run-train:
-	poetry run python3 -m src.train
+        poetry run python3 -m src.train
 run-predict:
         poetry run python3 -m src.predict
-
-install-venv:
-	python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
-
-run-train-nopoetry:
-	. .venv/bin/activate && python3 -m src.train --data data.csv --alpha 1e-7 --iters 100000 --theta theta.json
-
-run-predict-nopoetry:
-        . .venv/bin/activate && python3 -m src.predict 85000 --theta theta.json
-
-mut:
-	poetry run mutmut run --paths-to-mutate src --tests-dir tests --runner "pytest -q" --use-coverage --simple-output
 
 ```
 
@@ -160,23 +146,6 @@ PY
         with:
           name: htmlcov
           path: htmlcov/
-
-  smoke-no-poetry:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.10' }
-      - name: Install with pip (no Poetry)
-        run: |
-          python -m venv .venv
-          . .venv/bin/activate
-          pip install -r requirements.txt
-      - name: Smoke run train & predict (no Poetry)
-        run: |
-          . .venv/bin/activate
-          python -m src.train --data data.csv --alpha 1e-7 --iters 10 --theta theta.json
-        python -m src.predict 85000 --theta theta.json
 
 ```
 
