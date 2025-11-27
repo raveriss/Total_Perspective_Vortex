@@ -363,14 +363,6 @@ usage: predict.py
 
 ---
 
-## 9) Pourquoi cette version ?
-- **Alignée 42** : Ubuntu‑only, Python 3.10, no‑sudo, 2 programmes, MAJ simultanée, prédiction=0 avant train
-- **Efficace** : CI courte, messages d’erreurs testés, contrôle par fichier
-- **Évolutive** : bonus CI perso **isolés** ; viz en groupe Poetry optionnel
-- **Lisible** : checklists concises, extraits directement copiables
-
----
-
 ## 📚 Documentation du code
 
 Lorsque tu génères du code pour moi, applique **strictement** les règles
