@@ -33,6 +33,7 @@
 - [🔍 5. Entraînement](#5-entraînement)
 - [⚡ 6. Prédiction en pseudo temps réel](#6-prédiction-en-pseudo-temps-réel)
 - [🧪 Tests & qualité logicielle](#tests--qualité-logicielle)
+- [✅ Contraintes officielles du sujet](#-contraintes-officielles-du-sujet)
 - [📚 Stack technique](#stack-technique)
   - [Traitement du signal / maths](#traitement-du-signal--maths)
   - [Machine Learning](#machine-learning)
@@ -247,6 +248,32 @@ Contraintes :
 
 ---
 
+
+# ✅ Contraintes officielles du sujet
+
+Ces exigences doivent être **présentes et respectées** dans toute la documentation et le code :
+
+1. **Finalité** : classer en temps « réel » un signal EEG (imagination de mouvement A ou B).
+2. **Source des données** : utiliser **exclusivement Physionet (EEG motor imagery)** ; les signaux sont des matrices **channels × time** avec runs découpés et labellisés proprement.
+3. **Prétraitement obligatoire** :
+   - visualiser le signal brut dans un script dédié ;
+   - filtrer les bandes utiles (theta, alpha, beta… au choix) ;
+   - visualiser après prétraitement ;
+   - extraire les features (spectre, PSD, etc.) ;
+   - 🚫 interdiction implicite : ne pas utiliser `mne-realtime`.
+4. **Pipeline ML** :
+   - utilisation obligatoire de `sklearn.pipeline.Pipeline` ;
+   - transformer maison héritant de `BaseEstimator` et `TransformerMixin` ;
+   - implémenter soi-même la réduction **PCA, ICA, CSP ou CSSP** (NumPy/SciPy autorisés, pas de version prête de sklearn ou MNE).
+5. **Entraînement/validation/test** :
+   - `cross_val_score` sur l’ensemble du pipeline ;
+   - splits **Train / Validation / Test** distincts pour éviter l’overfit ;
+   - moyenne d’**accuracy ≥ 60 %** sur **tous les sujets du jeu de test** et les **6 runs** d’expériences, sur des données **jamais apprises**.
+6. **Temps réel** : le script `predict` lit un flux simulé (lecture progressive d’un fichier) et produit une prédiction en **< 2 secondes** après chaque chunk.
+7. **Architecture** : fournir un script **train** et un script **predict** ; le dépôt final contient **uniquement le code Python** (pas le dataset).
+8. **Bonus facultatifs** : wavelets pour le spectre, classifieur maison ou autres datasets EEG.
+9. **Formalisme mathématique** : pour le transformer, avec X ∈ R^{d × N}, produire une matrice W telle que W^T X = X_{CSP}/X_{PCA}/X_{ICA}.
+
 # 📚 Stack technique
 
 ### Traitement du signal / maths
@@ -278,20 +305,20 @@ Les contenus suivants ont été essentiels pour comprendre l’EEG, les
 filtres spatiaux (CSP) et la mise en place d’un pipeline d’analyse
 monotrial robuste :
 
-- 🎥 [Playlist YouTube — Machine Learning from Scratch](https://www.youtube.com/playlist?list=PLO_fdPEVlfKqUF5BPKjGSh7aV9aBshrpY)  
+- 🎥 [Playlist YouTube — Machine Learning from Scratch](https://www.youtube.com/playlist?list=PLO_fdPEVlfKqUF5BPKjGSh7aV9aBshrpY)
   Série pédagogique pour consolider les bases de l’apprentissage supervisé
   (modèles linéaires, descente de gradient, régularisation) utilisées pour
   entraîner le classifieur sur les features EEG.
 
-- 📄 [Wikipédia — Électroencéphalographie](https://fr.wikipedia.org/wiki/%C3%89lectroenc%C3%A9phalographie)  
+- 📄 [Wikipédia — Électroencéphalographie](https://fr.wikipedia.org/wiki/%C3%89lectroenc%C3%A9phalographie)
   Notions fondamentales sur l’EEG, l’acquisition du signal et le rôle des
   électrodes, indispensables pour interpréter les données brutes.
 
-- 📄 [Wikipédia — Common spatial pattern](https://en.wikipedia.org/wiki/Common_spatial_pattern)  
+- 📄 [Wikipédia — Common spatial pattern](https://en.wikipedia.org/wiki/Common_spatial_pattern)
   Présentation du principe des filtres spatiaux CSP, de la maximisation de
   la variance entre classes et de leur utilisation en BCI.
 
-- 📄 [Blankertz et al., *Optimizing Spatial Filters for Robust EEG Single-Trial Analysis*](https://doc.ml.tu-berlin.de/bbci/publications/BlaTomLemKawMue08.pdf)  
+- 📄 [Blankertz et al., *Optimizing Spatial Filters for Robust EEG Single-Trial Analysis*](https://doc.ml.tu-berlin.de/bbci/publications/BlaTomLemKawMue08.pdf)
   Article de référence décrivant les stratégies d’optimisation de filtres
   spatiaux pour améliorer la robustesse de l’analyse EEG monotrial.
 
@@ -304,7 +331,7 @@ MIT License.
 ---
 # 👤 Auteur
 
-**Rafael Verissimo**  
-Étudiant IA/Data — École 42 Paris  
-GitHub : https://github.com/raveriss  
-LinkedIn : https://www.linkedin.com/in/verissimo-rafael/  
+**Rafael Verissimo**
+Étudiant IA/Data — École 42 Paris
+GitHub : https://github.com/raveriss
+LinkedIn : https://www.linkedin.com/in/verissimo-rafael/
