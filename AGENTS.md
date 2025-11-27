@@ -368,3 +368,55 @@ usage: predict.py
 - **Efficace** : CI courte, messages d’erreurs testés, contrôle par fichier
 - **Évolutive** : bonus CI perso **isolés** ; viz en groupe Poetry optionnel
 - **Lisible** : checklists concises, extraits directement copiables
+
+---
+
+## 📚 Documentation du code
+
+Lorsque tu génères du code pour moi, applique **strictement** les règles
+de documentation suivantes.
+
+### Règles de commentaires
+
+* **Un commentaire par ligne de code**, placé **juste au-dessus** de la ligne.
+* Le commentaire doit expliquer **le “pourquoi”** de la ligne
+  (intention, rôle, effet métier, contrainte, robustesse),
+  **jamais le “comment”** ni une paraphrase du code.
+* Longueur maximale : **80 caractères par commentaire**.
+* Les commentaires doivent **respecter l’indentation du code**
+  (un commentaire est dans le même bloc que la ligne qu’il décrit).
+* **Interdit** :
+
+  * Commentaire en fin de ligne (`…  # commentaire`)
+  * Commentaire sous la ligne de code
+
+### Docstrings
+
+* Utiliser des **docstrings uniquement** pour les **fonctions/classes/modules** :
+
+  * But global, paramètres, valeurs de retour, erreurs levées.
+  * Ne pas répéter ce qui est déjà expliqué commentaire par commentaire.
+
+---
+
+### Exemple **à ne pas produire** (paraphrase du code, “comment” et non “pourquoi”)
+
+```py
+# Calcule la différence entre max_km et min_km,
+# ou 1.0 si la différence vaut 0
+km_range = max_km - min_km or 1.0  # pragma: no mutate
+
+# Calcule la différence entre max_price et min_price,
+# ou 1.0 si la différence vaut 0
+price_range = max_price - min_price or 1.0  # pragma: no mutate
+```
+
+### Exemple **attendu** (explication du “pourquoi”, pas du “comment”)
+
+```py
+# Garantit un intervalle de distance non nul pour éviter une division par zéro
+km_range = max_km - min_km or 1.0  # pragma: no mutate
+
+# Garantit un intervalle de prix non nul pour stabiliser la normalisation
+price_range = max_price - min_price or 1.0  # pragma: no mutate
+```
