@@ -58,7 +58,7 @@ cov:
 
 # Mutation testing avec Mutmut (robustesse des tests)
 mut:
-	$(POETRY) mutmut run --use-coverage --simple-output
+	$(POETRY) mutmut run
 
 
 # ----------------------------------------------------------------------------------------
