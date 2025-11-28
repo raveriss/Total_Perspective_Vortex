@@ -135,3 +135,49 @@ def test_verify_dataset_integrity_checks_hash_and_runs(tmp_path: Path) -> None:
     assert report["files"][0]["hash_ok"] is True
     # Validate the recorded run count for the subject
     assert report["subject_run_counts"]["subject01"] == 1
+
+
+def test_map_events_rejects_unknown_labels() -> None:
+    """Ensure unknown labels raise a clear validation error."""
+
+    # Create a raw recording with an unsupported annotation label
+    raw = _build_dummy_raw()
+    # Replace annotations to include an unknown class name
+    raw.set_annotations(
+        mne.Annotations(
+            onset=[0.1],
+            duration=[0.1],
+            description=["UNKNOWN"],
+        )
+    )
+    # Expect the mapping helper to reject unexpected labels explicitly
+    with pytest.raises(ValueError):
+        map_events_and_validate(raw)
+
+
+def test_verify_dataset_integrity_missing_root_raises(tmp_path: Path) -> None:
+    """Ensure missing dataset roots trigger an explicit error."""
+
+    # Define a path that does not exist under the temporary directory
+    missing_root = tmp_path / "absent_dataset"
+    # Expect integrity verification to fail fast when the directory is absent
+    with pytest.raises(FileNotFoundError):
+        verify_dataset_integrity(missing_root)
+
+
+def test_verify_dataset_integrity_run_mismatch_and_skip_files(tmp_path: Path) -> None:
+    """Validate run count mismatches raise while non-directories are ignored."""
+
+    # Create a stray file at the dataset root to trigger the skip branch
+    stray_file = tmp_path / "unexpected.txt"
+    # Write placeholder content to persist the stray file
+    stray_file.write_text("extra")
+    # Create a subject directory with fewer runs than expected
+    subject_dir = tmp_path / "subject02"
+    # Ensure the subject directory exists for run counting
+    subject_dir.mkdir(parents=True, exist_ok=True)
+    # Write one EDF file while expecting two runs
+    (subject_dir / "run01.edf").write_bytes(b"edf-run")
+    # Expect a ValueError when run counts do not match expectations
+    with pytest.raises(ValueError):
+        verify_dataset_integrity(tmp_path, expected_runs_per_subject={"subject02": 2})
