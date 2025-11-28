@@ -4,14 +4,14 @@
 # Import pathlib to type temporary paths for datasets
 from pathlib import Path
 
+# Import SimpleNamespace to build lightweight annotation holders
+from types import SimpleNamespace
+
 # Import mne to build synthetic Raw objects and annotations
 import mne
 
 # Import numpy to craft deterministic dummy EEG data
 import numpy as np
-
-# Import SimpleNamespace to build lightweight annotation holders
-from types import SimpleNamespace
 
 # Import pytest to manage temporary directories and assertions
 import pytest
@@ -19,12 +19,12 @@ import pytest
 # Import the preprocessing helpers under test
 from tpv.preprocessing import (
     PHYSIONET_LABEL_MAP,
+    _build_file_entry,
+    _collect_run_counts,
+    _extract_bad_intervals,
     create_epochs_from_raw,
     load_physionet_raw,
     map_events_and_validate,
-    _extract_bad_intervals,
-    _build_file_entry,
-    _collect_run_counts,
     verify_dataset_integrity,
 )
 
@@ -115,12 +115,16 @@ def test_load_physionet_raw_uses_resolved_path_and_reader_arguments(
     raw = _build_dummy_raw()
     # Capture the arguments received by the reader stub
     captured_args: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    # Define a stub reader that records calls and returns the dummy raw
+    def reader_stub(*args: object, **kwargs: object) -> mne.io.BaseRaw:
+        # Persist the invocation arguments for later assertions
+        captured_args.append((args, kwargs))
+        # Return the prepared Raw instance to mimic EDF loading
+        return raw
+
     # Patch the reader to store invocation details before returning the raw
-    monkeypatch.setattr(
-        mne.io,
-        "read_raw_edf",
-        lambda *args, **kwargs: captured_args.append((args, kwargs)) or raw,
-    )
+    monkeypatch.setattr(mne.io, "read_raw_edf", reader_stub)
     # Build a path with a user component to confirm resolution
     edf_path = Path("~") / "dataset" / "file.edf"
     # Execute the loader to trigger the patched reader
@@ -191,8 +195,10 @@ def test_map_events_does_not_mutate_input_label_map() -> None:
     assert event_id == label_map
     # Verify the original dictionary remains unchanged after the call
     assert label_map == {"T0": 0, "T1": 5, "T2": 6}
+    # Define the expected count of preserved events when no BAD labels exist
+    expected_event_count = 2
     # Ensure all events are retained when no BAD intervals exist
-    assert events.shape[0] == 2
+    assert events.shape[0] == expected_event_count
 
 
 def test_extract_bad_intervals_handles_non_bad_and_bad_segments() -> None:
@@ -238,7 +244,7 @@ def test_extract_bad_intervals_raises_on_mismatched_lengths() -> None:
     raw = SimpleNamespace(annotations=annotations)
     # Expect a ValueError due to zip strictness enforcing equal lengths
     with pytest.raises(ValueError):
-        _extract_bad_intervals(raw)  # type: ignore[arg-type]
+        _extract_bad_intervals(raw)
 
 
 def test_create_epochs_builds_clean_epochs(tmp_path: Path) -> None:
