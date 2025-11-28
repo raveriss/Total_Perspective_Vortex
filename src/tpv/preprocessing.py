@@ -126,20 +126,30 @@ def _validate_annotation_labels(
 
 
 def _build_keep_mask(
-    events: np.ndarray, sampling_rate: float, bad_intervals: List[Tuple[float, float]]
+    events: np.ndarray,
+    sampling_rate: float,
+    bad_intervals: List[Tuple[float, float]],
+    forced_mask: List[Any] | None = None,
 ) -> List[bool]:
     """Return a boolean mask that excludes events overlapping BAD spans."""
 
-    # Initialize a boolean mask list to track valid events explicitly
-    keep_mask: List[bool] = [True] * len(events)
-    # Iterate over events to check whether they overlap a BAD interval
-    for idx, (sample, _, _) in enumerate(events):
-        # Convert sample index to seconds to compare against annotation times
-        event_time = sample / sampling_rate
-        # Mark the event for removal when it lies within a BAD interval
-        if any(start <= event_time <= end for start, end in bad_intervals):
-            # Update the mask to drop contaminated events from the dataset
-            keep_mask[idx] = False
+    # Declare the mask variable once to maintain consistent typing across branches
+    keep_mask: List[Any]
+    # Accept an externally supplied mask to validate defensive branches explicitly
+    if forced_mask is not None:
+        # Copy the forced mask to avoid caller-side mutations affecting validation
+        keep_mask = list(forced_mask)
+    else:
+        # Initialize a boolean mask list to track valid events explicitly
+        keep_mask = [True] * len(events)
+        # Iterate over events to check whether they overlap a BAD interval
+        for idx, (sample, _, _) in enumerate(events):
+            # Convert sample index to seconds to compare against annotation times
+            event_time = sample / sampling_rate
+            # Mark the event for removal when it lies within a BAD interval
+            if any(start <= event_time <= end for start, end in bad_intervals):
+                # Update the mask to drop contaminated events from the dataset
+                keep_mask[idx] = False
     # Enforce boolean typing on the mask to avoid silent drops from bad values
     if not all(isinstance(flag, bool) for flag in keep_mask):
         # Raise when the mask contains non-boolean entries to surface errors early

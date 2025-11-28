@@ -20,6 +20,7 @@ import pytest
 from tpv.preprocessing import (
     PHYSIONET_LABEL_MAP,
     _build_file_entry,
+    _build_keep_mask,
     _collect_run_counts,
     _extract_bad_intervals,
     create_epochs_from_raw,
@@ -263,6 +264,20 @@ def test_map_events_does_not_mutate_input_label_map() -> None:
     expected_event_count = 2
     # Ensure all events are retained when no BAD intervals exist
     assert events.shape[0] == expected_event_count
+
+
+def test_build_keep_mask_rejects_non_boolean_forced_masks() -> None:
+    """Ensure forced masks containing non-bools raise an explicit error."""
+
+    # Build a minimal event matrix with a single sample for masking
+    events = np.array([[100, 0, 1]])
+    # Provide a mask containing an invalid non-boolean entry
+    forced_mask = ["invalid"]
+    # Expect a TypeError because the forced mask violates boolean typing
+    with pytest.raises(TypeError):
+        _build_keep_mask(
+            events, sampling_rate=100.0, bad_intervals=[], forced_mask=forced_mask
+        )
 
 
 def test_extract_bad_intervals_handles_non_bad_and_bad_segments() -> None:
@@ -542,6 +557,9 @@ def test_collect_run_counts_continues_after_files(
             return iter([])
         # Return two EDF paths to represent available runs
         return iter([self / "run1.edf", self / "run2.edf"])
+
+    # Confirm the stub returns no files when applied to non-subject paths
+    assert list(glob_stub(file_path, "*.edf")) == []
 
     # Patch Path.iterdir, Path.is_dir, and Path.glob to use the stubs
     monkeypatch.setattr(Path, "iterdir", lambda self: iterdir_stub())
