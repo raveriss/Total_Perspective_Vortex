@@ -247,6 +247,22 @@ def test_map_events_passes_verbose_false(monkeypatch: pytest.MonkeyPatch) -> Non
     assert captured_kwargs["verbose"] is False
 
 
+def test_map_events_raises_when_keep_mask_length_mismatches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure strict zip raises when keep_mask length diverges from events."""
+
+    # Build a raw instance with standard annotations for mapping
+    raw = _build_dummy_raw()
+    # Patch the mask builder to return a shorter mask than the events length
+    monkeypatch.setattr(
+        "tpv.preprocessing._build_keep_mask", lambda *_args, **_kwargs: [True]
+    )
+    # Expect a ValueError due to strict zip enforcing equal lengths
+    with pytest.raises(ValueError):
+        map_events_and_validate(raw)
+
+
 def test_map_events_does_not_mutate_input_label_map() -> None:
     """Ensure the helper copies the provided label map instead of mutating it."""
 
@@ -274,10 +290,29 @@ def test_build_keep_mask_rejects_non_boolean_forced_masks() -> None:
     # Provide a mask containing an invalid non-boolean entry
     forced_mask = ["invalid"]
     # Expect a TypeError because the forced mask violates boolean typing
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError) as exc:
         _build_keep_mask(
             events, sampling_rate=100.0, bad_intervals=[], forced_mask=forced_mask
         )
+    # Confirm the error message matches the strict validation text
+    assert str(exc.value) == "Event mask contained non-boolean values"
+
+
+def test_build_keep_mask_copies_valid_forced_mask() -> None:
+    """Ensure valid forced masks are copied and preserved as booleans."""
+
+    # Build a minimal event matrix for masking
+    events = np.array([[100, 0, 1], [200, 0, 2]])
+    # Provide a valid boolean mask to force deterministic filtering
+    forced_mask = [True, False]
+    # Invoke the mask builder to apply the forced mask
+    keep_mask = _build_keep_mask(
+        events, sampling_rate=100.0, bad_intervals=[], forced_mask=forced_mask
+    )
+    # Confirm the returned mask matches the forced mask values
+    assert keep_mask == forced_mask
+    # Ensure the returned mask is a distinct copy from the caller-provided list
+    assert keep_mask is not forced_mask
 
 
 def test_extract_bad_intervals_handles_non_bad_and_bad_segments() -> None:
