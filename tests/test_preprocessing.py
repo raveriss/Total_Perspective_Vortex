@@ -85,7 +85,7 @@ def test_load_physionet_raw_applies_montage_and_path(
     """Ensure loader applies montage and normalizes the path."""
 
     # Prepare a dummy raw with a patched montage setter to track invocation
-    raw = _build_dummy_raw()
+    raw = _build_dummy_raw(sfreq=100.0)
     # Initialize a list to capture montage calls for assertion
     montage_calls: list[tuple[str, dict[str, object]]] = []
     # Patch set_montage to record keyword arguments explicitly
@@ -112,7 +112,7 @@ def test_load_physionet_raw_uses_resolved_path_and_reader_arguments(
     """Ensure the loader forwards the resolved path and preload flags."""
 
     # Prepare a raw object for the stubbed reader to return
-    raw = _build_dummy_raw()
+    raw = _build_dummy_raw(sfreq=100.0)
     # Capture the arguments received by the reader stub
     captured_args: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
@@ -141,7 +141,7 @@ def test_map_events_filters_bad_segments(tmp_path: Path) -> None:
     """Validate event mapping drops events overlapping BAD intervals."""
 
     # Create a synthetic raw recording with annotations
-    raw = _build_dummy_raw()
+    raw = _build_dummy_raw(sfreq=100.0)
     # Extend annotations with a BAD interval covering the second event
     raw.set_annotations(
         raw.annotations
@@ -180,6 +180,66 @@ def test_map_events_respects_custom_label_map_and_bad_boundaries() -> None:
     assert events.shape[0] == 1
     # Validate the surviving event corresponds to the first annotation
     assert events[0, 2] == label_map["X1"]
+
+
+def test_map_events_includes_bad_interval_end_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure events ending exactly on a BAD boundary are removed."""
+
+    # Build a raw instance with deterministic sampling for boundary alignment
+    raw = _build_dummy_raw(sfreq=100.0)
+    # Define a boundary-matching event time at exactly one second
+    boundary_sample = int(raw.info["sfreq"] * 1.0)
+    # Compute the exact event time produced by the boundary sample
+    boundary_time = boundary_sample / raw.info["sfreq"]
+    # Prepare a single event that lands precisely on the BAD interval end
+    stub_events = np.array([[boundary_sample, 0, PHYSIONET_LABEL_MAP["T1"]]])
+    # Stub BAD intervals to end exactly at the event time
+    stub_bad_intervals = [(boundary_time, boundary_time)]
+
+    # Patch annotation extraction to return the boundary interval
+    monkeypatch.setattr(
+        "tpv.preprocessing._extract_bad_intervals", lambda _raw: stub_bad_intervals
+    )
+    # Patch events_from_annotations to return the boundary event deterministically
+    monkeypatch.setattr(
+        mne, "events_from_annotations", lambda *_args, **_kwargs: (stub_events, PHYSIONET_LABEL_MAP)
+    )
+
+    # Map events using the patched helpers to enforce boundary overlap
+    events, _ = map_events_and_validate(raw)
+    # Confirm the boundary event is removed due to end-inclusive filtering
+    assert events.shape[0] == 0
+
+
+def test_map_events_passes_verbose_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure events_from_annotations receives verbose=False."""
+
+    # Build a raw instance with standard annotations
+    raw = _build_dummy_raw()
+    # Prepare a placeholder event array to return from the stub
+    stub_events = np.array([[1, 0, PHYSIONET_LABEL_MAP["T1"]]])
+    # Capture keyword arguments passed to events_from_annotations
+    captured_kwargs: dict[str, object] = {}
+
+    # Define a stub that records its keyword arguments
+    def events_stub(*args: object, **kwargs: object) -> tuple[np.ndarray, dict[str, int]]:
+        # Store the keyword arguments for later assertion
+        captured_kwargs.update(kwargs)
+        # Return the prepared events and label map to mimic MNE behavior
+        return stub_events, dict(PHYSIONET_LABEL_MAP)
+
+    # Patch the MNE helper with the recording stub
+    monkeypatch.setattr(mne, "events_from_annotations", events_stub)
+    # Map events using the preprocessing helper to trigger the stub
+    events, event_id = map_events_and_validate(raw)
+    # Confirm the stub returned events are propagated to the caller
+    assert np.array_equal(events, stub_events)
+    # Ensure the effective label map is preserved from the stub
+    assert event_id == PHYSIONET_LABEL_MAP
+    # Verify the verbose flag is explicitly set to False
+    assert captured_kwargs["verbose"] is False
 
 
 def test_map_events_does_not_mutate_input_label_map() -> None:
@@ -262,6 +322,46 @@ def test_create_epochs_builds_clean_epochs(tmp_path: Path) -> None:
     assert len(epochs) == expected_epoch_count
     # Ensure epoch labels reflect the annotation mapping
     assert set(epochs.events[:, 2]) == {1, 2}
+
+
+def test_create_epochs_passes_configuration_to_mne(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure create_epochs_from_raw forwards critical arguments."""
+
+    # Build a raw instance with valid annotations for epoching
+    raw = _build_dummy_raw()
+    # Convert annotations to events for the stubbed Epochs call
+    events, event_id = map_events_and_validate(raw)
+    # Capture the arguments passed to the Epochs constructor
+    captured_args: tuple[tuple[object, ...], dict[str, object]] = ((), {})
+    # Prepare a sentinel object to return from the stubbed Epochs
+    sentinel = object()
+
+    # Define a stub for mne.Epochs that records invocation details
+    def epochs_stub(*args: object, **kwargs: object) -> object:
+        # Persist the positional and keyword arguments for assertions
+        nonlocal captured_args
+        captured_args = (args, kwargs)
+        # Return a sentinel value to confirm stub propagation
+        return sentinel
+
+    # Patch mne.Epochs with the recording stub
+    monkeypatch.setattr(mne, "Epochs", epochs_stub)
+    # Invoke epoch creation to trigger the stubbed constructor
+    result = create_epochs_from_raw(raw, events, event_id, tmin=-0.2, tmax=0.4)
+    # Confirm the stub result is returned unchanged
+    assert result is sentinel
+    # Extract positional and keyword arguments from the captured call
+    args, kwargs = captured_args
+    # Verify the raw object is the first positional argument
+    assert args[0] is raw
+    # Confirm the events array is forwarded without mutation
+    assert np.array_equal(kwargs["events"], events)
+    # Ensure the event_id mapping is provided to the constructor
+    assert kwargs["event_id"] == event_id
+    # Validate that annotation-based rejection remains enabled
+    assert kwargs["reject_by_annotation"] is True
+    # Confirm verbosity is explicitly silenced
+    assert kwargs["verbose"] is False
 
 
 def test_create_epochs_respects_custom_window(tmp_path: Path) -> None:
@@ -380,8 +480,10 @@ def test_verify_dataset_integrity_missing_root_raises(tmp_path: Path) -> None:
     # Define a path that does not exist under the temporary directory
     missing_root = tmp_path / "absent_dataset"
     # Expect integrity verification to fail fast when the directory is absent
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError) as exc:
         verify_dataset_integrity(missing_root)
+    # Confirm the error message includes the missing root path
+    assert str(exc.value) == f"Dataset directory not found: {missing_root.resolve()}"
 
 
 def test_verify_dataset_integrity_run_mismatch_and_skip_files(tmp_path: Path) -> None:
@@ -398,8 +500,49 @@ def test_verify_dataset_integrity_run_mismatch_and_skip_files(tmp_path: Path) ->
     # Write one EDF file while expecting two runs
     (subject_dir / "run01.edf").write_bytes(b"edf-run")
     # Expect a ValueError when run counts do not match expectations
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc:
         verify_dataset_integrity(tmp_path, expected_runs_per_subject={"subject02": 2})
+    # Confirm the mismatch report highlights the affected subject
+    assert "subject02" in str(exc.value)
+
+
+def test_collect_run_counts_continues_after_files(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure stray files do not halt run counting for later subjects."""
+
+    # Create fake path objects to control iteration order explicitly
+    file_path = Path("/data/note.txt")
+    # Build a subject directory placeholder with EDF files
+    subject_dir = Path("/data/subjectY")
+    # Prepare a subject directory structure in a temporary folder
+    tmp_root = Path("/data")
+
+    # Define a stub for iterdir returning a file before the subject
+    def iterdir_stub() -> list[Path]:
+        # Return a list where the file appears before the directory
+        return [file_path, subject_dir]
+
+    # Define a stub for is_dir to mark only the subject path as a directory
+    def is_dir_stub(self: Path) -> bool:  # type: ignore[override]
+        # Treat the subject directory as a directory and the note as a file
+        return self == subject_dir
+
+    # Define a stub for glob that yields two EDF files for the subject
+    def glob_stub(self: Path, pattern: str):  # type: ignore[override]
+        # Yield EDF files only when invoked on the subject directory
+        if self != subject_dir:
+            # Return an empty iterator for non-subject paths
+            return iter([])
+        # Return two EDF paths to represent available runs
+        return iter([self / "run1.edf", self / "run2.edf"])
+
+    # Patch Path.iterdir, Path.is_dir, and Path.glob to use the stubs
+    monkeypatch.setattr(Path, "iterdir", lambda self: iterdir_stub())
+    monkeypatch.setattr(Path, "is_dir", is_dir_stub)
+    monkeypatch.setattr(Path, "glob", glob_stub)
+    # Invoke run counting on the stubbed dataset root
+    counts = _collect_run_counts(tmp_root)
+    # Confirm run counting continues past the stray file
+    assert counts == {"subjectY": 2}
 
 
 def test_build_file_entry_without_expected_hashes(tmp_path: Path) -> None:

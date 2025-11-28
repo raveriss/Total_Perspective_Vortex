@@ -104,8 +104,8 @@ def map_events_and_validate(
     )
     # Preserve the full label map even if some labels are absent in a run
     event_id = dict(effective_label_map)
-    # Initialize a mask to keep only events outside invalid windows
-    keep_mask = np.ones(len(events), dtype=bool)
+    # Initialize a boolean mask list to track valid events explicitly
+    keep_mask: List[bool] = [True] * len(events)
     # Iterate over events to check whether they overlap a BAD interval
     for idx, (sample, _, _) in enumerate(events):
         # Convert sample index to seconds to compare against annotation times
@@ -114,8 +114,16 @@ def map_events_and_validate(
         if any(start <= event_time <= end for start, end in bad_intervals):
             # Update the mask to drop contaminated events from the dataset
             keep_mask[idx] = False
-    # Filter events to keep only clean samples for epoch construction
-    filtered_events = events[keep_mask]
+    # Enforce boolean typing on the mask to avoid silent drops from bad values
+    if not all(isinstance(flag, bool) for flag in keep_mask):
+        # Raise when the mask contains non-boolean entries to surface errors early
+        raise TypeError("Event mask contained non-boolean values")
+    # Gather events whose mask entries remain explicitly True
+    filtered_events_list = [
+        event for flag, event in zip(keep_mask, events) if flag is True
+    ]
+    # Convert the preserved events back to a NumPy array for downstream consumers
+    filtered_events = np.array(filtered_events_list)
     # Return clean events and the mapping for downstream epoch creation
     return filtered_events, event_id
 
