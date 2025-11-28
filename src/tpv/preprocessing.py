@@ -63,7 +63,7 @@ def _extract_bad_intervals(raw: mne.io.BaseRaw) -> List[Tuple[float, float]]:
         raw.annotations.onset,
         raw.annotations.duration,
         raw.annotations.description,
-        strict=False,
+        strict=True,
     ):
         # Skip annotations not flagged BAD to avoid overzealous filtering
         if not desc.upper().startswith("BAD"):
