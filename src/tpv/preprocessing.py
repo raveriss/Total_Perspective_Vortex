@@ -5,15 +5,19 @@ from __future__ import annotations
 
 # Preserve hashing utilities to verify dataset integrity without extra deps
 import hashlib
+
 # Keep json to format error payloads for debugging run counts
 import json
+
 # Use pathlib to guarantee portable filesystem interactions
 from pathlib import Path
+
 # Type hints clarify expectations for callers and simplify tests
-from typing import Dict, List, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Tuple
 
 # MNE is mandatory for EDF/BDF parsing and epoch management
 import mne
+
 # Numpy offers vectorized masks for fast event filtering
 import numpy as np
 
@@ -21,7 +25,9 @@ import numpy as np
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
 
 
-def load_physionet_raw(file_path: Path, montage: str = "standard_1020") -> Tuple[mne.io.BaseRaw, Dict[str, object]]:
+def load_physionet_raw(
+    file_path: Path, montage: str = "standard_1020"
+) -> Tuple[mne.io.BaseRaw, Dict[str, object]]:
     """Load an EDF/BDF Physionet file with metadata."""
 
     # Resolve the input path to avoid surprises with relative locations
@@ -53,7 +59,12 @@ def _extract_bad_intervals(raw: mne.io.BaseRaw) -> List[Tuple[float, float]]:
     # Start with an empty list to accumulate invalid windows
     bad_intervals: List[Tuple[float, float]] = []
     # Iterate annotations to translate BAD markers into explicit intervals
-    for onset, duration, desc in zip(raw.annotations.onset, raw.annotations.duration, raw.annotations.description):
+    for onset, duration, desc in zip(
+        raw.annotations.onset,
+        raw.annotations.duration,
+        raw.annotations.description,
+        strict=False,
+    ):
         # Skip annotations not flagged BAD to avoid overzealous filtering
         if not desc.upper().startswith("BAD"):
             # Continue looping when the annotation is not an invalid segment
@@ -64,15 +75,23 @@ def _extract_bad_intervals(raw: mne.io.BaseRaw) -> List[Tuple[float, float]]:
     return bad_intervals
 
 
-def map_events_and_validate(raw: mne.io.BaseRaw, label_map: Mapping[str, int] | None = None) -> Tuple[np.ndarray, Dict[str, int]]:
+def map_events_and_validate(
+    raw: mne.io.BaseRaw, label_map: Mapping[str, int] | None = None
+) -> Tuple[np.ndarray, Dict[str, int]]:
     """Map annotations to events while checking label consistency."""
 
     # Use caller-provided label map or default Physionet mapping for labels
-    effective_label_map = dict(label_map) if label_map is not None else dict(PHYSIONET_LABEL_MAP)
+    effective_label_map = (
+        dict(label_map) if label_map is not None else dict(PHYSIONET_LABEL_MAP)
+    )
     # Inspect annotations to ensure only expected labels remain
     present_labels = set(raw.annotations.description)
     # Identify labels that would break the supervised mapping stage
-    unknown_labels = {lab for lab in present_labels if lab not in effective_label_map and not lab.upper().startswith("BAD")}
+    unknown_labels = {
+        lab
+        for lab in present_labels
+        if lab not in effective_label_map and not lab.upper().startswith("BAD")
+    }
     # Stop early when unknown labels are detected to prevent silent errors
     if unknown_labels:
         # Raise a descriptive error to support dataset hygiene during setup
@@ -80,7 +99,9 @@ def map_events_and_validate(raw: mne.io.BaseRaw, label_map: Mapping[str, int] | 
     # Extract invalid windows to support removal of corrupted epochs
     bad_intervals = _extract_bad_intervals(raw)
     # Convert annotations into events that MNE Epochs can consume
-    events, _ = mne.events_from_annotations(raw, event_id=effective_label_map, verbose=False)
+    events, _ = mne.events_from_annotations(
+        raw, event_id=effective_label_map, verbose=False
+    )
     # Preserve the full label map even if some labels are absent in a run
     event_id = dict(effective_label_map)
     # Initialize a mask to keep only events outside invalid windows
@@ -126,52 +147,76 @@ def create_epochs_from_raw(
     return epochs
 
 
+def _build_file_entry(
+    data_root: Path,
+    file_path: Path,
+    expected_hashes: Mapping[str, str] | None,
+) -> Dict[str, object]:
+    """Compose a report entry for a single EDF file."""
+
+    # Record the file size to detect incomplete downloads
+    size_bytes = file_path.stat().st_size
+    # Compute SHA256 only when reference hashes are provided for comparison
+    file_hash = (
+        hashlib.sha256(file_path.read_bytes()).hexdigest() if expected_hashes else None
+    )
+    # Build a stable relative key to align with expected hashes mapping
+    rel_key = str(file_path.relative_to(data_root))
+    # Evaluate hash parity when expectations exist to surface corruption
+    hash_match = expected_hashes is None or expected_hashes.get(rel_key) == file_hash
+    # Return a structured entry consumable by integrity reports
+    return {
+        "path": rel_key,
+        "size": size_bytes,
+        "sha256": file_hash,
+        "hash_ok": hash_match,
+    }
+
+
+def _collect_run_counts(data_root: Path) -> Dict[str, int]:
+    """Count EDF runs per subject directory."""
+
+    # Initialize dictionary to aggregate run totals by subject
+    subject_counts: Dict[str, int] = {}
+    # Iterate over immediate child directories representing subjects
+    for subject_dir in data_root.iterdir():
+        # Ignore non-directories to focus exclusively on subject folders
+        if not subject_dir.is_dir():
+            # Continue scanning when encountering stray files at the root
+            continue
+        # Count EDF files within the subject directory to quantify runs
+        run_count = len(list(subject_dir.glob("*.edf")))
+        # Persist the count for downstream comparison against expectations
+        subject_counts[subject_dir.name] = run_count
+    # Return all computed run counts for further validation steps
+    return subject_counts
+
+
 def verify_dataset_integrity(
     base_path: Path,
     expected_hashes: Mapping[str, str] | None = None,
     expected_runs_per_subject: Mapping[str, int] | None = None,
-) -> Dict[str, object]:
+) -> Dict[str, Any]:
     """Verify presence, size, and optional hashes for Physionet data."""
 
     # Resolve dataset root to ensure comparisons use absolute locations
     data_root = Path(base_path).expanduser().resolve()
+    # Prepare a container for per-file reports to keep typing explicit
+    file_entries: List[Dict[str, object]] = []
     # Prepare a report structure to feed monitoring or logging systems
-    report: Dict[str, object] = {"root": str(data_root), "files": []}
+    report: Dict[str, Any] = {"root": str(data_root), "files": file_entries}
     # Fail fast if the dataset directory is missing to avoid silent skips
     if not data_root.exists():
         # Raise an explicit error when the dataset root cannot be found
         raise FileNotFoundError(f"Dataset directory not found: {data_root}")
-    # Traverse EDF files recursively to support subject/run nesting
+    # Walk through EDF files to build a detailed integrity report
     for file_path in data_root.rglob("*.edf"):
-        # Measure size to detect truncated or partial downloads
-        size_bytes = file_path.stat().st_size
-        # Compute SHA256 hash only when callers provide reference values
-        file_hash = hashlib.sha256(file_path.read_bytes()).hexdigest() if expected_hashes else None
-        # Use relative path as stable key for hash lookup and reporting
-        rel_key = str(file_path.relative_to(data_root))
-        # Determine whether the computed hash matches expectations
-        hash_match = expected_hashes is None or expected_hashes.get(rel_key) == file_hash
-        # Append file details to the report for downstream diagnostics
-        report["files"].append({
-            "path": rel_key,
-            "size": size_bytes,
-            "sha256": file_hash,
-            "hash_ok": hash_match,
-        })
+        # Append structured entry for each discovered EDF recording
+        file_entries.append(_build_file_entry(data_root, file_path, expected_hashes))
     # Validate expected run counts when provided by the caller
     if expected_runs_per_subject:
-        # Initialize dictionary to count EDF files per subject directory
-        subject_counts: Dict[str, int] = {}
-        # Inspect top-level subject directories to compute run totals
-        for subject_dir in data_root.iterdir():
-            # Ignore non-directories to focus on subject folders
-            if not subject_dir.is_dir():
-                # Continue when encountering unexpected files at the root
-                continue
-            # Count EDF files within the subject directory to measure runs
-            run_count = len(list(subject_dir.glob("*.edf")))
-            # Store the run count to compare against expected values
-            subject_counts[subject_dir.name] = run_count
+        # Collect run totals per subject to compare against expectations
+        subject_counts = _collect_run_counts(data_root)
         # Attach run counts to the report for external visibility
         report["subject_run_counts"] = subject_counts
         # Identify subjects whose run counts deviate from expectations

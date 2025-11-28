@@ -14,7 +14,7 @@ on:
     paths-ignore:
       - '**/*.md'
       - '**/*.txt'
-      - '**/*.png'    
+      - '**/*.png'
 
 env:
   PYTHON_VERSION: "3.10"

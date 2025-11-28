@@ -157,7 +157,7 @@ Vérifiez l’intégrité et le nombre de runs avant tout parsing :
 ```bash
 poetry run python - <<'PY'
 from pathlib import Path
-from src.tpv.preprocessing import verify_dataset_integrity
+from tpv.preprocessing import verify_dataset_integrity
 print(verify_dataset_integrity(Path('data/raw')))
 PY
 ```

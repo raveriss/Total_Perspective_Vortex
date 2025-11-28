@@ -11,7 +11,7 @@ Tous les agents doivent considérer comme **sources de vérité** :
 - le **WBS** : `docs/project/wbs_tpv.md`
 - le **Gantt / roadmap** : `docs/project/gantt_tpv.png`, `docs/project/roadmap.md`
 - la **Murphy Map** : `docs/risk/tpv_murphy_map.csv`
-- le **GitHub Project** :  
+- le **GitHub Project** :
   `Total_Perspective_Vortex – WBS & Murphy Map – v1.0 - 2025/11/28`
 - les **issues GitHub** du repo : `raveriss/Total_Perspective_Vortex`
 

@@ -1,16 +1,20 @@
 """Unit tests for Physionet preprocessing helpers."""
 
 # Import pathlib to construct temporary dataset layouts
+# Import pathlib to type temporary paths for datasets
 from pathlib import Path
-# Import numpy to craft deterministic dummy EEG data
-import numpy as np
-# Import pytest to manage temporary directories and assertions
-import pytest
+
 # Import mne to build synthetic Raw objects and annotations
 import mne
 
+# Import numpy to craft deterministic dummy EEG data
+import numpy as np
+
+# Import pytest to manage temporary directories and assertions
+import pytest
+
 # Import the preprocessing helpers under test
-from src.tpv.preprocessing import (
+from tpv.preprocessing import (
     PHYSIONET_LABEL_MAP,
     create_epochs_from_raw,
     load_physionet_raw,
@@ -42,7 +46,9 @@ def _build_dummy_raw(sfreq: float = 128.0) -> mne.io.Raw:
     return raw
 
 
-def test_load_physionet_raw_reads_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_physionet_raw_reads_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Ensure loader returns Raw and metadata from EDF files."""
 
     # Build a dummy raw instance with consistent annotations
@@ -74,7 +80,8 @@ def test_map_events_filters_bad_segments(tmp_path: Path) -> None:
     raw = _build_dummy_raw()
     # Extend annotations with a BAD interval covering the second event
     raw.set_annotations(
-        raw.annotations + mne.Annotations(onset=[0.55], duration=[0.2], description=["BAD_segment"])
+        raw.annotations
+        + mne.Annotations(onset=[0.55], duration=[0.2], description=["BAD_segment"])
     )
     # Derive events and event_id using the validation helper
     events, event_id = map_events_and_validate(raw)
@@ -95,8 +102,10 @@ def test_create_epochs_builds_clean_epochs(tmp_path: Path) -> None:
     events, event_id = map_events_and_validate(raw)
     # Construct epochs and ensure no epoch is dropped unnecessarily
     epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.2)
+    # Define the expected number of epochs for clarity in assertions
+    expected_epoch_count = 2
     # Expect two epochs corresponding to the two annotations
-    assert len(epochs) == 2
+    assert len(epochs) == expected_epoch_count
     # Ensure epoch labels reflect the annotation mapping
     assert set(epochs.events[:, 2]) == {1, 2}
 
