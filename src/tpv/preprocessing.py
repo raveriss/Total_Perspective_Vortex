@@ -84,6 +84,33 @@ def map_events_and_validate(
     effective_label_map = (
         dict(label_map) if label_map is not None else dict(PHYSIONET_LABEL_MAP)
     )
+    # Confirm annotations contain only labels that the mapping can handle
+    _validate_annotation_labels(raw, effective_label_map)
+    # Extract invalid windows to support removal of corrupted epochs
+    bad_intervals = _extract_bad_intervals(raw)
+    # Convert annotations into events that MNE Epochs can consume
+    events, _ = mne.events_from_annotations(
+        raw, event_id=effective_label_map, verbose=False
+    )
+    # Preserve the full label map even if some labels are absent in a run
+    event_id = dict(effective_label_map)
+    # Build a boolean mask describing which events survive BAD intervals
+    keep_mask = _build_keep_mask(events, raw.info["sfreq"], bad_intervals)
+    # Gather events whose mask entries remain explicitly True
+    filtered_events_list = [
+        event for flag, event in zip(keep_mask, events, strict=True) if flag is True
+    ]
+    # Convert the preserved events back to a NumPy array for downstream consumers
+    filtered_events = np.array(filtered_events_list)
+    # Return clean events and the mapping for downstream epoch creation
+    return filtered_events, event_id
+
+
+def _validate_annotation_labels(
+    raw: mne.io.BaseRaw, effective_label_map: Mapping[str, int]
+) -> None:
+    """Ensure annotations only include labels present in the mapping."""
+
     # Inspect annotations to ensure only expected labels remain
     present_labels = set(raw.annotations.description)
     # Identify labels that would break the supervised mapping stage
@@ -96,20 +123,19 @@ def map_events_and_validate(
     if unknown_labels:
         # Raise a descriptive error to support dataset hygiene during setup
         raise ValueError(f"Unknown labels in annotations: {sorted(unknown_labels)}")
-    # Extract invalid windows to support removal of corrupted epochs
-    bad_intervals = _extract_bad_intervals(raw)
-    # Convert annotations into events that MNE Epochs can consume
-    events, _ = mne.events_from_annotations(
-        raw, event_id=effective_label_map, verbose=False
-    )
-    # Preserve the full label map even if some labels are absent in a run
-    event_id = dict(effective_label_map)
+
+
+def _build_keep_mask(
+    events: np.ndarray, sampling_rate: float, bad_intervals: List[Tuple[float, float]]
+) -> List[bool]:
+    """Return a boolean mask that excludes events overlapping BAD spans."""
+
     # Initialize a boolean mask list to track valid events explicitly
     keep_mask: List[bool] = [True] * len(events)
     # Iterate over events to check whether they overlap a BAD interval
     for idx, (sample, _, _) in enumerate(events):
         # Convert sample index to seconds to compare against annotation times
-        event_time = sample / raw.info["sfreq"]
+        event_time = sample / sampling_rate
         # Mark the event for removal when it lies within a BAD interval
         if any(start <= event_time <= end for start, end in bad_intervals):
             # Update the mask to drop contaminated events from the dataset
@@ -118,14 +144,8 @@ def map_events_and_validate(
     if not all(isinstance(flag, bool) for flag in keep_mask):
         # Raise when the mask contains non-boolean entries to surface errors early
         raise TypeError("Event mask contained non-boolean values")
-    # Gather events whose mask entries remain explicitly True
-    filtered_events_list = [
-        event for flag, event in zip(keep_mask, events) if flag is True
-    ]
-    # Convert the preserved events back to a NumPy array for downstream consumers
-    filtered_events = np.array(filtered_events_list)
-    # Return clean events and the mapping for downstream epoch creation
-    return filtered_events, event_id
+    # Return the vetted mask for downstream event filtering
+    return keep_mask
 
 
 def create_epochs_from_raw(

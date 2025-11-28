@@ -204,7 +204,9 @@ def test_map_events_includes_bad_interval_end_boundary(
     )
     # Patch events_from_annotations to return the boundary event deterministically
     monkeypatch.setattr(
-        mne, "events_from_annotations", lambda *_args, **_kwargs: (stub_events, PHYSIONET_LABEL_MAP)
+        mne,
+        "events_from_annotations",
+        lambda *_args, **_kwargs: (stub_events, PHYSIONET_LABEL_MAP),
     )
 
     # Map events using the patched helpers to enforce boundary overlap
@@ -224,7 +226,9 @@ def test_map_events_passes_verbose_false(monkeypatch: pytest.MonkeyPatch) -> Non
     captured_kwargs: dict[str, object] = {}
 
     # Define a stub that records its keyword arguments
-    def events_stub(*args: object, **kwargs: object) -> tuple[np.ndarray, dict[str, int]]:
+    def events_stub(
+        *args: object, **kwargs: object
+    ) -> tuple[np.ndarray, dict[str, int]]:
         # Store the keyword arguments for later assertion
         captured_kwargs.update(kwargs)
         # Return the prepared events and label map to mimic MNE behavior
@@ -324,7 +328,9 @@ def test_create_epochs_builds_clean_epochs(tmp_path: Path) -> None:
     assert set(epochs.events[:, 2]) == {1, 2}
 
 
-def test_create_epochs_passes_configuration_to_mne(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_create_epochs_passes_configuration_to_mne(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Ensure create_epochs_from_raw forwards critical arguments."""
 
     # Build a raw instance with valid annotations for epoching
@@ -354,8 +360,8 @@ def test_create_epochs_passes_configuration_to_mne(monkeypatch: pytest.MonkeyPat
     args, kwargs = captured_args
     # Verify the raw object is the first positional argument
     assert args[0] is raw
-    # Confirm the events array is forwarded without mutation
-    assert np.array_equal(kwargs["events"], events)
+    # Confirm the events array is forwarded without mutation after coercion
+    assert np.array_equal(np.asarray(kwargs["events"]), events)
     # Ensure the event_id mapping is provided to the constructor
     assert kwargs["event_id"] == event_id
     # Validate that annotation-based rejection remains enabled
@@ -506,7 +512,9 @@ def test_verify_dataset_integrity_run_mismatch_and_skip_files(tmp_path: Path) ->
     assert "subject02" in str(exc.value)
 
 
-def test_collect_run_counts_continues_after_files(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_collect_run_counts_continues_after_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Ensure stray files do not halt run counting for later subjects."""
 
     # Create fake path objects to control iteration order explicitly
@@ -522,12 +530,12 @@ def test_collect_run_counts_continues_after_files(monkeypatch: pytest.MonkeyPatc
         return [file_path, subject_dir]
 
     # Define a stub for is_dir to mark only the subject path as a directory
-    def is_dir_stub(self: Path) -> bool:  # type: ignore[override]
+    def is_dir_stub(self: Path) -> bool:
         # Treat the subject directory as a directory and the note as a file
         return self == subject_dir
 
     # Define a stub for glob that yields two EDF files for the subject
-    def glob_stub(self: Path, pattern: str):  # type: ignore[override]
+    def glob_stub(self: Path, pattern: str):
         # Yield EDF files only when invoked on the subject directory
         if self != subject_dir:
             # Return an empty iterator for non-subject paths
