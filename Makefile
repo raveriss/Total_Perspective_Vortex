@@ -1,5 +1,5 @@
 # ========================================================================================
-# Makefile - Automatisation pour le projet ft_linear_regression
+# Makefile - Automatisation pour le projet Total_Perspective_Vortex
 # Objectifs :
 #   - Simplifier l’installation et la gestion de l’environnement (Poetry / venv)
 #   - Automatiser les vérifications (lint, format, type-check, tests, coverage, mutation)
@@ -38,7 +38,8 @@ format:
 
 # Vérification des types avec Mypy
 type:
-	$(POETRY) mypy src
+	$(POETRY) mypy src scripts tests
+
 
 # ----------------------------------------------------------------------------------------
 # Tests et couverture
@@ -57,8 +58,8 @@ cov:
 
 # Mutation testing avec Mutmut (robustesse des tests)
 mut:
-	$(POETRY) mutmut run
-	$(POETRY) mutmut results > mutmut-results.txt
+	$(POETRY) mutmut run --use-coverage --simple-output
+
 
 # ----------------------------------------------------------------------------------------
 # Commandes liées au modèle (Poetry)

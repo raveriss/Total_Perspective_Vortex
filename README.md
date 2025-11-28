@@ -312,8 +312,7 @@ Ces exigences doivent être **présentes et respectées** dans toute la document
 
 Les fichiers de cartographie des risques (Loi de Murphy) se trouvent dans :
 
-- `docs/qa/murphy_map_tpv_v1.csv`
-- `docs/qa/murphy_map_tpv_v2.csv`
+- `docs/qa/murphy_map_tpv.csv`
 
 ---
 

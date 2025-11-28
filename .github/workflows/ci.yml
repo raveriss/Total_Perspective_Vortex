@@ -5,8 +5,16 @@ on:
   push:
     branches: [ main, develop ]
     tags: [ 'v*' ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.png'
   pull_request:
     branches: [ main, develop ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.png'    
 
 env:
   PYTHON_VERSION: "3.10"

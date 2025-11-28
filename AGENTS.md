@@ -1,8 +1,23 @@
-# AGENTS.md — Blueprint de Développement, Qualité, Checklist & Loi de Murphy (ft_linear_regression)
+# AGENTS.md — Blueprint Dev / Qualité / WBS / Loi de Murphy (Total_Perspective_Vortex)
 
-**Contexte cible** : Ubuntu 22.04.5 (Jammy), Python 3.10.18, **pas de sudo**, **Poetry**, exécution **uniquement sur Ubuntu**.
+**Contexte cible** : Ubuntu 22.04.5 (Jammy), Python 3.10.18, **pas de sudo**,
+**Poetry**, exécution **uniquement sur Ubuntu**.
 
-Ce document sert de **plan d’action exécutable**
+Ce document sert de **plan d’action exécutable** pour les agents (LLM/Codex)
+chargés de modifier le dépôt **Total_Perspective_Vortex**.
+
+Tous les agents doivent considérer comme **sources de vérité** :
+
+- le **WBS** : `docs/project/wbs_tpv.md`
+- le **Gantt / roadmap** : `docs/project/gantt_tpv.png`, `docs/project/roadmap.md`
+- la **Murphy Map** : `docs/risk/tpv_murphy_map.csv`
+- le **GitHub Project** :  
+  `Total_Perspective_Vortex – WBS & Murphy Map – v1.0 - 2025/11/28`
+- les **issues GitHub** du repo : `raveriss/Total_Perspective_Vortex`
+
+Aucune implémentation, refactor ou ajout de fichier ne doit être réalisé
+hors de ce cadrage (WBS + risques + issues).
+
 
 ---
 
@@ -19,16 +34,60 @@ Les contraintes suivantes doivent figurer simultanément dans README, AGENTS et 
 7. **Architecture** : présence d’un script **train** et d’un script **predict** ; le dépôt final versionné contient **uniquement le code Python** (dataset exclu).
 8. **Bonus facultatifs** : wavelets pour le spectre, classifieur maison, autres datasets EEG.
 9. **Formalisme mathématique** : pour le transformer, avec X ∈ R^{d × N}, produire une matrice W telle que W^T X = X_{CSP}/X_{PCA}/X_{ICA}.
- pour implémenter `ft_linear_regression` à la 42, avec une posture **défense‑proof** : TDD systématique, couverture **100 %** (statements **et** branches), **diff=100 %**, contrôle **par fichier**, CI Ubuntu‑only. Les bonus CI perso sont isolés.
+pour implémenter `Total_Perspective_Vortex` avec une posture **défense-proof** :
+TDD systématique, couverture 100 %, diff=100 %, contrôle par fichier, CI Ubuntu-only.
+
 
 ---
+
+## 🔁 Règles pour les agents (LLM / Codex)
+
+Avant de générer du code, **tout agent** doit :
+
+1. **Identifier le WBS ID concerné**
+   - Chercher dans `docs/project/wbs_tpv.md` la tâche correspondante.
+   - Si aucune tâche ne correspond, **ne pas inventer de feature** :
+     proposer d’abord une mise à jour du WBS.
+
+2. **Consulter la Murphy Map**
+   - Filtrer `docs/risk/tpv_murphy_map.csv` sur ce WBS ID.
+   - Lister les `Murphy ID` associés et leurs risques (cause, effet).
+   - Adapter le design / les tests pour couvrir ces risques.
+
+3. **Travailler via une issue GitHub**
+   - Vérifier qu’une issue existe pour ce WBS ID.
+   - Si ce n’est pas le cas, proposer une **issue à créer** avec :
+     - titre = WBS ID + résumé court,
+     - lien vers les sections WBS + Murphy Map concernées.
+
+4. **Mettre à jour l’item dans le GitHub Project**
+   - Associer l’issue à l’item du Project.
+   - Mettre à jour les champs : `Status`, `Phase`, `Type`, `Priority`,
+     `Risk score` si pertinent.
+
+5. **Ne jamais livrer de code sans trace WBS**
+   - Tout nouveau module / script / test doit pouvoir être relié à un
+     `WBS ID` et, si applicable, à un ou plusieurs `Murphy ID`.
+   - En cas de doute, l’agent doit **refuser l’implémentation** et
+     demander une clarification WBS / risques.
+6. **Respect strict de la structure TPV**
+   - Aucun fichier ne doit être créé en dehors de :
+     - `src/tpv/` (code ML / EEG)
+     - `scripts/` (scripts CLI ou visualisation)
+     - `tests/` (tests)
+     - `docs/` (documentation)
+   - Aucun fichier Python ne doit être ajouté à la racine, sauf `mybci.py`.
+   - Toute proposition de nouveau fichier doit pointer vers :
+     - un **WBS ID**,
+     - une **issue GitHub** existante ou à créer,
+     - un ou plusieurs **Murphy ID** associés.
+
 
 ## 0) 🏗️ Fondations techniques & outillage
 
 ### 0.1 Git & hygiène de repo
 - [ ] Init repo + `README.md` (usage, séquence de soutenance, badges CI si voulu)
 - [ ] `LICENSE` (MIT) + `author`
-- [ ] `.gitignore` : `theta.json`, `htmlcov/`, `.coverage*`, `.pytest_cache/`, `__pycache__/`, `*.pyc`
 - [ ] Convention commits : `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
 
 ### 0.2 Environnement & dépendances (Poetry, no‑sudo)
@@ -42,60 +101,194 @@ Les contraintes suivantes doivent figurer simultanément dans README, AGENTS et 
 - [ ] `pyproject.toml` — **versions Python verrouillées** :
   ```toml
   [tool.poetry]
-  name = "ft-linear-regression"
+  name = "total-perspective-vortex"
   version = "0.1.0"
-  description = "42 Total_Perspective_Vortex (Ubuntu-only, Poetry)"
+  description = "EEG Brain-Computer Interface pipeline for the Total Perspective Vortex project."
   authors = ["raveriss <you@example.com>"]
+  license = "MIT"
+  readme = "README.md"
+  packages = [{ include = "tpv", from = "src" }]
 
   [tool.poetry.dependencies]
   python = ">=3.10,<3.11"
+  numpy = "^1.26"
+  pandas = "^2.2"
+  scipy = "^1.11"
+  scikit-learn = "^1.3"
+  mne = "^1.6"
+  matplotlib = "^3.8"
+  joblib = "^1.4"
 
   [tool.poetry.group.dev.dependencies]
   pytest = "^8.3"
   pytest-cov = "^5.0"
   pytest-timeout = "^2.3"
   pytest-randomly = "^3.15"
-  mypy = "^1.10"
-  ruff = "^0.5"
+  hypothesis = "^6.112"
+  mypy = "^1.11"
+  ruff = "^0.6"
+  black = "^24.10"
+  isort = "^5.13"
+  bandit = "^1.7"
   mutmut = "^3.0"
+  radon = "^6.0"
+  xenon = "^0.9"
+  pre-commit = "^4.0"
+  pip-audit = "^2.7"
+  coverage = "^7.6"
 
-  [tool.poetry.group.viz]
-  optional = true
-  [tool.poetry.group.viz.dependencies]
-  matplotlib = "^3.9"
+  [tool.black]
+  line-length = 88
+  target-version = ["py310"]
+
+  [tool.isort]
+  profile = "black"
+  line_length = 88
+  known_first_party = ["mybci", "tpv"]
+  src_paths = ["src", "scripts", "tests"]
 
   [tool.ruff]
   line-length = 88
+  target-version = "py310"
+
   [tool.ruff.lint]
-  select = ["E","F","W","I"]
-  [tool.ruff.format]
-  quote-style = "double"
+  select = ["E", "F", "W", "I", "B", "PL", "C4"]
+  ignore = []
+
+  [tool.ruff.lint.isort]
+  known-first-party = ["mybci", "tpv"]
+
+  [tool.mutmut]
+  paths_to_mutate = ["mybci.py", "src/tpv"]
+  tests_dir = "tests"
+  pytest_add_cli_args = ["-q"]
+  mutate_only_covered_lines = true
+
+  [tool.pytest.ini_options]
+  pythonpath = ["src", ".", ".."]
+
+  [tool.mypy]
+  python_version = "3.10"
+  check_untyped_defs = true
+  warn_unused_ignores = true
+  warn_return_any = true
+  warn_redundant_casts = true
+  strict_optional = true
+  no_implicit_optional = true
+  show_error_codes = true
+  pretty = true
+  ignore_missing_imports = true
+  files = "src scripts tests"
+
+  [build-system]
+  requires = ["poetry-core"]
+  build-backend = "poetry.core.masonry.api"
+
+
   ```
 
 ### 0.3 Makefile (raccourcis non intrusifs)
 ```Makefile
-.PHONY: install lint format type test cov mut run-train run-predict
+# ========================================================================================
+# Makefile - Automatisation pour le projet Total_Perspective_Vortex
+# Objectifs :
+#   - Simplifier l’installation et la gestion de l’environnement (Poetry / venv)
+#   - Automatiser les vérifications (lint, format, type-check, tests, coverage, mutation)
+#   - Fournir des commandes pratiques pour l’entraînement et la prédiction du modèle
+# ========================================================================================
+
+.PHONY: install lint format type test cov mut train predict viz tv-bench-all tv-bench-% activate deactivate
+
+VENV = .venv
+VENV_BIN = $(VENV)/bin/activate
+
+# --- Benchmarks ---------------------------------------------------------------
+BENCH_DIR   := data/benchmarks
+BENCH_CSVS  := $(wildcard $(BENCH_DIR)/*.csv)
+
+# Utilisation raccourcie de Poetry
+POETRY = poetry run
+
+# ----------------------------------------------------------------------------------------
+# Installation des dépendances (dev inclus)
+# ----------------------------------------------------------------------------------------
 install:
-        poetry install --with dev
+	poetry install --with dev
+
+# ----------------------------------------------------------------------------------------
+# Vérifications de qualité du code
+# ----------------------------------------------------------------------------------------
+
+# Linting avec Ruff (analyse statique rapide)
 lint:
-        poetry run ruff check .
+	$(POETRY) ruff check .
+
+# Formatage + correction auto avec Ruff
 format:
-        poetry run ruff format . && poetry run ruff check --fix .
+	$(POETRY) ruff format . && $(POETRY) ruff check --fix .
+
+# Vérification des types avec Mypy
 type:
-        poetry run mypy src
+  $(POETRY) mypy src scripts tests
+
+
+# ----------------------------------------------------------------------------------------
+# Tests et couverture
+# ----------------------------------------------------------------------------------------
+
+# Exécution des tests unitaires
 test:
-        poetry run pytest -q
+	$(POETRY) pytest -vv
+
+# Analyse de la couverture avec rapport JSON, HTML et console (100% requis)
 cov:
-        poetry run coverage run -m pytest && \
-        poetry run coverage json -o coverage.json && \
-        poetry run coverage html --skip-empty --show-contexts && \
-        poetry run coverage report --fail-under=100
+	$(POETRY) coverage run -m pytest && \
+	$(POETRY) coverage json -o coverage.json && \
+	$(POETRY) coverage html --skip-empty --show-contexts && \
+	$(POETRY) coverage report --fail-under=100
+
+# Mutation testing avec Mutmut (robustesse des tests)
 mut:
-        poetry run mutmut run --paths-to-mutate src --tests-dir tests --runner "pytest -q" --use-coverage --simple-output
-run-train:
-        poetry run python3 -m src.train
-run-predict:
-        poetry run python3 -m src.predict
+  $(POETRY) mutmut run --use-coverage --simple-output
+
+
+# ----------------------------------------------------------------------------------------
+# Commandes liées au modèle (Poetry)
+# ----------------------------------------------------------------------------------------
+
+TRAIN_SUBJECT ?= S01
+TRAIN_RUN ?= R01
+PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
+PREDICT_RUN ?= $(TRAIN_RUN)
+
+# Entraînement du modèle : exemple minimal avec sujet et run de démonstration
+train:
+	$(POETRY) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train
+
+# Prédiction : exemple minimal réutilisant les identifiants ci-dessus
+predict:
+	$(POETRY) python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict
+
+
+
+# Affiche la commande pour activer le venv
+activate:
+	@echo "Chemin de l'environnement Poetry :"
+	@poetry env info -p
+	@echo
+	@echo "Pour activer manuellement cet environnement :"
+	@echo "  source $$(poetry env info -p)/bin/activate"
+
+# Affiche la commande pour désactiver le venv
+deactivate:
+	@echo "Pour quitter l'environnement :"
+	@echo "  deactivate"
+
+# ----------------------------------------------------------------------------------------
+# Règle générique pour ignorer les cibles numériques (ex. make predict-nocheck 23000)
+# ----------------------------------------------------------------------------------------
+%:
+	@:
 
 ```
 
@@ -123,7 +316,7 @@ jobs:
       - name: Lint & type
         run: |
           poetry run ruff check .
-          poetry run mypy src
+          poetry run mypy src scripts tests
       - name: Tests & coverage (100 % global, diff 100 %)
         run: |
           poetry run coverage run -m pytest -q
@@ -158,39 +351,24 @@ PY
 ---
 
 ## 1) 🧩 Architecture minimale (agents)
-- **`src/classifier.py`** :
-- **`src/dimensionality.py`** :
-- **`src/features.py`** :
-- **`src/__init__.py`** :
-- **`src/pipeline.py`** :
-- **`src/predict.py`** :
-- **`src/preprocessing.py`** :
-- **`src/realtime.py`** :
-- **`src/train.py`** :
-- **`src/utils.py`** :
+- **`src/tpv/classifier.py`** :
+- **`src/tpv/dimensionality.py`** :
+- **`src/tpv/features.py`** :
+- **`src/tpv/__init__.py`** :
+- **`src/tpv/pipeline.py`** :
+- **`src/tpv/predict.py`** :
+- **`src/tpv/preprocessing.py`** :
+- **`src/tpv/realtime.py`** :
+- **`src/tpv/train.py`** :
+- **`src/tpv/utils.py`** :
 
 - **`tests/`** : unitaires + E2E + erreurs I/O + contrats.
 - **Bonus isolé** :
 
-> **Main guard requis** partout : `if __name__ == "__main__": main()` et exécution via `python3 -m src.train` / `python3 -m src.predict`.
+ **Main guard requis** partout : `if __name__ == "__main__": main()`
+ et exécution modulaire via `python -m tpv.train` / `python -m tpv.predict`
+ ou via le point d'entrée `python mybci.py <subject> <run> {train,predict}`.
 
----
-
-## 2) 📜 Exigences 42 — conformité stricte
-- [ ] **Deux programmes distincts** : `train.py`, `predict.py`.
-- [ ] Hypothèse **exacte** : `estimate_price(x) = θ0 + θ1 * x`.
-- [ ] **Initialisation** : `θ0 = 0`, `θ1 = 0`.
-- [ ] **Mise à jour simultanée** : calculer `tmpθ0`, `tmpθ1` à partir des `θ` **courants**, puis assigner `θ ← θ − tmpθ` en **fin** d’itération.
-- [ ] **Avant entraînement** : prédire **0** pour tout `km`.
-- [ ] **Pas de lib magique** : **interdit** `numpy.polyfit`, `sklearn.LinearRegression`.
-- [ ] **Persistance** : `theta.json` UTF‑8 (`{"theta0":..., "theta1":...}`) ; messages + codes retour ≠0 si manquant/corrompu.
-- [ ] **CLI** : options `--alpha`, `--iters`, `--theta` ; **pas de magic numbers** en dur.
-- [ ] **Predict interactif par défaut** : prompt si kilométrage non fourni.
-- [ ] **Prédiction avant entraînement = 0** : tant que theta.json n’a pas été entraîné/écrit, predict doit renvoyer 0 pour tout kilométrage (hypothèse avec θ0=0, θ1=0). Testable en défense.
-
-**Scénario E2E “défense” (à garder en sous‑puces) :**
-- [ ] Étape
-...
 
 ---
 
@@ -201,26 +379,6 @@ PY
 -
 ...
 
-### 3.2 E2E
--
-- CLI `--help` (exit 0), erreurs d’options (exit ≠ 0, message)
-- **Entrée interactive** : prompt
-
-### 3.3 Couverture (outil `coverage`)
-- `.coveragerc` implicite via commandes : `branch=True`, `--skip-empty`, `--show-contexts`
-- Générer `coverage.json` → script CI vérifie **100 % par fichier**
-- **Diff=100 %** (chaque patch couvert)
-- CI verrouillée sur **Ubuntu 22.04 uniquement** (pas de Windows/macOS)
-- Upload vers **Codecov** (`coverage.xml`) → badge obligatoire pour mandatory
-
-### 3.4 Mutation (CI perso)
-- Outil : `mutmut` avec **scope global** sur tout le code **mandatory** (`src/`), pas seulement l’algorithme.
-- Commande de référence :
-  `mutmut run --paths-to-mutate src --tests-dir tests --runner "pytest -q" --use-coverage --simple-output`
-- Objectif : **≥ 90 % de mutants tués** sur l’ensemble du code mandatory.
-- Exclusions permises (documentées) : bonus (`src/viz.py`) et tout point d’entrée `__main__` pure glue non testable.
-- Tout mutant survivant sur les zones **critiques** (formules, MAJ simultanée, I/O de `theta.json`, gestion d’erreurs CLI) = **échec** jusqu’à ajout de tests.
-- CI : publier le rapport des survivants en artefact et lister les justifications résiduelles.
 
 ### 3.5 Tolérances numériques (si tests internes)
 -
@@ -240,7 +398,7 @@ PY
 ### 4.3 Persistance
 -
   ```
-- **Ne jamais** committer
+- **Ne jamais** committer les datasets bruts ou fichiers issus de Physionet.
 
 ### 4.4 Structure projet
 ```
@@ -248,6 +406,7 @@ PY
 ├── AGENTS.md
 ├── author
 ├── codecov.yml
+├── create_tpv_fields.sh
 ├── docs
 │   ├── assets
 │   │   ├── image01.png
@@ -255,18 +414,21 @@ PY
 │   ├── project
 │   │   ├── gantt_tpv.png
 │   │   ├── roadmap.md
-│   │   └── wbs_tpv_v1.md
+│   │   └── wbs_tpv.md
 │   ├── risk
-│   │   └── tpv_murphy_map_v8.csv
+│   │   └── tpv_murphy_map.csv
 │   ├── total_perspective_vortex.en.checklist.pdf
 │   └── Total_Perspective_Vortex.en.subject.pdf
 ├── LICENSE
 ├── Makefile
+├── mybci.py
 ├── poetry.lock
 ├── poetry.toml
 ├── pyproject.toml
 ├── README.md
 ├── scripts
+│   ├── import_murphy_issues.py
+│   ├── import_murphy_to_project.py
 │   ├── predict.py
 │   ├── train.py
 │   └── visualize_raw_filtered.py
@@ -285,6 +447,7 @@ PY
 └── tests
     ├── test_classifier.py
     ├── test_dimensionality.py
+    ├── test_mybci.py
     ├── test_pipeline.py
     ├── test_preprocessing.py
     └── test_realtime.py
