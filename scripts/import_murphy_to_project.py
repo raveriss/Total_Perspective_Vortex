@@ -8,10 +8,11 @@ Prérequis :
 """
 
 import csv
-import subprocess
+import json
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
-
+from typing import Any, Dict, List
 
 # ---------------- CONFIG À ADAPTER SI BESOIN ---------------- #
 
@@ -58,10 +59,10 @@ FIELD_MAPPING = {
 # ------------------------------------------------------------ #
 
 
-def run_gh(args):
+def run_gh(args: List[str]) -> str:
     """Exécute une commande gh et renvoie stdout (str) ou lève une erreur."""
     cmd = ["gh"] + args
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B603
         cmd,
         check=True,
         capture_output=True,
@@ -85,14 +86,10 @@ def create_project_item(title: str) -> str:
             "json",
         ]
     )
-    # on parse à la main pour éviter d'importer json juste pour une clé
     # stdout ressemble à :
     # {"id":"PVTIF_xxx","...":...}
-    # on récupère la valeur après "id":
-    import json
-
-    data = json.loads(stdout)
-    item_id = data.get("id")
+    data: Dict[str, Any] = json.loads(stdout)
+    item_id = str(data.get("id")) if data.get("id") is not None else ""
     if not item_id:
         raise RuntimeError(f"Impossible de récupérer l'id de l'item pour '{title}'")
     return item_id
@@ -117,12 +114,42 @@ def edit_project_item(item_id: str, fields: dict) -> None:
     for project_field_name, value in fields.items():
         if value is None:
             continue
-        value = str(value).strip()
-        if not value:
+        sanitized_value = str(value).strip()
+        if not sanitized_value:
             continue
-        args.extend(["--field", f"{project_field_name}={value}"])
+        args.extend(["--field", f"{project_field_name}={sanitized_value}"])
 
     run_gh(args)
+
+
+def _sanitize_fields(row: dict) -> Dict[str, str]:
+    """Nettoie les valeurs avant édition dans le Project."""
+
+    sanitized: Dict[str, str] = {}
+    for csv_col, project_field in FIELD_MAPPING.items():
+        if csv_col not in row:
+            continue
+        sanitized_value = str(row.get(csv_col, "")).strip()
+        if not sanitized_value:
+            continue
+        sanitized[project_field] = sanitized_value
+    return sanitized
+
+
+def _process_row(idx: int, row: dict) -> None:
+    """Crée un item de Project et applique les champs du CSV."""
+
+    title = (row.get(TITLE_COLUMN) or "").strip()
+    if not title:
+        wbs = (row.get("WBS ID") or "").strip()
+        mid = (row.get("Murphy ID") or "").strip()
+        title = f"{wbs} {mid}".strip() or f"Item {idx}"
+
+    print(f"→ Création de l'item {idx}: {title}")
+    item_id = create_project_item(title)
+    fields_to_set = _sanitize_fields(row)
+    if fields_to_set:
+        edit_project_item(item_id, fields_to_set)
 
 
 def main() -> int:
@@ -132,7 +159,8 @@ def main() -> int:
 
     with CSV_PATH.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        missing_title = TITLE_COLUMN not in reader.fieldnames
+        fieldnames = reader.fieldnames or []
+        missing_title = TITLE_COLUMN not in fieldnames
         if missing_title:
             print(
                 f"Erreur : la colonne '{TITLE_COLUMN}' n'existe pas dans le CSV.",
@@ -144,35 +172,10 @@ def main() -> int:
         print(f"Import depuis {CSV_PATH} dans Project #{PROJECT_NUMBER} ({OWNER})")
 
         for idx, row in enumerate(reader, start=1):
-            title = (row.get(TITLE_COLUMN) or "").strip()
-            if not title:
-                # fallback : WBS ID + Murphy ID
-                wbs = (row.get("WBS ID") or "").strip()
-                mid = (row.get("Murphy ID") or "").strip()
-                title = f"{wbs} {mid}".strip() or f"Item {idx}"
-
-            print(f"→ Création de l'item {idx}: {title}")
-
             try:
-                item_id = create_project_item(title)
+                _process_row(idx, row)
             except Exception as exc:
-                print(f"  !! Échec création item '{title}': {exc}", file=sys.stderr)
-                continue
-
-            # Construire le dict {nom_champ_project: valeur}
-            fields_to_set: dict[str, str] = {}
-            for csv_col, project_field in FIELD_MAPPING.items():
-                if csv_col not in row:
-                    continue
-                fields_to_set[project_field] = row.get(csv_col, "")
-
-            try:
-                edit_project_item(item_id, fields_to_set)
-            except Exception as exc:
-                print(
-                    f"  !! Échec mise à jour des champs pour '{title}': {exc}",
-                    file=sys.stderr,
-                )
+                print(f"  !! Échec traitement ligne {idx}: {exc}", file=sys.stderr)
                 continue
 
     print("✅ Import terminé.")
