@@ -509,8 +509,10 @@ def generate_epoch_report(
 ) -> Path:
     """Persist epoch counts per class, subject, and run in JSON or CSV."""
 
+    # Convertit le format en minuscules pour uniformiser les comparaisons
+    fmt_normalized = fmt.lower()
     # Vérifie que le format fourni est limité aux options minuscules supportées
-    if fmt not in {"json", "csv"}:
+    if fmt_normalized not in {"json", "csv"}:
         # Interrompt tôt pour éviter d'écrire un rapport avec un format ambigu
         raise ValueError("fmt must be either 'json' or 'csv'")
     # Normalise le chemin pour garantir des écritures cohérentes sur disque
@@ -533,13 +535,13 @@ def generate_epoch_report(
         "counts": label_counts,
     }
     # Serialize the payload to JSON when requested by the caller
-    if fmt.lower() == "json":
+    if fmt_normalized == "json":
         # Write the JSON content with indentation for human readability
         output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         # Return the path so callers can locate the generated report
         return output_path
     # Serialize the payload to CSV rows when CSV is requested
-    if fmt.lower() == "csv":
+    else:
         # Build header and rows capturing each class count explicitly
         lines = ["subject,run,label,count"]
         # Iterate over label counts to materialize per-class entries
@@ -552,5 +554,3 @@ def generate_epoch_report(
         output_path.write_text("\n".join(lines), encoding="utf-8")
         # Return the path so downstream processes can load the CSV
         return output_path
-    # Retourne le chemin par défaut après validation préalable du format
-    return output_path
