@@ -53,7 +53,8 @@ def load_mne_raw_checked(
     if not np.isclose(sampling_rate, expected_sampling_rate):
         # Raise a descriptive error when the sampling rate deviates
         raise ValueError(
-            f"Expected sampling rate {expected_sampling_rate}Hz but got {sampling_rate}Hz"
+            f"Expected sampling rate {expected_sampling_rate}Hz "
+            f"but got {sampling_rate}Hz"
         )
     # Gather channel names from the recording for consistency checks
     channel_names = list(raw.ch_names)
