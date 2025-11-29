@@ -1541,6 +1541,31 @@ def test_detect_artifacts_interpolates_flagged_samples() -> None:
     assert pytest.approx(interpolated[0, 2]) == 0.0
 
 
+def test_detect_artifacts_interpolation_with_no_valid_points() -> None:
+    """Keep raw signal when interpolation cannot find valid anchors."""
+
+    # Construit un signal où chaque colonne dépasse les seuils définis
+    signal = np.array([[5.0, 5.0], [5.0, 5.0]])
+    # Applique l'interpolation sans aucun point fiable pour guider le calcul
+    interpolated, mask = detect_artifacts(
+        signal, amplitude_threshold=1.0, variance_threshold=0.1, mode="interpolate"
+    )
+    # Vérifie que toutes les colonnes sont marquées comme artefacts
+    assert mask.tolist() == [True, True]
+    # Confirme que le signal d'origine est renvoyé intact
+    assert np.allclose(interpolated, signal)
+
+
+def test_detect_artifacts_rejects_unknown_mode() -> None:
+    """Raise an explicit error for unsupported artifact modes."""
+
+    # Construit un signal minimal pour vérifier la validation du mode
+    signal = np.zeros((1, 2))
+    # Vérifie que l'appel avec un mode inconnu lève une erreur descriptive
+    with pytest.raises(ValueError, match="reject"):
+        detect_artifacts(signal, 1.0, 0.1, mode="invalid")
+
+
 def test_normalize_channels_supports_zscore_and_robust() -> None:
     """Ensure both normalization modes return centered channels."""
 
@@ -1554,3 +1579,13 @@ def test_normalize_channels_supports_zscore_and_robust() -> None:
     robust_signal = normalize_channels(signal, method="robust")
     # Contrôle que la médiane robuste est centrée à zéro pour chaque canal
     assert np.allclose(np.median(robust_signal, axis=1), 0.0)
+
+
+def test_normalize_channels_rejects_unknown_method() -> None:
+    """Raise an explicit error when normalization method is invalid."""
+
+    # Construit un signal simple pour valider la gestion des méthodes inconnues
+    signal = np.array([[1.0, 2.0]])
+    # Vérifie que l'appel avec un nom de méthode non supporté échoue clairement
+    with pytest.raises(ValueError, match="method"):
+        normalize_channels(signal, method="invalid")
