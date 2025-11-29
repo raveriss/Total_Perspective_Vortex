@@ -262,6 +262,74 @@ def test_quality_control_and_reporting(tmp_path: Path) -> None:
     assert report_content["counts"] == {"T0": 0, "T1": 1, "T2": 1}
 
 
+def test_quality_control_marking_handles_incomplete_epochs() -> None:
+    """Confirm marking mode annotates incomplete epochs without dropping them."""
+
+    # Build a dummy raw instance to generate events and epochs
+    raw = _build_dummy_raw()
+    # Map annotations to events with validation to obtain event identifiers
+    events, event_id = map_events_and_validate(raw)
+    # Create epochs around the events with a non-negative start to keep them valid
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.3)
+    # Inject a NaN to trigger the incomplete flag while preserving shape
+    epoch_data = epochs.get_data(copy=False)
+    epoch_data[0, 0, 0] = np.nan
+    # Apply quality control in marking mode to retain epochs
+    marked_epochs, flagged = quality_control_epochs(
+        epochs, max_peak_to_peak=10.0, mode="mark"
+    )
+    # Confirm the first epoch was flagged as incomplete instead of dropped
+    assert flagged["incomplete"] == [0]
+    # Confirm metadata was created and records the incomplete status
+    assert marked_epochs.metadata is not None
+    assert marked_epochs.metadata.loc[0, "quality_flag"] == "incomplete"
+
+
+def test_quality_control_rejects_invalid_mode() -> None:
+    """Ensure unsupported mode strings raise a clear ValueError."""
+
+    # Build a dummy raw instance to generate events and epochs
+    raw = _build_dummy_raw()
+    # Map annotations to events with validation to obtain event identifiers
+    events, event_id = map_events_and_validate(raw)
+    # Create epochs around the events with a non-negative start to keep them valid
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.3)
+    # Expect a ValueError when an unknown mode is supplied
+    with pytest.raises(ValueError) as exc:
+        quality_control_epochs(epochs, max_peak_to_peak=10.0, mode="unknown")
+    assert "mode must be either" in str(exc.value)
+
+
+def test_generate_epoch_report_outputs_csv_and_validates_format(tmp_path: Path) -> None:
+    """Validate CSV export and the error path for unsupported formats."""
+
+    # Build a dummy raw instance to generate events and epochs
+    raw = _build_dummy_raw()
+    # Map annotations to events with validation to obtain event identifiers
+    events, event_id = map_events_and_validate(raw)
+    # Create epochs around the events with a non-negative start to keep them valid
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.3)
+    # Generate a CSV report to exercise the CSV serialization path
+    csv_path = tmp_path / "reports" / "summary.csv"
+    output_path = generate_epoch_report(
+        epochs,
+        event_id,
+        {"subject": "S02", "run": "R02"},
+        csv_path,
+        fmt="csv",
+    )
+    # Confirm the CSV file exists and contains per-label counts
+    csv_content = output_path.read_text(encoding="utf-8").splitlines()
+    assert csv_content[0] == "subject,run,label,count"
+    assert "S02,R02,T0," in csv_content[1]
+    # Expect a ValueError when an unsupported format is requested
+    with pytest.raises(ValueError) as exc:
+        generate_epoch_report(
+            epochs, event_id, {"subject": "S02", "run": "R02"}, csv_path, fmt="xml"
+        )
+    assert "fmt must be either" in str(exc.value)
+
+
 def test_load_mne_raw_checked_raises_when_montage_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
