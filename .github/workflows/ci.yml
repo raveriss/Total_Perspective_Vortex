@@ -185,7 +185,7 @@ jobs:
 
       - name: Run mutation tests (coverage-guided)
         run: |
-          poetry run mutmut run --use-coverage --simple-output
+          poetry run mutmut run --simple-output
 
       - name: Show mutation results
         run: |
