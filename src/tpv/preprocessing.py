@@ -21,7 +21,7 @@ import json
 from pathlib import Path
 
 # Centralise les hints pour clarifier les attentes des appels et des tests
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Tuple, cast
 
 # MNE est obligatoire pour le parsing EDF/BDF et la gestion des epochs
 import mne
@@ -31,6 +31,9 @@ import numpy as np
 
 # Pandas gère les métadonnées annotées pour le contrôle qualité
 import pandas as pd
+
+# Typing numpy clarifie les formes et types pour mypy et les tests
+from numpy.typing import NDArray
 
 # Provide a default mapping consistent with Physionet motor imagery labels
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
@@ -502,8 +505,8 @@ def detect_artifacts(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Detect amplitude or variance artifacts and reject or interpolate."""
 
-    # Copie le signal pour éviter de modifier les buffers d'appelant
-    safe_signal = np.array(signal, copy=True)
+    # Copie le signal en flottants pour uniformiser la suite du traitement
+    safe_signal: NDArray[np.floating[Any]] = np.asarray(signal, dtype=float)
     # Calcule l'amplitude absolue pour repérer les excursions extrêmes
     amplitude_mask = np.abs(safe_signal) > amplitude_threshold
     # Calcule la variance par échantillon pour capturer les déviations croisées
@@ -524,7 +527,7 @@ def detect_artifacts(
     if mode == "interpolate":
         # Localise les indices sûrs pour guider l'interpolation linéaire
         valid_indices = np.flatnonzero(~sample_mask)
-        # Gère le cas où tous les échantillons sont invalides en conservant le signal brut
+        # Traite l'absence totale de points fiables en conservant le signal brut
         if len(valid_indices) == 0:
             # Retourne le signal initial lorsque l'interpolation est impossible
             return safe_signal, sample_mask
@@ -545,12 +548,14 @@ def detect_artifacts(
 
 
 def normalize_channels(
-    signal: np.ndarray, method: str = "zscore", epsilon: float = 1e-8
-) -> np.ndarray:
+    signal: NDArray[np.floating[Any]],
+    method: str = "zscore",
+    epsilon: float = 1e-8,
+) -> NDArray[np.floating[Any]]:
     """Normalize each channel using z-score or robust statistics."""
 
-    # Copie le signal pour préserver l'entrée originale lors de la normalisation
-    safe_signal = np.array(signal, copy=True)
+    # Copie le signal en flottants pour garantir des sorties typées
+    safe_signal: NDArray[np.floating[Any]] = np.asarray(signal, dtype=float)
     # Uniformise le nom de méthode pour éviter les confusions de casse
     normalized_method = method.lower()
     # Applique une normalisation z-score basée sur moyenne et écart-type
@@ -560,7 +565,11 @@ def normalize_channels(
         # Calcule l'écart-type par canal et ajoute epsilon pour la stabilité
         std_per_channel = np.std(safe_signal, axis=1, keepdims=True) + epsilon
         # Centre et réduit chaque canal pour homogénéiser les amplitudes
-        return (safe_signal - mean_per_channel) / std_per_channel
+        # Retourne l'étalonnage z-score avec un type numpy explicite
+        return cast(
+            NDArray[np.floating[Any]],
+            (safe_signal - mean_per_channel) / std_per_channel,
+        )
     # Applique une normalisation robuste basée sur médiane et IQR
     if normalized_method == "robust":
         # Calcule la médiane par canal pour neutraliser les valeurs extrêmes
@@ -572,7 +581,11 @@ def normalize_channels(
             + epsilon
         )
         # Centre et met à l'échelle chaque canal selon les statistiques robustes
-        return (safe_signal - median_per_channel) / iqr_per_channel
+        # Retourne la version robuste typée pour mypy et les tests
+        return cast(
+            NDArray[np.floating[Any]],
+            (safe_signal - median_per_channel) / iqr_per_channel,
+        )
     # Lève une erreur explicite pour les méthodes non supportées
     raise ValueError("method must be either 'zscore' or 'robust'")
 
