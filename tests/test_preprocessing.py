@@ -24,6 +24,7 @@ from tpv.preprocessing import (
     _collect_run_counts,
     _extract_bad_intervals,
     create_epochs_from_raw,
+    load_mne_raw_checked,
     load_physionet_raw,
     map_events_and_validate,
     verify_dataset_integrity,
@@ -136,6 +137,101 @@ def test_load_physionet_raw_uses_resolved_path_and_reader_arguments(
     assert captured_args[0][1] == {"preload": True, "verbose": False}
     # Ensure the metadata path matches the resolved reader input
     assert metadata["path"] == str(edf_path.expanduser().resolve())
+
+
+def test_load_mne_raw_checked_validates_sampling_and_channels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure the MNE loader enforces montage, sampling, and channels."""
+
+    # Build a deterministic raw array matching expected montage and channels
+    raw = _build_dummy_raw(sfreq=256.0)
+    # Capture montage applications to ensure configuration is enforced
+    montage_calls: list[tuple[str, dict[str, object]]] = []
+
+    # Record montage invocations while preserving actual behavior
+    def montage_stub(name: str, **kwargs: object) -> None:
+        # Track the call to validate montage propagation
+        montage_calls.append((name, kwargs))
+        # Delegate to the true method to keep montage attachment intact
+        mne.io.Raw.set_montage(raw, name, **kwargs)
+
+    # Patch the EDF reader to return the synthetic recording
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Patch set_montage to observe invocation parameters
+    monkeypatch.setattr(raw, "set_montage", montage_stub)
+    # Execute the validated loader with matching expectations
+    loaded_raw = load_mne_raw_checked(
+        Path("record.edf"),
+        expected_montage="standard_1020",
+        expected_sampling_rate=256.0,
+        expected_channels=["C3", "C4"],
+    )
+    # Confirm the returned object is the original Raw instance
+    assert loaded_raw is raw
+    # Ensure the montage setter was called with the expected configuration
+    assert montage_calls == [("standard_1020", {"on_missing": "warn"})]
+
+
+def test_load_mne_raw_checked_raises_on_sampling_rate_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure sampling rate mismatches raise clear errors."""
+
+    # Build a raw object with a known sampling frequency
+    raw = _build_dummy_raw(sfreq=128.0)
+    # Stub the EDF reader to return the synthetic recording
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Expect a ValueError when the sampling rate differs from the expectation
+    with pytest.raises(ValueError) as exc:
+        load_mne_raw_checked(
+            Path("record.edf"),
+            expected_montage="standard_1020",
+            expected_sampling_rate=512.0,
+            expected_channels=["C3", "C4"],
+        )
+    # Confirm the message explains the sampling rate discrepancy
+    assert "Expected sampling rate" in str(exc.value)
+
+
+def test_load_mne_raw_checked_reports_channel_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure channel inconsistencies raise structured errors."""
+
+    # Build a raw object whose channels differ from the expected layout
+    raw = _build_dummy_raw()
+    # Extend the channels to trigger the mismatch handler
+    raw.rename_channels({"C4": "C4-extra"})
+    # Stub the EDF reader to return the modified recording
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Expect the loader to raise because channels do not match expectations
+    with pytest.raises(ValueError) as exc:
+        load_mne_raw_checked(
+            Path("record.edf"),
+            expected_montage="standard_1020",
+            expected_sampling_rate=128.0,
+            expected_channels=["C3", "C4"],
+        )
+    # Confirm the structured error highlights missing channel names
+    assert "missing" in str(exc.value)
+
+
+def test_map_events_validates_motor_label_mapping() -> None:
+    """Ensure motor label mapping enforces A/B coverage and known keys."""
+
+    # Build a raw instance with default annotations for motor imagery
+    raw = _build_dummy_raw()
+    # Expect a ValueError when motor mapping omits required labels
+    with pytest.raises(ValueError) as exc_missing:
+        map_events_and_validate(raw, motor_label_map={"T1": "A"})
+    # Confirm the message lists the missing event label
+    assert "missing labels for events" in str(exc_missing.value)
+    # Expect a ValueError when motor mapping includes invalid targets
+    with pytest.raises(ValueError) as exc_invalid:
+        map_events_and_validate(raw, motor_label_map={"T1": "Left", "T2": "B"})
+    # Confirm the message identifies the unsupported motor label value
+    assert "Motor labels must be within" in str(exc_invalid.value)
 
 
 def test_map_events_filters_bad_segments(tmp_path: Path) -> None:

@@ -23,6 +23,58 @@ import numpy as np
 
 # Provide a default mapping consistent with Physionet motor imagery labels
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
+# Provide an explicit mapping from Physionet events to motor imagery labels
+MOTOR_EVENT_LABELS: Dict[str, str] = {"T1": "A", "T2": "B"}
+
+
+def load_mne_raw_checked(
+    file_path: Path,
+    expected_montage: str,
+    expected_sampling_rate: float,
+    expected_channels: List[str],
+) -> mne.io.BaseRaw:
+    """Load a raw MNE file and validate montage, sampling rate, and channels."""
+
+    # Normalize the file path to avoid surprises from relative inputs
+    normalized_path = Path(file_path).expanduser().resolve()
+    # Load the raw file with preload enabled for immediate validation
+    raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    # Apply the montage to ensure spatial layout matches expectations
+    raw.set_montage(expected_montage, on_missing="warn")
+    # Retrieve the effective montage to confirm it has been attached
+    montage = raw.get_montage()
+    # Fail loudly when the montage could not be established on the recording
+    if montage is None:
+        # Raise a clear error describing the missing montage configuration
+        raise ValueError(f"Montage '{expected_montage}' could not be applied")
+    # Extract the sampling frequency reported by the recording
+    sampling_rate = float(raw.info["sfreq"])
+    # Validate the sampling frequency against the expected configuration
+    if not np.isclose(sampling_rate, expected_sampling_rate):
+        # Raise a descriptive error when the sampling rate deviates
+        raise ValueError(
+            f"Expected sampling rate {expected_sampling_rate}Hz but got {sampling_rate}Hz"
+        )
+    # Gather channel names from the recording for consistency checks
+    channel_names = list(raw.ch_names)
+    # Identify unexpected channels that would break downstream spatial filters
+    extra_channels = sorted(set(channel_names) - set(expected_channels))
+    # Identify missing channels that would prevent feature extraction
+    missing_channels = sorted(set(expected_channels) - set(channel_names))
+    # Raise an explicit error when the channel layout is inconsistent
+    if extra_channels or missing_channels:
+        # Compose a readable error describing both types of discrepancies
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Channel mismatch",
+                    "extra": extra_channels,
+                    "missing": missing_channels,
+                }
+            )
+        )
+    # Return the validated raw object for downstream preprocessing steps
+    return raw
 
 
 def load_physionet_raw(
@@ -76,7 +128,9 @@ def _extract_bad_intervals(raw: mne.io.BaseRaw) -> List[Tuple[float, float]]:
 
 
 def map_events_and_validate(
-    raw: mne.io.BaseRaw, label_map: Mapping[str, int] | None = None
+    raw: mne.io.BaseRaw,
+    label_map: Mapping[str, int] | None = None,
+    motor_label_map: Mapping[str, str] | None = None,
 ) -> Tuple[np.ndarray, Dict[str, int]]:
     """Map annotations to events while checking label consistency."""
 
@@ -86,6 +140,20 @@ def map_events_and_validate(
     )
     # Confirm annotations contain only labels that the mapping can handle
     _validate_annotation_labels(raw, effective_label_map)
+    # Detect whether motor mapping validation should be applied
+    motor_labels_present = any(
+        desc in MOTOR_EVENT_LABELS
+        for desc in raw.annotations.description
+        if not desc.upper().startswith("BAD")
+    )
+    # Build a motor mapping to make motor imagery labels explicit when needed
+    if motor_labels_present or motor_label_map is not None:
+        # Validate the mapping either provided by the caller or defaulted
+        _validate_motor_mapping(
+            raw,
+            effective_label_map,
+            motor_label_map if motor_label_map is not None else MOTOR_EVENT_LABELS,
+        )
     # Extract invalid windows to support removal of corrupted epochs
     bad_intervals = _extract_bad_intervals(raw)
     # Convert annotations into events that MNE Epochs can consume
@@ -123,6 +191,61 @@ def _validate_annotation_labels(
     if unknown_labels:
         # Raise a descriptive error to support dataset hygiene during setup
         raise ValueError(f"Unknown labels in annotations: {sorted(unknown_labels)}")
+
+
+def _validate_motor_mapping(
+    raw: mne.io.BaseRaw,
+    effective_label_map: Mapping[str, int],
+    motor_label_map: Mapping[str, str],
+) -> Dict[str, str]:
+    """Validate motor mapping covers all events with A/B labels."""
+
+    # Copy the mapping to avoid mutating caller dictionaries during validation
+    effective_motor_map = dict(motor_label_map)
+    # Restrict allowed motor labels to the binary A/B tasks defined by the project
+    allowed_motor_labels = {"A", "B"}
+    # Detect invalid motor labels that would break downstream training splits
+    invalid_motor_labels = set(effective_motor_map.values()) - allowed_motor_labels
+    # Raise a clear error when unsupported motor labels are provided
+    if invalid_motor_labels:
+        # Surface which labels are invalid to guide mapping corrections
+        raise ValueError(
+            f"Motor labels must be within {sorted(allowed_motor_labels)}: "
+            f"found {sorted(invalid_motor_labels)}"
+        )
+    # Collect all annotation labels excluding BAD markers for completeness checks
+    observed_labels = {
+        desc
+        for desc in raw.annotations.description
+        if not desc.upper().startswith("BAD")
+    }
+    # Identify observed labels not covered by the motor mapping
+    missing_motor_keys = observed_labels - set(effective_motor_map.keys())
+    # Raise a descriptive error when observed labels lack motor interpretations
+    if missing_motor_keys:
+        # Include unknown label names to speed up dataset adjustments
+        raise ValueError(
+            f"Motor mapping missing labels for events: {sorted(missing_motor_keys)}"
+        )
+    # Identify motor labels that are expected but absent from the mapping outputs
+    missing_targets = allowed_motor_labels - set(effective_motor_map.values())
+    # Raise when A or B is not reachable from the mapping configuration
+    if missing_targets:
+        # Provide actionable feedback by listing missing motor targets explicitly
+        raise ValueError(
+            f"Motor mapping must include targets {sorted(allowed_motor_labels)}: "
+            f"missing {sorted(missing_targets)}"
+        )
+    # Identify motor keys that are not part of the annotation label map
+    unknown_keys = set(effective_motor_map.keys()) - set(effective_label_map.keys())
+    # Stop when the motor mapping references labels outside the event ID map
+    if unknown_keys:
+        # Include stray keys in the error to steer label alignment quickly
+        raise ValueError(
+            f"Motor mapping references unknown events: {sorted(unknown_keys)}"
+        )
+    # Return the validated motor mapping for optional downstream logging
+    return effective_motor_map
 
 
 def _build_keep_mask(
