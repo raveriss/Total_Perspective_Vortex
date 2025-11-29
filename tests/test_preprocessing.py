@@ -3,13 +3,13 @@
 # Import pathlib to construct temporary dataset layouts
 # Import pathlib to type temporary paths for datasets
 # Import json to inspect structured error payloads
+# Import inspect to introspect function signatures when required
+import inspect
 import json
 from pathlib import Path
 
 # Import SimpleNamespace to build lightweight annotation holders
 from types import SimpleNamespace
-# Import inspect to introspect function signatures when required
-import inspect
 
 # Import Mapping to annotate captured motor mapping structures
 from typing import Mapping
@@ -24,19 +24,18 @@ import numpy as np
 import pytest
 
 # Import the preprocessing helpers under test
+# Importe les utilitaires de contrôle d'échantillons et de qualité
+# Importe le marqueur pour vérifier la structure des métadonnées
 from tpv.preprocessing import (
     MOTOR_EVENT_LABELS,
     PHYSIONET_LABEL_MAP,
+    _apply_marking,
     _build_file_entry,
     _build_keep_mask,
     _collect_run_counts,
-    # Importe l'outil pour vérifier le comptage attendu des échantillons
     _expected_epoch_samples,
-    # Importe le détecteur de qualité pour tester les seuils d'artefacts
-    _flag_epoch_quality,
-    # Importe le marqueur pour contrôler la structure des métadonnées
-    _apply_marking,
     _extract_bad_intervals,
+    _flag_epoch_quality,
     _is_bad_description,
     create_epochs_from_raw,
     generate_epoch_report,
@@ -304,8 +303,10 @@ def test_expected_epoch_samples_uses_duration_and_rate() -> None:
     epochs = create_epochs_from_raw(raw, events, event_id, tmin=-0.1, tmax=0.2)
     # Évalue la fonction utilitaire pour obtenir le nombre d'échantillons
     expected_samples = _expected_epoch_samples(epochs)
+    # Calcule l'attendu pour éviter une valeur constante dans l'assertion
+    manual_expected = int(round((epochs.tmax - epochs.tmin) * epochs.info["sfreq"])) + 1
     # Vérifie que le calcul suit bien durée × fréquence + 1 échantillon
-    assert expected_samples == 16
+    assert expected_samples == manual_expected
 
 
 def test_flag_epoch_quality_excludes_equal_threshold_artifacts() -> None:
@@ -360,7 +361,9 @@ def test_quality_control_rejects_invalid_mode() -> None:
     assert str(exc.value) == "mode must be either 'reject' or 'mark'"
 
 
-def test_quality_control_epochs_requests_data_copy(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_quality_control_epochs_requests_data_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Assure que la qualité ne modifie pas l'array original des epochs."""
 
     # Crée un Raw synthétique pour disposer d'epochs reproductibles
@@ -465,7 +468,7 @@ def test_generate_epoch_report_formats_json_with_utf8(
     # Récupère la ligne du sujet pour mesurer l'indentation effective
     subject_line = content.splitlines()[1]
     # Vérifie que la ligne commence par exactement deux espaces
-    assert subject_line.startswith("  \"subject\"")
+    assert subject_line.startswith('  "subject"')
     # Vérifie que l'encodage utilisé est explicitement UTF-8
     assert write_encodings == ["utf-8"]
 

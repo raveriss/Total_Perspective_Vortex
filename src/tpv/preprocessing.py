@@ -552,3 +552,5 @@ def generate_epoch_report(
         output_path.write_text("\n".join(lines), encoding="utf-8")
         # Return the path so downstream processes can load the CSV
         return output_path
+    # Retourne le chemin par défaut après validation préalable du format
+    return output_path
