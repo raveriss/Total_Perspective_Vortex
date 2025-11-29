@@ -1,9 +1,6 @@
-"""Utilities for loading and validating Physionet EEG datasets."""
+"""Utilities for loading and validating Physionet EEG datasets.
 
-# Explain why future annotations import is required for typing modernity
-from __future__ import annotations
-
-"""Filtrage EEG 8–40 Hz (FIR/IIR) avec padding (FIR auto ~2–4*fs, IIR ordre 4).
+Filtrage EEG 8–40 Hz (FIR/IIR) avec padding (FIR auto ~2–4*fs, IIR ordre 4).
 
 Le filtre par défaut suit la contrainte WBS 3.1.1 : bande 8–40 Hz avec FIR
 zero-phase (longueur auto MNE équivalente à un ordre ~401 sur des segments
@@ -11,25 +8,28 @@ zero-phase (longueur auto MNE équivalente à un ordre ~401 sur des segments
 pour limiter les effets de bord sur les segments fenêtrés.
 """
 
-# Preserve hashing utilities to verify dataset integrity without extra deps
+# Garantit la compatibilité des annotations de type pour l’ensemble du module
+from __future__ import annotations
+
+# Préserve les fonctions de hachage pour valider l’intégrité des datasets
 import hashlib
 
-# Keep json to format error payloads for debugging run counts
+# Conserve json pour formater les rapports d’erreurs de comptage de runs
 import json
 
-# Use pathlib to guarantee portable filesystem interactions
+# Utilise pathlib pour assurer la portabilité des interactions fichiers
 from pathlib import Path
 
-# Type hints clarify expectations for callers and simplify tests
+# Centralise les hints pour clarifier les attentes des appels et des tests
 from typing import Any, Dict, List, Mapping, Tuple
 
-# MNE is mandatory for EDF/BDF parsing and epoch management
+# MNE est obligatoire pour le parsing EDF/BDF et la gestion des epochs
 import mne
 
-# Numpy offers vectorized masks for fast event filtering
+# Numpy offre des masques vectorisés pour filtrer rapidement les événements
 import numpy as np
 
-# Import pandas to manage metadata annotations for quality control
+# Pandas gère les métadonnées annotées pour le contrôle qualité
 import pandas as pd
 
 # Provide a default mapping consistent with Physionet motor imagery labels
@@ -41,10 +41,8 @@ MOTOR_EVENT_LABELS: Dict[str, str] = {"T1": "A", "T2": "B"}
 def apply_bandpass_filter(
     raw: mne.io.BaseRaw,
     method: str = "fir",
-    l_freq: float = 8.0,
-    h_freq: float = 40.0,
-    fir_order: int | str = "auto",
-    iir_order: int = 4,
+    freq_band: Tuple[float, float] = (8.0, 40.0),
+    order: int | str | None = None,
     pad_duration: float = 0.5,
 ) -> mne.io.BaseRaw:
     """Apply a padded 8–40 Hz band-pass filter using FIR or IIR designs."""
@@ -59,6 +57,8 @@ def apply_bandpass_filter(
         raise ValueError("method must be 'fir' or 'iir'")
     # Extract the sampling frequency to derive padding and design parameters
     sampling_rate = float(filtered_raw.info["sfreq"])
+    # Décompose la bande en fréquences basse et haute pour le filtrage
+    l_freq, h_freq = freq_band
     # Translate the padding duration into sample counts for symmetrical padding
     pad_samples = max(int(round(pad_duration * sampling_rate)), 0)
     # Fetch the data array once to avoid repeated MNE access overhead
@@ -72,15 +72,19 @@ def apply_bandpass_filter(
         padded_data = data
     # Prepare FIR-specific arguments when a linear-phase design is required
     if normalized_method == "fir":
+        # Sélectionne l’ordre FIR explicite ou l’auto-calcul par défaut
+        fir_length = order if order is not None else "auto"
         # Configure FIR parameters to balance roll-off and latency for MI bands
         filter_kwargs: Dict[str, Any] = {
             "method": "fir",
             "fir_design": "firwin",
             "fir_window": "hamming",
-            "filter_length": fir_order,
+            "filter_length": fir_length,
             "phase": "zero-double",
         }
     else:
+        # Définit l’ordre IIR à 4 par défaut pour limiter la latence
+        iir_order = int(order) if order is not None else 4
         # Configure a Butterworth IIR design to minimize latency during streaming
         filter_kwargs = {
             "method": "iir",

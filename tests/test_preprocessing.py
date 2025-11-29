@@ -30,7 +30,6 @@ import pytest
 from tpv.preprocessing import (
     MOTOR_EVENT_LABELS,
     PHYSIONET_LABEL_MAP,
-    apply_bandpass_filter,
     _apply_marking,
     _build_file_entry,
     _build_keep_mask,
@@ -39,6 +38,7 @@ from tpv.preprocessing import (
     _extract_bad_intervals,
     _flag_epoch_quality,
     _is_bad_description,
+    apply_bandpass_filter,
     create_epochs_from_raw,
     generate_epoch_report,
     load_mne_raw_checked,
@@ -47,6 +47,9 @@ from tpv.preprocessing import (
     quality_control_epochs,
     verify_dataset_integrity,
 )
+
+# Fixe une amplitude maximale attendue pour repérer une dérive de filtrage
+MAX_FILTER_AMPLITUDE = 10.0
 
 
 def _build_dummy_raw(sfreq: float = 128.0, duration: float = 1.0) -> mne.io.Raw:
@@ -90,9 +93,9 @@ def test_apply_bandpass_filter_preserves_shape_and_stability() -> None:
     # Verify that IIR filtering remains stable without NaN or inf values
     assert np.isfinite(iir_filtered.get_data()).all()
     # Ensure both filters stay within a reasonable amplitude envelope
-    assert np.max(np.abs(fir_filtered.get_data())) < 10.0
+    assert np.max(np.abs(fir_filtered.get_data())) < MAX_FILTER_AMPLITUDE
     # Ensure IIR filtering also remains within the expected amplitude range
-    assert np.max(np.abs(iir_filtered.get_data())) < 10.0
+    assert np.max(np.abs(iir_filtered.get_data())) < MAX_FILTER_AMPLITUDE
 
 
 def test_apply_bandpass_filter_latency_benchmark() -> None:
