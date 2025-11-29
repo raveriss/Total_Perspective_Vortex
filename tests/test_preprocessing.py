@@ -713,6 +713,8 @@ def test_create_epochs_passes_configuration_to_mne(
     raw = _build_dummy_raw()
     # Convert annotations to events for the stubbed Epochs call
     events, event_id = map_events_and_validate(raw)
+    # Capture the time window to avoid magic-number assertions
+    custom_window = (-0.2, 0.4)
     # Capture the arguments passed to the Epochs constructor
     captured_args: tuple[tuple[object, ...], dict[str, object]] = ((), {})
     # Prepare a sentinel object to return from the stubbed Epochs
@@ -729,7 +731,9 @@ def test_create_epochs_passes_configuration_to_mne(
     # Patch mne.Epochs with the recording stub
     monkeypatch.setattr(mne, "Epochs", epochs_stub)
     # Invoke epoch creation to trigger the stubbed constructor
-    result = create_epochs_from_raw(raw, events, event_id, tmin=-0.2, tmax=0.4)
+    result = create_epochs_from_raw(
+        raw, events, event_id, tmin=custom_window[0], tmax=custom_window[1]
+    )
     # Confirm the stub result is returned unchanged
     assert result is sentinel
     # Extract positional and keyword arguments from the captured call
@@ -740,10 +744,20 @@ def test_create_epochs_passes_configuration_to_mne(
     assert np.array_equal(np.asarray(kwargs["events"]), events)
     # Ensure the event_id mapping is provided to the constructor
     assert kwargs["event_id"] == event_id
+    # Confirm the time window honors the values provided by the caller
+    assert kwargs["tmin"] == custom_window[0]
+    # Validate that the maximum window aligns with the requested end time
+    assert kwargs["tmax"] == custom_window[1]
     # Validate that annotation-based rejection remains enabled
     assert kwargs["reject_by_annotation"] is True
+    # Confirm missing labels are ignored to avoid errors on incomplete runs
+    assert kwargs["on_missing"] == "ignore"
     # Confirm verbosity is explicitly silenced
     assert kwargs["verbose"] is False
+    # Ensure epochs are preloaded to support downstream processing
+    assert kwargs["preload"] is True
+    # Verify baseline remains disabled to prevent unintended correction
+    assert kwargs["baseline"] is None
 
 
 def test_create_epochs_respects_custom_window(tmp_path: Path) -> None:
