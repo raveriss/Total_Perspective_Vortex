@@ -509,6 +509,11 @@ def generate_epoch_report(
 ) -> Path:
     """Persist epoch counts per class, subject, and run in JSON or CSV."""
 
+    # Vérifie que le format fourni est limité aux options minuscules supportées
+    if fmt not in {"json", "csv"}:
+        # Interrompt tôt pour éviter d'écrire un rapport avec un format ambigu
+        raise ValueError("fmt must be either 'json' or 'csv'")
+    # Normalise le chemin pour garantir des écritures cohérentes sur disque
     # Ensure the parent directory exists to make the report path valid
     output_path = Path(output_path)
     # Create parent directories so the report can be written without errors
@@ -547,5 +552,3 @@ def generate_epoch_report(
         output_path.write_text("\n".join(lines), encoding="utf-8")
         # Return the path so downstream processes can load the CSV
         return output_path
-    # Raise when an unsupported format is requested to prevent silent errors
-    raise ValueError("fmt must be either 'json' or 'csv'")
