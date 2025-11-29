@@ -1,7 +1,12 @@
 # Utilise subprocess pour exécuter le script comme un utilisateur final
 # Produit rapidement un manifeste JSON pour le test
 import json
+
+# Lance des sous-processus pour simuler un usage utilisateur
 import subprocess
+
+# Fournit l'interpréteur actif pour reproduire l'environnement de test
+import sys
 
 # Gère la création de répertoires temporaires isolés
 from pathlib import Path
@@ -22,13 +27,15 @@ def test_fetch_physionet_fails_without_files(tmp_path: Path) -> None:
     )
     # Définit un répertoire de destination distinct pour le test
     destination_dir = tmp_path / "destination"
+    # Sélectionne le chemin absolu du script pour les environnements clonés
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "fetch_physionet.py"
     # Lance la commande python pour appeler le script CLI
     result = subprocess.run(
         [
             # Utilise l'interpréteur Python présent dans l'environnement de test
-            "python",
+            sys.executable,
             # Cible le nouveau script de récupération Physionet
-            "scripts/fetch_physionet.py",
+            str(script_path),
             # Spécifie la source vide pour déclencher l'erreur recherchée
             "--source",
             # Fournit le chemin réel du dossier vide

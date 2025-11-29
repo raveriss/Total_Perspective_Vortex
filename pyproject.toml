@@ -57,7 +57,7 @@ ignore = []
 known-first-party = ["mybci", "tpv"]
 
 [tool.mutmut]
-paths_to_mutate = ["mybci.py", "src/tpv"]
+paths_to_mutate = ["mybci.py", "src/tpv", "scripts/fetch_physionet.py"]
 tests_dir = ["tests"]
 pytest_add_cli_args = ["-q"]
 mutate_only_covered_lines = true
