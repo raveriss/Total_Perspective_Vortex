@@ -209,6 +209,7 @@ __marimo__/
 
 # Project artifacts
 data/
+data/raw/
 datasets/
 outputs/
 cache/
