@@ -511,6 +511,10 @@ def generate_epoch_report(
 
     # Convertit le format en minuscules pour uniformiser les comparaisons
     fmt_normalized = fmt.lower()
+    # Refuse les formats non minuscules pour éviter les ambiguïtés silencieuses
+    if fmt != fmt_normalized:
+        # Arrête l'exécution pour imposer une convention de nommage explicite
+        raise ValueError("fmt must be lowercase")
     # Vérifie que le format fourni est limité aux options minuscules supportées
     if fmt_normalized not in {"json", "csv"}:
         # Interrompt tôt pour éviter d'écrire un rapport avec un format ambigu

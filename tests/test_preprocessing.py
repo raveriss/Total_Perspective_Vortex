@@ -429,6 +429,28 @@ def test_generate_epoch_report_default_format_is_json() -> None:
     assert default_fmt == "json"
 
 
+def test_generate_epoch_report_rejects_uppercase_format(tmp_path: Path) -> None:
+    """Interdit les formats en majuscules pour éviter des corrections implicites."""
+
+    # Construit un Raw synthétique pour obtenir des événements reproductibles
+    raw = _build_dummy_raw()
+    # Mappe les annotations vers des événements pour préparer les epochs
+    events, event_id = map_events_and_validate(raw)
+    # Crée des epochs minimales pour alimenter la génération de rapport
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    # Définit un chemin de sortie factice pour vérifier l'échec précoce
+    output_path = tmp_path / "upper.json"
+    # Vérifie qu'un format non minuscule provoque une erreur explicite
+    with pytest.raises(ValueError, match=r"^fmt must be lowercase$"):
+        generate_epoch_report(
+            epochs,
+            event_id,
+            {"subject": "S05", "run": "R05"},
+            output_path,
+            fmt="JSON",
+        )
+
+
 def test_generate_epoch_report_formats_json_with_utf8(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
