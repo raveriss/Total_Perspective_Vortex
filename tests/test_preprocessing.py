@@ -6,6 +6,7 @@
 # Import inspect to introspect function signatures when required
 import inspect
 import json
+import time
 from pathlib import Path
 
 # Import SimpleNamespace to build lightweight annotation holders
@@ -37,6 +38,7 @@ from tpv.preprocessing import (
     _extract_bad_intervals,
     _flag_epoch_quality,
     _is_bad_description,
+    apply_bandpass_filter,
     create_epochs_from_raw,
     generate_epoch_report,
     load_mne_raw_checked,
@@ -46,16 +48,19 @@ from tpv.preprocessing import (
     verify_dataset_integrity,
 )
 
+# Fixe une amplitude maximale attendue pour repérer une dérive de filtrage
+MAX_FILTER_AMPLITUDE = 10.0
 
-def _build_dummy_raw(sfreq: float = 128.0) -> mne.io.Raw:
+
+def _build_dummy_raw(sfreq: float = 128.0, duration: float = 1.0) -> mne.io.Raw:
     """Create a synthetic RawArray with Physionet-like annotations."""
 
     # Set two channels to keep tests lightweight while representative
     info = mne.create_info(ch_names=["C3", "C4"], sfreq=sfreq, ch_types="eeg")
     # Generate deterministic data to guarantee reproducible hashes
     rng = np.random.default_rng(seed=42)
-    # Create one second of data for each channel to minimize test duration
-    data = rng.standard_normal((2, int(sfreq)))
+    # Create a configurable duration to stress filtering when needed
+    data = rng.standard_normal((2, int(sfreq * duration)))
     # Assemble the RawArray from the synthetic data
     raw = mne.io.RawArray(data, info)
     # Annotate three events representing motor imagery tasks
@@ -68,6 +73,81 @@ def _build_dummy_raw(sfreq: float = 128.0) -> mne.io.Raw:
     )
     # Return the constructed Raw object for downstream export
     return raw
+
+
+def test_apply_bandpass_filter_preserves_shape_and_stability() -> None:
+    """Ensure FIR and IIR filtering keep shapes and finite amplitudes."""
+
+    # Build a short raw recording to constrain test runtime
+    raw = _build_dummy_raw(sfreq=256.0, duration=2.0)
+    # Apply a FIR filter with padding to limit boundary distortions
+    fir_filtered = apply_bandpass_filter(raw, method="fir", pad_duration=0.25)
+    # Apply an IIR filter to compare stability against the FIR baseline
+    iir_filtered = apply_bandpass_filter(raw, method="iir", pad_duration=0.25)
+    # Confirm the filtered data preserves the original sampling shape
+    assert fir_filtered.get_data().shape == raw.get_data().shape
+    # Check the IIR path also returns data with unchanged shape
+    assert iir_filtered.get_data().shape == raw.get_data().shape
+    # Verify that FIR filtering produces finite outputs across channels
+    assert np.isfinite(fir_filtered.get_data()).all()
+    # Verify that IIR filtering remains stable without NaN or inf values
+    assert np.isfinite(iir_filtered.get_data()).all()
+    # Ensure both filters stay within a reasonable amplitude envelope
+    assert np.max(np.abs(fir_filtered.get_data())) < MAX_FILTER_AMPLITUDE
+    # Ensure IIR filtering also remains within the expected amplitude range
+    assert np.max(np.abs(iir_filtered.get_data())) < MAX_FILTER_AMPLITUDE
+
+
+def test_apply_bandpass_filter_latency_benchmark() -> None:
+    """Benchmark FIR vs IIR latency while checking reproducibility."""
+
+    # Generate a longer dummy recording to stress filtering performance
+    raw = _build_dummy_raw(sfreq=512.0, duration=2.0)
+    # Measure FIR latency using a monotonic clock for robustness
+    fir_start = time.perf_counter()
+    apply_bandpass_filter(raw, method="fir", pad_duration=0.5)
+    # Capture FIR duration to enable relative latency comparisons
+    fir_latency = time.perf_counter() - fir_start
+    # Measure IIR latency on the same input to compare efficiency
+    iir_start = time.perf_counter()
+    apply_bandpass_filter(raw, method="iir", pad_duration=0.5)
+    # Capture IIR duration to validate latency improvements
+    iir_latency = time.perf_counter() - iir_start
+    # Ensure both measurements are positive to confirm timer correctness
+    assert fir_latency > 0
+    # Confirm IIR filtering completes with a measurable positive duration
+    assert iir_latency > 0
+    # Expect IIR latency to stay below a generous multiple of FIR time
+    assert iir_latency < fir_latency * 2.5
+
+
+def test_apply_bandpass_filter_rejects_unknown_method() -> None:
+    """Validate that the filter refuses unsupported design names."""
+
+    # Construit un enregistrement court pour atteindre la validation rapide
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.5)
+    # Vérifie qu'une méthode inconnue déclenche une erreur explicite
+    with pytest.raises(ValueError):
+        # Force un nom de méthode non pris en charge pour tester la garde
+        apply_bandpass_filter(raw, method="fft", pad_duration=0.25)
+
+
+def test_apply_bandpass_filter_skips_padding_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure padding is bypassed when the duration is zero."""
+
+    # Construit un enregistrement pour activer la branche sans padding
+    raw = _build_dummy_raw(sfreq=256.0, duration=1.0)
+    # Remplace np.pad par un échec direct pour détecter toute invocation
+    monkeypatch.setattr(
+        "tpv.preprocessing.np.pad",
+        lambda *args, **kwargs: pytest.fail("np.pad must stay unused"),
+    )
+    # Applique le filtre avec pad à zéro pour traverser la branche else
+    filtered = apply_bandpass_filter(raw, method="fir", pad_duration=0.0)
+    # Confirme que la forme reste identique sans utilisation de padding
+    assert filtered.get_data().shape == raw.get_data().shape
 
 
 def test_load_physionet_raw_reads_metadata(
