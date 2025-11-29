@@ -494,6 +494,89 @@ def quality_control_epochs(
     raise ValueError("mode must be either 'reject' or 'mark'")
 
 
+def detect_artifacts(
+    signal: np.ndarray,
+    amplitude_threshold: float,
+    variance_threshold: float,
+    mode: str = "reject",
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Detect amplitude or variance artifacts and reject or interpolate."""
+
+    # Copie le signal pour éviter de modifier les buffers d'appelant
+    safe_signal = np.array(signal, copy=True)
+    # Calcule l'amplitude absolue pour repérer les excursions extrêmes
+    amplitude_mask = np.abs(safe_signal) > amplitude_threshold
+    # Calcule la variance par échantillon pour capturer les déviations croisées
+    variance_per_sample = np.var(safe_signal, axis=0)
+    # Étend le masque de variance à toutes les voies pour uniformiser le traitement
+    variance_mask = variance_per_sample > variance_threshold
+    # Combine les critères pour identifier chaque échantillon contaminé
+    combined_mask = amplitude_mask | variance_mask
+    # Déduit un masque global indiquant les colonnes à exclure ou corriger
+    sample_mask = combined_mask.any(axis=0)
+    # Traite la branche de rejet pour supprimer les échantillons fautifs
+    if mode == "reject":
+        # Construit un masque de conservation pour filtrer les colonnes sûres
+        keep_mask = ~sample_mask
+        # Supprime les colonnes contaminées afin de stabiliser l'apprentissage
+        return safe_signal[:, keep_mask], sample_mask
+    # Traite la branche d'interpolation pour conserver la structure temporelle
+    if mode == "interpolate":
+        # Localise les indices sûrs pour guider l'interpolation linéaire
+        valid_indices = np.flatnonzero(~sample_mask)
+        # Gère le cas où tous les échantillons sont invalides en conservant le signal brut
+        if len(valid_indices) == 0:
+            # Retourne le signal initial lorsque l'interpolation est impossible
+            return safe_signal, sample_mask
+        # Prépare un vecteur d'indices cible pour reconstituer chaque colonne
+        target_indices = np.arange(safe_signal.shape[1])
+        # Itère sur chaque canal pour appliquer une interpolation indépendante
+        for channel in range(safe_signal.shape[0]):
+            # Extrait les valeurs sûres du canal courant pour alimenter l'interpolation
+            valid_values = safe_signal[channel, valid_indices]
+            # Remplace les échantillons fautifs par l'interpolation linéaire
+            safe_signal[channel] = np.interp(
+                target_indices, valid_indices, valid_values
+            )
+        # Retourne le signal interpolé pour préserver la longueur temporelle
+        return safe_signal, sample_mask
+    # Lève une erreur explicite pour les modes non supportés
+    raise ValueError("mode must be either 'reject' or 'interpolate'")
+
+
+def normalize_channels(
+    signal: np.ndarray, method: str = "zscore", epsilon: float = 1e-8
+) -> np.ndarray:
+    """Normalize each channel using z-score or robust statistics."""
+
+    # Copie le signal pour préserver l'entrée originale lors de la normalisation
+    safe_signal = np.array(signal, copy=True)
+    # Uniformise le nom de méthode pour éviter les confusions de casse
+    normalized_method = method.lower()
+    # Applique une normalisation z-score basée sur moyenne et écart-type
+    if normalized_method == "zscore":
+        # Calcule la moyenne par canal pour centrer la distribution
+        mean_per_channel = np.mean(safe_signal, axis=1, keepdims=True)
+        # Calcule l'écart-type par canal et ajoute epsilon pour la stabilité
+        std_per_channel = np.std(safe_signal, axis=1, keepdims=True) + epsilon
+        # Centre et réduit chaque canal pour homogénéiser les amplitudes
+        return (safe_signal - mean_per_channel) / std_per_channel
+    # Applique une normalisation robuste basée sur médiane et IQR
+    if normalized_method == "robust":
+        # Calcule la médiane par canal pour neutraliser les valeurs extrêmes
+        median_per_channel = np.median(safe_signal, axis=1, keepdims=True)
+        # Calcule l'IQR par canal et ajoute epsilon pour éviter les divisions nulles
+        iqr_per_channel = (
+            np.percentile(safe_signal, 75, axis=1, keepdims=True)
+            - np.percentile(safe_signal, 25, axis=1, keepdims=True)
+            + epsilon
+        )
+        # Centre et met à l'échelle chaque canal selon les statistiques robustes
+        return (safe_signal - median_per_channel) / iqr_per_channel
+    # Lève une erreur explicite pour les méthodes non supportées
+    raise ValueError("method must be either 'zscore' or 'robust'")
+
+
 def _build_file_entry(
     data_root: Path,
     file_path: Path,

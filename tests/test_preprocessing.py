@@ -37,11 +37,13 @@ from tpv.preprocessing import (
     _expected_epoch_samples,
     _extract_bad_intervals,
     _flag_epoch_quality,
+    detect_artifacts,
     _is_bad_description,
     apply_bandpass_filter,
     create_epochs_from_raw,
     generate_epoch_report,
     load_mne_raw_checked,
+    normalize_channels,
     load_physionet_raw,
     map_events_and_validate,
     quality_control_epochs,
@@ -1500,3 +1502,55 @@ def test_verify_dataset_integrity_reports_root_and_file_count(tmp_path: Path) ->
     assert report["root"] == str(data_root.resolve())
     # Ensure exactly one file entry was recorded
     assert len(report["files"]) == 1
+
+
+def test_detect_artifacts_rejects_amplitude_and_variance() -> None:
+    """Ensure artifact detection removes samples exceeding thresholds."""
+
+    # Construit un signal synthétique avec des excursions élevées ciblées
+    signal = np.array(
+        [
+            [0.1, 0.2, 5.0, 0.2, 0.1, 0.2, 0.1, 0.2],
+            [0.1, 0.1, 0.2, 0.1, 0.1, 3.0, 0.1, 0.1],
+        ]
+    )
+    # Applique le détecteur en mode rejet pour retirer les échantillons fautifs
+    cleaned, mask = detect_artifacts(
+        signal, amplitude_threshold=1.0, variance_threshold=0.5, mode="reject"
+    )
+    # Vérifie que les indices contaminés ont été correctement marqués
+    assert mask.tolist() == [False, False, True, False, False, True, False, False]
+    # Contrôle que les colonnes marquées ont été supprimées du signal nettoyé
+    assert cleaned.shape[1] == signal.shape[1] - 2
+
+
+def test_detect_artifacts_interpolates_flagged_samples() -> None:
+    """Ensure interpolation preserves length while smoothing spikes."""
+
+    # Construit un signal avec un pic isolé sur un canal
+    signal = np.array([[0.0, 0.0, 4.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]])
+    # Applique le détecteur en mode interpolation pour combler le pic
+    interpolated, mask = detect_artifacts(
+        signal, amplitude_threshold=1.0, variance_threshold=0.2, mode="interpolate"
+    )
+    # Vérifie que le masque identifie uniquement le pic
+    assert mask.tolist() == [False, False, True, False, False]
+    # Confirme que la longueur reste identique après interpolation
+    assert interpolated.shape == signal.shape
+    # Contrôle que le pic a été remplacé par une valeur interpolée nulle
+    assert pytest.approx(interpolated[0, 2]) == 0.0
+
+
+def test_normalize_channels_supports_zscore_and_robust() -> None:
+    """Ensure both normalization modes return centered channels."""
+
+    # Construit un signal simple pour vérifier les deux normalisations
+    signal = np.array([[1.0, 2.0, 3.0], [2.0, 4.0, 6.0]])
+    # Applique la normalisation z-score pour obtenir un écart-type unitaire
+    zscore_signal = normalize_channels(signal, method="zscore")
+    # Vérifie que chaque canal z-score est centré autour de zéro
+    assert np.allclose(np.mean(zscore_signal, axis=1), 0.0)
+    # Applique la normalisation robuste pour neutraliser l'influence des extrêmes
+    robust_signal = normalize_channels(signal, method="robust")
+    # Contrôle que la médiane robuste est centrée à zéro pour chaque canal
+    assert np.allclose(np.median(robust_signal, axis=1), 0.0)
