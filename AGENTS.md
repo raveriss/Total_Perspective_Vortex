@@ -34,9 +34,7 @@ Les contraintes suivantes doivent figurer simultanément dans README, AGENTS et 
 7. **Architecture** : présence d’un script **train** et d’un script **predict** ; le dépôt final versionné contient **uniquement le code Python** (dataset exclu).
 8. **Bonus facultatifs** : wavelets pour le spectre, classifieur maison, autres datasets EEG.
 9. **Formalisme mathématique** : pour le transformer, avec X ∈ R^{d × N}, produire une matrice W telle que W^T X = X_{CSP}/X_{PCA}/X_{ICA}.
-pour implémenter `Total_Perspective_Vortex` avec une posture **défense-proof** :
-TDD systématique, couverture 100 %, diff=100 %, contrôle par fichier, CI Ubuntu-only.
-
+10. **Posture défense-proof globale** : pour implémenter `Total_Perspective_Vortex` avec une posture TDD systématique, couverture 100 %, diff=100 %, contrôle par fichier, CI Ubuntu-only.
 
 ---
 
@@ -197,7 +195,7 @@ Avant de générer du code, **tout agent** doit :
 #   - Fournir des commandes pratiques pour l’entraînement et la prédiction du modèle
 # ========================================================================================
 
-.PHONY: install lint format type test cov mut train predict viz tv-bench-all tv-bench-% activate deactivate
+.PHONY: install lint format type test cov mut train predict  activate deactivate
 
 VENV = .venv
 VENV_BIN = $(VENV)/bin/activate
@@ -229,7 +227,7 @@ format:
 
 # Vérification des types avec Mypy
 type:
-  $(POETRY) mypy src scripts tests
+	$(POETRY) mypy src scripts tests
 
 
 # ----------------------------------------------------------------------------------------
@@ -244,12 +242,16 @@ test:
 cov:
 	$(POETRY) coverage run -m pytest && \
 	$(POETRY) coverage json -o coverage.json && \
+	$(POETRY) coverage xml -o coverage.xml && \
 	$(POETRY) coverage html --skip-empty --show-contexts && \
 	$(POETRY) coverage report --fail-under=100
 
-# Mutation testing avec Mutmut (robustesse des tests)
-mut:
-  $(POETRY) mutmut run --use-coverage --simple-output
+
+# Mutation testing avec Mutmut (guidé par la couverture)
+mut: cov
+	$(POETRY) mutmut run --use-coverage --simple-output
+
+
 
 
 # ----------------------------------------------------------------------------------------
@@ -289,58 +291,257 @@ deactivate:
 # ----------------------------------------------------------------------------------------
 %:
 	@:
-
 ```
 
 ### 0.4 CI/CD (GitHub Actions) — **Ubuntu‑only**
 `.github/workflows/ci.yml`
 ```yaml
-name: ci
+# .github/workflows/ci.yml
+name: CI
+
 on:
   push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.png'
   pull_request:
+    branches: [ main, develop ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.png'
+
+env:
+  # Version Python canonique utilisée par la CI (alignée avec pyproject.toml)
+  PYTHON_VERSION: "3.10"
+
 jobs:
-  tests:
+  pre-commit:
+    name: Pre-commit checks
     runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Install Poetry (retry)
+        run: |
+          python -m pip install --user --upgrade pip
+          for attempt in 1 2 3; do
+            python -m pip install --user --retries 3 --timeout 60 poetry==1.8.4 && break
+            if [ "$attempt" -eq 3 ]; then
+              echo "Poetry installation failed after ${attempt} attempts." >&2
+              exit 1
+            fi
+            echo "Retrying Poetry installation (attempt ${attempt}/3)..." >&2
+            sleep 5
+          done
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
+
+      - name: Cache virtualenv
+        id: cache-poetry
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies (cache miss)
+        if: steps.cache-poetry.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --with dev --no-root
+
+      - name: Install project in editable mode
+        run: poetry install --no-interaction --with dev
+
+      - name: Run pre-commit
+        run: poetry run pre-commit run --all-files
+
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-22.04
+    needs: pre-commit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: '3.10' }
-      - name: Install Poetry
-        run: curl -sSL https://install.python-poetry.org | python3 -
-      - name: Configure Poetry
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - name: Install Poetry (retry)
         run: |
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python -m pip install --user --upgrade pip
+          for attempt in 1 2 3; do
+            python -m pip install --user --retries 3 --timeout 60 poetry==1.8.4 && break
+            if [ "$attempt" -eq 3 ]; then
+              echo "Poetry installation failed after ${attempt} attempts." >&2
+              exit 1
+            fi
+            echo "Retrying Poetry installation (attempt ${attempt}/3)..." >&2
+            sleep 5
+          done
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          poetry config virtualenvs.create true
           poetry config virtualenvs.in-project true
-          poetry install --no-root --with dev
-      - name: Lint & type
+      - uses: actions/cache@v3
+        id: cache-poetry
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+      - name: Install dependencies (cache miss)
+        if: steps.cache-poetry.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --with dev --no-root
+      - name: Install project
+        run: poetry install --no-interaction --with dev
+
+      - name: Run Black check
+        run: poetry run black --check .
+
+      - name: Run isort check
+        run: poetry run isort --check-only .
+
+      - name: Run Ruff
+        run: poetry run ruff check .
+
+      - name: Run MyPy
+        run: poetry run mypy src scripts tests
+
+      - name: Audit dependencies with pip-audit
+        run: poetry run pip-audit --progress-spinner=off
+
+
+  tests:
+    runs-on: ubuntu-22.04
+    needs: static-analysis
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry (retry)
         run: |
-          poetry run ruff check .
-          poetry run mypy src scripts tests
-      - name: Tests & coverage (100 % global, diff 100 %)
+          python -m pip install --user --upgrade pip
+          for attempt in 1 2 3; do
+            python -m pip install --user --retries 3 --timeout 60 poetry==1.8.4 && break
+            if [ "$attempt" -eq 3 ]; then
+              echo "Poetry installation failed after ${attempt} attempts." >&2
+              exit 1
+            fi
+            echo "Retrying Poetry installation (attempt ${attempt}/3)..." >&2
+            sleep 5
+          done
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
+
+      - name: Cache virtualenv
+        id: cache-poetry
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies (with dev)
+        if: steps.cache-poetry.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --with dev
+
+      - name: Ensure project installed
+        if: steps.cache-poetry.outputs.cache-hit == 'true'
+        run: poetry install --no-interaction --with dev
+
+      - name: Run tests with coverage (Makefile)
+        run: make cov
+
+      - name: Generate coverage.xml for Codecov
+        run: poetry run coverage xml -o coverage.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          disable_search: true
+          flags: unittests
+          name: ci-ubuntu-py${{ env.PYTHON_VERSION }}
+          slug: raveriss/Total_Perspective_Vortex
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+      - name: Run mutation tests (coverage-guided)
         run: |
-          poetry run coverage run -m pytest -q
-          poetry run coverage json -o coverage.json
-          poetry run coverage xml -o coverage.xml
-          poetry run coverage report --fail-under=100
-      - name: Enforce per-file 100 %
+          poetry run mutmut run --use-coverage --simple-output
+
+      - name: Show mutation results
         run: |
-          python - << 'PY'
-import json,sys
-j=json.load(open('coverage.json'))
-miss=[f for f in j['files'].values() if f['summary']['percent_covered']<100]
-if miss:
-    print('Files below 100%:', [k for k,v in j['files'].items() if v in miss])
-    sys.exit(1)
-PY
-      - name: Upload coverage HTML (artifact)
+          poetry run mutmut results > mutmut-results.txt
+          cat mutmut-results.txt
+
+      - name: Upload mutation report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: htmlcov
-          path: htmlcov/
+          name: mutmut-results
+          path: mutmut-results.txt
 
+      - name: Fail if surviving mutants
+        run: |
+          if grep -Fq "survived" mutmut-results.txt; then
+            echo "Surviving mutants detected" && exit 1
+          fi
+
+  build:
+    name: Build Package
+    runs-on: ubuntu-22.04
+    needs: [static-analysis, tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - name: Install Poetry (retry)
+        run: |
+          python -m pip install --user --upgrade pip
+          for attempt in 1 2 3; do
+            python -m pip install --user --retries 3 --timeout 60 poetry==1.8.4 && break
+            if [ "$attempt" -eq 3 ]; then
+              echo "Poetry installation failed after ${attempt} attempts." >&2
+              exit 1
+            fi
+            echo "Retrying Poetry installation (attempt ${attempt}/3)..." >&2
+            sleep 5
+          done
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
+      - run: poetry install --no-interaction --no-root
+      - name: Build package
+        run: poetry build
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
 ```
+
+> Exemple minimal de CI ci-dessous. La configuration réelle utilisée est
+> définie dans `.github/workflows/ci.yml` (jobs pré-commit, static-analysis,
+> tests, build).
+
 
 ### 0.5 TDD — Red → Green → Refactor (règle d’or)
 - **Definition of Ready** : pas de code sans **au moins un test qui échoue**.
@@ -369,9 +570,67 @@ PY
  et exécution modulaire via `python -m tpv.train` / `python -m tpv.predict`
  ou via le point d'entrée `python mybci.py <subject> <run> {train,predict}`.
 
-
 ---
 
+## 2) 🔁 Pipeline local avant commit (miroir du CI)
+
+Avant **tout `git commit`**, l’agent doit exécuter **exactement** cette séquence,
+dans cet ordre, et **abandonner le commit** dès qu’une étape échoue.
+
+### 2.1 Préparation (si nouveau clone ou `poetry.lock` modifié)
+
+Si l’agent ne sait pas si l’environnement est à jour (nouveau clone,
+changement de branche, doute sur `poetry.lock`), il doit exécuter
+systématiquement 2.1.1 et 2.1.2.
+
+1. `poetry install --no-interaction --with dev`
+2. Vérifier que la commande `poetry run pytest -q` fonctionne au moins une fois.
+
+### 2.2 Pre-commit + Static analysis (miroir CI)
+
+Ces commandes reflètent les jobs `pre-commit` et `static-analysis` de la CI
+GitHub. Elles doivent être exécutées **dans cet ordre**.
+
+> La redondance avec `pre-commit` (qui lance déjà une partie de ces outils)
+> est **volontaire** pour reproduire fidèlement les jobs de la CI et détecter
+> toute divergence locale/CI.
+
+1. `poetry run pre-commit run --all-files`
+2. `poetry run black --check .`
+3. `poetry run isort --check-only .`
+4. `poetry run ruff check .`
+5. `poetry run mypy src scripts tests`
+6. `poetry run pip-audit --progress-spinner=off`
+
+Si une de ces commandes échoue → **corriger le code** puis **rejouer depuis 2.2.1**.
+
+### 2.3 Tests unitaires + couverture (miroir du job `tests`)
+1. `make cov`
+   - doit produire `coverage.json`, `coverage.xml`, `htmlcov/`
+   - doit finir avec `coverage report --fail-under=100` **OK**
+2. Vérifier qu’aucun fichier n’est sous 100 % via le script de la CI
+   (contrôle par fichier avec `coverage.json` si script local existant).
+
+### 2.4 Mutation testing (miroir du job `tests` – step Mutmut)
+1. `poetry run mutmut run --use-coverage --simple-output`
+2. `poetry run mutmut results > mutmut-results.txt`
+3. Vérifier **manuellement** ou via script qu’il n’y a **aucune ligne** contenant
+   `survived` dans `mutmut-results.txt`.
+
+Si au moins un mutant **survit** → **interdiction de committer** tant que :
+- les tests n’ont pas été renforcés, puis
+- `poetry run mutmut run` et `poetry run mutmut results` repassent sans `survived`.
+
+### 2.5 Règle d’or pour les agents
+
+- Un commit n’est **valide** que si toutes les étapes 2.2, 2.3 et 2.4 sont **vertes**.
+- Tout message “Modifie ton pre-commit car il y a des fails dans le CI” doit déclencher :
+  1. Relecture de cette section 2),
+  2. Exécution complète de la séquence,
+  3. Correction des échecs **avant** de proposer un nouveau commit.
+
+---
+cd
 ## 3) 🧪 Plan de tests (défense‑proof)
 **Objectifs** : 100 % couverture (branches + diff), **contrôle par fichier**, tests rapides.
 

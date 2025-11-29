@@ -17,8 +17,8 @@ on:
       - '**/*.png'
 
 env:
+  # Version Python canonique utilisée par la CI (alignée avec pyproject.toml)
   PYTHON_VERSION: "3.10"
-  POETRY_HOME: "${{ github.workspace }}/.poetry"
 
 jobs:
   pre-commit:
@@ -105,22 +105,21 @@ jobs:
       - name: Install project
         run: poetry install --no-interaction --with dev
 
-      - name: Run Ruff
-        run: poetry run ruff check .
-
-      - name: Run MyPy
-        run: poetry run mypy src tests
-
       - name: Run Black check
         run: poetry run black --check .
 
       - name: Run isort check
         run: poetry run isort --check-only .
 
-      # (Optionnel) Audit dépendances via Poetry, sans requirements.txt
+      - name: Run Ruff
+        run: poetry run ruff check .
+
+      - name: Run MyPy
+        run: poetry run mypy src scripts tests
+
       - name: Audit dependencies with pip-audit
         run: poetry run pip-audit --progress-spinner=off
-        # -> nécessite d'ajouter `pip-audit` dans [tool.poetry.group.dev.dependencies]
+
 
   tests:
     runs-on: ubuntu-22.04
@@ -184,9 +183,9 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
-      - name: Run mutation tests (scoped, avec coverage)
+      - name: Run mutation tests (coverage-guided)
         run: |
-          poetry run mutmut run
+          poetry run mutmut run --use-coverage --simple-output
 
       - name: Show mutation results
         run: |
@@ -194,6 +193,7 @@ jobs:
           cat mutmut-results.txt
 
       - name: Upload mutation report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mutmut-results
