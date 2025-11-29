@@ -121,6 +121,35 @@ def test_apply_bandpass_filter_latency_benchmark() -> None:
     assert iir_latency < fir_latency * 2.5
 
 
+def test_apply_bandpass_filter_rejects_unknown_method() -> None:
+    """Validate that the filter refuses unsupported design names."""
+
+    # Construit un enregistrement court pour atteindre la validation rapide
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.5)
+    # Vérifie qu'une méthode inconnue déclenche une erreur explicite
+    with pytest.raises(ValueError):
+        # Force un nom de méthode non pris en charge pour tester la garde
+        apply_bandpass_filter(raw, method="fft", pad_duration=0.25)
+
+
+def test_apply_bandpass_filter_skips_padding_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure padding is bypassed when the duration is zero."""
+
+    # Construit un enregistrement pour activer la branche sans padding
+    raw = _build_dummy_raw(sfreq=256.0, duration=1.0)
+    # Remplace np.pad par un échec direct pour détecter toute invocation
+    monkeypatch.setattr(
+        "tpv.preprocessing.np.pad",
+        lambda *args, **kwargs: pytest.fail("np.pad must stay unused"),
+    )
+    # Applique le filtre avec pad à zéro pour traverser la branche else
+    filtered = apply_bandpass_filter(raw, method="fir", pad_duration=0.0)
+    # Confirme que la forme reste identique sans utilisation de padding
+    assert filtered.get_data().shape == raw.get_data().shape
+
+
 def test_load_physionet_raw_reads_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
