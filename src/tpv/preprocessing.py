@@ -227,8 +227,12 @@ def _validate_motor_mapping(
     observed_labels = {
         desc for desc in raw.annotations.description if not _is_bad_description(desc)
     }
-    # Identify observed labels not covered by the motor mapping
-    missing_motor_keys = observed_labels - set(effective_motor_map.keys())
+    # Restrict completeness checks to motor-related annotation labels
+    motor_label_candidates = {
+        desc for desc in observed_labels if desc in MOTOR_EVENT_LABELS
+    }
+    # Identify observed motor labels not covered by the motor mapping
+    missing_motor_keys = motor_label_candidates - set(effective_motor_map.keys())
     # Raise a descriptive error when observed labels lack motor interpretations
     if missing_motor_keys:
         # Include unknown label names to speed up dataset adjustments

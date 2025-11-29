@@ -49,12 +49,12 @@ def _build_dummy_raw(sfreq: float = 128.0) -> mne.io.Raw:
     data = rng.standard_normal((2, int(sfreq)))
     # Assemble the RawArray from the synthetic data
     raw = mne.io.RawArray(data, info)
-    # Annotate two events representing motor imagery tasks
+    # Annotate three events representing motor imagery tasks
     raw.set_annotations(
         mne.Annotations(
-            onset=[0.1, 0.6],
-            duration=[0.1, 0.1],
-            description=["T1", "T2"],
+            onset=[0.1, 0.3, 0.6],
+            duration=[0.1, 0.1, 0.1],
+            description=["T0", "T1", "T2"],
         )
     )
     # Return the constructed Raw object for downstream export
@@ -469,16 +469,19 @@ def test_map_events_filters_bad_segments(tmp_path: Path) -> None:
     # Extend annotations with a BAD interval covering the second event
     raw.set_annotations(
         raw.annotations
-        + mne.Annotations(onset=[0.55], duration=[0.2], description=["BAD_segment"])
+        + mne.Annotations(onset=[0.25], duration=[0.2], description=["BAD_segment"])
     )
     # Derive events and event_id using the validation helper
     events, event_id = map_events_and_validate(raw)
     # Ensure the label map matches the Physionet default even when labels are missing
     assert event_id == PHYSIONET_LABEL_MAP
-    # Confirm only the first event remains after BAD filtering
-    assert events.shape[0] == 1
-    # Verify the remaining event corresponds to the first annotation
+    # Confirm the first and last events remain after BAD filtering
+    expected_event_count = 2
+    assert events.shape[0] == expected_event_count
+    # Verify the remaining events correspond to the first annotation
     assert events[0, 0] == pytest.approx(round(0.1 * raw.info["sfreq"]))
+    # Verify the remaining events include the third annotation
+    assert events[1, 0] == pytest.approx(round(0.6 * raw.info["sfreq"]))
 
 
 def test_map_events_respects_custom_label_map_and_bad_boundaries() -> None:
@@ -600,7 +603,7 @@ def test_map_events_does_not_mutate_input_label_map() -> None:
     # Verify the original dictionary remains unchanged after the call
     assert label_map == {"T0": 0, "T1": 5, "T2": 6}
     # Define the expected count of preserved events when no BAD labels exist
-    expected_event_count = 2
+    expected_event_count = 3
     # Ensure all events are retained when no BAD intervals exist
     assert events.shape[0] == expected_event_count
 
@@ -694,11 +697,11 @@ def test_create_epochs_builds_clean_epochs(tmp_path: Path) -> None:
     # Construct epochs and ensure no epoch is dropped unnecessarily
     epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.2)
     # Define the expected number of epochs for clarity in assertions
-    expected_epoch_count = 2
-    # Expect two epochs corresponding to the two annotations
+    expected_epoch_count = 3
+    # Expect three epochs corresponding to the annotations
     assert len(epochs) == expected_epoch_count
     # Ensure epoch labels reflect the annotation mapping
-    assert set(epochs.events[:, 2]) == {1, 2}
+    assert set(epochs.events[:, 2]) == {0, 1, 2}
 
 
 def test_create_epochs_passes_configuration_to_mne(
@@ -802,8 +805,9 @@ def test_create_epochs_rejects_events_over_bad_annotation() -> None:
     events, event_id = mne.events_from_annotations(raw, event_id=PHYSIONET_LABEL_MAP)
     # Create epochs while letting MNE reject events inside BAD spans
     epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
-    # Confirm the contaminated event has been rejected
-    assert len(epochs) == 1
+    # Confirm only the unaffected events remain after rejection
+    expected_epoch_count = 2
+    assert len(epochs) == expected_epoch_count
 
 
 def test_verify_dataset_integrity_checks_hash_and_runs(tmp_path: Path) -> None:
