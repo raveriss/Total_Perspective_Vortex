@@ -1,9 +1,11 @@
 # Utilise subprocess pour exécuter le script comme un utilisateur final
-import subprocess
-# Gère la création de répertoires temporaires isolés
-from pathlib import Path
 # Produit rapidement un manifeste JSON pour le test
 import json
+import subprocess
+
+# Gère la création de répertoires temporaires isolés
+from pathlib import Path
+
 
 # Vérifie que le script échoue clairement quand les fichiers sont absents
 def test_fetch_physionet_fails_without_files(tmp_path: Path) -> None:
@@ -14,7 +16,10 @@ def test_fetch_physionet_fails_without_files(tmp_path: Path) -> None:
     # Localise le manifeste artificiel utilisé pour ce scénario d'échec
     manifest = tmp_path / "manifest.json"
     # Stocke une entrée fictive afin de provoquer un manque côté source
-    manifest.write_text(json.dumps({"files": [{"path": "S001/S001R01.edf", "size": 1}]}), encoding="utf-8")
+    manifest.write_text(
+        json.dumps({"files": [{"path": "S001/S001R01.edf", "size": 1}]}),
+        encoding="utf-8",
+    )
     # Définit un répertoire de destination distinct pour le test
     destination_dir = tmp_path / "destination"
     # Lance la commande python pour appeler le script CLI
