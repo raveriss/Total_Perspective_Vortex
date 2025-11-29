@@ -21,6 +21,9 @@ import mne
 # Numpy offers vectorized masks for fast event filtering
 import numpy as np
 
+# Import pandas to manage metadata annotations for quality control
+import pandas as pd
+
 # Provide a default mapping consistent with Physionet motor imagery labels
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
 # Provide an explicit mapping from Physionet events to motor imagery labels
@@ -320,6 +323,97 @@ def create_epochs_from_raw(
     return epochs
 
 
+def _expected_epoch_samples(epochs: mne.Epochs) -> int:
+    """Compute the expected number of samples per epoch."""
+
+    # Derive duration-based sample count to catch truncated segments
+    return int(round((epochs.tmax - epochs.tmin) * epochs.info["sfreq"])) + 1
+
+
+def _flag_epoch_quality(
+    epoch: np.ndarray, max_peak_to_peak: float, expected_samples: int
+) -> List[str]:
+    """Identify quality issues for a single epoch."""
+
+    # Track reasons to support later reporting or masking
+    reasons: List[str] = []
+    # Measure peak-to-peak amplitude to reveal sharp artifacts
+    ptp_value = float(np.ptp(epoch))
+    # Record amplitude excursions beyond the threshold to protect models
+    if ptp_value > max_peak_to_peak:
+        reasons.append("artifact")
+    # Detect incomplete epochs via shape or NaN inspection
+    if epoch.shape[1] < expected_samples or np.isnan(epoch).any():
+        reasons.append("incomplete")
+    # Return accumulated flags for the caller to aggregate
+    return reasons
+
+
+def _apply_marking(
+    safe_epochs: mne.Epochs, flagged: Dict[str, List[int]]
+) -> Tuple[mne.Epochs, Dict[str, List[int]]]:
+    """Mark flagged epochs in metadata and return the updated set."""
+
+    # Initialize metadata so downstream code can track quality per epoch
+    if safe_epochs.metadata is None:
+        # Build a DataFrame with a single column matching epoch count
+        safe_epochs.metadata = pd.DataFrame({"quality_flag": ["ok"] * len(safe_epochs)})
+    # Iterate to update quality flags for each identified issue
+    for reason, indices in flagged.items():
+        # Apply the reason to all recorded indices for transparency
+        for idx in indices:
+            # Overwrite the quality flag to reflect the detected issue
+            safe_epochs.metadata.at[idx, "quality_flag"] = reason
+    # Return the annotated epochs along with the indexed reasons
+    return safe_epochs, flagged
+
+
+def _apply_rejection(
+    safe_epochs: mne.Epochs, flagged: Dict[str, List[int]]
+) -> Tuple[mne.Epochs, Dict[str, List[int]]]:
+    """Drop flagged epochs and return the pruned set."""
+
+    # Build a set of indices to remove for efficient membership tests
+    removed_indices = set(flagged["artifact"]) | set(flagged["incomplete"])
+    # Construct a boolean mask that preserves only unflagged epochs
+    keep_mask = [idx not in removed_indices for idx in range(len(safe_epochs))]
+    # Apply the mask to drop contaminated epochs before returning
+    return safe_epochs[keep_mask], flagged
+
+
+def quality_control_epochs(
+    epochs: mne.Epochs,
+    max_peak_to_peak: float,
+    mode: str = "reject",
+) -> Tuple[mne.Epochs, Dict[str, List[int]]]:
+    """Screen epochs for artifacts or incompleteness and flag or drop them."""
+
+    # Copy the epochs to avoid mutating caller data during quality enforcement
+    safe_epochs = epochs.copy()
+    # Retrieve the data to inspect amplitude and completeness metrics
+    data = safe_epochs.get_data(copy=True)
+    # Compute expected sample count to detect truncated epoch shapes
+    expected_samples = _expected_epoch_samples(safe_epochs)
+    # Prepare buckets to track artifact and incomplete epoch indices
+    flagged: Dict[str, List[int]] = {"artifact": [], "incomplete": []}
+    # Iterate over epochs to check amplitude and completeness constraints
+    for idx, epoch in enumerate(data):
+        # Aggregate all reasons identified for the current epoch
+        for reason in _flag_epoch_quality(epoch, max_peak_to_peak, expected_samples):
+            # Record the reason to enable downstream removal or marking
+            flagged[reason].append(idx)
+    # When the mode is reject, remove flagged epochs to stabilize training
+    if mode == "reject":
+        # Delegate rejection to simplify complexity for linting and tests
+        return _apply_rejection(safe_epochs, flagged)
+    # When the mode is mark, annotate metadata instead of dropping epochs
+    if mode == "mark":
+        # Delegate marking to reuse the metadata update logic
+        return _apply_marking(safe_epochs, flagged)
+    # Raise when the mode is unsupported to avoid silent misuse
+    raise ValueError("mode must be either 'reject' or 'mark'")
+
+
 def _build_file_entry(
     data_root: Path,
     file_path: Path,
@@ -404,3 +498,63 @@ def verify_dataset_integrity(
             raise ValueError(f"Run count mismatch: {json.dumps(missing_runs)}")
     # Return the report to enable higher-level monitoring or logging
     return report
+
+
+def generate_epoch_report(
+    epochs: mne.Epochs,
+    event_id: Mapping[str, int],
+    run_metadata: Mapping[str, str],
+    output_path: Path,
+    fmt: str = "json",
+) -> Path:
+    """Persist epoch counts per class, subject, and run in JSON or CSV."""
+
+    # Convertit le format en minuscules pour uniformiser les comparaisons
+    fmt_normalized = fmt.lower()
+    # Refuse les formats non minuscules pour éviter les ambiguïtés silencieuses
+    if fmt != fmt_normalized:
+        # Arrête l'exécution pour imposer une convention de nommage explicite
+        raise ValueError("fmt must be lowercase")
+    # Vérifie que le format fourni est limité aux options minuscules supportées
+    if fmt_normalized not in {"json", "csv"}:
+        # Interrompt tôt pour éviter d'écrire un rapport avec un format ambigu
+        raise ValueError("fmt must be either 'json' or 'csv'")
+    # Normalise le chemin pour garantir des écritures cohérentes sur disque
+    # Ensure the parent directory exists to make the report path valid
+    output_path = Path(output_path)
+    # Create parent directories so the report can be written without errors
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Build a reverse lookup to translate event codes into label names
+    reverse_map = {code: label for label, code in event_id.items()}
+    # Count epochs for every label present in the event mapping
+    label_counts = {
+        label: int(np.sum(epochs.events[:, 2] == code))
+        for code, label in reverse_map.items()
+    }
+    # Compose a structured payload describing the run content
+    payload: Dict[str, Any] = {
+        "subject": run_metadata["subject"],
+        "run": run_metadata["run"],
+        "total_epochs": int(len(epochs)),
+        "counts": label_counts,
+    }
+    # Serialize the payload to JSON when requested by the caller
+    if fmt_normalized == "json":
+        # Write the JSON content with indentation for human readability
+        output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        # Return the path so callers can locate the generated report
+        return output_path
+    # Serialize the payload to CSV rows when CSV is requested
+    else:
+        # Build header and rows capturing each class count explicitly
+        lines = ["subject,run,label,count"]
+        # Iterate over label counts to materialize per-class entries
+        for label, count in label_counts.items():
+            # Append a CSV line detailing subject, run, label, and count
+            lines.append(
+                f"{run_metadata['subject']},{run_metadata['run']},{label},{count}"
+            )
+        # Write all lines with newline separation to the output path
+        output_path.write_text("\n".join(lines), encoding="utf-8")
+        # Return the path so downstream processes can load the CSV
+        return output_path

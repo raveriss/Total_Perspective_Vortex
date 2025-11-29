@@ -3,6 +3,8 @@
 # Import pathlib to construct temporary dataset layouts
 # Import pathlib to type temporary paths for datasets
 # Import json to inspect structured error payloads
+# Import inspect to introspect function signatures when required
+import inspect
 import json
 from pathlib import Path
 
@@ -22,18 +24,25 @@ import numpy as np
 import pytest
 
 # Import the preprocessing helpers under test
+# Importe les utilitaires de contrôle d'échantillons et de qualité
+# Importe le marqueur pour vérifier la structure des métadonnées
 from tpv.preprocessing import (
     MOTOR_EVENT_LABELS,
     PHYSIONET_LABEL_MAP,
+    _apply_marking,
     _build_file_entry,
     _build_keep_mask,
     _collect_run_counts,
+    _expected_epoch_samples,
     _extract_bad_intervals,
+    _flag_epoch_quality,
     _is_bad_description,
     create_epochs_from_raw,
+    generate_epoch_report,
     load_mne_raw_checked,
     load_physionet_raw,
     map_events_and_validate,
+    quality_control_epochs,
     verify_dataset_integrity,
 )
 
@@ -199,6 +208,359 @@ def test_load_mne_raw_checked_raises_on_sampling_rate_mismatch(
         )
     # Confirm the message explains the sampling rate discrepancy
     assert "Expected sampling rate" in str(exc.value)
+
+
+def test_map_events_and_validate_rejects_unknown_labels() -> None:
+    """Ensure event mapping fails when annotations contain unknown labels."""
+
+    # Build a dummy raw instance with an unsupported label to trigger validation
+    raw = _build_dummy_raw()
+    # Replace annotations with an invalid label to exercise the error path
+    raw.set_annotations(
+        mne.Annotations(onset=[0.1], duration=[0.1], description=["TX"])
+    )
+    # Expect a ValueError when the annotation label is absent from the mapping
+    with pytest.raises(ValueError) as exc:
+        map_events_and_validate(raw, label_map=PHYSIONET_LABEL_MAP)
+    # Confirm the message surfaces the unknown label for debugging
+    assert "Unknown labels" in str(exc.value)
+
+
+def test_quality_control_and_reporting(tmp_path: Path) -> None:
+    """Ensure artifact epochs are removed and reports capture remaining counts."""
+
+    # Build a dummy raw instance to generate events and epochs
+    raw = _build_dummy_raw()
+    # Map annotations to events with validation to obtain event identifiers
+    events, event_id = map_events_and_validate(raw)
+    # Create epochs around the events with a non-negative start to keep them valid
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.3)
+    # Amplify the first epoch to simulate an artifact exceeding the threshold
+    epoch_data = epochs.get_data(copy=False)
+    # Inject a large positive swing on the first channel to inflate peak-to-peak
+    epoch_data[0, 0, 0] = 50.0
+    # Inject a large negative swing on the second channel to widen amplitude
+    epoch_data[0, 1, 0] = -50.0
+    # Apply quality control with rejection to drop the corrupted epoch
+    filtered_epochs, flagged = quality_control_epochs(epochs, max_peak_to_peak=10.0)
+    # Confirm the first epoch was flagged as an artifact for removal
+    assert flagged["artifact"] == [0]
+    # Confirm no incomplete epochs were detected in the synthetic data
+    assert flagged["incomplete"] == []
+    # Generate a JSON report summarizing the surviving epoch counts
+    report_path = tmp_path / "reports" / "summary.json"
+    # Persist the report to disk for later inspection
+    generate_epoch_report(
+        filtered_epochs,
+        event_id,
+        {"subject": "S01", "run": "R01"},
+        report_path,
+    )
+    # Load the report to verify the counts reflect the filtered epochs
+    report_content = json.loads(report_path.read_text(encoding="utf-8"))
+    # Confirm subject and run identifiers are preserved in the report
+    assert report_content["subject"] == "S01"
+    # Confirm run identifier matches the provided input
+    assert report_content["run"] == "R01"
+    # Confirm only two epochs remain after dropping the artifact
+    remaining_epochs = 2
+    assert report_content["total_epochs"] == remaining_epochs
+    # Confirm each remaining label appears exactly once in the counts
+    assert report_content["counts"] == {"T0": 0, "T1": 1, "T2": 1}
+
+
+def test_quality_control_marking_handles_incomplete_epochs() -> None:
+    """Confirm marking mode annotates incomplete epochs without dropping them."""
+
+    # Build a dummy raw instance to generate events and epochs
+    raw = _build_dummy_raw()
+    # Map annotations to events with validation to obtain event identifiers
+    events, event_id = map_events_and_validate(raw)
+    # Create epochs around the events with a non-negative start to keep them valid
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.3)
+    # Inject a NaN to trigger the incomplete flag while preserving shape
+    epoch_data = epochs.get_data(copy=False)
+    epoch_data[0, 0, 0] = np.nan
+    # Apply quality control in marking mode to retain epochs
+    marked_epochs, flagged = quality_control_epochs(
+        epochs, max_peak_to_peak=10.0, mode="mark"
+    )
+    # Confirm the first epoch was flagged as incomplete instead of dropped
+    assert flagged["incomplete"] == [0]
+    # Confirm metadata was created and records the incomplete status
+    assert marked_epochs.metadata is not None
+    assert marked_epochs.metadata.loc[0, "quality_flag"] == "incomplete"
+
+
+def test_expected_epoch_samples_uses_duration_and_rate() -> None:
+    """Assure le calcul d'échantillons attendus depuis la durée des epochs."""
+
+    # Construit un Raw synthétique avec fréquence stable pour contrôler la durée
+    raw = _build_dummy_raw(sfreq=50.0)
+    # Convertit les annotations en événements pour paramétrer l'epoching
+    events, event_id = map_events_and_validate(raw)
+    # Crée des epochs couvrant une fenêtre asymétrique pour stresser la formule
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=-0.1, tmax=0.2)
+    # Évalue la fonction utilitaire pour obtenir le nombre d'échantillons
+    expected_samples = _expected_epoch_samples(epochs)
+    # Calcule l'attendu pour éviter une valeur constante dans l'assertion
+    manual_expected = int(round((epochs.tmax - epochs.tmin) * epochs.info["sfreq"])) + 1
+    # Vérifie que le calcul suit bien durée × fréquence + 1 échantillon
+    assert expected_samples == manual_expected
+
+
+def test_flag_epoch_quality_excludes_equal_threshold_artifacts() -> None:
+    """Garantit qu'un pic égal au seuil ne déclenche pas de drapeau."""
+
+    # Crée un epoch constant pour isoler la logique de seuil d'amplitude
+    epoch = np.zeros((2, 4))
+    # Injecte un pic symétrique pour obtenir une amplitude pic-à-pic de 2
+    epoch[0, 0] = 1.0
+    # Finalise le pic négatif pour atteindre exactement le seuil cible
+    epoch[1, 0] = -1.0
+    # Calcule les raisons de rejet avec un seuil strictement supérieur à 2
+    reasons = _flag_epoch_quality(epoch, max_peak_to_peak=2.0, expected_samples=4)
+    # Valide qu'aucun artefact n'est marqué quand l'amplitude égale le seuil
+    assert "artifact" not in reasons
+    # Valide qu'aucune incomplétude n'est signalée sur des formes correctes
+    assert "incomplete" not in reasons
+
+
+def test_apply_marking_preserves_default_quality_metadata() -> None:
+    """Vérifie que les métadonnées par défaut restent cohérentes."""
+
+    # Construit un Raw synthétique pour générer plusieurs epochs
+    raw = _build_dummy_raw()
+    # Mappe les annotations en événements pour alimenter l'epoching
+    events, event_id = map_events_and_validate(raw)
+    # Crée des epochs pour disposer de drapeaux applicables
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    # Prépare un marquage ciblant uniquement le deuxième epoch
+    flagged = {"artifact": [1], "incomplete": []}
+    # Applique le marquage pour générer ou mettre à jour les métadonnées
+    marked, _ = _apply_marking(epochs, flagged)
+    # Confirme que la colonne attendue est bien utilisée pour la qualité
+    assert list(marked.metadata.columns) == ["quality_flag"]
+    # Confirme que les valeurs par défaut sont "ok" hors des indices marqués
+    assert list(marked.metadata["quality_flag"]) == ["ok", "artifact", "ok"]
+
+
+def test_quality_control_rejects_invalid_mode() -> None:
+    """Ensure unsupported mode strings raise a clear ValueError."""
+
+    # Build a dummy raw instance to generate events and epochs
+    raw = _build_dummy_raw()
+    # Map annotations to events with validation to obtain event identifiers
+    events, event_id = map_events_and_validate(raw)
+    # Create epochs around the events with a non-negative start to keep them valid
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.3)
+    # Expect a ValueError when an unknown mode is supplied
+    with pytest.raises(ValueError) as exc:
+        quality_control_epochs(epochs, max_peak_to_peak=10.0, mode="unknown")
+    # Confirme que le message respecte le format attendu sans altération
+    assert str(exc.value) == "mode must be either 'reject' or 'mark'"
+
+
+def test_quality_control_epochs_requests_data_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Assure que la qualité ne modifie pas l'array original des epochs."""
+
+    # Crée un Raw synthétique pour disposer d'epochs reproductibles
+    raw = _build_dummy_raw()
+    # Mappe les annotations vers des événements pour l'epoching
+    events, event_id = map_events_and_validate(raw)
+    # Construit des epochs pour vérifier les appels à get_data
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    # Conserve l'implémentation native pour exécuter la logique MNE réelle
+    original_get_data = mne.Epochs.get_data
+    # Prépare une liste pour tracer le paramètre copy demandé
+    copy_calls: list[bool] = []
+
+    # Définit un espion qui capture la valeur du paramètre copy
+    def spy_get_data(self, copy: bool = True):
+        # Enregistre la valeur passée pour valider l'appel attendu
+        copy_calls.append(copy)
+        # Délègue à l'implémentation originale pour conserver le comportement
+        return original_get_data(self, copy=copy)
+
+    # Remplace get_data sur la classe Epochs pour observer l'appel interne
+    monkeypatch.setattr(mne.Epochs, "get_data", spy_get_data)
+    # Exécute le contrôle qualité pour déclencher l'appel espion
+    quality_control_epochs(epochs, max_peak_to_peak=5.0)
+    # Vérifie que l'appel a explicitement demandé une copie des données
+    assert copy_calls == [True]
+
+
+def test_generate_epoch_report_creates_nested_directories(tmp_path: Path) -> None:
+    """Vérifie que la génération de rapport crée les répertoires profonds."""
+
+    # Construit un Raw synthétique pour disposer d'events prévisibles
+    raw = _build_dummy_raw()
+    # Mappe les annotations vers des événements pour l'epoching
+    events, event_id = map_events_and_validate(raw)
+    # Crée des epochs avec une fenêtre courte pour accélérer le test
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    # Déclare un chemin imbriqué nécessitant la création récursive des dossiers
+    nested_path = tmp_path / "deep" / "nested" / "reports" / "summary.json"
+    # Génère le rapport JSON pour tester la création récursive
+    output_path = generate_epoch_report(
+        epochs,
+        event_id,
+        {"subject": "S03", "run": "R03"},
+        nested_path,
+    )
+    # Charge le rapport pour vérifier l'exactitude du contenu
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    # Valide que le sujet et le run correspondent aux métadonnées fournies
+    assert payload["subject"] == "S03"
+    # Valide que le nombre total d'epochs correspond à la taille générée
+    assert payload["total_epochs"] == len(epochs)
+    # Valide que chaque label issu de la carte event_id apparaît dans le rapport
+    assert set(payload["counts"].keys()) == set(event_id.keys())
+
+
+def test_generate_epoch_report_default_format_is_json() -> None:
+    """Assure que le format par défaut reste "json" en minuscules."""
+
+    # Récupère la signature de la fonction pour lire la valeur par défaut
+    default_fmt = inspect.signature(generate_epoch_report).parameters["fmt"].default
+    # Vérifie que le format par défaut est exactement la chaîne "json"
+    assert default_fmt == "json"
+
+
+def test_generate_epoch_report_rejects_uppercase_format(tmp_path: Path) -> None:
+    """Interdit les formats en majuscules pour éviter des corrections implicites."""
+
+    # Construit un Raw synthétique pour obtenir des événements reproductibles
+    raw = _build_dummy_raw()
+    # Mappe les annotations vers des événements pour préparer les epochs
+    events, event_id = map_events_and_validate(raw)
+    # Crée des epochs minimales pour alimenter la génération de rapport
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    # Définit un chemin de sortie factice pour vérifier l'échec précoce
+    output_path = tmp_path / "upper.json"
+    # Vérifie qu'un format non minuscule provoque une erreur explicite
+    with pytest.raises(ValueError, match=r"^fmt must be lowercase$"):
+        generate_epoch_report(
+            epochs,
+            event_id,
+            {"subject": "S05", "run": "R05"},
+            output_path,
+            fmt="JSON",
+        )
+
+
+def test_generate_epoch_report_formats_json_with_utf8(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Assure une sortie JSON indentée et encodée explicitement en UTF-8."""
+
+    # Construit un Raw synthétique pour préparer un petit ensemble d'epochs
+    raw = _build_dummy_raw()
+    # Mappe les annotations en événements pour alimenter la génération du rapport
+    events, event_id = map_events_and_validate(raw)
+    # Crée des epochs courts pour limiter la taille du rapport
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    # Trace les encodages utilisés lors des écritures sur disque
+    write_encodings: list[str | None] = []
+    # Capture l'implémentation originale pour conserver le comportement
+    original_write_text = Path.write_text
+
+    # Définit un espion pour enregistrer l'encodage avant l'écriture
+    def spy_write_text(self, data, encoding=None, errors=None):
+        # Enregistre l'encodage demandé pour la persistance
+        write_encodings.append(encoding)
+        # Délègue à l'implémentation de Path pour effectuer l'écriture réelle
+        return original_write_text(self, data, encoding=encoding, errors=errors)
+
+    # Remplace Path.write_text afin de capturer l'encodage effectif
+    monkeypatch.setattr(Path, "write_text", spy_write_text)
+    # Génère le rapport JSON avec le format par défaut
+    output_path = generate_epoch_report(
+        epochs,
+        event_id,
+        {"subject": "S04", "run": "R04"},
+        tmp_path / "report.json",
+    )
+    # Lit le contenu pour vérifier la présence d'une indentation multi-ligne
+    content = output_path.read_text(encoding="utf-8")
+    # Vérifie que la sortie contient des retours à la ligne attendus
+    assert "\n" in content
+    # Récupère la ligne du sujet pour mesurer l'indentation effective
+    subject_line = content.splitlines()[1]
+    # Vérifie que la ligne commence par exactement deux espaces
+    assert subject_line.startswith('  "subject"')
+    # Vérifie que l'encodage utilisé est explicitement UTF-8
+    assert write_encodings == ["utf-8"]
+
+
+def test_generate_epoch_report_csv_uses_utf8_encoding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Garantit l'encodage UTF-8 lors de l'export CSV."""
+
+    # Construit un Raw synthétique pour préparer des epochs simples
+    raw = _build_dummy_raw()
+    # Mappe les annotations en événements pour alimenter l'epoching
+    events, event_id = map_events_and_validate(raw)
+    # Crée des epochs minimalistes pour produire un petit CSV
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    # Prépare une liste pour enregistrer les encodages utilisés
+    write_encodings: list[str | None] = []
+    # Capture l'implémentation originale pour conserver l'écriture réelle
+    original_write_text = Path.write_text
+
+    # Définit un espion pour contrôler l'encodage passé à write_text
+    def spy_write_text(self, data, encoding=None, errors=None):
+        # Mémorise l'encodage pour validation après l'écriture
+        write_encodings.append(encoding)
+        # Délègue à l'implémentation Path pour conserver le comportement
+        return original_write_text(self, data, encoding=encoding, errors=errors)
+
+    # Remplace Path.write_text pour tracer l'encodage
+    monkeypatch.setattr(Path, "write_text", spy_write_text)
+    # Génère un rapport CSV pour déclencher l'écriture surveillée
+    generate_epoch_report(
+        epochs,
+        event_id,
+        {"subject": "S05", "run": "R05"},
+        tmp_path / "report.csv",
+        fmt="csv",
+    )
+    # Vérifie que l'encodage appliqué est bien UTF-8
+    assert write_encodings == ["utf-8"]
+
+
+def test_generate_epoch_report_outputs_csv_and_validates_format(tmp_path: Path) -> None:
+    """Validate CSV export and the error path for unsupported formats."""
+
+    # Build a dummy raw instance to generate events and epochs
+    raw = _build_dummy_raw()
+    # Map annotations to events with validation to obtain event identifiers
+    events, event_id = map_events_and_validate(raw)
+    # Create epochs around the events with a non-negative start to keep them valid
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.3)
+    # Generate a CSV report to exercise the CSV serialization path
+    csv_path = tmp_path / "reports" / "summary.csv"
+    output_path = generate_epoch_report(
+        epochs,
+        event_id,
+        {"subject": "S02", "run": "R02"},
+        csv_path,
+        fmt="csv",
+    )
+    # Confirm the CSV file exists and contains per-label counts
+    csv_content = output_path.read_text(encoding="utf-8").splitlines()
+    assert csv_content[0] == "subject,run,label,count"
+    assert "S02,R02,T0," in csv_content[1]
+    # Expect a ValueError when an unsupported format is requested
+    with pytest.raises(ValueError) as exc:
+        generate_epoch_report(
+            epochs, event_id, {"subject": "S02", "run": "R02"}, csv_path, fmt="xml"
+        )
+    # Vérifie que le message d'erreur suit exactement la formulation attendue
+    assert str(exc.value) == "fmt must be either 'json' or 'csv'"
 
 
 def test_load_mne_raw_checked_raises_when_montage_missing(
