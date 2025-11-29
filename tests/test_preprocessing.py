@@ -194,6 +194,31 @@ def test_load_mne_raw_checked_raises_on_sampling_rate_mismatch(
     assert "Expected sampling rate" in str(exc.value)
 
 
+def test_load_mne_raw_checked_raises_when_montage_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure a missing montage triggers a descriptive error."""
+
+    # Build a deterministic raw array to patch montage behavior
+    raw = _build_dummy_raw(sfreq=128.0)
+    # Stub the EDF reader to return the synthetic recording
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Patch set_montage to bypass montage attachment silently
+    monkeypatch.setattr(raw, "set_montage", lambda *_args, **_kwargs: None)
+    # Patch get_montage to mimic a failed attachment
+    monkeypatch.setattr(raw, "get_montage", lambda: None)
+    # Expect the loader to raise when montage application fails
+    with pytest.raises(ValueError) as exc:
+        load_mne_raw_checked(
+            Path("record.edf"),
+            expected_montage="standard_1020",
+            expected_sampling_rate=128.0,
+            expected_channels=["C3", "C4"],
+        )
+    # Confirm the error message cites the missing montage
+    assert "could not be applied" in str(exc.value)
+
+
 def test_load_mne_raw_checked_reports_channel_mismatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -232,6 +257,16 @@ def test_map_events_validates_motor_label_mapping() -> None:
         map_events_and_validate(raw, motor_label_map={"T1": "Left", "T2": "B"})
     # Confirm the message identifies the unsupported motor label value
     assert "Motor labels must be within" in str(exc_invalid.value)
+    # Expect a ValueError when motor mapping omits the B target
+    with pytest.raises(ValueError) as exc_missing_target:
+        map_events_and_validate(raw, motor_label_map={"T1": "A", "T2": "A"})
+    # Confirm the error reports the missing motor imagery target
+    assert "missing ['B']" in str(exc_missing_target.value)
+    # Expect a ValueError when motor mapping references unknown event keys
+    with pytest.raises(ValueError) as exc_unknown_key:
+        map_events_and_validate(raw, motor_label_map={"T1": "A", "T2": "B", "X3": "A"})
+    # Confirm the error highlights the extraneous motor mapping key
+    assert "unknown events" in str(exc_unknown_key.value)
 
 
 def test_map_events_filters_bad_segments(tmp_path: Path) -> None:
