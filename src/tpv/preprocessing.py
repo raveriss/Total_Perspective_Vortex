@@ -3,6 +3,14 @@
 # Explain why future annotations import is required for typing modernity
 from __future__ import annotations
 
+"""Filtrage EEG 8–40 Hz (FIR/IIR) avec padding (FIR auto ~2–4*fs, IIR ordre 4).
+
+Le filtre par défaut suit la contrainte WBS 3.1.1 : bande 8–40 Hz avec FIR
+zero-phase (longueur auto MNE équivalente à un ordre ~401 sur des segments
+>1s) ou IIR Butterworth (ordre 4) et un padding réfléchissant de 0.5 seconde
+pour limiter les effets de bord sur les segments fenêtrés.
+"""
+
 # Preserve hashing utilities to verify dataset integrity without extra deps
 import hashlib
 
@@ -28,6 +36,74 @@ import pandas as pd
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
 # Provide an explicit mapping from Physionet events to motor imagery labels
 MOTOR_EVENT_LABELS: Dict[str, str] = {"T1": "A", "T2": "B"}
+
+
+def apply_bandpass_filter(
+    raw: mne.io.BaseRaw,
+    method: str = "fir",
+    l_freq: float = 8.0,
+    h_freq: float = 40.0,
+    fir_order: int | str = "auto",
+    iir_order: int = 4,
+    pad_duration: float = 0.5,
+) -> mne.io.BaseRaw:
+    """Apply a padded 8–40 Hz band-pass filter using FIR or IIR designs."""
+
+    # Clone the raw object to avoid mutating caller buffers during filtering
+    filtered_raw = raw.copy().load_data()
+    # Normalize the method string to simplify downstream comparisons
+    normalized_method = method.lower()
+    # Enforce supported methods to avoid silent fallbacks inside MNE
+    if normalized_method not in {"fir", "iir"}:
+        # Raise early to force callers to pick an explicit filter family
+        raise ValueError("method must be 'fir' or 'iir'")
+    # Extract the sampling frequency to derive padding and design parameters
+    sampling_rate = float(filtered_raw.info["sfreq"])
+    # Translate the padding duration into sample counts for symmetrical padding
+    pad_samples = max(int(round(pad_duration * sampling_rate)), 0)
+    # Fetch the data array once to avoid repeated MNE access overhead
+    data = filtered_raw.get_data()
+    # Build a reflect-padded buffer to minimize edge artifacts during filtering
+    if pad_samples > 0:
+        # Use symmetric reflection to keep boundary continuity without phase jumps
+        padded_data = np.pad(data, ((0, 0), (pad_samples, pad_samples)), mode="reflect")
+    else:
+        # Skip padding when the caller explicitly disables it via pad_duration=0.0
+        padded_data = data
+    # Prepare FIR-specific arguments when a linear-phase design is required
+    if normalized_method == "fir":
+        # Configure FIR parameters to balance roll-off and latency for MI bands
+        filter_kwargs: Dict[str, Any] = {
+            "method": "fir",
+            "fir_design": "firwin",
+            "fir_window": "hamming",
+            "filter_length": fir_order,
+            "phase": "zero-double",
+        }
+    else:
+        # Configure a Butterworth IIR design to minimize latency during streaming
+        filter_kwargs = {
+            "method": "iir",
+            "iir_params": {"order": iir_order, "ftype": "butter"},
+            "phase": "zero-double",
+        }
+    # Apply the selected filter to the padded buffer to obtain band-limited data
+    filtered_data = mne.filter.filter_data(
+        padded_data,
+        sfreq=sampling_rate,
+        l_freq=l_freq,
+        h_freq=h_freq,
+        verbose=False,
+        **filter_kwargs,
+    )
+    # Remove artificial padding to restore the original signal duration
+    if pad_samples > 0:
+        # Slice out the central segment corresponding to the unpadded recording
+        filtered_data = filtered_data[:, pad_samples:-pad_samples]
+    # Assign the filtered samples back into the cloned Raw object for return
+    filtered_raw._data = filtered_data
+    # Return the filtered recording to feed downstream epoching and features
+    return filtered_raw
 
 
 def _is_bad_description(description: str) -> bool:
