@@ -630,7 +630,7 @@ Si au moins un mutant **survit** → **interdiction de committer** tant que :
   3. Correction des échecs **avant** de proposer un nouveau commit.
 
 ---
-cd
+
 ## 3) 🧪 Plan de tests (défense‑proof)
 **Objectifs** : 100 % couverture (branches + diff), **contrôle par fichier**, tests rapides.
 
@@ -765,6 +765,9 @@ de documentation suivantes.
 * Le commentaire doit expliquer **le “pourquoi”** de la ligne
   (intention, rôle, effet métier, contrainte, robustesse),
   **jamais le “comment”** ni une paraphrase du code.
+* **Langue** : les commentaires doivent être rédigés en français,
+  avec des termes techniques anglais uniquement pour les noms d’API,
+  types, constantes ou mots-clés du langage.
 * Longueur maximale : **80 caractères par commentaire**.
 * Les commentaires doivent **respecter l’indentation du code**
   (un commentaire est dans le même bloc que la ligne qu’il décrit).
