@@ -225,9 +225,7 @@ def _validate_motor_mapping(
         )
     # Collect all annotation labels excluding BAD markers for completeness checks
     observed_labels = {
-        desc
-        for desc in raw.annotations.description
-        if not _is_bad_description(desc)
+        desc for desc in raw.annotations.description if not _is_bad_description(desc)
     }
     # Identify observed labels not covered by the motor mapping
     missing_motor_keys = observed_labels - set(effective_motor_map.keys())

@@ -2,16 +2,15 @@
 
 # Import pathlib to construct temporary dataset layouts
 # Import pathlib to type temporary paths for datasets
-from pathlib import Path
-
 # Import json to inspect structured error payloads
 import json
-
-# Import Mapping to annotate captured motor mapping structures
-from typing import Mapping
+from pathlib import Path
 
 # Import SimpleNamespace to build lightweight annotation holders
 from types import SimpleNamespace
+
+# Import Mapping to annotate captured motor mapping structures
+from typing import Mapping
 
 # Import mne to build synthetic Raw objects and annotations
 import mne
@@ -259,6 +258,7 @@ def test_load_mne_raw_checked_resolves_path_and_reader_arguments(
     raw = _build_dummy_raw()
     # Capture reader arguments to verify path normalization and flags
     captured_args: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
     # Record reader invocations while returning the prepared raw object
     def reader_stub(*args: object, **kwargs: object) -> mne.io.Raw:
         # Store positional and keyword arguments for later assertions
@@ -299,7 +299,7 @@ def test_load_mne_raw_checked_flags_extra_only_channels(
             expected_montage="standard_1020",
             expected_sampling_rate=128.0,
             expected_channels=["C3"],
-    )
+        )
     # Confirm the error payload documents the unexpected channel
     assert "extra" in str(exc.value)
 
@@ -367,6 +367,7 @@ def test_map_events_invokes_motor_validation_by_default(
     raw = _build_dummy_raw()
     # Track motor validation invocations to assert that validation is enforced
     motor_calls: list[Mapping[str, str]] = []
+
     # Record the motor mapping provided to the validation helper
     def motor_stub(
         raw_arg: mne.io.Raw,
@@ -383,7 +384,7 @@ def test_map_events_invokes_motor_validation_by_default(
     # Map events using the default annotation set
     events, event_id = map_events_and_validate(raw)
     # Confirm the events remain intact when validation succeeds
-    assert events.shape[0] == 2
+    assert events.shape[0] == len(PHYSIONET_LABEL_MAP)
     # Ensure the event mapping preserves the Physionet defaults
     assert event_id == PHYSIONET_LABEL_MAP
     # Verify the motor validation helper was invoked once with default mapping
@@ -424,7 +425,9 @@ def test_map_events_skips_motor_validation_when_no_motor_labels(
     assert event_id == {"BAD": 0}
 
 
-def test_map_events_handles_mixed_case_bad_labels(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_map_events_handles_mixed_case_bad_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Ensure mixed-case BAD annotations are ignored during validation."""
 
     # Build a raw recording with a mixed-case BAD annotation only
