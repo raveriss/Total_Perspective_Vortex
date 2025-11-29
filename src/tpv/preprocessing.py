@@ -39,11 +39,17 @@ from numpy.typing import NDArray
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
 # Provide an explicit mapping from Physionet events to motor imagery labels
 MOTOR_EVENT_LABELS: Dict[str, str] = {"T1": "A", "T2": "B"}
+# Fixe la méthode de filtrage par défaut pour la cohérence API et tests
+DEFAULT_FILTER_METHOD = "fir"
+# Fixe la méthode de normalisation par défaut pour les canaux EEG
+DEFAULT_NORMALIZE_METHOD = "zscore"
+# Fixe l'epsilon de stabilisation pour la normalisation par défaut
+DEFAULT_NORMALIZE_EPSILON = 1e-8
 
 
 def apply_bandpass_filter(
     raw: mne.io.BaseRaw,
-    method: str = "fir",
+    method: str = DEFAULT_FILTER_METHOD,
     freq_band: Tuple[float, float] = (8.0, 40.0),
     order: int | str | None = None,
     pad_duration: float = 0.5,
@@ -549,8 +555,8 @@ def detect_artifacts(
 
 def normalize_channels(
     signal: NDArray[np.floating[Any]],
-    method: str = "zscore",
-    epsilon: float = 1e-8,
+    method: str = DEFAULT_NORMALIZE_METHOD,
+    epsilon: float = DEFAULT_NORMALIZE_EPSILON,
 ) -> NDArray[np.floating[Any]]:
     """Normalize each channel using z-score or robust statistics."""
 
@@ -565,11 +571,9 @@ def normalize_channels(
         # Calcule l'écart-type par canal et ajoute epsilon pour la stabilité
         std_per_channel = np.std(safe_signal, axis=1, keepdims=True) + epsilon
         # Centre et réduit chaque canal pour homogénéiser les amplitudes
+        result = (safe_signal - mean_per_channel) / std_per_channel
         # Retourne l'étalonnage z-score avec un type numpy explicite
-        return cast(
-            NDArray[np.floating[Any]],
-            (safe_signal - mean_per_channel) / std_per_channel,
-        )
+        return result
     # Applique une normalisation robuste basée sur médiane et IQR
     if normalized_method == "robust":
         # Calcule la médiane par canal pour neutraliser les valeurs extrêmes
@@ -581,11 +585,9 @@ def normalize_channels(
             + epsilon
         )
         # Centre et met à l'échelle chaque canal selon les statistiques robustes
+        result = (safe_signal - median_per_channel) / iqr_per_channel
         # Retourne la version robuste typée pour mypy et les tests
-        return cast(
-            NDArray[np.floating[Any]],
-            (safe_signal - median_per_channel) / iqr_per_channel,
-        )
+        return result
     # Lève une erreur explicite pour les méthodes non supportées
     raise ValueError("method must be either 'zscore' or 'robust'")
 
