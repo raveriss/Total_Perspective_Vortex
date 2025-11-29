@@ -27,6 +27,15 @@ PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
 MOTOR_EVENT_LABELS: Dict[str, str] = {"T1": "A", "T2": "B"}
 
 
+def _is_bad_description(description: str) -> bool:
+    """Return True when an annotation description denotes a BAD marker."""
+
+    # Normalize the description to uppercase for case-insensitive detection
+    normalized_description = description.upper()
+    # Identify MNE BAD-prefixed annotations regardless of original casing
+    return normalized_description.startswith("BAD")
+
+
 def load_mne_raw_checked(
     file_path: Path,
     expected_montage: str,
@@ -119,7 +128,7 @@ def _extract_bad_intervals(raw: mne.io.BaseRaw) -> List[Tuple[float, float]]:
         strict=True,
     ):
         # Skip annotations not flagged BAD to avoid overzealous filtering
-        if not desc.upper().startswith("BAD"):
+        if not _is_bad_description(desc):
             # Continue looping when the annotation is not an invalid segment
             continue
         # Append the interval boundaries to help later event rejection
@@ -145,7 +154,7 @@ def map_events_and_validate(
     motor_labels_present = any(
         desc in MOTOR_EVENT_LABELS
         for desc in raw.annotations.description
-        if not desc.upper().startswith("BAD")
+        if not _is_bad_description(desc)
     )
     # Build a motor mapping to make motor imagery labels explicit when needed
     if motor_labels_present or motor_label_map is not None:
@@ -186,7 +195,7 @@ def _validate_annotation_labels(
     unknown_labels = {
         lab
         for lab in present_labels
-        if lab not in effective_label_map and not lab.upper().startswith("BAD")
+        if lab not in effective_label_map and not _is_bad_description(lab)
     }
     # Stop early when unknown labels are detected to prevent silent errors
     if unknown_labels:
@@ -218,7 +227,7 @@ def _validate_motor_mapping(
     observed_labels = {
         desc
         for desc in raw.annotations.description
-        if not desc.upper().startswith("BAD")
+        if not _is_bad_description(desc)
     }
     # Identify observed labels not covered by the motor mapping
     missing_motor_keys = observed_labels - set(effective_motor_map.keys())
