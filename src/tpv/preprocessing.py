@@ -9,9 +9,6 @@ import hashlib
 # Keep json to format error payloads for debugging run counts
 import json
 
-# Import pandas to manage metadata annotations for quality control
-import pandas as pd
-
 # Use pathlib to guarantee portable filesystem interactions
 from pathlib import Path
 
@@ -23,6 +20,9 @@ import mne
 
 # Numpy offers vectorized masks for fast event filtering
 import numpy as np
+
+# Import pandas to manage metadata annotations for quality control
+import pandas as pd
 
 # Provide a default mapping consistent with Physionet motor imagery labels
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
@@ -323,6 +323,64 @@ def create_epochs_from_raw(
     return epochs
 
 
+def _expected_epoch_samples(epochs: mne.Epochs) -> int:
+    """Compute the expected number of samples per epoch."""
+
+    # Derive duration-based sample count to catch truncated segments
+    return int(round((epochs.tmax - epochs.tmin) * epochs.info["sfreq"])) + 1
+
+
+def _flag_epoch_quality(
+    epoch: np.ndarray, max_peak_to_peak: float, expected_samples: int
+) -> List[str]:
+    """Identify quality issues for a single epoch."""
+
+    # Track reasons to support later reporting or masking
+    reasons: List[str] = []
+    # Measure peak-to-peak amplitude to reveal sharp artifacts
+    ptp_value = float(np.ptp(epoch))
+    # Record amplitude excursions beyond the threshold to protect models
+    if ptp_value > max_peak_to_peak:
+        reasons.append("artifact")
+    # Detect incomplete epochs via shape or NaN inspection
+    if epoch.shape[1] < expected_samples or np.isnan(epoch).any():
+        reasons.append("incomplete")
+    # Return accumulated flags for the caller to aggregate
+    return reasons
+
+
+def _apply_marking(
+    safe_epochs: mne.Epochs, flagged: Dict[str, List[int]]
+) -> Tuple[mne.Epochs, Dict[str, List[int]]]:
+    """Mark flagged epochs in metadata and return the updated set."""
+
+    # Initialize metadata so downstream code can track quality per epoch
+    if safe_epochs.metadata is None:
+        # Build a DataFrame with a single column matching epoch count
+        safe_epochs.metadata = pd.DataFrame({"quality_flag": ["ok"] * len(safe_epochs)})
+    # Iterate to update quality flags for each identified issue
+    for reason, indices in flagged.items():
+        # Apply the reason to all recorded indices for transparency
+        for idx in indices:
+            # Overwrite the quality flag to reflect the detected issue
+            safe_epochs.metadata.at[idx, "quality_flag"] = reason
+    # Return the annotated epochs along with the indexed reasons
+    return safe_epochs, flagged
+
+
+def _apply_rejection(
+    safe_epochs: mne.Epochs, flagged: Dict[str, List[int]]
+) -> Tuple[mne.Epochs, Dict[str, List[int]]]:
+    """Drop flagged epochs and return the pruned set."""
+
+    # Build a set of indices to remove for efficient membership tests
+    removed_indices = set(flagged["artifact"]) | set(flagged["incomplete"])
+    # Construct a boolean mask that preserves only unflagged epochs
+    keep_mask = [idx not in removed_indices for idx in range(len(safe_epochs))]
+    # Apply the mask to drop contaminated epochs before returning
+    return safe_epochs[keep_mask], flagged
+
+
 def quality_control_epochs(
     epochs: mne.Epochs,
     max_peak_to_peak: float,
@@ -335,47 +393,23 @@ def quality_control_epochs(
     # Retrieve the data to inspect amplitude and completeness metrics
     data = safe_epochs.get_data(copy=True)
     # Compute expected sample count to detect truncated epoch shapes
-    expected_samples = int(
-        round((safe_epochs.tmax - safe_epochs.tmin) * safe_epochs.info["sfreq"])
-    ) + 1
+    expected_samples = _expected_epoch_samples(safe_epochs)
     # Prepare buckets to track artifact and incomplete epoch indices
     flagged: Dict[str, List[int]] = {"artifact": [], "incomplete": []}
     # Iterate over epochs to check amplitude and completeness constraints
     for idx, epoch in enumerate(data):
-        # Measure peak-to-peak amplitude to reveal sharp artifacts
-        ptp_value = float(np.ptp(epoch))
-        # Detect incomplete epochs via unexpected length or missing samples
-        is_incomplete = epoch.shape[1] < expected_samples or np.isnan(epoch).any()
-        # Classify amplitude excursions beyond the provided threshold
-        if ptp_value > max_peak_to_peak:
-            # Record the index as artifact-driven to support reporting
-            flagged["artifact"].append(idx)
-        # Classify segments that are too short or contain gaps as incomplete
-        if is_incomplete:
-            # Record the index to enable downstream removal or marking
-            flagged["incomplete"].append(idx)
+        # Aggregate all reasons identified for the current epoch
+        for reason in _flag_epoch_quality(epoch, max_peak_to_peak, expected_samples):
+            # Record the reason to enable downstream removal or marking
+            flagged[reason].append(idx)
     # When the mode is reject, remove flagged epochs to stabilize training
     if mode == "reject":
-        # Build a set of indices to remove for efficient membership tests
-        removed_indices = set(flagged["artifact"]) | set(flagged["incomplete"])
-        # Construct a boolean mask that preserves only unflagged epochs
-        keep_mask = [idx not in removed_indices for idx in range(len(safe_epochs))]
-        # Apply the mask to drop contaminated epochs before returning
-        return safe_epochs[keep_mask], flagged
+        # Delegate rejection to simplify complexity for linting and tests
+        return _apply_rejection(safe_epochs, flagged)
     # When the mode is mark, annotate metadata instead of dropping epochs
     if mode == "mark":
-        # Initialize metadata so downstream code can track quality per epoch
-        if safe_epochs.metadata is None:
-            # Build a DataFrame with a single column matching epoch count
-            safe_epochs.metadata = pd.DataFrame({"quality_flag": ["ok"] * len(safe_epochs)})
-        # Iterate to update quality flags for each identified issue
-        for reason, indices in flagged.items():
-            # Apply the reason to all recorded indices for transparency
-            for idx in indices:
-                # Overwrite the quality flag to reflect the detected issue
-                safe_epochs.metadata.at[idx, "quality_flag"] = reason
-        # Return the annotated epochs along with the indexed reasons
-        return safe_epochs, flagged
+        # Delegate marking to reuse the metadata update logic
+        return _apply_marking(safe_epochs, flagged)
     # Raise when the mode is unsupported to avoid silent misuse
     raise ValueError("mode must be either 'reject' or 'mark'")
 
@@ -469,8 +503,7 @@ def verify_dataset_integrity(
 def generate_epoch_report(
     epochs: mne.Epochs,
     event_id: Mapping[str, int],
-    subject: str,
-    run: str,
+    run_metadata: Mapping[str, str],
     output_path: Path,
     fmt: str = "json",
 ) -> Path:
@@ -484,12 +517,13 @@ def generate_epoch_report(
     reverse_map = {code: label for label, code in event_id.items()}
     # Count epochs for every label present in the event mapping
     label_counts = {
-        label: int(np.sum(epochs.events[:, 2] == code)) for code, label in reverse_map.items()
+        label: int(np.sum(epochs.events[:, 2] == code))
+        for code, label in reverse_map.items()
     }
     # Compose a structured payload describing the run content
     payload: Dict[str, Any] = {
-        "subject": subject,
-        "run": run,
+        "subject": run_metadata["subject"],
+        "run": run_metadata["run"],
         "total_epochs": int(len(epochs)),
         "counts": label_counts,
     }
@@ -506,7 +540,9 @@ def generate_epoch_report(
         # Iterate over label counts to materialize per-class entries
         for label, count in label_counts.items():
             # Append a CSV line detailing subject, run, label, and count
-            lines.append(f"{subject},{run},{label},{count}")
+            lines.append(
+                f"{run_metadata['subject']},{run_metadata['run']},{label},{count}"
+            )
         # Write all lines with newline separation to the output path
         output_path.write_text("\n".join(lines), encoding="utf-8")
         # Return the path so downstream processes can load the CSV

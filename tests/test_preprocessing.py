@@ -243,7 +243,12 @@ def test_quality_control_and_reporting(tmp_path: Path) -> None:
     # Generate a JSON report summarizing the surviving epoch counts
     report_path = tmp_path / "reports" / "summary.json"
     # Persist the report to disk for later inspection
-    generate_epoch_report(filtered_epochs, event_id, "S01", "R01", report_path)
+    generate_epoch_report(
+        filtered_epochs,
+        event_id,
+        {"subject": "S01", "run": "R01"},
+        report_path,
+    )
     # Load the report to verify the counts reflect the filtered epochs
     report_content = json.loads(report_path.read_text(encoding="utf-8"))
     # Confirm subject and run identifiers are preserved in the report
@@ -251,7 +256,8 @@ def test_quality_control_and_reporting(tmp_path: Path) -> None:
     # Confirm run identifier matches the provided input
     assert report_content["run"] == "R01"
     # Confirm only two epochs remain after dropping the artifact
-    assert report_content["total_epochs"] == 2
+    remaining_epochs = 2
+    assert report_content["total_epochs"] == remaining_epochs
     # Confirm each remaining label appears exactly once in the counts
     assert report_content["counts"] == {"T0": 0, "T1": 1, "T2": 1}
 
