@@ -31,9 +31,11 @@ from tpv.preprocessing import (
     _extract_bad_intervals,
     _is_bad_description,
     create_epochs_from_raw,
+    generate_epoch_report,
     load_mne_raw_checked,
     load_physionet_raw,
     map_events_and_validate,
+    quality_control_epochs,
     verify_dataset_integrity,
 )
 
@@ -199,6 +201,59 @@ def test_load_mne_raw_checked_raises_on_sampling_rate_mismatch(
         )
     # Confirm the message explains the sampling rate discrepancy
     assert "Expected sampling rate" in str(exc.value)
+
+
+def test_map_events_and_validate_rejects_unknown_labels() -> None:
+    """Ensure event mapping fails when annotations contain unknown labels."""
+
+    # Build a dummy raw instance with an unsupported label to trigger validation
+    raw = _build_dummy_raw()
+    # Replace annotations with an invalid label to exercise the error path
+    raw.set_annotations(
+        mne.Annotations(onset=[0.1], duration=[0.1], description=["TX"])
+    )
+    # Expect a ValueError when the annotation label is absent from the mapping
+    with pytest.raises(ValueError) as exc:
+        map_events_and_validate(raw, label_map=PHYSIONET_LABEL_MAP)
+    # Confirm the message surfaces the unknown label for debugging
+    assert "Unknown labels" in str(exc.value)
+
+
+def test_quality_control_and_reporting(tmp_path: Path) -> None:
+    """Ensure artifact epochs are removed and reports capture remaining counts."""
+
+    # Build a dummy raw instance to generate events and epochs
+    raw = _build_dummy_raw()
+    # Map annotations to events with validation to obtain event identifiers
+    events, event_id = map_events_and_validate(raw)
+    # Create epochs around the events with a non-negative start to keep them valid
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.3)
+    # Amplify the first epoch to simulate an artifact exceeding the threshold
+    epoch_data = epochs.get_data(copy=False)
+    # Inject a large positive swing on the first channel to inflate peak-to-peak
+    epoch_data[0, 0, 0] = 50.0
+    # Inject a large negative swing on the second channel to widen amplitude
+    epoch_data[0, 1, 0] = -50.0
+    # Apply quality control with rejection to drop the corrupted epoch
+    filtered_epochs, flagged = quality_control_epochs(epochs, max_peak_to_peak=10.0)
+    # Confirm the first epoch was flagged as an artifact for removal
+    assert flagged["artifact"] == [0]
+    # Confirm no incomplete epochs were detected in the synthetic data
+    assert flagged["incomplete"] == []
+    # Generate a JSON report summarizing the surviving epoch counts
+    report_path = tmp_path / "reports" / "summary.json"
+    # Persist the report to disk for later inspection
+    generate_epoch_report(filtered_epochs, event_id, "S01", "R01", report_path)
+    # Load the report to verify the counts reflect the filtered epochs
+    report_content = json.loads(report_path.read_text(encoding="utf-8"))
+    # Confirm subject and run identifiers are preserved in the report
+    assert report_content["subject"] == "S01"
+    # Confirm run identifier matches the provided input
+    assert report_content["run"] == "R01"
+    # Confirm only two epochs remain after dropping the artifact
+    assert report_content["total_epochs"] == 2
+    # Confirm each remaining label appears exactly once in the counts
+    assert report_content["counts"] == {"T0": 0, "T1": 1, "T2": 1}
 
 
 def test_load_mne_raw_checked_raises_when_montage_missing(
