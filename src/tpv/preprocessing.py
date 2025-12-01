@@ -21,7 +21,7 @@ import json
 from pathlib import Path
 
 # Centralise les hints pour clarifier les attentes des appels et des tests
-from typing import Any, Dict, List, Mapping, Tuple, cast
+from typing import Any, Dict, List, Mapping, Tuple
 
 # MNE est obligatoire pour le parsing EDF/BDF et la gestion des epochs
 import mne
@@ -571,7 +571,9 @@ def normalize_channels(
         # Calcule l'écart-type par canal et ajoute epsilon pour la stabilité
         std_per_channel = np.std(safe_signal, axis=1, keepdims=True) + epsilon
         # Centre et réduit chaque canal pour homogénéiser les amplitudes
-        result = (safe_signal - mean_per_channel) / std_per_channel
+        result: NDArray[np.floating[Any]] = np.asarray(
+            (safe_signal - mean_per_channel) / std_per_channel, dtype=float
+        )
         # Retourne l'étalonnage z-score avec un type numpy explicite
         return result
     # Applique une normalisation robuste basée sur médiane et IQR
@@ -585,9 +587,11 @@ def normalize_channels(
             + epsilon
         )
         # Centre et met à l'échelle chaque canal selon les statistiques robustes
-        result = (safe_signal - median_per_channel) / iqr_per_channel
+        robust_result: NDArray[np.floating[Any]] = np.asarray(
+            (safe_signal - median_per_channel) / iqr_per_channel, dtype=float
+        )
         # Retourne la version robuste typée pour mypy et les tests
-        return result
+        return robust_result
     # Lève une erreur explicite pour les méthodes non supportées
     raise ValueError("method must be either 'zscore' or 'robust'")
 

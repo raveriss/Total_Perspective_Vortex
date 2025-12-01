@@ -5,6 +5,9 @@ import pytest
 
 import mybci
 
+# Fixe le code d'échec simulé pour valider la propagation dans main
+MODULE_FAILURE_CODE = 5
+
 EXIT_USAGE = 2
 
 
@@ -113,8 +116,8 @@ def test_call_module_executes_python_module(monkeypatch):
 # Vérifie que main remonte l'échec propagé par un module sous-jacent
 def test_main_propagates_module_failure(monkeypatch):
     # Force un code retour non nul pour simuler un pipeline échoué
-    monkeypatch.setattr(mybci, "_call_module", lambda *_: 5)
+    monkeypatch.setattr(mybci, "_call_module", lambda *_: MODULE_FAILURE_CODE)
     # Capture le code de sortie afin d'observer la propagation d'erreur
     exit_code = mybci.main(["S01", "R01", "train"])
     # Valide que main renvoie exactement le code d'échec du module
-    assert exit_code == 5
+    assert exit_code == MODULE_FAILURE_CODE

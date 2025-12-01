@@ -13,7 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 # Import Mapping to annotate captured motor mapping structures
-from typing import Mapping
+# Import cast to préciser le type des dictionnaires capturés
+from typing import Mapping, cast
 
 # Import mne to build synthetic Raw objects and annotations
 import mne
@@ -28,11 +29,11 @@ import pytest
 # Importe les utilitaires de contrôle d'échantillons et de qualité
 # Importe le marqueur pour vérifier la structure des métadonnées
 from tpv.preprocessing import (
-    MOTOR_EVENT_LABELS,
-    PHYSIONET_LABEL_MAP,
     DEFAULT_FILTER_METHOD,
     DEFAULT_NORMALIZE_EPSILON,
     DEFAULT_NORMALIZE_METHOD,
+    MOTOR_EVENT_LABELS,
+    PHYSIONET_LABEL_MAP,
     _apply_marking,
     _build_file_entry,
     _build_keep_mask,
@@ -55,6 +56,10 @@ from tpv.preprocessing import (
 
 # Fixe une amplitude maximale attendue pour repérer une dérive de filtrage
 MAX_FILTER_AMPLITUDE = 10.0
+# Fixe l'ordre IIR personnalisé pour verrouiller le paramètre transmis
+CUSTOM_IIR_ORDER = 6
+# Fixe l'ordre IIR par défaut pour surveiller la configuration interne
+EXPECTED_IIR_DEFAULT_ORDER = 4
 
 
 def _build_dummy_raw(sfreq: float = 128.0, duration: float = 1.0) -> mne.io.Raw:
@@ -137,7 +142,9 @@ def test_apply_bandpass_filter_rejects_unknown_method() -> None:
         apply_bandpass_filter(raw, method="fft", pad_duration=0.25)
 
 
-def test_apply_bandpass_filter_uses_expected_padding(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_apply_bandpass_filter_uses_expected_padding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Validate that default padding length is applied and removed."""
 
     # Construit un enregistrement très court pour forcer un seul échantillon de pad
@@ -187,7 +194,7 @@ def test_apply_bandpass_filter_accepts_uppercase_method(
     # Construit un signal court pour passer rapidement le filtrage patché
     raw = _build_dummy_raw(sfreq=64.0, duration=0.5)
     # Capture les arguments transmis à la fonction de filtrage MNE
-    captured: dict[str, object] = {}
+    captured: dict[str, dict[str, object]] = {}
 
     # Remplace la fonction de filtrage pour inspecter les paramètres reçus
     def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
@@ -200,9 +207,10 @@ def test_apply_bandpass_filter_accepts_uppercase_method(
     monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
     # Applique le filtre avec un nom de méthode en majuscules
     apply_bandpass_filter(raw, method="FIR", pad_duration=0.0)
+    # Extrait les paramètres capturés avec un typage explicite pour mypy
+    kwargs: dict[str, object] = captured["kwargs"]
     # Vérifie que la méthode transmise reste bien le chemin FIR attendu
-    assert captured["kwargs"] is not None
-    assert captured["kwargs"].get("method") == "fir"
+    assert kwargs.get("method") == "fir"
 
 
 def test_apply_bandpass_filter_defaults_to_fir(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -211,7 +219,7 @@ def test_apply_bandpass_filter_defaults_to_fir(monkeypatch: pytest.MonkeyPatch) 
     # Construit un enregistrement minimal pour exercer la valeur par défaut
     raw = _build_dummy_raw(sfreq=64.0, duration=0.25)
     # Capture les paramètres transmis à la fonction de filtrage
-    captured: dict[str, object] = {}
+    captured: dict[str, dict[str, object]] = {}
 
     # Remplace la fonction de filtrage pour analyser les paramètres effectifs
     def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
@@ -224,15 +232,17 @@ def test_apply_bandpass_filter_defaults_to_fir(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
     # Applique le filtre sans préciser de méthode pour déclencher la valeur par défaut
     apply_bandpass_filter(raw)
+    # Extrait les paramètres capturés avec un typage clair pour les assertions
+    kwargs: dict[str, object] = captured["kwargs"]
     # Vérifie que la méthode reste fermement définie sur le filtre FIR
-    assert captured["kwargs"].get("method") == "fir"
+    assert kwargs.get("method") == "fir"
     # Confirme que la fenêtre FIR par défaut reste sur le mode auto attendu
-    assert captured["kwargs"].get("filter_length") == "auto"
+    assert kwargs.get("filter_length") == "auto"
     # Vérifie que les bornes de bande sont correctement transmises
-    assert captured["kwargs"].get("l_freq") == pytest.approx(8.0)
-    assert captured["kwargs"].get("h_freq") == pytest.approx(40.0)
+    assert kwargs.get("l_freq") == pytest.approx(8.0)
+    assert kwargs.get("h_freq") == pytest.approx(40.0)
     # Contrôle que le filtrage se fait en mode silencieux pour les tests
-    assert captured["kwargs"].get("verbose") is False
+    assert kwargs.get("verbose") is False
 
 
 def test_apply_bandpass_filter_skips_padding_when_disabled(
@@ -261,7 +271,7 @@ def test_apply_bandpass_filter_accepts_custom_iir_order(
     # Construit un enregistrement court pour limiter le volume de calcul
     raw = _build_dummy_raw(sfreq=128.0, duration=0.25)
     # Capture les paramètres transmis à la fonction de filtrage simulée
-    captured: dict[str, object] = {}
+    captured: dict[str, dict[str, object]] = {}
 
     # Remplace la fonction de filtrage pour inspecter les paramètres IIR
     def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
@@ -273,9 +283,13 @@ def test_apply_bandpass_filter_accepts_custom_iir_order(
     # Patch la fonction de filtrage pour éviter l'exécution réelle
     monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
     # Applique le filtre IIR avec un ordre personnalisé pour verrouiller le comportement
-    apply_bandpass_filter(raw, method="iir", order=6, pad_duration=0.0)
+    apply_bandpass_filter(raw, method="iir", order=CUSTOM_IIR_ORDER, pad_duration=0.0)
+    # Extrait les paramètres capturés pour analyser l'ordre IIR appliqué
+    kwargs: dict[str, object] = captured["kwargs"]
+    # Extrait le dictionnaire IIR avec un typage sûr pour mypy
+    iir_params = cast(dict[str, object], kwargs.get("iir_params", {}))
     # Vérifie que l'ordre IIR transmis correspond exactement à la valeur demandée
-    assert captured["kwargs"].get("iir_params", {}).get("order") == 6
+    assert iir_params.get("order") == CUSTOM_IIR_ORDER
 
 
 def test_apply_bandpass_filter_defaults_to_expected_iir_order(
@@ -286,7 +300,7 @@ def test_apply_bandpass_filter_defaults_to_expected_iir_order(
     # Prépare un signal court pour tester la branche IIR par défaut
     raw = _build_dummy_raw(sfreq=128.0, duration=0.25)
     # Capture les paramètres transmis à la fonction de filtrage simulée
-    captured: dict[str, object] = {}
+    captured: dict[str, dict[str, object]] = {}
 
     # Remplace la fonction de filtrage pour inspecter les paramètres IIR
     def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
@@ -299,10 +313,14 @@ def test_apply_bandpass_filter_defaults_to_expected_iir_order(
     monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
     # Applique le filtre avec la configuration IIR par défaut
     apply_bandpass_filter(raw, method="iir", pad_duration=0.0)
+    # Extrait les paramètres capturés avec un typage explicite pour mypy
+    kwargs: dict[str, object] = captured["kwargs"]
+    # Extrait les paramètres IIR afin de valider l'ordre par défaut
+    iir_params = cast(dict[str, object], kwargs.get("iir_params", {}))
     # Vérifie que l'ordre IIR par défaut reste fixé à quatre
-    assert captured["kwargs"].get("iir_params", {}).get("order") == 4
+    assert iir_params.get("order") == EXPECTED_IIR_DEFAULT_ORDER
     # Contrôle que le paramètre verbose reste désactivé
-    assert captured["kwargs"].get("verbose") is False
+    assert kwargs.get("verbose") is False
 
 
 def test_load_physionet_raw_reads_metadata(
@@ -1715,7 +1733,9 @@ def test_detect_artifacts_defaults_to_reject_mode() -> None:
     # Construit un signal où une seule colonne dépasse le seuil d'amplitude
     signal = np.array([[0.1, 2.5, 0.1]])
     # Applique le détecteur sans préciser le mode pour tester la valeur par défaut
-    cleaned, mask = detect_artifacts(signal, amplitude_threshold=1.0, variance_threshold=1.0)
+    cleaned, mask = detect_artifacts(
+        signal, amplitude_threshold=1.0, variance_threshold=1.0
+    )
     # Vérifie que le masque identifie uniquement la colonne hors tolérance
     assert mask.tolist() == [False, True, False]
     # Confirme que la colonne fautive a été retirée du signal nettoyé
@@ -1728,7 +1748,9 @@ def test_detect_artifacts_rejects_unknown_mode() -> None:
     # Construit un signal minimal pour vérifier la validation du mode
     signal = np.zeros((1, 2))
     # Vérifie que l'appel avec un mode inconnu lève une erreur descriptive
-    with pytest.raises(ValueError, match=r"^mode must be either 'reject' or 'interpolate'$"):
+    with pytest.raises(
+        ValueError, match=r"^mode must be either 'reject' or 'interpolate'$"
+    ):
         detect_artifacts(signal, 1.0, 0.1, mode="invalid")
 
 
@@ -1738,7 +1760,9 @@ def test_detect_artifacts_thresholds_and_dtypes() -> None:
     # Construit un signal entier dont une valeur égale au seuil ne doit pas être rejetée
     signal = np.array([[2, 2, 2]], dtype=int)
     # Applique la détection avec un seuil égal à l'échantillon central
-    cleaned, mask = detect_artifacts(signal, amplitude_threshold=2, variance_threshold=0.0)
+    cleaned, mask = detect_artifacts(
+        signal, amplitude_threshold=2, variance_threshold=0.0
+    )
     # Vérifie qu'une valeur exactement au seuil n'est pas considérée comme artefact
     assert mask.tolist() == [False, False, False]
     # Confirme que la sortie est bien promue en flottants pour les traitements suivants
@@ -1766,7 +1790,11 @@ def test_normalize_channels_robust_respects_epsilon() -> None:
     # Construit un signal avec un IQR non nul pour observer l'impact d'epsilon
     signal = np.array([[0.0, 1.0, 2.0]])
     # Calcule l'attendu avec un epsilon large pour différencier les mutations
-    expected_iqr = (np.percentile(signal, 75, axis=1, keepdims=True) - np.percentile(signal, 25, axis=1, keepdims=True) + 1.0)
+    expected_iqr = (
+        np.percentile(signal, 75, axis=1, keepdims=True)
+        - np.percentile(signal, 25, axis=1, keepdims=True)
+        + 1.0
+    )
     expected = (signal - np.median(signal, axis=1, keepdims=True)) / expected_iqr
     # Vérifie que la normalisation robuste respecte cette construction
     normalized = normalize_channels(signal, method="robust", epsilon=1.0)
@@ -1831,7 +1859,9 @@ def test_normalize_channels_rejects_unknown_method() -> None:
     # Construit un signal simple pour valider la gestion des méthodes inconnues
     signal = np.array([[1.0, 2.0]])
     # Vérifie que l'appel avec un nom de méthode non supporté échoue clairement
-    with pytest.raises(ValueError, match=r"^method must be either 'zscore' or 'robust'$"):
+    with pytest.raises(
+        ValueError, match=r"^method must be either 'zscore' or 'robust'$"
+    ):
         normalize_channels(signal, method="invalid")
 
 
