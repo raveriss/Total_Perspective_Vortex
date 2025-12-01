@@ -447,6 +447,7 @@ def test_main_exits_on_error(monkeypatch, tmp_path: Path) -> None:
     )
     # Force parse_args à renvoyer les arguments simulés
     monkeypatch.setattr(fetch_physionet, "parse_args", lambda: fake_args)
+
     # Provoque une exception dès l'appel du pipeline pour couvrir l'exception
     def failing_dataset(*_: object) -> None:
         # Lève immédiatement une ValueError pour déclencher la capture
