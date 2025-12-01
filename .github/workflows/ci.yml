@@ -118,7 +118,7 @@ jobs:
         run: poetry run mypy src scripts tests
 
       - name: Audit dependencies with pip-audit
-        run: poetry run pip-audit --progress-spinner=off
+        run: poetry run pip-audit --progress-spinner=off --skip-editable
 
 
   tests:
