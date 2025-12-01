@@ -32,15 +32,24 @@ import numpy as np
 # Pandas gère les métadonnées annotées pour le contrôle qualité
 import pandas as pd
 
+# Typing numpy clarifie les formes et types pour mypy et les tests
+from numpy.typing import NDArray
+
 # Provide a default mapping consistent with Physionet motor imagery labels
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
 # Provide an explicit mapping from Physionet events to motor imagery labels
 MOTOR_EVENT_LABELS: Dict[str, str] = {"T1": "A", "T2": "B"}
+# Fixe la méthode de filtrage par défaut pour la cohérence API et tests
+DEFAULT_FILTER_METHOD = "fir"
+# Fixe la méthode de normalisation par défaut pour les canaux EEG
+DEFAULT_NORMALIZE_METHOD = "zscore"
+# Fixe l'epsilon de stabilisation pour la normalisation par défaut
+DEFAULT_NORMALIZE_EPSILON = 1e-8
 
 
 def apply_bandpass_filter(
     raw: mne.io.BaseRaw,
-    method: str = "fir",
+    method: str = DEFAULT_FILTER_METHOD,
     freq_band: Tuple[float, float] = (8.0, 40.0),
     order: int | str | None = None,
     pad_duration: float = 0.5,
@@ -492,6 +501,99 @@ def quality_control_epochs(
         return _apply_marking(safe_epochs, flagged)
     # Raise when the mode is unsupported to avoid silent misuse
     raise ValueError("mode must be either 'reject' or 'mark'")
+
+
+def detect_artifacts(
+    signal: np.ndarray,
+    amplitude_threshold: float,
+    variance_threshold: float,
+    mode: str = "reject",
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Detect amplitude or variance artifacts and reject or interpolate."""
+
+    # Copie le signal en flottants pour uniformiser la suite du traitement
+    safe_signal: NDArray[np.floating[Any]] = np.asarray(signal, dtype=float)
+    # Calcule l'amplitude absolue pour repérer les excursions extrêmes
+    amplitude_mask = np.abs(safe_signal) > amplitude_threshold
+    # Calcule la variance par échantillon pour capturer les déviations croisées
+    variance_per_sample = np.var(safe_signal, axis=0)
+    # Étend le masque de variance à toutes les voies pour uniformiser le traitement
+    variance_mask = variance_per_sample > variance_threshold
+    # Combine les critères pour identifier chaque échantillon contaminé
+    combined_mask = amplitude_mask | variance_mask
+    # Déduit un masque global indiquant les colonnes à exclure ou corriger
+    sample_mask = combined_mask.any(axis=0)
+    # Traite la branche de rejet pour supprimer les échantillons fautifs
+    if mode == "reject":
+        # Construit un masque de conservation pour filtrer les colonnes sûres
+        keep_mask = ~sample_mask
+        # Supprime les colonnes contaminées afin de stabiliser l'apprentissage
+        return safe_signal[:, keep_mask], sample_mask
+    # Traite la branche d'interpolation pour conserver la structure temporelle
+    if mode == "interpolate":
+        # Localise les indices sûrs pour guider l'interpolation linéaire
+        valid_indices = np.flatnonzero(~sample_mask)
+        # Traite l'absence totale de points fiables en conservant le signal brut
+        if len(valid_indices) == 0:
+            # Retourne le signal initial lorsque l'interpolation est impossible
+            return safe_signal, sample_mask
+        # Prépare un vecteur d'indices cible pour reconstituer chaque colonne
+        target_indices = np.arange(safe_signal.shape[1])
+        # Itère sur chaque canal pour appliquer une interpolation indépendante
+        for channel in range(safe_signal.shape[0]):
+            # Extrait les valeurs sûres du canal courant pour alimenter l'interpolation
+            valid_values = safe_signal[channel, valid_indices]
+            # Remplace les échantillons fautifs par l'interpolation linéaire
+            safe_signal[channel] = np.interp(
+                target_indices, valid_indices, valid_values
+            )
+        # Retourne le signal interpolé pour préserver la longueur temporelle
+        return safe_signal, sample_mask
+    # Lève une erreur explicite pour les modes non supportés
+    raise ValueError("mode must be either 'reject' or 'interpolate'")
+
+
+def normalize_channels(
+    signal: NDArray[np.floating[Any]],
+    method: str = DEFAULT_NORMALIZE_METHOD,
+    epsilon: float = DEFAULT_NORMALIZE_EPSILON,
+) -> NDArray[np.floating[Any]]:
+    """Normalize each channel using z-score or robust statistics."""
+
+    # Copie le signal en flottants pour garantir des sorties typées
+    safe_signal: NDArray[np.floating[Any]] = np.asarray(signal, dtype=float)
+    # Uniformise le nom de méthode pour éviter les confusions de casse
+    normalized_method = method.lower()
+    # Applique une normalisation z-score basée sur moyenne et écart-type
+    if normalized_method == "zscore":
+        # Calcule la moyenne par canal pour centrer la distribution
+        mean_per_channel = np.mean(safe_signal, axis=1, keepdims=True)
+        # Calcule l'écart-type par canal et ajoute epsilon pour la stabilité
+        std_per_channel = np.std(safe_signal, axis=1, keepdims=True) + epsilon
+        # Centre et réduit chaque canal pour homogénéiser les amplitudes
+        result: NDArray[np.floating[Any]] = np.asarray(
+            (safe_signal - mean_per_channel) / std_per_channel, dtype=float
+        )
+        # Retourne l'étalonnage z-score avec un type numpy explicite
+        return result
+    # Applique une normalisation robuste basée sur médiane et IQR
+    if normalized_method == "robust":
+        # Calcule la médiane par canal pour neutraliser les valeurs extrêmes
+        median_per_channel = np.median(safe_signal, axis=1, keepdims=True)
+        # Calcule l'IQR par canal et ajoute epsilon pour éviter les divisions nulles
+        iqr_per_channel = (
+            np.percentile(safe_signal, 75, axis=1, keepdims=True)
+            - np.percentile(safe_signal, 25, axis=1, keepdims=True)
+            + epsilon
+        )
+        # Centre et met à l'échelle chaque canal selon les statistiques robustes
+        robust_result: NDArray[np.floating[Any]] = np.asarray(
+            (safe_signal - median_per_channel) / iqr_per_channel, dtype=float
+        )
+        # Retourne la version robuste typée pour mypy et les tests
+        return robust_result
+    # Lève une erreur explicite pour les méthodes non supportées
+    raise ValueError("method must be either 'zscore' or 'robust'")
 
 
 def _build_file_entry(

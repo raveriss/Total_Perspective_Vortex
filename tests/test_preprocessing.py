@@ -13,7 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 # Import Mapping to annotate captured motor mapping structures
-from typing import Mapping
+# Import cast to préciser le type des dictionnaires capturés
+from typing import Any, Mapping, cast
 
 # Import mne to build synthetic Raw objects and annotations
 import mne
@@ -24,10 +25,16 @@ import numpy as np
 # Import pytest to manage temporary directories and assertions
 import pytest
 
+# Import the preprocessing module to instrument dtype enforcement
+from tpv import preprocessing
+
 # Import the preprocessing helpers under test
 # Importe les utilitaires de contrôle d'échantillons et de qualité
 # Importe le marqueur pour vérifier la structure des métadonnées
 from tpv.preprocessing import (
+    DEFAULT_FILTER_METHOD,
+    DEFAULT_NORMALIZE_EPSILON,
+    DEFAULT_NORMALIZE_METHOD,
     MOTOR_EVENT_LABELS,
     PHYSIONET_LABEL_MAP,
     _apply_marking,
@@ -40,16 +47,22 @@ from tpv.preprocessing import (
     _is_bad_description,
     apply_bandpass_filter,
     create_epochs_from_raw,
+    detect_artifacts,
     generate_epoch_report,
     load_mne_raw_checked,
     load_physionet_raw,
     map_events_and_validate,
+    normalize_channels,
     quality_control_epochs,
     verify_dataset_integrity,
 )
 
 # Fixe une amplitude maximale attendue pour repérer une dérive de filtrage
 MAX_FILTER_AMPLITUDE = 10.0
+# Fixe l'ordre IIR personnalisé pour verrouiller le paramètre transmis
+CUSTOM_IIR_ORDER = 6
+# Fixe l'ordre IIR par défaut pour surveiller la configuration interne
+EXPECTED_IIR_DEFAULT_ORDER = 4
 
 
 def _build_dummy_raw(sfreq: float = 128.0, duration: float = 1.0) -> mne.io.Raw:
@@ -132,6 +145,109 @@ def test_apply_bandpass_filter_rejects_unknown_method() -> None:
         apply_bandpass_filter(raw, method="fft", pad_duration=0.25)
 
 
+def test_apply_bandpass_filter_uses_expected_padding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validate that default padding length is applied and removed."""
+
+    # Construit un enregistrement très court pour forcer un seul échantillon de pad
+    raw = _build_dummy_raw(sfreq=2.0, duration=1.0)
+    # Capture la forme des données transmises à la fonction de filtrage
+    captured: dict[str, object] = {}
+
+    # Remplace la fonction de filtrage MNE pour observer le tampon fourni
+    def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
+        # Stocke la forme pour vérifier la présence du padding symétrique
+        captured["shape"] = data.shape
+        # Conserve les données pour analyser le contenu du padding
+        captured["data"] = data.copy()
+        # Retourne le tampon inchangé pour que la découpe retire le pad
+        return data
+
+    # Patch la fonction de filtrage afin d'éviter le coût du vrai filtrage
+    monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
+    # Applique le filtre afin de déclencher l'ajout puis le retrait du pad
+    filtered = apply_bandpass_filter(raw, method="fir")
+    # Vérifie que la fonction de filtrage a bien reçu un pad symétrique
+    assert captured["shape"] == (2, raw.get_data().shape[1] + 2)
+    # Contrôle que le padding reflète correctement les bords du signal source
+    padded = np.asarray(captured["data"])
+    assert np.allclose(padded[:, 0], raw.get_data()[:, 1])
+    assert np.allclose(padded[:, -1], raw.get_data()[:, -2])
+    # Vérifie que les données finales ont retrouvé leur longueur initiale
+    np.testing.assert_array_equal(filtered.get_data(), raw.get_data())
+
+
+def test_apply_bandpass_filter_invalid_method_message() -> None:
+    """Check that the guardrails keep the explicit validation message."""
+
+    # Prépare un enregistrement minimal pour déclencher la validation tôt
+    raw = _build_dummy_raw(sfreq=64.0, duration=0.25)
+    # Vérifie que le message d'erreur reste précis sur les méthodes autorisées
+    with pytest.raises(ValueError, match=r"^method must be 'fir' or 'iir'$"):
+        # Passe une méthode erronée pour couvrir les variantes mutées du message
+        apply_bandpass_filter(raw, method="bad")
+
+
+def test_apply_bandpass_filter_accepts_uppercase_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure normalization preserves the FIR branch with uppercase input."""
+
+    # Construit un signal court pour passer rapidement le filtrage patché
+    raw = _build_dummy_raw(sfreq=64.0, duration=0.5)
+    # Capture les arguments transmis à la fonction de filtrage MNE
+    captured: dict[str, dict[str, object]] = {}
+
+    # Remplace la fonction de filtrage pour inspecter les paramètres reçus
+    def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
+        # Stocke le dictionnaire pour vérifier la méthode sélectionnée
+        captured["kwargs"] = kwargs
+        # Retourne le tampon inchangé afin de conserver la longueur originale
+        return data
+
+    # Patch la fonction de filtrage afin d'éviter une exécution coûteuse
+    monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
+    # Applique le filtre avec un nom de méthode en majuscules
+    apply_bandpass_filter(raw, method="FIR", pad_duration=0.0)
+    # Extrait les paramètres capturés avec un typage explicite pour mypy
+    kwargs: dict[str, object] = captured["kwargs"]
+    # Vérifie que la méthode transmise reste bien le chemin FIR attendu
+    assert kwargs.get("method") == "fir"
+
+
+def test_apply_bandpass_filter_defaults_to_fir(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure default arguments stay valid and keep the FIR branch active."""
+
+    # Construit un enregistrement minimal pour exercer la valeur par défaut
+    raw = _build_dummy_raw(sfreq=64.0, duration=0.25)
+    # Capture les paramètres transmis à la fonction de filtrage
+    captured: dict[str, dict[str, object]] = {}
+
+    # Remplace la fonction de filtrage pour analyser les paramètres effectifs
+    def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
+        # Stocke les arguments pour vérifier la sélection du chemin FIR
+        captured["kwargs"] = kwargs
+        # Retourne le tampon inchangé pour simplifier la vérification
+        return data
+
+    # Patch la fonction de filtrage afin d'éviter le calcul réel
+    monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
+    # Applique le filtre sans préciser de méthode pour déclencher la valeur par défaut
+    apply_bandpass_filter(raw)
+    # Extrait les paramètres capturés avec un typage clair pour les assertions
+    kwargs: dict[str, object] = captured["kwargs"]
+    # Vérifie que la méthode reste fermement définie sur le filtre FIR
+    assert kwargs.get("method") == "fir"
+    # Confirme que la fenêtre FIR par défaut reste sur le mode auto attendu
+    assert kwargs.get("filter_length") == "auto"
+    # Vérifie que les bornes de bande sont correctement transmises
+    assert kwargs.get("l_freq") == pytest.approx(8.0)
+    assert kwargs.get("h_freq") == pytest.approx(40.0)
+    # Contrôle que le filtrage se fait en mode silencieux pour les tests
+    assert kwargs.get("verbose") is False
+
+
 def test_apply_bandpass_filter_skips_padding_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -148,6 +264,66 @@ def test_apply_bandpass_filter_skips_padding_when_disabled(
     filtered = apply_bandpass_filter(raw, method="fir", pad_duration=0.0)
     # Confirme que la forme reste identique sans utilisation de padding
     assert filtered.get_data().shape == raw.get_data().shape
+
+
+def test_apply_bandpass_filter_accepts_custom_iir_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validate that custom IIR order is forwarded without alteration."""
+
+    # Construit un enregistrement court pour limiter le volume de calcul
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.25)
+    # Capture les paramètres transmis à la fonction de filtrage simulée
+    captured: dict[str, dict[str, object]] = {}
+
+    # Remplace la fonction de filtrage pour inspecter les paramètres IIR
+    def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
+        # Stocke les paramètres afin de valider l'ordre IIR transmis
+        captured["kwargs"] = kwargs
+        # Retourne les données pour permettre la découpe sans calcul
+        return data
+
+    # Patch la fonction de filtrage pour éviter l'exécution réelle
+    monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
+    # Applique le filtre IIR avec un ordre personnalisé pour verrouiller le comportement
+    apply_bandpass_filter(raw, method="iir", order=CUSTOM_IIR_ORDER, pad_duration=0.0)
+    # Extrait les paramètres capturés pour analyser l'ordre IIR appliqué
+    kwargs: dict[str, object] = captured["kwargs"]
+    # Extrait le dictionnaire IIR avec un typage sûr pour mypy
+    iir_params = cast(dict[str, object], kwargs.get("iir_params", {}))
+    # Vérifie que l'ordre IIR transmis correspond exactement à la valeur demandée
+    assert iir_params.get("order") == CUSTOM_IIR_ORDER
+
+
+def test_apply_bandpass_filter_defaults_to_expected_iir_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure the default IIR configuration remains stable."""
+
+    # Prépare un signal court pour tester la branche IIR par défaut
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.25)
+    # Capture les paramètres transmis à la fonction de filtrage simulée
+    captured: dict[str, dict[str, object]] = {}
+
+    # Remplace la fonction de filtrage pour inspecter les paramètres IIR
+    def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
+        # Stocke les paramètres pour valider l'ordre et la verbosité
+        captured["kwargs"] = kwargs
+        # Retourne les données sans modification pour accélérer le test
+        return data
+
+    # Patch la fonction de filtrage pour éviter le calcul réel
+    monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
+    # Applique le filtre avec la configuration IIR par défaut
+    apply_bandpass_filter(raw, method="iir", pad_duration=0.0)
+    # Extrait les paramètres capturés avec un typage explicite pour mypy
+    kwargs: dict[str, object] = captured["kwargs"]
+    # Extrait les paramètres IIR afin de valider l'ordre par défaut
+    iir_params = cast(dict[str, object], kwargs.get("iir_params", {}))
+    # Vérifie que l'ordre IIR par défaut reste fixé à quatre
+    assert iir_params.get("order") == EXPECTED_IIR_DEFAULT_ORDER
+    # Contrôle que le paramètre verbose reste désactivé
+    assert kwargs.get("verbose") is False
 
 
 def test_load_physionet_raw_reads_metadata(
@@ -1500,3 +1676,264 @@ def test_verify_dataset_integrity_reports_root_and_file_count(tmp_path: Path) ->
     assert report["root"] == str(data_root.resolve())
     # Ensure exactly one file entry was recorded
     assert len(report["files"]) == 1
+
+
+def test_detect_artifacts_rejects_amplitude_and_variance() -> None:
+    """Ensure artifact detection removes samples exceeding thresholds."""
+
+    # Construit un signal synthétique avec des excursions élevées ciblées
+    signal = np.array(
+        [
+            [0.1, 0.2, 5.0, 0.2, 0.1, 0.2, 0.1, 0.2],
+            [0.1, 0.1, 0.2, 0.1, 0.1, 3.0, 0.1, 0.1],
+        ]
+    )
+    # Applique le détecteur en mode rejet pour retirer les échantillons fautifs
+    cleaned, mask = detect_artifacts(
+        signal, amplitude_threshold=1.0, variance_threshold=0.5, mode="reject"
+    )
+    # Vérifie que les indices contaminés ont été correctement marqués
+    assert mask.tolist() == [False, False, True, False, False, True, False, False]
+    # Contrôle que les colonnes marquées ont été supprimées du signal nettoyé
+    assert cleaned.shape[1] == signal.shape[1] - 2
+
+
+def test_detect_artifacts_interpolates_flagged_samples() -> None:
+    """Ensure interpolation preserves length while smoothing spikes."""
+
+    # Construit un signal avec un pic isolé sur un canal
+    signal = np.array([[0.0, 0.0, 4.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]])
+    # Applique le détecteur en mode interpolation pour combler le pic
+    interpolated, mask = detect_artifacts(
+        signal, amplitude_threshold=1.0, variance_threshold=0.2, mode="interpolate"
+    )
+    # Vérifie que le masque identifie uniquement le pic
+    assert mask.tolist() == [False, False, True, False, False]
+    # Confirme que la longueur reste identique après interpolation
+    assert interpolated.shape == signal.shape
+    # Contrôle que le pic a été remplacé par une valeur interpolée nulle
+    assert pytest.approx(interpolated[0, 2]) == 0.0
+
+
+def test_detect_artifacts_interpolation_with_no_valid_points() -> None:
+    """Keep raw signal when interpolation cannot find valid anchors."""
+
+    # Construit un signal où chaque colonne dépasse les seuils définis
+    signal = np.array([[5.0, 5.0], [5.0, 5.0]])
+    # Applique l'interpolation sans aucun point fiable pour guider le calcul
+    interpolated, mask = detect_artifacts(
+        signal, amplitude_threshold=1.0, variance_threshold=0.1, mode="interpolate"
+    )
+    # Vérifie que toutes les colonnes sont marquées comme artefacts
+    assert mask.tolist() == [True, True]
+    # Confirme que le signal d'origine est renvoyé intact
+    assert np.allclose(interpolated, signal)
+
+
+def test_detect_artifacts_defaults_to_reject_mode() -> None:
+    """Ensure default behavior removes flagged samples without interpolation."""
+
+    # Construit un signal où une seule colonne dépasse le seuil d'amplitude
+    signal = np.array([[0.1, 2.5, 0.1]])
+    # Applique le détecteur sans préciser le mode pour tester la valeur par défaut
+    cleaned, mask = detect_artifacts(
+        signal, amplitude_threshold=1.0, variance_threshold=1.0
+    )
+    # Vérifie que le masque identifie uniquement la colonne hors tolérance
+    assert mask.tolist() == [False, True, False]
+    # Confirme que la colonne fautive a été retirée du signal nettoyé
+    np.testing.assert_array_equal(cleaned, np.array([[0.1, 0.1]]))
+
+
+def test_detect_artifacts_rejects_unknown_mode() -> None:
+    """Raise an explicit error for unsupported artifact modes."""
+
+    # Construit un signal minimal pour vérifier la validation du mode
+    signal = np.zeros((1, 2))
+    # Vérifie que l'appel avec un mode inconnu lève une erreur descriptive
+    with pytest.raises(
+        ValueError, match=r"^mode must be either 'reject' or 'interpolate'$"
+    ):
+        detect_artifacts(signal, 1.0, 0.1, mode="invalid")
+
+
+def test_detect_artifacts_thresholds_and_dtypes() -> None:
+    """Validate strict comparisons and float casting for integer inputs."""
+
+    # Construit un signal entier dont une valeur égale au seuil ne doit pas être rejetée
+    signal = np.array([[2, 2, 2]], dtype=int)
+    # Applique la détection avec un seuil égal à l'échantillon central
+    cleaned, mask = detect_artifacts(
+        signal, amplitude_threshold=2, variance_threshold=0.0
+    )
+    # Vérifie qu'une valeur exactement au seuil n'est pas considérée comme artefact
+    assert mask.tolist() == [False, False, False]
+    # Confirme que la sortie est bien promue en flottants pour les traitements suivants
+    assert cleaned.dtype == float
+
+
+def test_normalize_channels_supports_zscore_and_robust() -> None:
+    """Ensure both normalization modes return centered channels."""
+
+    # Construit un signal simple pour vérifier les deux normalisations
+    signal = np.array([[1.0, 2.0, 3.0], [2.0, 4.0, 6.0]])
+    # Applique la normalisation z-score pour obtenir un écart-type unitaire
+    zscore_signal = normalize_channels(signal, method="zscore")
+    # Vérifie que chaque canal z-score est centré autour de zéro
+    assert np.allclose(np.mean(zscore_signal, axis=1), 0.0)
+    # Applique la normalisation robuste pour neutraliser l'influence des extrêmes
+    robust_signal = normalize_channels(signal, method="robust")
+    # Contrôle que la médiane robuste est centrée à zéro pour chaque canal
+    assert np.allclose(np.median(robust_signal, axis=1), 0.0)
+
+
+def test_normalize_channels_robust_respects_epsilon() -> None:
+    """Ensure robust scaling keeps a positive IQR with epsilon added."""
+
+    # Construit un signal avec un IQR non nul pour observer l'impact d'epsilon
+    signal = np.array([[0.0, 1.0, 2.0]])
+    # Calcule l'attendu avec un epsilon large pour différencier les mutations
+    expected_iqr = (
+        np.percentile(signal, 75, axis=1, keepdims=True)
+        - np.percentile(signal, 25, axis=1, keepdims=True)
+        + 1.0
+    )
+    expected = (signal - np.median(signal, axis=1, keepdims=True)) / expected_iqr
+    # Vérifie que la normalisation robuste respecte cette construction
+    normalized = normalize_channels(signal, method="robust", epsilon=1.0)
+    # Confirme que le résultat suit l'échelle robuste attendue
+    np.testing.assert_allclose(normalized, expected)
+
+
+def test_normalize_channels_converts_non_float_inputs() -> None:
+    """Ensure inputs convertible to float are coerced before scaling."""
+
+    # Construit un signal au format chaîne qui nécessite une conversion explicite
+    signal = np.array([["1.0", "2.0"], ["3.0", "4.0"]], dtype=object)
+    # Applique la normalisation pour vérifier la conversion en flottants
+    normalized = normalize_channels(signal, method="zscore")
+    # Vérifie que le résultat est bien de type flottant numpy
+    assert normalized.dtype.kind == "f"
+    # Contrôle que la moyenne de chaque canal normalisé est centrée
+    assert np.allclose(np.mean(normalized, axis=1), 0.0)
+
+
+def test_normalize_channels_robust_computes_per_channel() -> None:
+    """Ensure percentiles are computed channel-wise, not globally."""
+
+    # Construit un signal où les canaux possèdent des répartitions contrastées
+    signal = np.array([[0.0, 0.0, 0.0], [0.0, 1.0, 2.0]])
+    # Calcule les statistiques attendues canal par canal pour chaque ligne
+    medians = np.median(signal, axis=1, keepdims=True)
+    iqrs = (
+        np.percentile(signal, 75, axis=1, keepdims=True)
+        - np.percentile(signal, 25, axis=1, keepdims=True)
+        + 1e-3
+    )
+    expected = (signal - medians) / iqrs
+    # Calcule la normalisation robuste réelle pour comparaison
+    normalized = normalize_channels(signal, method="robust", epsilon=1e-3)
+    # Vérifie que chaque canal reste centré indépendamment
+    assert np.allclose(np.median(normalized, axis=1), 0.0)
+    # Confirme que les échelles distinctes des canaux sont bien conservées
+    assert not np.allclose(normalized[0], normalized[1])
+    # Compare la sortie à l'attendu construit canal par canal
+    np.testing.assert_allclose(normalized, expected)
+
+
+def test_normalize_channels_defaults_apply_epsilon() -> None:
+    """Validate the default z-score path and epsilon addition."""
+
+    # Construit un signal non centré pour observer l'effet de l'epsilon explicite
+    signal = np.array([[1.0, 2.0], [2.0, 4.0]])
+    # Calcule l'attendu avec epsilon important pour discriminer les mutations
+    expected = (signal - np.mean(signal, axis=1, keepdims=True)) / (
+        np.std(signal, axis=1, keepdims=True) + 1.0
+    )
+    # Vérifie que la fonction applique la même formule avec les paramètres par défaut
+    normalized = normalize_channels(signal, epsilon=1.0)
+    # Contrôle que la sortie correspond strictement à l'attendu numérique
+    np.testing.assert_allclose(normalized, expected)
+
+
+def test_normalize_channels_rejects_unknown_method() -> None:
+    """Raise an explicit error when normalization method is invalid."""
+
+    # Construit un signal simple pour valider la gestion des méthodes inconnues
+    signal = np.array([[1.0, 2.0]])
+    # Vérifie que l'appel avec un nom de méthode non supporté échoue clairement
+    with pytest.raises(
+        ValueError, match=r"^method must be either 'zscore' or 'robust'$"
+    ):
+        normalize_channels(signal, method="invalid")
+
+
+# Garantit deux appels dtype explicites pour bloquer les mutations silencieuses
+EXPECTED_NORMALIZE_DTYPE_CALLS = 2
+
+
+def test_normalize_channels_calls_asarray_with_dtype_for_zscore(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enforce dtype hints on z-score output to kill silent mutations."""
+
+    # Construit une liste pour suivre les dtype passés aux conversions numpy
+    recorded_dtypes: list[object] = []
+    # Capture l'implémentation réelle pour déléguer la conversion
+    original_asarray = preprocessing.np.asarray
+
+    # Enveloppe np.asarray pour enregistrer les dtype demandés
+    def recording_asarray(*args: Any, **kwargs: Any) -> np.ndarray:
+        recorded_dtypes.append(kwargs.get("dtype"))
+        return original_asarray(*args, **kwargs)
+
+    # Injecte l'enveloppe dans le module de prétraitement
+    monkeypatch.setattr(preprocessing.np, "asarray", recording_asarray)
+    # Construit un signal entier pour différencier les conversions explicites
+    signal = np.array([[1, 2, 3], [4, 5, 6]], dtype=int)
+    # Lance la normalisation z-score pour déclencher les conversions internes
+    normalize_channels(signal, method="zscore", epsilon=0.5)
+    # Vérifie que les conversions incluent deux requêtes dtype=float
+    assert recorded_dtypes.count(float) == EXPECTED_NORMALIZE_DTYPE_CALLS
+
+
+def test_normalize_channels_calls_asarray_with_dtype_for_robust(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enforce dtype hints on robust output to kill silent mutations."""
+
+    # Construit un journal des dtype transmis aux conversions robustes
+    recorded_dtypes: list[object] = []
+    # Capture np.asarray pour déléguer tout en observant les appels
+    original_asarray = preprocessing.np.asarray
+
+    # Enveloppe np.asarray pour contrôler les paramètres dtype
+    def recording_asarray(*args: Any, **kwargs: Any) -> np.ndarray:
+        recorded_dtypes.append(kwargs.get("dtype"))
+        return original_asarray(*args, **kwargs)
+
+    # Remplace np.asarray dans le module pour enregistrer les appels ciblés
+    monkeypatch.setattr(preprocessing.np, "asarray", recording_asarray)
+    # Construit un signal asymétrique pour exercer la branche robuste
+    signal = np.array([[0, 1, 2], [5, 5, 5]], dtype=int)
+    # Applique la normalisation robuste pour forcer les conversions finales
+    normalize_channels(signal, method="robust", epsilon=0.25)
+    # Contrôle que deux conversions dtype=float ont été requises
+    assert recorded_dtypes.count(float) == EXPECTED_NORMALIZE_DTYPE_CALLS
+
+
+def test_preprocessing_signatures_preserve_documented_defaults() -> None:
+    """Protect the public API defaults used in documentation and examples."""
+
+    # Capture la signature du filtre pour verrouiller la valeur par défaut
+    filter_signature = inspect.signature(apply_bandpass_filter)
+    # Vérifie que la méthode par défaut reste bien en minuscules pour la doc
+    assert filter_signature.parameters["method"].default == DEFAULT_FILTER_METHOD
+    # Capture la signature de la normalisation pour sécuriser le paramètre
+    normalize_signature = inspect.signature(normalize_channels)
+    # Confirme que le mode par défaut reste conforme aux guides utilisateur
+    assert normalize_signature.parameters["method"].default == DEFAULT_NORMALIZE_METHOD
+    # Vérifie que l'epsilon par défaut reste fixé à 1e-8
+    assert normalize_signature.parameters["epsilon"].default == pytest.approx(
+        DEFAULT_NORMALIZE_EPSILON
+    )
