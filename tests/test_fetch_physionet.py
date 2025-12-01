@@ -4,11 +4,11 @@ import argparse
 # Stabilise les valeurs de hash pour les vérifications d'intégrité
 import hashlib
 
-# Nettoie l'environnement des sous-processus pour isoler les hooks mutmut
-import os
-
 # Produit rapidement un manifeste JSON pour le test
 import json
+
+# Nettoie l'environnement des sous-processus pour isoler les hooks mutmut
+import os
 
 # Exécute un module comme si le script était lancé depuis le CLI
 import runpy
