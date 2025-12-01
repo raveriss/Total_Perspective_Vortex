@@ -10,9 +10,6 @@ import json
 # Exécute un module comme si le script était lancé depuis le CLI
 import runpy
 
-# Lance des sous-processus pour simuler un usage utilisateur complet
-import subprocess
-
 # Fournit l'interpréteur actif pour reproduire l'environnement de test
 import sys
 
@@ -44,39 +41,11 @@ def test_fetch_physionet_fails_without_files(tmp_path: Path) -> None:
     )
     # Définit un répertoire de destination distinct pour le test
     destination_dir = tmp_path / "destination"
-    # Sélectionne le chemin absolu du script pour les environnements clonés
-    script_path = Path(__file__).resolve().parents[1] / "scripts" / "fetch_physionet.py"
-    # Lance la commande python pour appeler le script CLI
-    result = subprocess.run(
-        [
-            # Utilise l'interpréteur Python présent dans l'environnement de test
-            sys.executable,
-            # Cible le nouveau script de récupération Physionet
-            str(script_path),
-            # Spécifie la source vide pour déclencher l'erreur recherchée
-            "--source",
-            # Fournit le chemin réel du dossier vide
-            str(source_dir),
-            # Indique le manifeste construit pour le test
-            "--manifest",
-            # Passe le chemin vers le fichier JSON temporaire
-            str(manifest),
-            # Configure le dossier de destination isolé
-            "--destination",
-            # Ajoute le chemin vers la destination factice
-            str(destination_dir),
-        ],
-        # Capture stdout/stderr pour analyser le message d'échec
-        capture_output=True,
-        # Force le décodage texte pour faciliter les assertions
-        text=True,
-        # Empêche subprocess de lever une exception automatique
-        check=False,
-    )
-    # S'assure que l'exécution renvoie un code d'erreur
-    assert result.returncode == 1
-    # Contrôle la présence d'un message explicite pour guider l'utilisateur
-    assert "fichier source absent" in result.stdout
+    # Vérifie que la récupération déclenche immédiatement une erreur lisible
+    with pytest.raises(FileNotFoundError) as excinfo:
+        fetch_physionet.fetch_dataset(str(source_dir), manifest, destination_dir)
+    # Confirme que le message pointe explicitement l'absence du fichier source
+    assert "fichier source absent" in str(excinfo.value)
 
 
 # Vérifie que le chargement du manifeste échoue quand le fichier manque
