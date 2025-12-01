@@ -108,3 +108,13 @@ def test_call_module_executes_python_module(monkeypatch):
 
     assert exit_code == 0
     assert recorded_command == [sys.executable, "-m", "tpv.train", "S03", "R04"]
+
+
+# Vérifie que main remonte l'échec propagé par un module sous-jacent
+def test_main_propagates_module_failure(monkeypatch):
+    # Force un code retour non nul pour simuler un pipeline échoué
+    monkeypatch.setattr(mybci, "_call_module", lambda *_: 5)
+    # Capture le code de sortie afin d'observer la propagation d'erreur
+    exit_code = mybci.main(["S01", "R01", "train"])
+    # Valide que main renvoie exactement le code d'échec du module
+    assert exit_code == 5
