@@ -7,9 +7,6 @@ import hashlib
 # Produit rapidement un manifeste JSON pour le test
 import json
 
-# Nettoie l'environnement des sous-processus pour isoler les hooks mutmut
-import os
-
 # Exécute un module comme si le script était lancé depuis le CLI
 import runpy
 
@@ -54,8 +51,6 @@ def test_fetch_physionet_fails_without_files(tmp_path: Path) -> None:
         [
             # Utilise l'interpréteur Python présent dans l'environnement de test
             sys.executable,
-            # Supprime l'import automatique de site pour contourner les hooks mutmut
-            "-S",
             # Cible le nouveau script de récupération Physionet
             str(script_path),
             # Spécifie la source vide pour déclencher l'erreur recherchée
@@ -77,8 +72,6 @@ def test_fetch_physionet_fails_without_files(tmp_path: Path) -> None:
         text=True,
         # Empêche subprocess de lever une exception automatique
         check=False,
-        # Purge PYTHONPATH pour éviter les sitecustomize injectés par mutmut
-        env={**os.environ, "PYTHONPATH": ""},
     )
     # S'assure que l'exécution renvoie un code d'erreur
     assert result.returncode == 1
