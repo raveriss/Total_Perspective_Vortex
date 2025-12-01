@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 # Import Mapping to annotate captured motor mapping structures
 # Import cast to préciser le type des dictionnaires capturés
-from typing import Mapping, cast
+from typing import Any, Mapping, cast
 
 # Import mne to build synthetic Raw objects and annotations
 import mne
@@ -24,6 +24,9 @@ import numpy as np
 
 # Import pytest to manage temporary directories and assertions
 import pytest
+
+# Import the preprocessing module to instrument dtype enforcement
+from tpv import preprocessing
 
 # Import the preprocessing helpers under test
 # Importe les utilitaires de contrôle d'échantillons et de qualité
@@ -1863,6 +1866,60 @@ def test_normalize_channels_rejects_unknown_method() -> None:
         ValueError, match=r"^method must be either 'zscore' or 'robust'$"
     ):
         normalize_channels(signal, method="invalid")
+
+
+# Garantit deux appels dtype explicites pour bloquer les mutations silencieuses
+EXPECTED_NORMALIZE_DTYPE_CALLS = 2
+
+
+def test_normalize_channels_calls_asarray_with_dtype_for_zscore(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enforce dtype hints on z-score output to kill silent mutations."""
+
+    # Construit une liste pour suivre les dtype passés aux conversions numpy
+    recorded_dtypes: list[object] = []
+    # Capture l'implémentation réelle pour déléguer la conversion
+    original_asarray = preprocessing.np.asarray
+
+    # Enveloppe np.asarray pour enregistrer les dtype demandés
+    def recording_asarray(*args: Any, **kwargs: Any) -> np.ndarray:
+        recorded_dtypes.append(kwargs.get("dtype"))
+        return original_asarray(*args, **kwargs)
+
+    # Injecte l'enveloppe dans le module de prétraitement
+    monkeypatch.setattr(preprocessing.np, "asarray", recording_asarray)
+    # Construit un signal entier pour différencier les conversions explicites
+    signal = np.array([[1, 2, 3], [4, 5, 6]], dtype=int)
+    # Lance la normalisation z-score pour déclencher les conversions internes
+    normalize_channels(signal, method="zscore", epsilon=0.5)
+    # Vérifie que les conversions incluent deux requêtes dtype=float
+    assert recorded_dtypes.count(float) == EXPECTED_NORMALIZE_DTYPE_CALLS
+
+
+def test_normalize_channels_calls_asarray_with_dtype_for_robust(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enforce dtype hints on robust output to kill silent mutations."""
+
+    # Construit un journal des dtype transmis aux conversions robustes
+    recorded_dtypes: list[object] = []
+    # Capture np.asarray pour déléguer tout en observant les appels
+    original_asarray = preprocessing.np.asarray
+
+    # Enveloppe np.asarray pour contrôler les paramètres dtype
+    def recording_asarray(*args: Any, **kwargs: Any) -> np.ndarray:
+        recorded_dtypes.append(kwargs.get("dtype"))
+        return original_asarray(*args, **kwargs)
+
+    # Remplace np.asarray dans le module pour enregistrer les appels ciblés
+    monkeypatch.setattr(preprocessing.np, "asarray", recording_asarray)
+    # Construit un signal asymétrique pour exercer la branche robuste
+    signal = np.array([[0, 1, 2], [5, 5, 5]], dtype=int)
+    # Applique la normalisation robuste pour forcer les conversions finales
+    normalize_channels(signal, method="robust", epsilon=0.25)
+    # Contrôle que deux conversions dtype=float ont été requises
+    assert recorded_dtypes.count(float) == EXPECTED_NORMALIZE_DTYPE_CALLS
 
 
 def test_preprocessing_signatures_preserve_documented_defaults() -> None:
