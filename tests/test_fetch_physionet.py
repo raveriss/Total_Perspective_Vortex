@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 # Importe le module utilitaire pour l'accès direct aux primitives de téléchargement
-import scripts.fetch_physionet as fetch_physionet
+from scripts import fetch_physionet
 
 
 # Vérifie que le script échoue clairement quand les fichiers sont absents
@@ -150,7 +150,7 @@ def test_retrieve_file_propagates_network_failure(monkeypatch, tmp_path: Path) -
     # Définit un faux opener qui lève une erreur réseau contrôlée
     class FakeOpener:
         # Bloque toute ouverture en renvoyant une URLError déterministe
-        def open(self, *_: object, **__: object) -> None:  # type: ignore[return-type]
+        def open(self, *_: object, **__: object) -> None:
             # Propage une URLError pour vérifier la conversion en ConnectionError
             raise fetch_physionet.urllib.error.URLError("boom")
 
