@@ -4,6 +4,9 @@
 # Utilise Path pour manipuler les chemins de manière sûre
 from pathlib import Path
 
+# Importe joblib pour instrumenter le chargement persistant
+import joblib
+
 # Charge numpy pour créer des matrices de test
 import numpy as np
 
@@ -161,14 +164,14 @@ def test_transform_rejects_invalid_dimension():
         reducer.transform(X)
 
 
-# Vérifie que save refuse d'opérer avant l'entraînement
+# Vérifie que save refuse d'opérer avant l'entraînement avec message clair
 def test_save_requires_fitted_model(tmp_path: Path):
     # Prépare un chemin temporaire pour la sauvegarde
     target = tmp_path / "projection.joblib"
     # Instancie un réducteur PCA sans apprentissage
     reducer = TPVDimReducer(method="pca")
     # Vérifie que save lève une ValueError en absence de matrice
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="^Cannot save before fitting the model$"):
         # Tente de sauvegarder sans avoir appelé fit
         reducer.save(target)
 
@@ -179,7 +182,67 @@ def test_average_covariance_rejects_empty_trials():
     reducer = TPVDimReducer(method="csp")
     # Crée un tableau vide d'essais pour provoquer l'erreur
     empty_trials = np.zeros((0, 2, 2))
-    # Vérifie que la fonction interne lève une ValueError
-    with pytest.raises(ValueError):
+    # Vérifie que la fonction interne lève une ValueError explicite
+    with pytest.raises(
+        ValueError, match="^No trials provided for covariance estimation$"
+    ):
         # Appelle directement la méthode de covariance moyenne
         reducer._average_covariance(empty_trials)
+
+
+# Vérifie que load transmet fidèlement le chemin fourni
+def test_load_uses_provided_path(monkeypatch, tmp_path: Path):
+    # Crée un chemin temporaire pour simuler la source
+    target = tmp_path / "projection.joblib"
+    # Prépare une matrice de projection factice
+    expected_w = np.array([[1.0, 0.0], [0.0, 1.0]])
+    # Prépare une moyenne factice pour vérifier la restauration
+    expected_mean = np.array([0.5, -0.5])
+    # Capture le chemin utilisé par joblib.load
+    captured = {}
+
+    # Définit un faux loader qui enregistre le chemin reçu
+    def fake_load(path: str):
+        # Mémorise le chemin pour vérification ultérieure
+        captured["path"] = path
+        # Retourne un contenu cohérent pour simuler la persistance
+        return {"w_matrix": expected_w, "mean": expected_mean}
+
+    # Remplace joblib.load par la version instrumentée
+    monkeypatch.setattr(joblib, "load", fake_load)
+    # Instancie un réducteur vide prêt à charger
+    reducer = TPVDimReducer(method="pca")
+    # Charge les données via le faux loader
+    reducer.load(target)
+    # Vérifie que le chemin fourni a été transmis à joblib.load
+    assert captured["path"] == str(target)
+    # Vérifie la restauration de la matrice de projection
+    np.testing.assert_allclose(reducer.w_matrix, expected_w)
+    # Vérifie la restauration de la moyenne
+    np.testing.assert_allclose(reducer.mean_, expected_mean)
+
+
+# Vérifie que la covariance moyenne agrège l'information de chaque essai
+def test_average_covariance_accumulates_trials():
+    # Crée un premier essai avec énergie sur l'axe diagonal
+    trial_a = np.array([[1.0, 0.0], [0.0, 1.0]])
+    # Crée un second essai avec énergie mixte pour tester l'accumulation
+    trial_b = np.array([[1.0, 1.0], [1.0, 1.0]])
+    # Empile les essais pour simuler deux répétitions
+    trials = np.stack([trial_a, trial_b])
+    # Calcule la covariance normalisée du premier essai
+    cov_a = trial_a @ trial_a.T
+    # Normalise pour suivre la logique de la méthode
+    cov_a /= np.trace(cov_a)
+    # Calcule la covariance normalisée du second essai
+    cov_b = trial_b @ trial_b.T
+    # Normalise pour comparer sur une base commune
+    cov_b /= np.trace(cov_b)
+    # Calcule la moyenne attendue sur les deux essais
+    expected = (cov_a + cov_b) / trials.shape[0]
+    # Instancie le réducteur pour accéder à la méthode de covariance
+    reducer = TPVDimReducer(method="csp")
+    # Calcule la covariance moyenne via la méthode
+    averaged = reducer._average_covariance(trials)
+    # Vérifie que la moyenne correspond à l'accumulation attendue
+    np.testing.assert_allclose(averaged, expected)
