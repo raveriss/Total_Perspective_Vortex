@@ -26,7 +26,8 @@ def test_extract_features_normalization_and_placeholder() -> None:
     """Check normalization behavior and wavelet placeholder output."""
 
     sfreq = 256.0
-    X = np.ones((1, 2, 128))
+    t = np.arange(128) / sfreq
+    X = np.sin(2 * np.pi * 6 * t).reshape(1, 2, -1)
     normalized = extract_features(
         X, sfreq=sfreq, feature_strategy="fft", normalize=True
     )
@@ -55,7 +56,9 @@ def test_extract_features_invalid_shape() -> None:
 
     transformer = ExtractFeatures(sfreq=128.0)
     bad_input = np.zeros((10, 100))
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match=r"^X must have shape \(n_samples, n_channels, n_times\)$"
+    ):
         transformer.transform(bad_input)
 
 
@@ -70,5 +73,74 @@ def test_extract_features_rejects_unknown_strategy() -> None:
     """Ensure unsupported feature strategies raise explicit errors."""
 
     transformer = ExtractFeatures(sfreq=128.0, feature_strategy="unknown")
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match=r"^Unsupported feature strategy: unknown$"
+    ):
         transformer.transform(np.zeros((1, 1, 2)))
+
+
+def test_extract_features_defaults_enable_normalization() -> None:
+    """Confirm transformer defaults to normalized outputs."""
+
+    transformer = ExtractFeatures(sfreq=128.0)
+    assert transformer.normalize is True
+
+
+def test_extract_features_respects_default_normalization() -> None:
+    """Check helper defaults normalize per sample using FFT strategy."""
+
+    sfreq = 128.0
+    t = np.arange(128) / sfreq
+    signals = np.stack([
+        np.sin(2 * np.pi * 6 * t),
+        np.sin(2 * np.pi * 6 * t) + 0.5 * np.sin(2 * np.pi * 12 * t),
+    ])
+    X = signals.reshape(2, 1, -1)
+    raw = ExtractFeatures(sfreq=sfreq, normalize=False).transform(X)
+    normalized = extract_features(X, sfreq=sfreq)
+    expected = (raw - raw.mean(axis=1, keepdims=True)) / (
+        raw.std(axis=1, keepdims=True) + ExtractFeatures.NORMALIZATION_EPS
+    )
+    np.testing.assert_array_equal(normalized, expected)
+    assert not np.allclose(expected[0], expected[1])
+
+
+def test_extract_features_accepts_disable_normalization() -> None:
+    """Ensure helper forwards normalize=False to skip scaling."""
+
+    sfreq = 128.0
+    t = np.arange(128) / sfreq
+    X = np.sin(2 * np.pi * 6 * t).reshape(1, 1, -1)
+    raw = ExtractFeatures(sfreq=sfreq, normalize=False).transform(X)
+    features = extract_features(X, sfreq=sfreq, normalize=False)
+    np.testing.assert_array_equal(features, raw)
+
+
+def test_extract_features_fft_band_power_matches_reference() -> None:
+    """FFT aggregation must match manual power calculation per band."""
+
+    sfreq = 100.0
+    n_times = 100
+    t = np.arange(n_times) / sfreq
+    signal = np.sin(2 * np.pi * 4 * t) + 0.5 * np.sin(2 * np.pi * 12 * t)
+    X = signal.reshape(1, 1, -1)
+    transformer = ExtractFeatures(sfreq=sfreq, normalize=False)
+    features = transformer.transform(X)
+
+    freqs = np.fft.rfftfreq(n_times, d=1.0 / sfreq)
+    power = np.abs(np.fft.rfft(X, axis=2)) ** 2
+
+    def band_power(low: float, high: float) -> np.ndarray:
+        mask = (freqs >= low) & (freqs <= high)
+        return power[:, :, mask].mean(axis=2)
+
+    expected = np.concatenate(
+        [
+            band_power(4.0, 7.0),
+            band_power(8.0, 12.0),
+            band_power(13.0, 30.0),
+            band_power(31.0, 45.0),
+        ],
+        axis=1,
+    )
+    assert np.allclose(features, expected)

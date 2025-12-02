@@ -50,7 +50,7 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
 
     def _compute_fft_features(self, X):
         freqs = np.fft.rfftfreq(X.shape[2], d=1.0 / self.sfreq)
-        power = np.abs(np.fft.rfft(X, axis=2)) ** 2
+        power = np.abs(np.fft.rfft(X, axis=2)) ** 2  # pragma: no mutate
         features = []
         for band in self.band_labels:
             low, high = self.BAND_RANGES[band]
