@@ -358,6 +358,34 @@ def test_parse_args_reads_cli(monkeypatch, tmp_path: Path) -> None:
     assert parsed.destination == str(destination_root)
 
 
+# Vérifie que la destination par défaut est appliquée sans argument explicite
+def test_parse_args_defaults_destination(monkeypatch, tmp_path: Path) -> None:
+    # Prépare une source locale minimale pour respecter les arguments requis
+    source_root = tmp_path / "source"
+    # Crée physiquement la source pour refléter un appel utilisateur réel
+    source_root.mkdir()
+    # Positionne un manifeste JSON factice attendu par la CLI
+    manifest_path = tmp_path / "manifest.json"
+    # Écrit une structure JSON vide mais valide pour satisfaire argparse
+    manifest_path.write_text(json.dumps({"files": []}), encoding="utf-8")
+    # Injecte une ligne de commande sans destination pour tester le défaut
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "fetch_physionet.py",
+            "--source",
+            str(source_root),
+            "--manifest",
+            str(manifest_path),
+        ],
+    )
+    # Parse les arguments simulés via l'interface standard
+    parsed = fetch_physionet.parse_args()
+    # Vérifie que la destination par défaut pointe vers data/raw
+    assert parsed.destination == "data/raw"
+
+
 # Exécute le script comme module principal pour couvrir le garde __main__
 def test_main_runs_under_runpy(monkeypatch, tmp_path: Path) -> None:
     # Prépare une source locale avec un fichier EDF minimal
@@ -429,3 +457,47 @@ def test_main_exits_on_error(monkeypatch, tmp_path: Path) -> None:
         fetch_physionet.main()
     # Confirme que le code de sortie correspond à l'échec attendu
     assert error.value.code == 1
+
+
+# Contrôle que fetch_dataset appelle bien validate_file pour chaque entrée
+def test_fetch_dataset_invokes_validation(monkeypatch, tmp_path: Path) -> None:
+    # Crée un manifeste avec deux entrées à traiter
+    manifest_path = tmp_path / "manifest.json"
+    # Définit les chemins relatifs attendus dans le manifeste
+    manifest_entries = [{"path": "S01/a.edf"}, {"path": "S02/b.edf"}]
+    # Enregistre le manifeste sur disque pour l'appel testé
+    manifest_path.write_text(json.dumps({"files": manifest_entries}), encoding="utf-8")
+    # Déclare un dossier de destination pour la copie simulée
+    destination_root = tmp_path / "destination"
+    # Capture les appels à validate_file pour vérifier la propagation
+    validated: list[tuple[Path, dict]] = []
+
+    # Simule retrieve_file en créant un fichier destination pour chaque entrée
+    def fake_retrieve(
+        source_root: str, entry: dict[str, str], destination: Path
+    ) -> Path:
+        # Construit le chemin final de la copie factice
+        target: Path = destination / Path(entry["path"])
+        # Crée l'arborescence cible pour simuler une récupération réussie
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Écrit un contenu minimal pour matérialiser le fichier copié
+        target.write_bytes(b"ok")
+        # Retourne le chemin du fichier copié pour l'étape de validation
+        return target
+
+    # Remplace retrieve_file par la version simulée afin d'éviter l'I/O réel
+    monkeypatch.setattr(fetch_physionet, "retrieve_file", fake_retrieve)
+
+    # Intercepte validate_file pour enregistrer chaque appel effectué
+    def fake_validate(file_path: Path, entry: dict) -> None:
+        # Archive le couple chemin/entrée pour vérifier la couverture des deux fichiers
+        validated.append((file_path, entry))
+
+    # Substitue validate_file pour observer les chemins reçus
+    monkeypatch.setattr(fetch_physionet, "validate_file", fake_validate)
+    # Exécute le pipeline complet avec une source locale symbolique
+    fetch_physionet.fetch_dataset("/source", manifest_path, destination_root)
+    # Vérifie que les deux entrées ont été validées via validate_file
+    assert [entry["path"] for _, entry in validated] == ["S01/a.edf", "S02/b.edf"]
+    # Contrôle que les chemins passés à validate_file existent réellement
+    assert all(path.exists() for path, _ in validated)

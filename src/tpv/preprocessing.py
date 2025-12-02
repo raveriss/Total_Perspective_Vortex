@@ -394,10 +394,18 @@ def create_epochs_from_raw(
 ) -> mne.Epochs:
     """Construct epochs with annotation-aware rejection."""
 
+    # Convert the events array to enforce integer sample indices
+    safe_events = np.asarray(events)
+    # Validate that all event indices are integers to satisfy MNE expectations
+    if not np.issubdtype(safe_events.dtype, np.integer):
+        # Raise an explicit error when indices are not numeric to avoid MNE crashes
+        raise ValueError("events must contain integer-coded sample indices")
+    # Reuse the typed array without copying when already integer
+    typed_events = safe_events.astype(int, copy=False)
     # Build epochs while honoring BAD annotations to avoid contaminating data
     epochs = mne.Epochs(
         raw,
-        events=events,
+        events=typed_events,
         event_id=event_id,
         tmin=tmin,
         tmax=tmax,

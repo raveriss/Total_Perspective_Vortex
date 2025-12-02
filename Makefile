@@ -59,8 +59,12 @@ cov:
 
 
 # Mutation testing avec Mutmut (guidé par la couverture)
-mut: cov
-	$(POETRY) mutmut run --use-coverage --simple-output
+mut: clean-mutants cov
+	$(POETRY) mutmut run
+	$(POETRY) mutmut results > mutmut-results.txt
+
+clean-mutants:
+	rm -rf mutants
 
 
 

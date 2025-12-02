@@ -1393,6 +1393,57 @@ def test_create_epochs_respects_custom_window(tmp_path: Path) -> None:
     assert epochs.tmax == pytest.approx(0.1, abs=2e-3)
 
 
+def test_create_epochs_rejects_non_numeric_events() -> None:
+    """Ensure event validation rejects non-integer indices."""
+
+    # Construit un enregistrement brut compatible avec la validation des événements
+    raw = _build_dummy_raw()
+    # Injecte un code d'événement non entier pour provoquer une erreur ciblée
+    invalid_events = np.array([[0, 0, "a"]], dtype=object)
+    # Associe le label non entier à un identifiant pour simuler un usage incorrect
+    event_id = {"a": 1}
+    # Vérifie que le message d'erreur reste strict pour détecter les mutations
+    with pytest.raises(
+        ValueError, match=r"^events must contain integer-coded sample indices$"
+    ):
+        # Appelle le helper afin de déclencher l'exception attendue
+        create_epochs_from_raw(raw, invalid_events, event_id)
+
+
+def test_create_epochs_preserves_integer_events(monkeypatch) -> None:
+    """Ensure integer-coded events are reused without unnecessary copies."""
+
+    # Construit un enregistrement brut afin de fournir les métadonnées nécessaires
+    raw = _build_dummy_raw()
+    # Prépare un tableau d'événements déjà typé pour détecter un recopiage inutile
+    events = np.array([[0, 0, 1]], dtype=int)
+    # Associe le label attendu à l'identifiant numérique pour l'appel Epochs
+    event_id = {"a": 1}
+    # Capture la référence des événements transmis à mne.Epochs pour vérifier l'identité
+    captured: dict[str, np.ndarray] = {}
+
+    # Déclare une fabrique d'Epochs qui enregistre l'argument events reçu
+    def fake_epochs(raw_input: mne.io.BaseRaw, **kwargs: object) -> str:
+        # Confirme que la construction reçoit bien l'objet Raw fourni par le test
+        assert raw_input is raw
+        # Extrait le tableau d'événements transmis via kwargs pour analyse
+        # Confirme que la référence capturée représente l'objet original
+        captured_events = cast(np.ndarray, kwargs["events"])
+        # Enregistre la référence exacte des événements pour détecter une copie
+        captured["events"] = captured_events
+        # Retourne un marqueur simple pour éviter l'instanciation réelle d'Epochs
+        return "sentinel"
+
+    # Remplace mne.Epochs pour observer l'argument events sans effets de bord
+    monkeypatch.setattr(mne, "Epochs", fake_epochs)
+    # Crée les epochs via le helper en conservant la référence events originale
+    result = create_epochs_from_raw(raw, events, event_id)
+    # Vérifie que le résultat correspond au marqueur renvoyé par la fabrique factice
+    assert result == "sentinel"
+    # Contrôle que le tableau d'événements n'a pas été copié lors de l'appel
+    assert captured["events"] is events
+
+
 def test_create_epochs_uses_default_window() -> None:
     """Ensure the default epoch window remains unchanged."""
 
