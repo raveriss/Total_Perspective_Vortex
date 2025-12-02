@@ -27,11 +27,18 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
     """Réducteur de dimension via PCA ou CSP."""
 
     # Déclare le constructeur pour choisir la méthode et le nombre de composantes
-    def __init__(self, method: str = "pca", n_components: int | None = None):
+    def __init__(
+        self,
+        method: str = "csp",
+        n_components: int | None = None,
+        regularization: float = 0.0,
+    ):
         # Conserve la méthode demandée par l'utilisateur
         self.method = method
         # Conserve le nombre de composantes souhaité
         self.n_components = n_components
+        # Conserve la régularisation ajoutée aux covariances
+        self.regularization = regularization
         # Initialise la matrice de projection à None avant apprentissage
         self.w_matrix: np.ndarray
         # Initialise la moyenne pour la centration éventuelle
@@ -57,8 +64,8 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             self.mean_ = np.mean(X, axis=0)
             # Calcule les données centrées pour la covariance
             centered = X - self.mean_
-            # Calcule manuellement la covariance sans recentrer une seconde fois
-            covariance = (centered.T @ centered) / (centered.shape[0] - 1)
+            # Calcule la covariance avec régularisation diagonale
+            covariance = self._regularized_covariance(centered)
             # Extrait les vecteurs propres pour définir la projection
             eigvals, eigvecs = np.linalg.eigh(covariance)
             # Trie les composantes par variance décroissante
@@ -95,6 +102,8 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             cov_b = self._average_covariance(X[y == classes[1]])
             # Combine les covariances pour le problème généralisé
             composite = cov_a + cov_b
+            # Ajoute une régularisation pour stabiliser l'inversion implicite
+            composite = self._regularize_matrix(composite)
             # Résout le problème généralisé pour maximiser la séparation
             eigvals, eigvecs = linalg.eigh(cov_a, composite)
             # Trie les vecteurs par valeurs propres décroissantes
@@ -148,7 +157,14 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             raise ValueError("Cannot save before fitting the model")
         # Utilise joblib pour sérialiser la matrice et la moyenne
         joblib.dump(
-            {"w_matrix": self.w_matrix, "mean": self.mean_, "eig": self.eigenvalues_},
+            {
+                "w_matrix": self.w_matrix,
+                "mean": self.mean_,
+                "eig": self.eigenvalues_,
+                "method": self.method,
+                "n_components": self.n_components,
+                "regularization": self.regularization,
+            },
             str(path),
         )
 
@@ -162,6 +178,12 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         self.mean_ = data.get("mean")
         # Restaure les valeurs propres éventuelles
         self.eigenvalues_ = data.get("eig")
+        # Restaure la méthode utilisée pour la projection
+        self.method = data.get("method", self.method)
+        # Restaure le nombre de composantes demandé
+        self.n_components = data.get("n_components", self.n_components)
+        # Restaure la régularisation appliquée aux covariances
+        self.regularization = data.get("regularization", self.regularization)
 
     # Calcule la moyenne des matrices de covariance sur un ensemble d'essais
     def _average_covariance(self, trials: np.ndarray) -> np.ndarray:
@@ -180,4 +202,24 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             # Ajoute la covariance normalisée à l'accumulateur
             cov_sum += trial_cov
         # Calcule la moyenne en divisant par le nombre d'essais
-        return np.asarray(cov_sum / trials.shape[0])
+        averaged = np.asarray(cov_sum / trials.shape[0])
+        # Ajoute une régularisation diagonale pour stabilité numérique
+        return self._regularize_matrix(averaged)
+
+    # Calcule une covariance régularisée pour les données tabulaires
+    def _regularized_covariance(self, centered: np.ndarray) -> np.ndarray:
+        # Calcule la covariance échantillon pour capturer la variance partagée
+        covariance = (centered.T @ centered) / (centered.shape[0] - 1)
+        # Ajoute une régularisation diagonale pour éviter les matrices singulières
+        return self._regularize_matrix(covariance)
+
+    # Ajoute une régularisation diagonale proportionnelle à l'identité
+    def _regularize_matrix(self, matrix: np.ndarray) -> np.ndarray:
+        # Conserve la matrice initiale pour éviter de modifier l'entrée in place
+        regularized = np.array(matrix, copy=True)
+        # Ajoute la régularisation uniquement si elle est demandée
+        if self.regularization > 0:
+            # Injecte une identité scalaire proportionnelle pour stabiliser l'inversion
+            regularized += self.regularization * np.eye(matrix.shape[0])
+        # Retourne la matrice régularisée pour les calculs ultérieurs
+        return regularized

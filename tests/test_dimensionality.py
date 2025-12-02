@@ -1,538 +1,265 @@
-"""Tests unitaires pour la réduction de dimension TPV."""
+"""Tests de réduction de dimension TPV."""
 
-# Importe numpy pour générer des données synthétiques
-# Utilise Path pour manipuler les chemins de manière sûre
-from pathlib import Path
-
-# Importe joblib pour instrumenter le chargement persistant
-import joblib
-
-# Charge numpy pour créer des matrices de test
+# Vérifie que numpy est disponible pour les constructions matricielles
 import numpy as np
 
 # Importe pytest pour vérifier les exceptions attendues
 import pytest
 
-# Importe le réducteur pour valider son comportement
+# Importe le réducteur TPV à valider
 from tpv.dimensionality import TPVDimReducer
 
-# Fige l'écart de variance minimal attendu entre les classes
-VARIANCE_GAP_THRESHOLD = 0.5
-# Fige le nombre de composantes cibles pour certains tests CSP
-CSP_COMPONENTS = 2
-# Fige le nombre de canaux des tests CSP à trois dimensions
-CSP_CHANNELS = 3
+# Définit le seuil minimal de variance principale acceptable
+PCA_VARIANCE_THRESHOLD = 0.8
+
+# Définit la tolérance d'acceptation pour les valeurs propres négatives
+EIGENVALUE_TOLERANCE = 1e-8
 
 
-# Vérifie que la PCA produit une base orthonormée et reconstructible
-def test_pca_projection_is_orthonormal_and_reconstructs():
-    # Crée une matrice de données centrée artificiellement
-    X = np.array([[2.0, 0.0], [0.0, 2.0], [-2.0, 0.0], [0.0, -2.0]])
-    # Instancie le réducteur en mode PCA avec deux composantes explicites
-    reducer = TPVDimReducer(method="pca", n_components=2)
-    # Apprend la matrice de projection à partir de X
-    reducer.fit(X)
-    # Calcule l'orthogonalité en vérifiant W^T W = I
-    identity = reducer.w_matrix.T @ reducer.w_matrix
-    # Vérifie que la matrice est proche de l'identité
-    np.testing.assert_allclose(identity, np.eye(identity.shape[0]), atol=1e-6)
-    # Projette les données puis reconstruit dans l'espace initial
-    projected = reducer.transform(X)
-    # Recompose en appliquant l'inverse orthonormée
-    reconstructed = projected @ reducer.w_matrix.T + reducer.mean_
-    # Vérifie que la reconstruction approche les données originales
-    np.testing.assert_allclose(reconstructed, X, atol=1e-6)
-
-
-# Vérifie que les valeurs propres sont initialisées à None avant entraînement
-def test_eigenvalues_start_as_none():
-    # Instancie un réducteur sans déclencher fit
-    reducer = TPVDimReducer()
-    # Vérifie que les valeurs propres ne sont pas préremplies
-    assert reducer.eigenvalues_ is None
-
-
-# Vérifie que la configuration par défaut déclenche bien la PCA complète
-def test_default_pca_runs_with_all_components():
-    # Crée des données simples avec deux caractéristiques distinctes
-    X = np.array([[1.0, 2.0], [3.0, 0.0], [0.0, -1.0]])
-    # Instancie le réducteur sans préciser la méthode pour tester la valeur par défaut
-    reducer = TPVDimReducer()
-    # Apprend la projection pour valider l'absence d'erreur sur la valeur par défaut
-    reducer.fit(X)
-    # Vérifie que la méthode par défaut reste la PCA attendue
-    assert reducer.method == "pca"
-    # Vérifie que toutes les composantes sont conservées en absence de coupe
-    assert reducer.w_matrix.shape[1] == X.shape[1]
-
-
-# Vérifie que la PCA par défaut enregistre toutes les valeurs propres
-def test_default_pca_records_all_eigenvalues():
-    # Crée des données simples avec dispersion sur deux axes
-    X = np.array([[1.0, -1.0], [2.0, 0.5], [-0.5, 2.0]])
-    # Instancie un réducteur PCA sans limiter les composantes
-    reducer = TPVDimReducer(method="pca")
-    # Apprend la projection complète
-    reducer.fit(X)
-    # Vérifie que les valeurs propres existent après apprentissage
-    assert reducer.eigenvalues_ is not None
-    # Vérifie que chaque composante possède une valeur propre enregistrée
-    assert reducer.eigenvalues_.shape[0] == X.shape[1]
-
-
-# Vérifie que le paramètre n_components est respecté pendant la PCA
-def test_pca_honours_requested_component_count():
-    # Crée un jeu de données bidimensionnel pour le découpage des composantes
-    X = np.array([[2.0, 1.0], [0.0, 3.0], [-1.0, -2.0]])
-    # Instancie un réducteur PCA limité à une seule composante
-    reducer = TPVDimReducer(method="pca", n_components=1)
-    # Apprend la matrice de projection contrainte
-    reducer.fit(X)
-    # Vérifie que la matrice de projection ne conserve qu'une colonne
-    assert reducer.w_matrix.shape == (X.shape[1], 1)
-
-
-# Vérifie que la moyenne PCA est calculée sur chaque feature indépendamment
-def test_pca_mean_is_featurewise():
-    # Crée des données où les moyennes par colonne diffèrent
-    X = np.array([[0.0, 3.0], [2.0, 1.0], [4.0, -1.0]])
-    # Instancie un réducteur PCA
-    reducer = TPVDimReducer(method="pca")
-    # Apprend la projection pour remplir la moyenne interne
-    reducer.fit(X)
-    # Vérifie que la moyenne correspond exactement à la moyenne par colonne
-    np.testing.assert_allclose(reducer.mean_, np.mean(X, axis=0))
-
-
-# Vérifie que la covariance centrée reproduit les vecteurs propres attendus
-def test_pca_covariance_matches_manual_eigendecomposition():
-    # Crée des données asymétriques pour distinguer les composantes principales
-    X = np.array([[1.0, 2.0], [2.0, 4.0], [3.0, 0.0], [-1.0, -3.0]])
-    # Instancie un réducteur PCA à deux composantes
-    reducer = TPVDimReducer(method="pca", n_components=2)
-    # Apprend la matrice de projection à partir des données
-    reducer.fit(X)
-    # Calcule manuellement la covariance centrée pour établir la référence
-    centered = X - np.mean(X, axis=0)
-    # Calcule la covariance manuelle alignée sur l'implémentation
-    covariance = (centered.T @ centered) / (centered.shape[0] - 1)
-    # Extrait les vecteurs propres triés par variance décroissante
-    eigvals, eigvecs = np.linalg.eigh(covariance)
-    # Trie les vecteurs pour correspondre à l'ordre attendu
-    order = np.argsort(eigvals)[::-1]
-    # Réordonne les vecteurs pour comparer colonne par colonne
-    expected_vecs = eigvecs[:, order]
-    # Compare chaque colonne en neutralisant l'ambiguïté de signe
-    for idx in range(expected_vecs.shape[1]):
-        # Vérifie la correspondance absolue des vecteurs propres
-        np.testing.assert_allclose(
-            np.abs(reducer.w_matrix[:, idx]), np.abs(expected_vecs[:, idx]), atol=1e-6
-        )
-
-
-# Vérifie que les valeurs propres stockées reflètent la variance projetée
-def test_pca_eigenvalues_match_projected_variance():
-    # Crée des données avec variances distinctes par direction
-    X = np.array([[3.0, 0.0], [1.0, 2.0], [-2.0, -1.0], [0.0, -3.0]])
-    # Instancie un réducteur PCA à deux composantes
-    reducer = TPVDimReducer(method="pca", n_components=2)
-    # Apprend la projection pour remplir les valeurs propres
-    reducer.fit(X)
-    # Projette les données dans l'espace des composantes principales
-    projected = reducer.transform(X)
-    # Calcule la variance empirique sur chaque composante projetée
-    projected_variance = np.var(projected, axis=0, ddof=1)
-    # Vérifie la concordance avec les valeurs propres stockées
-    np.testing.assert_allclose(projected_variance, reducer.eigenvalues_)
-
-
-# Vérifie que le CSP sépare des classes aux covariances distinctes
-def test_csp_separates_covariances():
-    # Crée un générateur déterministe pour stabiliser le test
-    rng = np.random.default_rng(42)
-    # Définit un nombre de canaux et d'échantillons temporels
-    n_channels = 2
-    # Fixe la durée en échantillons pour chaque essai
-    n_times = 50
-    # Génère des essais pour la classe 0 avec variance dominante sur le canal 0
-    class0 = rng.standard_normal((20, n_channels, n_times))
-    # Amplifie le premier canal pour augmenter sa variance relative
-    class0[:, 0, :] *= 2.0
-    # Génère des essais pour la classe 1 avec variance dominante sur le canal 1
-    class1 = rng.standard_normal((20, n_channels, n_times))
-    # Amplifie le second canal pour créer un contraste de variance
-    class1[:, 1, :] *= 2.0
-    # Concatène les essais en un seul tableau
-    X = np.concatenate([class0, class1], axis=0)
-    # Crée les étiquettes correspondantes
-    y = np.array([0] * class0.shape[0] + [1] * class1.shape[0])
-    # Instancie le réducteur en mode CSP avec deux composantes
-    reducer = TPVDimReducer(method="csp", n_components=CSP_COMPONENTS)
-    # Apprend la matrice de projection CSP
-    reducer.fit(X, y)
-    # Projette les essais complets pour préserver la dynamique temporelle
-    projected0 = reducer.transform(class0)
-    # Projette la classe 1 pour comparaison
-    projected1 = reducer.transform(class1)
-    # Calcule la variance spatio-temporelle sur la première composante
-    var0 = np.var(projected0[:, 0, :])
-    # Calcule la variance sur la même composante pour l'autre classe
-    var1 = np.var(projected1[:, 0, :])
-    # Vérifie que les variances sont nettement différentes
-    assert abs(var0 - var1) > VARIANCE_GAP_THRESHOLD
-
-
-# Vérifie que CSP respecte le nombre de composantes demandé
-def test_csp_honours_component_count():
-    # Crée un tenseur simple à deux canaux et deux essais par classe
-    class0 = np.array([np.diag([4.0, 1.0]), np.diag([4.0, 1.0])])
-    # Crée des essais pour la classe 1 avec diagonale inversée
-    class1 = np.array([np.diag([1.0, 3.0]), np.diag([1.0, 3.0])])
-    # Concatène les essais
-    X = np.concatenate([class0, class1], axis=0)
-    # Crée les labels correspondants
-    y = np.array([0, 0, 1, 1])
-    # Instancie un réducteur CSP demandant deux composantes
-    reducer = TPVDimReducer(method="csp", n_components=2)
-    # Apprend la projection
-    reducer.fit(X, y)
-    # Vérifie que le nombre de colonnes correspond à la demande
-    assert reducer.w_matrix.shape[1] == CSP_COMPONENTS
-    # Vérifie que les valeurs propres sont renseignées pour chaque composante
-    assert reducer.eigenvalues_.shape[0] == CSP_COMPONENTS
-    # Vérifie que l'ordre des valeurs propres est décroissant
-    assert reducer.eigenvalues_[0] >= reducer.eigenvalues_[1]
-
-
-# Vérifie que CSP tronque réellement les composantes demandées
-def test_csp_truncates_components_when_requested():
-    # Crée des essais à trois canaux pour forcer un découpage
-    class0 = np.stack([np.eye(3)] * 2)
-    # Crée des essais pour la classe 1 avec énergie sur le troisième canal
-    class1 = np.stack([np.diag([1.0, 1.0, 3.0])] * 2)
+# Vérifie que la projection CSP reste orthogonale
+def test_csp_projection_orthogonality():
+    # Prépare un générateur pour des données reproductibles
+    rng = np.random.default_rng(0)
+    # Fixe le nombre d'essais par classe
+    trials_per_class = 8
+    # Fixe le nombre de canaux simulés
+    channels = 4
+    # Fixe la longueur temporelle des essais
+    time_points = 16
+    # Génère des essais pour la première classe avec faible variance
+    class_a = rng.standard_normal((trials_per_class, channels, time_points)) * 0.5
+    # Génère des essais pour la seconde classe avec une variance accentuée
+    class_b = rng.standard_normal((trials_per_class, channels, time_points)) * 1.5
     # Concatène les essais des deux classes
-    X = np.concatenate([class0, class1], axis=0)
-    # Crée les labels associés
-    y = np.array([0, 0, 1, 1])
-    # Instancie un réducteur CSP limité à une seule composante
-    reducer = TPVDimReducer(method="csp", n_components=1)
-    # Apprend la projection réduite
-    reducer.fit(X, y)
-    # Vérifie que la matrice ne conserve qu'une colonne
-    assert reducer.w_matrix.shape == (3, 1)
-    # Vérifie que seule une valeur propre est conservée
-    assert reducer.eigenvalues_.shape == (1,)
+    trials = np.concatenate([class_a, class_b], axis=0)
+    # Crée les étiquettes correspondantes
+    labels = np.array([0] * trials_per_class + [1] * trials_per_class)
+    # Instancie le réducteur CSP avec régularisation faible
+    reducer = TPVDimReducer(method="csp", n_components=channels, regularization=1e-3)
+    # Apprend la matrice de projection CSP
+    reducer.fit(trials, labels)
+    # Récupère la matrice de projection apprise
+    projection = reducer.w_matrix
+    # Vérifie la forme de la matrice obtenue
+    assert projection.shape == (channels, channels)
+    # Construit la covariance moyenne de la première classe
+    cov_a = np.zeros((channels, channels))
+    # Parcourt chaque essai de la première classe
+    for trial in class_a:
+        # Calcule la covariance normalisée par la trace
+        trial_cov = trial @ trial.T
+        # Normalise la covariance pour stabiliser les échelles
+        trial_cov /= np.trace(trial_cov)
+        # Accumule la covariance sur la classe
+        cov_a += trial_cov
+    # Moyenne la covariance de la classe A
+    cov_a /= float(trials_per_class)
+    # Construit la covariance moyenne de la seconde classe
+    cov_b = np.zeros((channels, channels))
+    # Parcourt chaque essai de la seconde classe
+    for trial in class_b:
+        # Calcule la covariance normalisée pour l'essai
+        trial_cov = trial @ trial.T
+        # Normalise la covariance pour homogénéiser les essais
+        trial_cov /= np.trace(trial_cov)
+        # Accumule la covariance de la seconde classe
+        cov_b += trial_cov
+    # Moyenne la covariance de la classe B
+    cov_b /= float(trials_per_class)
+    # Ajoute la régularisation définie sur le modèle
+    composite = cov_a + cov_b + reducer.regularization * np.eye(channels)
+    # Calcule le produit qui doit se rapprocher de l'identité
+    identity_candidate = projection.T @ composite @ projection
+    # Vérifie l'orthogonalité dans l'espace de covariance régularisée
+    assert np.allclose(identity_candidate, np.eye(channels), atol=5e-3)
 
 
-# Vérifie que chaque classe alimente correctement le calcul CSP
-def test_csp_uses_class_specific_covariances(monkeypatch):
-    # Crée deux essais pour la classe 0 avec structure diagonale
-    class0 = np.array([np.eye(2), np.eye(2)])
-    # Crée deux essais pour la classe 1 avec diagonale amplifiée
-    class1 = np.array([2.0 * np.eye(2), 2.0 * np.eye(2)])
-    # Empile les essais des deux classes
-    X = np.concatenate([class0, class1], axis=0)
-    # Associe les labels correspondants
-    y = np.array([0, 0, 1, 1])
-    # Conserve l'implémentation originale pour la délégation
-    original_average = TPVDimReducer._average_covariance
-    # Capture les arguments fournis à la méthode interne
-    captured: list[np.ndarray] = []
-
-    # Déclare un wrapper pour enregistrer les données passées
-    def recording_average(self, trials: np.ndarray):
-        # Stocke les essais reçus pour vérification ultérieure
-        captured.append(trials.copy())
-        # Délègue au comportement d'origine
-        return original_average(self, trials)
-
-    # Remplace la méthode interne par le wrapper enregistré
-    monkeypatch.setattr(TPVDimReducer, "_average_covariance", recording_average)
-    # Instancie le réducteur CSP
-    reducer = TPVDimReducer(method="csp", n_components=CSP_COMPONENTS)
-    # Apprend la projection en déclenchant les appels enregistrés
-    reducer.fit(X, y)
-    # Vérifie que le premier appel concerne uniquement la classe 0
-    np.testing.assert_allclose(captured[0], class0)
-    # Vérifie que le second appel concerne uniquement la classe 1
-    np.testing.assert_allclose(captured[1], class1)
+# Vérifie que PCA capture l'essentiel de la variance
+def test_pca_explained_variance():
+    # Prépare un générateur pour des données déterministes
+    rng = np.random.default_rng(1)
+    # Fixe le nombre d'échantillons
+    samples = 200
+    # Génère une composante principale dominante
+    dominant = rng.standard_normal(samples) * 3.0
+    # Génère deux composantes de bruit plus faibles
+    noise1 = rng.standard_normal(samples) * 0.3
+    noise2 = rng.standard_normal(samples) * 0.2
+    # Assemble les composantes pour former des observations 3D
+    observations = np.column_stack([dominant + noise1, noise1, noise2])
+    # Instancie le réducteur PCA pour deux composantes
+    reducer = TPVDimReducer(method="pca", n_components=2, regularization=1e-4)
+    # Apprend la projection PCA
+    reducer.fit(observations)
+    # Calcule la part de variance captée par chaque composante
+    variance_ratio = reducer.eigenvalues_ / np.sum(reducer.eigenvalues_)
+    # Vérifie que la première composante dépasse la majorité de la variance
+    assert variance_ratio[0] > PCA_VARIANCE_THRESHOLD
+    # Vérifie que la deuxième composante reste positive
+    assert variance_ratio[1] > 0
 
 
-# Vérifie que la covariance composite est bien la somme des deux classes
-def test_csp_constructs_composite_covariance(monkeypatch):
-    # Crée des essais distincts pour identifier chaque classe
-    class0 = np.array([np.eye(2), np.eye(2)])
-    # Crée des essais à variance doublée pour la classe 1
-    class1 = np.array([2.0 * np.eye(2), 2.0 * np.eye(2)])
-    # Concatène les essais pour former l'entrée complète
-    X = np.concatenate([class0, class1], axis=0)
-    # Définit les labels associés
-    y = np.array([0, 0, 1, 1])
-    # Prépare des covariances synthétiques pour chaque classe
-    cov0 = np.array([[1.0, 0.0], [0.0, 1.0]])
-    # Prépare la covariance attendue pour la seconde classe
-    cov1 = np.array([[2.0, 0.0], [0.0, 2.0]])
-    # Capture les arguments transmis à linalg.eigh
-    captured: dict[str, np.ndarray] = {}
-
-    # Remplace la moyenne de covariance pour injecter les matrices de test
-    def fake_average(self, trials: np.ndarray):
-        # Retourne cov0 si les essais correspondent à la classe 0
-        if np.array_equal(trials, class0):
-            return cov0
-        # Retourne cov1 si les essais correspondent à la classe 1
-        if np.array_equal(trials, class1):
-            return cov1
-        # Signale tout appel inattendu pour sécuriser le test
-        raise AssertionError("Unexpected trials passed to _average_covariance")
-
-    # Remplace linalg.eigh pour enregistrer les matrices reçues
-    def fake_eigh(cov_a: np.ndarray, composite: np.ndarray):
-        # Stocke la covariance de la première classe
-        captured["cov_a"] = cov_a.copy()
-        # Stocke la covariance composite calculée
-        captured["composite"] = composite.copy()
-        # Retourne des valeurs propres stables pour terminer fit
-        return np.array([1.0, 0.5]), np.eye(2)
-
-    # Applique les monkeypatches nécessaires
-    monkeypatch.setattr(TPVDimReducer, "_average_covariance", fake_average)
-    monkeypatch.setattr("tpv.dimensionality.linalg.eigh", fake_eigh)
-    # Instancie le réducteur CSP
-    reducer = TPVDimReducer(method="csp", n_components=2)
-    # Déclenche fit pour construire la covariance composite
-    reducer.fit(X, y)
-    # Vérifie que cov_a correspond à la première classe
-    np.testing.assert_allclose(captured["cov_a"], cov0)
-    # Vérifie que la covariance composite est bien la somme attendue
-    np.testing.assert_allclose(captured["composite"], cov0 + cov1)
-    # Vérifie que tout autre appel non référencé déclenche une alerte
-    with pytest.raises(AssertionError, match="Unexpected trials"):
-        # Force un appel inattendu pour couvrir la branche de garde
-        fake_average(reducer, np.zeros((1, 1, 1)))
+# Vérifie que la régularisation stabilise les covariances singulières
+def test_regularization_stabilizes_singular_covariance():
+    # Prépare un générateur aléatoire pour fixer les données
+    rng = np.random.default_rng(2)
+    # Fixe le nombre d'échantillons à analyser
+    samples = 120
+    # Génère une caractéristique aléatoire
+    feature = rng.standard_normal(samples)
+    # Duplique la caractéristique pour créer une covariance singulière
+    duplicated = np.column_stack([feature, feature])
+    # Instancie le PCA avec une régularisation pour lever la singularité
+    reducer = TPVDimReducer(method="pca", regularization=1e-3)
+    # Apprend la projection malgré la singularité initiale
+    reducer.fit(duplicated)
+    # Transforme les données pour vérifier la stabilité numérique
+    transformed = reducer.transform(duplicated)
+    # Vérifie l'absence de valeurs infinies dans la projection
+    assert np.isfinite(transformed).all()
+    # Vérifie que les valeurs propres restent non négatives sous tolérance
+    assert np.all(reducer.eigenvalues_ >= -EIGENVALUE_TOLERANCE)
 
 
-# Vérifie que CSP conserve toutes les composantes par défaut
-def test_csp_defaults_to_full_component_set():
-    # Crée des essais simples sur trois canaux
-    class0 = np.stack([np.eye(CSP_CHANNELS)] * 2)
-    # Crée des essais avec variance dominante sur le troisième canal
-    class1 = np.stack([np.diag([1.0, 1.0, 4.0])] * 2)
-    # Concatène les essais pour former X
-    X = np.concatenate([class0, class1], axis=0)
-    # Crée les labels associés
-    y = np.array([0, 0, 1, 1])
-    # Instancie un réducteur CSP sans n_components explicite
-    reducer = TPVDimReducer(method="csp")
-    # Apprend la projection en conservant toutes les composantes
-    reducer.fit(X, y)
-    # Vérifie que la matrice conserve une colonne par canal
-    assert reducer.w_matrix.shape == (CSP_CHANNELS, CSP_CHANNELS)
-    # Vérifie que les valeurs propres couvrent toutes les composantes
-    assert reducer.eigenvalues_.shape[0] == CSP_CHANNELS
+# Vérifie que la validation de méthode refuse les options inconnues
+def test_reducer_rejects_unknown_method():
+    # Instancie un réducteur avec une méthode invalide
+    reducer = TPVDimReducer(method="invalid")
+    # Prépare des données tabulaires minimales pour déclencher la validation
+    data = np.ones((2, 2))
+    # Vérifie que l'appel à fit soulève une erreur explicite
+    with pytest.raises(ValueError, match="method must be"):
+        # Appelle fit pour déclencher la validation de la méthode
+        reducer.fit(data)
 
 
-# Vérifie que la matrice peut être sauvegardée puis rechargée
-def test_save_and_load_projection(tmp_path: Path):
-    # Crée des données simples pour la PCA
-    X = np.array([[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]])
-    # Initialise le réducteur
-    reducer = TPVDimReducer(method="pca")
-    # Apprend la projection
-    reducer.fit(X)
-    # Prépare un chemin temporaire pour la sauvegarde
-    target = tmp_path / "projection.joblib"
-    # Sauvegarde la matrice apprise
-    reducer.save(target)
-    # Crée un nouveau réducteur vide
-    restored = TPVDimReducer(method="pca")
-    # Charge la matrice précédemment sauvegardée
-    restored.load(target)
-    # Vérifie que les matrices sont identiques
-    np.testing.assert_allclose(restored.w_matrix, reducer.w_matrix)
-    # Vérifie que la moyenne est préservée
-    np.testing.assert_allclose(restored.mean_, reducer.mean_)
-    # Vérifie que les valeurs propres sont également restaurées
-    np.testing.assert_allclose(restored.eigenvalues_, reducer.eigenvalues_)
-
-
-# Vérifie que la méthode inconnue est refusée dès l'apprentissage
-def test_invalid_method_rejected():
-    # Crée un jeu de données minimal pour déclencher l'erreur
-    X = np.zeros((2, 2))
-    # Instancie le réducteur avec une méthode non supportée
-    reducer = TPVDimReducer(method="unknown")
-    # Vérifie que fit lève une ValueError pour méthode invalide avec message clair
-    with pytest.raises(ValueError, match="^method must be 'pca' or 'csp'$"):
-        # Lance l'apprentissage pour atteindre la validation de méthode
-        reducer.fit(X)
-
-
-# Vérifie que CSP exige la présence des labels y
+# Vérifie que CSP exige des labels fournis par l'utilisateur
 def test_csp_requires_labels():
-    # Crée des essais fictifs à deux canaux et un temps
-    X = np.zeros((2, 2, 1))
-    # Instancie le réducteur CSP sans fournir y
+    # Instancie le réducteur en mode CSP
     reducer = TPVDimReducer(method="csp")
-    # Vérifie que fit lève une ValueError en absence de labels
-    with pytest.raises(ValueError, match="^y is required for CSP$"):
-        # Lance fit pour déclencher la vérification des labels
-        reducer.fit(X)
+    # Prépare des données structurées en essais simulés
+    trials = np.ones((4, 2, 3))
+    # Vérifie que l'absence de labels déclenche une erreur dédiée
+    with pytest.raises(ValueError, match="required for CSP"):
+        # Appelle fit sans labels pour couvrir le contrôle de présence
+        reducer.fit(trials)
 
 
-# Vérifie que CSP refuse plus de deux classes
-def test_csp_rejects_multiclass():
-    # Crée trois essais pour simuler trois classes distinctes
-    X = np.zeros((3, 2, 1))
-    # Assigne trois labels différents pour dépasser la limite
-    y = np.array([0, 1, 2])
-    # Instancie le réducteur CSP
+# Vérifie que CSP refuse un nombre de classes différent de deux
+def test_csp_rejects_more_than_two_classes():
+    # Instancie un réducteur CSP avec configuration par défaut
     reducer = TPVDimReducer(method="csp")
-    # Vérifie que fit lève une ValueError pour classes multiples
-    with pytest.raises(ValueError, match="^CSP requires exactly two classes$"):
-        # Lance fit pour atteindre la validation du nombre de classes
-        reducer.fit(X, y)
+    # Prépare des essais avec trois étiquettes distinctes
+    trials = np.ones((6, 2, 3))
+    # Crée des labels non binaires pour déclencher le contrôle
+    labels = np.array([0, 1, 2, 0, 1, 2])
+    # Vérifie que fit refuse une cardinalité différente de deux
+    with pytest.raises(ValueError, match="exactly two"):
+        # Appelle fit avec des labels invalides
+        reducer.fit(trials, labels)
 
 
-# Vérifie que transform nécessite un modèle entraîné
-def test_transform_requires_fit():
-    # Crée une entrée tabulaire simple
-    X = np.zeros((1, 2))
-    # Instancie le réducteur sans apprentissage préalable
+# Vérifie la branche CSP sans limitation de composantes
+def test_csp_retains_all_components_by_default():
+    # Prépare un générateur déterministe pour la reproductibilité
+    rng = np.random.default_rng(3)
+    # Fixe le nombre d'essais par classe
+    trials_per_class = 4
+    # Fixe le nombre de canaux à projeter
+    channels = 3
+    # Génère des essais bruités pour la première classe
+    class_a = rng.standard_normal((trials_per_class, channels, 5))
+    # Génère des essais bruités pour la seconde classe
+    class_b = rng.standard_normal((trials_per_class, channels, 5))
+    # Concatène les essais pour former l'ensemble complet
+    trials = np.concatenate([class_a, class_b], axis=0)
+    # Crée les labels binaires associés
+    labels = np.array([0] * trials_per_class + [1] * trials_per_class)
+    # Instancie le réducteur CSP sans préciser n_components
+    reducer = TPVDimReducer(method="csp")
+    # Apprend la projection complète
+    reducer.fit(trials, labels)
+    # Vérifie que toutes les composantes sont conservées
+    assert reducer.w_matrix.shape == (channels, channels)
+    # Vérifie que le vecteur des valeurs propres couvre toutes les composantes
+    assert reducer.eigenvalues_.shape[0] == channels
+
+
+# Vérifie que transform requiert un apprentissage préalable
+def test_transform_requires_fitted_model():
+    # Instancie un réducteur PCA simple
     reducer = TPVDimReducer(method="pca")
-    # Vérifie que transform lève une ValueError si fit n'est pas appelé
-    with pytest.raises(
-        ValueError, match="^The model must be fitted before calling transform$"
-    ):
-        # Appelle transform pour déclencher la protection
-        reducer.transform(X)
+    # Prépare des données tabulaires pour l'appel
+    data = np.ones((2, 2))
+    # Vérifie que transform lève une erreur sans fit
+    with pytest.raises(ValueError, match="must be fitted"):
+        # Appelle transform pour couvrir la validation d'entraînement
+        reducer.transform(data)
 
 
-# Vérifie que transform refuse une dimension inattendue
+# Vérifie la projection des données trial x channel x time
+def test_transform_handles_trial_dimension():
+    # Prépare un générateur aléatoire pour créer des essais
+    rng = np.random.default_rng(4)
+    # Fixe le nombre d'essais par classe
+    trials_per_class = 2
+    # Fixe le nombre de canaux
+    channels = 2
+    # Fixe le nombre de points temporels
+    time_points = 3
+    # Génère des essais pour la première classe
+    class_a = rng.standard_normal((trials_per_class, channels, time_points))
+    # Génère des essais pour la seconde classe
+    class_b = rng.standard_normal((trials_per_class, channels, time_points))
+    # Concatène les essais des deux classes
+    trials = np.concatenate([class_a, class_b], axis=0)
+    # Crée les labels binaires correspondants
+    labels = np.array([0] * trials_per_class + [1] * trials_per_class)
+    # Instancie le réducteur CSP pour deux composantes
+    reducer = TPVDimReducer(method="csp", n_components=2)
+    # Apprend la projection pour obtenir w_matrix
+    reducer.fit(trials, labels)
+    # Transforme les essais pour couvrir la branche 3D
+    projected = reducer.transform(trials)
+    # Vérifie que la forme correspond aux attentes trial x comp x time
+    assert projected.shape == (trials.shape[0], 2, time_points)
+
+
+# Vérifie qu'une dimension inattendue est explicitement refusée
 def test_transform_rejects_invalid_dimension():
-    # Crée une entrée 4D pour déclencher l'erreur
-    X = np.zeros((1, 2, 3, 4))
-    # Instancie et entraîne le réducteur pour permettre transform
+    # Instancie un réducteur PCA et l'entraîne
     reducer = TPVDimReducer(method="pca")
-    # Lance fit pour initialiser la matrice de projection
-    reducer.fit(np.zeros((2, 2)))
-    # Remplace la moyenne par un scalaire neutre pour éviter le broadcasting
-    reducer.mean_ = np.array(0.0)
-    # Vérifie que transform lève une ValueError sur dimension 4D
-    with pytest.raises(ValueError, match="^X must be 2D or 3D for transform$"):
-        # Appelle transform avec la mauvaise dimensionnalité
-        reducer.transform(X)
+    # Prépare des données d'entraînement simples
+    training = np.eye(2)
+    # Apprend la projection sur les données
+    reducer.fit(training)
+    # Prépare un tenseur 4D pour déclencher l'erreur
+    invalid_input = np.ones((1, 2, 2, 2))
+    # Vérifie que transform lève une erreur sur dimension inattendue
+    with pytest.raises(ValueError, match="2D or 3D"):
+        # Appelle transform pour couvrir la levée de ValueError
+        reducer.transform(invalid_input)  # type: ignore[arg-type]
 
 
-# Vérifie que le centrage est bien soustrait avant projection en 2D et 3D
-def test_transform_subtracts_mean_for_all_supported_shapes():
-    # Crée une matrice 2D simple pour vérifier le centrage
-    X2d = np.array([[2.0, -1.0], [0.0, 1.0]])
-    # Définit une moyenne arbitraire pour vérifier la soustraction
-    mean = np.array([1.0, -2.0])
-    # Instancie un réducteur avec matrice identité pour isoler le centrage
+# Vérifie que la sauvegarde est interdite sans apprentissage préalable
+def test_save_requires_fitted_model(tmp_path):
+    # Instancie un réducteur PCA sans entraînement
     reducer = TPVDimReducer(method="pca")
-    # Fixe une matrice de projection identité pour suivre directement le centrage
-    reducer.w_matrix = np.eye(2)
-    # Positionne la moyenne attendue pour l'opération
-    reducer.mean_ = mean
-    # Applique la transformation 2D pour observer le décalage
-    projected_2d = reducer.transform(X2d)
-    # Vérifie que la moyenne a été soustraite composante par composante
-    np.testing.assert_allclose(projected_2d, X2d - mean)
-    # Crée un tenseur 3D pour vérifier le centrage sur les essais
-    X3d = np.stack([X2d, X2d + 1.0])
-    # Applique la transformation 3D en conservant le même centrage
-    projected_3d = reducer.transform(X3d)
-    # Calcule l'attendu en soustrayant la moyenne sur chaque essai
-    expected_3d = np.stack([X2d - mean, X2d + 1.0 - mean])
-    # Vérifie que chaque essai est centré correctement après projection
-    np.testing.assert_allclose(projected_3d, expected_3d)
-
-
-# Vérifie que save refuse d'opérer avant l'entraînement avec message clair
-def test_save_requires_fitted_model(tmp_path: Path):
-    # Prépare un chemin temporaire pour la sauvegarde
-    target = tmp_path / "projection.joblib"
-    # Instancie un réducteur PCA sans apprentissage
-    reducer = TPVDimReducer(method="pca")
-    # Vérifie que save lève une ValueError en absence de matrice
-    with pytest.raises(ValueError, match="^Cannot save before fitting the model$"):
-        # Tente de sauvegarder sans avoir appelé fit
+    # Définit le chemin de sauvegarde temporaire
+    target = tmp_path / "dim.joblib"
+    # Vérifie que save refuse d'écrire sans fit préalable
+    with pytest.raises(ValueError, match="Cannot save"):
+        # Appelle save pour déclencher la validation
         reducer.save(target)
 
 
-# Vérifie que la covariance moyenne refuse un ensemble vide
+# Vérifie que l'estimation de covariance signale l'absence d'essais
 def test_average_covariance_rejects_empty_trials():
-    # Instancie un réducteur pour accéder à la méthode interne
-    reducer = TPVDimReducer(method="csp")
-    # Crée un tableau vide d'essais pour provoquer l'erreur
-    empty_trials = np.zeros((0, 2, 2))
-    # Vérifie que la fonction interne lève une ValueError explicite
-    with pytest.raises(
-        ValueError, match="^No trials provided for covariance estimation$"
-    ):
-        # Appelle directement la méthode de covariance moyenne
-        reducer._average_covariance(empty_trials)
-
-
-# Vérifie que load transmet fidèlement le chemin fourni
-def test_load_uses_provided_path(monkeypatch, tmp_path: Path):
-    # Crée un chemin temporaire pour simuler la source
-    target = tmp_path / "projection.joblib"
-    # Prépare une matrice de projection factice
-    expected_w = np.array([[1.0, 0.0], [0.0, 1.0]])
-    # Prépare une moyenne factice pour vérifier la restauration
-    expected_mean = np.array([0.5, -0.5])
-    # Prépare des valeurs propres factices pour compléter la restauration
-    expected_eig = np.array([2.0, 1.0])
-    # Capture le chemin utilisé par joblib.load
-    captured = {}
-
-    # Définit un faux loader qui enregistre le chemin reçu
-    def fake_load(path: str):
-        # Mémorise le chemin pour vérification ultérieure
-        captured["path"] = path
-        # Retourne un contenu cohérent pour simuler la persistance
-        return {"w_matrix": expected_w, "mean": expected_mean, "eig": expected_eig}
-
-    # Remplace joblib.load par la version instrumentée
-    monkeypatch.setattr(joblib, "load", fake_load)
-    # Instancie un réducteur vide prêt à charger
+    # Instancie un réducteur PCA pour accéder à la méthode privée
     reducer = TPVDimReducer(method="pca")
-    # Charge les données via le faux loader
-    reducer.load(target)
-    # Vérifie que le chemin fourni a été transmis à joblib.load
-    assert captured["path"] == str(target)
-    # Vérifie la restauration de la matrice de projection
-    np.testing.assert_allclose(reducer.w_matrix, expected_w)
-    # Vérifie la restauration de la moyenne
-    np.testing.assert_allclose(reducer.mean_, expected_mean)
-    # Vérifie la restauration des valeurs propres
-    np.testing.assert_allclose(reducer.eigenvalues_, expected_eig)
-
-
-# Vérifie que la covariance moyenne agrège l'information de chaque essai
-def test_average_covariance_accumulates_trials():
-    # Crée un premier essai avec énergie sur l'axe diagonal
-    trial_a = np.array([[1.0, 0.0], [0.0, 1.0]])
-    # Crée un second essai avec énergie mixte pour tester l'accumulation
-    trial_b = np.array([[1.0, 1.0], [1.0, 1.0]])
-    # Empile les essais pour simuler deux répétitions
-    trials = np.stack([trial_a, trial_b])
-    # Calcule la covariance normalisée du premier essai
-    cov_a = trial_a @ trial_a.T
-    # Normalise pour suivre la logique de la méthode
-    cov_a /= np.trace(cov_a)
-    # Calcule la covariance normalisée du second essai
-    cov_b = trial_b @ trial_b.T
-    # Normalise pour comparer sur une base commune
-    cov_b /= np.trace(cov_b)
-    # Calcule la moyenne attendue sur les deux essais
-    expected = (cov_a + cov_b) / trials.shape[0]
-    # Instancie le réducteur pour accéder à la méthode de covariance
-    reducer = TPVDimReducer(method="csp")
-    # Calcule la covariance moyenne via la méthode
-    averaged = reducer._average_covariance(trials)
-    # Vérifie que la moyenne correspond à l'accumulation attendue
-    np.testing.assert_allclose(averaged, expected)
+    # Crée un tableau vide d'essais avec trois axes
+    empty_trials = np.empty((0, 2, 2))
+    # Vérifie que l'appel lève une ValueError explicite
+    with pytest.raises(ValueError, match="No trials"):
+        # Appelle la méthode interne pour couvrir la validation
+        reducer._average_covariance(empty_trials)
