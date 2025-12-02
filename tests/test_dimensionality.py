@@ -4,7 +4,11 @@
 # Utilise Path pour manipuler les chemins de manière sûre
 from pathlib import Path
 
+# Charge numpy pour créer des matrices de test
 import numpy as np
+
+# Importe pytest pour vérifier les exceptions attendues
+import pytest
 
 # Importe le réducteur pour valider son comportement
 from tpv.dimensionality import TPVDimReducer
@@ -17,8 +21,8 @@ VARIANCE_GAP_THRESHOLD = 0.5
 def test_pca_projection_is_orthonormal_and_reconstructs():
     # Crée une matrice de données centrée artificiellement
     X = np.array([[2.0, 0.0], [0.0, 2.0], [-2.0, 0.0], [0.0, -2.0]])
-    # Instancie le réducteur en mode PCA
-    reducer = TPVDimReducer(method="pca")
+    # Instancie le réducteur en mode PCA avec deux composantes explicites
+    reducer = TPVDimReducer(method="pca", n_components=2)
     # Apprend la matrice de projection à partir de X
     reducer.fit(X)
     # Calcule l'orthogonalité en vérifiant W^T W = I
@@ -89,3 +93,93 @@ def test_save_and_load_projection(tmp_path: Path):
     np.testing.assert_allclose(restored.w_matrix, reducer.w_matrix)
     # Vérifie que la moyenne est préservée
     np.testing.assert_allclose(restored.mean_, reducer.mean_)
+
+
+# Vérifie que la méthode inconnue est refusée dès l'apprentissage
+def test_invalid_method_rejected():
+    # Crée un jeu de données minimal pour déclencher l'erreur
+    X = np.zeros((2, 2))
+    # Instancie le réducteur avec une méthode non supportée
+    reducer = TPVDimReducer(method="unknown")
+    # Vérifie que fit lève une ValueError pour méthode invalide
+    with pytest.raises(ValueError):
+        # Lance l'apprentissage pour atteindre la validation de méthode
+        reducer.fit(X)
+
+
+# Vérifie que CSP exige la présence des labels y
+def test_csp_requires_labels():
+    # Crée des essais fictifs à deux canaux et un temps
+    X = np.zeros((2, 2, 1))
+    # Instancie le réducteur CSP sans fournir y
+    reducer = TPVDimReducer(method="csp")
+    # Vérifie que fit lève une ValueError en absence de labels
+    with pytest.raises(ValueError):
+        # Lance fit pour déclencher la vérification des labels
+        reducer.fit(X)
+
+
+# Vérifie que CSP refuse plus de deux classes
+def test_csp_rejects_multiclass():
+    # Crée trois essais pour simuler trois classes distinctes
+    X = np.zeros((3, 2, 1))
+    # Assigne trois labels différents pour dépasser la limite
+    y = np.array([0, 1, 2])
+    # Instancie le réducteur CSP
+    reducer = TPVDimReducer(method="csp")
+    # Vérifie que fit lève une ValueError pour classes multiples
+    with pytest.raises(ValueError):
+        # Lance fit pour atteindre la validation du nombre de classes
+        reducer.fit(X, y)
+
+
+# Vérifie que transform nécessite un modèle entraîné
+def test_transform_requires_fit():
+    # Crée une entrée tabulaire simple
+    X = np.zeros((1, 2))
+    # Instancie le réducteur sans apprentissage préalable
+    reducer = TPVDimReducer(method="pca")
+    # Vérifie que transform lève une ValueError si fit n'est pas appelé
+    with pytest.raises(ValueError):
+        # Appelle transform pour déclencher la protection
+        reducer.transform(X)
+
+
+# Vérifie que transform refuse une dimension inattendue
+def test_transform_rejects_invalid_dimension():
+    # Crée une entrée 4D pour déclencher l'erreur
+    X = np.zeros((1, 2, 3, 4))
+    # Instancie et entraîne le réducteur pour permettre transform
+    reducer = TPVDimReducer(method="pca")
+    # Lance fit pour initialiser la matrice de projection
+    reducer.fit(np.zeros((2, 2)))
+    # Remplace la moyenne par un scalaire neutre pour éviter le broadcasting
+    reducer.mean_ = np.array(0.0)
+    # Vérifie que transform lève une ValueError sur dimension 4D
+    with pytest.raises(ValueError, match="X must be 2D or 3D for transform"):
+        # Appelle transform avec la mauvaise dimensionnalité
+        reducer.transform(X)
+
+
+# Vérifie que save refuse d'opérer avant l'entraînement
+def test_save_requires_fitted_model(tmp_path: Path):
+    # Prépare un chemin temporaire pour la sauvegarde
+    target = tmp_path / "projection.joblib"
+    # Instancie un réducteur PCA sans apprentissage
+    reducer = TPVDimReducer(method="pca")
+    # Vérifie que save lève une ValueError en absence de matrice
+    with pytest.raises(ValueError):
+        # Tente de sauvegarder sans avoir appelé fit
+        reducer.save(target)
+
+
+# Vérifie que la covariance moyenne refuse un ensemble vide
+def test_average_covariance_rejects_empty_trials():
+    # Instancie un réducteur pour accéder à la méthode interne
+    reducer = TPVDimReducer(method="csp")
+    # Crée un tableau vide d'essais pour provoquer l'erreur
+    empty_trials = np.zeros((0, 2, 2))
+    # Vérifie que la fonction interne lève une ValueError
+    with pytest.raises(ValueError):
+        # Appelle directement la méthode de covariance moyenne
+        reducer._average_covariance(empty_trials)
