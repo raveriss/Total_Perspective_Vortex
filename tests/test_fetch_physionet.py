@@ -390,9 +390,7 @@ def test_load_manifest_rejects_non_mapping(tmp_path: Path) -> None:
 # Vérifie que l'aide CLI expose la description et les options attendues
 def test_parse_args_displays_help(monkeypatch, capsys) -> None:
     # Force la demande d'aide via l'argument --help
-    monkeypatch.setattr(
-        sys, "argv", ["fetch_physionet.py", "--help"], raising=True
-    )
+    monkeypatch.setattr(sys, "argv", ["fetch_physionet.py", "--help"], raising=True)
     # Capture la sortie standard pour inspecter l'aide générée
     with pytest.raises(SystemExit):
         fetch_physionet.parse_args()
