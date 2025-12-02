@@ -83,9 +83,7 @@ def build_pipeline(
     steps.append(
         (
             "dimensionality",
-            TPVDimReducer(
-                method=config.dim_method, n_components=config.n_components
-            ),
+            TPVDimReducer(method=config.dim_method, n_components=config.n_components),
         )
     )
     # Construit le classifieur final selon la stratégie choisie
