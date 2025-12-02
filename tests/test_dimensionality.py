@@ -238,7 +238,7 @@ def test_transform_rejects_invalid_dimension():
     # Vérifie que transform lève une erreur sur dimension inattendue
     with pytest.raises(ValueError, match="2D or 3D"):
         # Appelle transform pour couvrir la levée de ValueError
-        reducer.transform(invalid_input)  # type: ignore[arg-type]
+        reducer.transform(invalid_input)
 
 
 # Vérifie que la sauvegarde est interdite sans apprentissage préalable

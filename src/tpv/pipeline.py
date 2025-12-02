@@ -54,9 +54,13 @@ class PipelineConfig:
     scaler: str | None = None
 
 
+# Fixe le nombre d'itérations de la régression logistique pour la stabilité
+LOGISTIC_MAX_ITER = 1000
+
+
 # Construit une pipeline complète incluant préprocessing, features et classification
 def build_pipeline(
-    preprocessors: Iterable[Tuple[str, object]] | None, config: PipelineConfig
+    config: PipelineConfig, preprocessors: Iterable[Tuple[str, object]] | None = None
 ) -> Pipeline:
     """Assemble un pipeline scikit-learn cohérent pour l'EEG."""
 
@@ -129,7 +133,7 @@ def _build_classifier(option: str) -> object:
     # Retourne une régression logistique pour des décisions probabilistes
     if normalized == "logistic":
         # Configure la régularisation l2 avec solver lbfgs stable
-        return LogisticRegression(max_iter=1000)
+        return LogisticRegression(max_iter=LOGISTIC_MAX_ITER)
     # Retourne un SVM linéaire pour des marges maximales
     if normalized == "svm":
         # Utilise LinearSVC pour des données tabulaires haute dimension
