@@ -1,11 +1,14 @@
 """Feature extraction utilities for EEG signals."""
 
-# Importe NumPy pour manipuler les tenseurs spectraux et tabulaires
-import numpy as np
-# Importe scipy.signal pour accéder à l'estimateur de Welch
-from scipy import signal
 # Importe les annotations pour clarifier la signature des fonctions
 from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
+
+# Importe NumPy pour manipuler les tenseurs spectraux et tabulaires
+import numpy as np
+
+# Importe scipy.signal pour accéder à l'estimateur de Welch
+from scipy import signal
+
 # Importe BaseEstimator et TransformerMixin pour conserver la compatibilité scikit-learn
 from sklearn.base import BaseEstimator, TransformerMixin
 
@@ -137,9 +140,7 @@ def extract_features(
     for channel_index in range(stacked.shape[1]):
         # Sélectionne un nom explicite ou construit un identifiant générique
         channel_label = (
-            channel_names[channel_index]
-            if channel_names
-            else f"ch{channel_index}"
+            channel_names[channel_index] if channel_names else f"ch{channel_index}"
         )
         # Ajoute une étiquette pour chaque bande afin de suivre l'ordre des colonnes
         for band_name in band_ranges.keys():

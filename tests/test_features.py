@@ -1,13 +1,14 @@
 """Tests for configurable EEG feature extraction."""
 
-# Importe numpy pour générer des signaux synthétiques contrôlés
-import numpy as np
-# Importe pytest pour vérifier les erreurs et les assertions
-import pytest
 # Importe time pour mesurer le temps d'exécution
 import time
+
+# Importe numpy pour générer des signaux synthétiques contrôlés
+import numpy as np
+
 # Importe mne pour construire des Epochs simulant des enregistrements EEG
 from mne import EpochsArray, create_info
+
 # Importe l'extracteur de features configurables développé dans le module tpv
 from tpv.features import extract_features
 
@@ -15,11 +16,15 @@ from tpv.features import extract_features
 TIME_BUDGET_S = 0.05
 
 
-def _build_epochs(n_epochs: int, n_channels: int, n_times: int, sfreq: float) -> EpochsArray:
+def _build_epochs(
+    n_epochs: int, n_channels: int, n_times: int, sfreq: float
+) -> EpochsArray:
     """Create synthetic epochs with explicit channel names."""
 
     # Génère un bruit gaussien pour simuler des essais EEG variés
-    data = np.random.default_rng(seed=42).standard_normal((n_epochs, n_channels, n_times))
+    data = np.random.default_rng(seed=42).standard_normal(
+        (n_epochs, n_channels, n_times)
+    )
     # Construit des noms de canaux explicites pour valider les étiquettes générées
     ch_names = [f"C{idx}" for idx in range(n_channels)]
     # Crée l'info MNE pour fournir la fréquence d'échantillonnage et les noms de canaux
@@ -53,7 +58,16 @@ def test_extract_features_wavelet_placeholder() -> None:
     # Vérifie que les features sont bien nuls faute d'implémentation
     assert np.array_equal(features, np.zeros((1, 8)))
     # Contrôle que les étiquettes restent alignées avec la matrice retournée
-    assert labels == ["C0_theta", "C0_alpha", "C0_beta", "C0_gamma", "C1_theta", "C1_alpha", "C1_beta", "C1_gamma"]
+    assert labels == [
+        "C0_theta",
+        "C0_alpha",
+        "C0_beta",
+        "C0_gamma",
+        "C1_theta",
+        "C1_alpha",
+        "C1_beta",
+        "C1_gamma",
+    ]
 
 
 def test_extract_features_runtime_budget() -> None:
