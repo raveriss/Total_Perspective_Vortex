@@ -8,9 +8,20 @@ import pytest
 
 # Vérifie la compatibilité scikit-learn pour les scores de CV
 from sklearn.model_selection import cross_val_score
+from sklearn.preprocessing import RobustScaler, StandardScaler
+from sklearn.svm import LinearSVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 # Importe la construction et la persistance du pipeline TPV
-from tpv.pipeline import PipelineConfig, build_pipeline, load_pipeline, save_pipeline
+from tpv.pipeline import (
+    PipelineConfig,
+    _build_classifier,
+    _build_scaler,
+    build_pipeline,
+    load_pipeline,
+    save_pipeline,
+)
 
 # Fixe le nombre de plis pour harmoniser les tests de validation croisée
 CROSS_VALIDATION_SPLITS = 3
@@ -101,7 +112,7 @@ def test_pipeline_no_label_leakage():
 def test_build_scaler_rejects_invalid_value():
     """Garantit une erreur explicite lorsque le scaler est inconnu."""
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="scaler must be 'standard', 'robust', or None"):
         build_pipeline(
             preprocessors=[],
             config=PipelineConfig(
@@ -116,7 +127,7 @@ def test_build_scaler_rejects_invalid_value():
 def test_build_classifier_rejects_invalid_value():
     """Garantit une erreur explicite lorsque le classifieur est inconnu."""
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="classifier must be 'lda', 'logistic', or 'svm'"):
         build_pipeline(
             preprocessors=[],
             config=PipelineConfig(
@@ -126,3 +137,111 @@ def test_build_classifier_rejects_invalid_value():
                 dim_method="pca",
             ),
         )
+
+
+def test_build_scaler_supports_valid_variants():
+    assert isinstance(_build_scaler("standard"), StandardScaler)
+    assert isinstance(_build_scaler("robust"), RobustScaler)
+    assert _build_scaler(None) is None
+
+
+def test_build_scaler_invalid_message_is_explicit():
+    with pytest.raises(
+        ValueError, match="^scaler must be 'standard', 'robust', or None$"
+    ):
+        _build_scaler("unknown")
+
+
+def test_build_scaler_accepts_uppercase_values():
+    assert isinstance(_build_scaler("STANDARD"), StandardScaler)
+    assert isinstance(_build_scaler("ROBUST"), RobustScaler)
+
+
+def test_build_classifier_supports_valid_variants():
+    assert isinstance(_build_classifier("lda"), LinearDiscriminantAnalysis)
+    assert isinstance(_build_classifier("logistic"), LogisticRegression)
+    assert isinstance(_build_classifier("svm"), LinearSVC)
+
+
+def test_build_classifier_sets_expected_parameters():
+    classifier = _build_classifier("logistic")
+
+    assert classifier.max_iter == 1000
+
+
+def test_build_classifier_accepts_uppercase_values():
+    assert isinstance(_build_classifier("LDA"), LinearDiscriminantAnalysis)
+    assert isinstance(_build_classifier("LOGISTIC"), LogisticRegression)
+    assert isinstance(_build_classifier("SVM"), LinearSVC)
+
+
+def test_build_classifier_invalid_value_message():
+    with pytest.raises(
+        ValueError, match="^classifier must be 'lda', 'logistic', or 'svm'$"
+    ):
+        _build_classifier("unknown")
+
+
+def test_build_pipeline_includes_preprocessors_and_scaler():
+    preprocessors = [("dummy", object())]
+
+    pipeline = build_pipeline(
+        preprocessors=preprocessors,
+        config=PipelineConfig(
+            sfreq=200.0,
+            scaler="standard",
+            classifier="lda",
+            dim_method="pca",
+        ),
+    )
+
+    assert list(pipeline.named_steps) == [
+        "dummy",
+        "features",
+        "scaler",
+        "dimensionality",
+        "classifier",
+    ]
+
+
+def test_build_pipeline_omits_scaler_when_none():
+    pipeline = build_pipeline(
+        preprocessors=[],
+        config=PipelineConfig(sfreq=128.0, scaler=None, classifier="lda", dim_method="csp"),
+    )
+
+    assert "scaler" not in pipeline.named_steps
+    assert pipeline.named_steps["features"].normalize is True
+
+
+def test_build_pipeline_applies_normalization_flag():
+    pipeline = build_pipeline(
+        preprocessors=[],
+        config=PipelineConfig(
+            sfreq=256.0,
+            scaler=None,
+            classifier="svm",
+            dim_method="pca",
+            normalize_features=False,
+        ),
+    )
+
+    assert pipeline.named_steps["features"].normalize is False
+
+
+def test_build_pipeline_uses_configured_strategies():
+    pipeline = build_pipeline(
+        preprocessors=[],
+        config=PipelineConfig(
+            sfreq=256.0,
+            scaler="robust",
+            classifier="logistic",
+            dim_method="csp",
+            n_components=5,
+            feature_strategy="wavelet",
+        ),
+    )
+
+    assert pipeline.named_steps["features"].feature_strategy == "wavelet"
+    assert pipeline.named_steps["dimensionality"].method == "csp"
+    assert pipeline.named_steps["dimensionality"].n_components == 5

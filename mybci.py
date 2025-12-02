@@ -126,7 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--n-components",
         type=int,
-        default=None,
+        default=argparse.SUPPRESS,
         help="Nombre de composantes à conserver",
     )
     # Ajoute un flag pour désactiver la normalisation des features
@@ -160,6 +160,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Applique la normalisation en inversant le flag d'opt-out
     normalize_features = not args.no_normalize_features
     # Construit la configuration partagée entre les modules train et predict
+    n_components = getattr(args, "n_components", None)
+
     config = ModuleCallConfig(
         subject=args.subject,
         run=args.run,
@@ -167,7 +169,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         scaler=scaler,
         feature_strategy=args.feature_strategy,
         dim_method=args.dim_method,
-        n_components=args.n_components,
+        n_components=n_components,
         normalize_features=normalize_features,
     )
     # Appelle le module train si le mode le demande
