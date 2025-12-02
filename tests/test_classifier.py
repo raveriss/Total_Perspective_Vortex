@@ -141,3 +141,101 @@ def test_prediction_report(tmp_path):
     assert report["by_subject"]["S02"] == report["by_run"]["R02"]
     # Vérifie que l'accuracy globale correspond à la mesure du run
     assert pytest.approx(report["global"], rel=0.01) == report["by_run"]["R02"]
+
+
+# Vérifie que la CLI d'entraînement parsée atteint la sauvegarde attendue
+def test_training_cli_main_covers_parser_and_paths(tmp_path):
+    # Fige la fréquence d'échantillonnage pour aligner les features FFT
+    sfreq = 120.0
+    # Génère des données jouets linéairement séparables
+    X, y = _build_toy_dataset(sfreq)
+    # Construit le répertoire des données pour le sujet S03
+    data_dir = tmp_path / "data" / "S03"
+    # Assure la création du répertoire cible avant sauvegarde
+    data_dir.mkdir(parents=True)
+    # Sauvegarde les features au format attendu par la CLI
+    np.save(data_dir / "R03_X.npy", X)
+    # Sauvegarde les labels au format attendu par la CLI
+    np.save(data_dir / "R03_y.npy", y)
+    # Construit le répertoire d'artefacts isolé pour le test
+    artifacts_dir = tmp_path / "artifacts"
+    # Construit la liste d'arguments simulant un appel mybci
+    argv = [
+        "S03",
+        "R03",
+        "--classifier",
+        "lda",
+        "--feature-strategy",
+        "fft",
+        "--dim-method",
+        "pca",
+        "--n-components",
+        "2",
+        "--data-dir",
+        str(tmp_path / "data"),
+        "--artifacts-dir",
+        str(artifacts_dir),
+        "--sfreq",
+        str(sfreq),
+        "--scaler",
+        "none",
+    ]
+    # Exécute la CLI d'entraînement et récupère le code de sortie
+    exit_code = train_cli.main(argv)
+    # Vérifie que la CLI retourne un succès standard
+    assert exit_code == 0
+    # Construit le chemin du modèle pour valider la création d'artefacts
+    model_path = artifacts_dir / "S03" / "R03" / "model.joblib"
+    # Confirme que le modèle joblib est bien présent après l'appel CLI
+    assert model_path.exists()
+
+
+# Vérifie que la CLI de prédiction couvre le parsing et l'exécution complète
+def test_predict_cli_main_covers_parser_and_report(tmp_path):
+    # Fige la fréquence d'échantillonnage pour aligner les features FFT
+    sfreq = 120.0
+    # Génère des données jouets linéairement séparables
+    X, y = _build_toy_dataset(sfreq)
+    # Construit le répertoire des données pour le sujet S04
+    data_dir = tmp_path / "data" / "S04"
+    # Assure la création du répertoire cible avant sauvegarde
+    data_dir.mkdir(parents=True)
+    # Sauvegarde les features au format attendu par la CLI
+    np.save(data_dir / "R04_X.npy", X)
+    # Sauvegarde les labels au format attendu par la CLI
+    np.save(data_dir / "R04_y.npy", y)
+    # Construit le répertoire d'artefacts isolé pour le test
+    artifacts_dir = tmp_path / "artifacts"
+    # Construit la configuration alignée sur la CLI pour l'entraînement
+    config = train_cli.PipelineConfig(
+        sfreq=sfreq,
+        feature_strategy="fft",
+        normalize_features=False,
+        dim_method="pca",
+        n_components=2,
+        classifier="lda",
+        scaler=None,
+    )
+    # Regroupe les paramètres d'entraînement dans une requête dédiée
+    request = train_cli.TrainingRequest(
+        subject="S04",
+        run="R04",
+        pipeline_config=config,
+        data_dir=tmp_path / "data",
+        artifacts_dir=artifacts_dir,
+    )
+    # Entraîne une pipeline pour alimenter la prédiction CLI
+    train_cli.run_training(request)
+    # Construit la liste d'arguments simulant un appel mybci
+    argv = [
+        "S04",
+        "R04",
+        "--data-dir",
+        str(tmp_path / "data"),
+        "--artifacts-dir",
+        str(artifacts_dir),
+    ]
+    # Exécute la CLI de prédiction et récupère le code de sortie
+    exit_code = predict_cli.main(argv)
+    # Vérifie que la CLI retourne un succès standard
+    assert exit_code == 0
