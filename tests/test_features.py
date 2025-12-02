@@ -1,13 +1,13 @@
 """Tests for configurable EEG feature extraction."""
 
-# Importe time pour mesurer le temps d'exécution
+# Importe time pour mesurer le respect du budget d'exécution
 import time
-
-# Importe pytest pour vérifier les erreurs levées par l'extracteur
-import pytest
 
 # Importe numpy pour générer des signaux synthétiques contrôlés
 import numpy as np
+
+# Importe pytest pour vérifier les erreurs levées par l'extracteur
+import pytest
 
 # Importe mne pour construire des Epochs simulant des enregistrements EEG
 from mne import EpochsArray, create_info
