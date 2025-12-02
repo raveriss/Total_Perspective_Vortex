@@ -473,9 +473,11 @@ def test_fetch_dataset_invokes_validation(monkeypatch, tmp_path: Path) -> None:
     validated: list[tuple[Path, dict]] = []
 
     # Simule retrieve_file en créant un fichier destination pour chaque entrée
-    def fake_retrieve(source_root: str, entry: dict, destination: Path) -> Path:
+    def fake_retrieve(
+        source_root: str, entry: dict[str, str], destination: Path
+    ) -> Path:
         # Construit le chemin final de la copie factice
-        target = destination / entry["path"]
+        target: Path = destination / Path(entry["path"])
         # Crée l'arborescence cible pour simuler une récupération réussie
         target.parent.mkdir(parents=True, exist_ok=True)
         # Écrit un contenu minimal pour matérialiser le fichier copié
