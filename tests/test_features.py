@@ -57,3 +57,18 @@ def test_extract_features_invalid_shape() -> None:
     bad_input = np.zeros((10, 100))
     with pytest.raises(ValueError):
         transformer.transform(bad_input)
+
+
+def test_extract_features_fit_is_identity() -> None:
+    """Verify fit returns the transformer instance for pipeline compatibility."""
+
+    transformer = ExtractFeatures(sfreq=128.0)
+    assert transformer.fit(np.zeros((1, 1, 2))) is transformer
+
+
+def test_extract_features_rejects_unknown_strategy() -> None:
+    """Ensure unsupported feature strategies raise explicit errors."""
+
+    transformer = ExtractFeatures(sfreq=128.0, feature_strategy="unknown")
+    with pytest.raises(ValueError):
+        transformer.transform(np.zeros((1, 1, 2)))
