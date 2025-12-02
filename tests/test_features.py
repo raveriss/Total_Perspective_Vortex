@@ -1,6 +1,7 @@
 """Unit tests for feature extraction utilities."""
 
 import time
+from typing import cast
 
 import numpy as np
 import pytest
@@ -73,9 +74,7 @@ def test_extract_features_rejects_unknown_strategy() -> None:
     """Ensure unsupported feature strategies raise explicit errors."""
 
     transformer = ExtractFeatures(sfreq=128.0, feature_strategy="unknown")
-    with pytest.raises(
-        ValueError, match=r"^Unsupported feature strategy: unknown$"
-    ):
+    with pytest.raises(ValueError, match=r"^Unsupported feature strategy: unknown$"):
         transformer.transform(np.zeros((1, 1, 2)))
 
 
@@ -91,10 +90,12 @@ def test_extract_features_respects_default_normalization() -> None:
 
     sfreq = 128.0
     t = np.arange(128) / sfreq
-    signals = np.stack([
-        np.sin(2 * np.pi * 6 * t),
-        np.sin(2 * np.pi * 6 * t) + 0.5 * np.sin(2 * np.pi * 12 * t),
-    ])
+    signals = np.stack(
+        [
+            np.sin(2 * np.pi * 6 * t),
+            np.sin(2 * np.pi * 6 * t) + 0.5 * np.sin(2 * np.pi * 12 * t),
+        ]
+    )
     X = signals.reshape(2, 1, -1)
     raw = ExtractFeatures(sfreq=sfreq, normalize=False).transform(X)
     normalized = extract_features(X, sfreq=sfreq)
@@ -128,11 +129,11 @@ def test_extract_features_fft_band_power_matches_reference() -> None:
     features = transformer.transform(X)
 
     freqs = np.fft.rfftfreq(n_times, d=1.0 / sfreq)
-    power = np.abs(np.fft.rfft(X, axis=2)) ** 2
+    power: np.ndarray = np.abs(np.fft.rfft(X, axis=2)) ** 2
 
     def band_power(low: float, high: float) -> np.ndarray:
         mask = (freqs >= low) & (freqs <= high)
-        return power[:, :, mask].mean(axis=2)
+        return cast(np.ndarray, power[:, :, mask].mean(axis=2))
 
     expected = np.concatenate(
         [
