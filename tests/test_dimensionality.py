@@ -1,11 +1,16 @@
 """Tests unitaires pour la réduction de dimension TPV."""
 
 # Importe numpy pour générer des données synthétiques
-import numpy as np
 # Utilise Path pour manipuler les chemins de manière sûre
 from pathlib import Path
+
+import numpy as np
+
 # Importe le réducteur pour valider son comportement
 from tpv.dimensionality import TPVDimReducer
+
+# Fige l'écart de variance minimal attendu entre les classes
+VARIANCE_GAP_THRESHOLD = 0.5
 
 
 # Vérifie que la PCA produit une base orthonormée et reconstructible
@@ -61,7 +66,7 @@ def test_csp_separates_covariances():
     # Calcule la variance sur la même composante pour l'autre classe
     var1 = np.var(projected1[:, 0, :])
     # Vérifie que les variances sont nettement différentes
-    assert abs(var0 - var1) > 0.5
+    assert abs(var0 - var1) > VARIANCE_GAP_THRESHOLD
 
 
 # Vérifie que la matrice peut être sauvegardée puis rechargée

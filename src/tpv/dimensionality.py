@@ -1,13 +1,26 @@
 """Réduction de dimension pour TPV."""
 
-# Garantit que numpy est disponible pour le calcul matriciel
-import numpy as np
-# Garantit l'accès aux décompositions hermitiennes généralisées
-from scipy import linalg
-# Assure l'intégration avec les API scikit-learn
-from sklearn.base import BaseEstimator, TransformerMixin
+# Garantit l'accès aux types manipulables par joblib et pathlib
+import os
+
 # Offre une persistance simple de la matrice de projection
 import joblib
+
+# Garantit que numpy est disponible pour le calcul matriciel
+import numpy as np
+
+# Garantit l'accès aux décompositions hermitiennes généralisées
+from scipy import linalg
+
+# Assure l'intégration avec les API scikit-learn
+from sklearn.base import BaseEstimator, TransformerMixin
+
+# Fige le nombre de classes attendu pour le CSP pour lever les ambiguïtés
+EXPECTED_CSP_CLASSES = 2
+# Fige la dimension tabulaire standard pour différencier l'entrée
+TABLE_DIMENSION = 2
+# Fige la dimension trial x channel x time attendue pour le CSP
+TRIAL_DIMENSION = 3
 
 
 class TPVDimReducer(BaseEstimator, TransformerMixin):
@@ -20,9 +33,13 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         # Conserve le nombre de composantes souhaité
         self.n_components = n_components
         # Initialise la matrice de projection à None avant apprentissage
-        self.w_matrix: np.ndarray | None = None
+        self.w_matrix: np.ndarray
         # Initialise la moyenne pour la centration éventuelle
-        self.mean_: np.ndarray | None = None
+        self.mean_: np.ndarray
+        # Positionne None pour refléter l'absence d'apprentissage initial
+        self.w_matrix = None  # type: ignore[assignment]
+        # Positionne None pour éviter un centrage tant que fit n'est pas appelé
+        self.mean_ = None  # type: ignore[assignment]
 
     # Apprend la matrice de projection à partir des données et des labels
     def fit(self, X: np.ndarray, y: np.ndarray | None = None):
@@ -58,7 +75,7 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             # Identifie les classes présentes pour contrôler le problème
             classes = np.unique(y)
             # Valide que seules deux classes sont fournies
-            if classes.size != 2:
+            if classes.size != EXPECTED_CSP_CLASSES:
                 # Empêche un calcul CSP invalide avec plus de deux classes
                 raise ValueError("CSP requires exactly two classes")
             # Agrège les covariances des essais pour la première classe
@@ -93,29 +110,29 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             # Centre les données d'entrée pour cohérence avec l'apprentissage
             X = X - self.mean_
         # Applique la projection aux données tabulaires classiques
-        if X.ndim == 2:
+        if X.ndim == TABLE_DIMENSION:
             # Calcule la projection linéaire des données 2D
-            return X @ self.w_matrix
+            return np.asarray(X @ self.w_matrix)
         # Gère explicitement les données trial x channel x time
-        if X.ndim == 3:
+        if X.ndim == TRIAL_DIMENSION:
             # Projette chaque essai en conservant la dynamique temporelle
-            return np.einsum("ij,ajt->ait", self.w_matrix.T, X)
+            return np.asarray(np.einsum("ij,ajt->ait", self.w_matrix.T, X))
         # Refuse les dimensions inattendues pour maintenir la clarté
         raise ValueError("X must be 2D or 3D for transform")
 
     # Enregistre la matrice de projection pour réutilisation future
-    def save(self, path: str) -> None:
+    def save(self, path: str | os.PathLike[str]) -> None:
         # Valide la disponibilité de la matrice pour éviter un dump vide
         if self.w_matrix is None:
             # Signale à l'utilisateur que fit doit précéder la sauvegarde
             raise ValueError("Cannot save before fitting the model")
         # Utilise joblib pour sérialiser la matrice et la moyenne
-        joblib.dump({"w_matrix": self.w_matrix, "mean": self.mean_}, path)
+        joblib.dump({"w_matrix": self.w_matrix, "mean": self.mean_}, str(path))
 
     # Charge la matrice de projection depuis un fichier joblib
-    def load(self, path: str) -> None:
+    def load(self, path: str | os.PathLike[str]) -> None:
         # Récupère le contenu sérialisé pour restaurer le modèle
-        data = joblib.load(path)
+        data = joblib.load(str(path))
         # Restaure la matrice de projection sauvegardée
         self.w_matrix = data.get("w_matrix")
         # Restaure la moyenne si elle existe
@@ -138,4 +155,4 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             # Ajoute la covariance normalisée à l'accumulateur
             cov_sum += trial_cov
         # Calcule la moyenne en divisant par le nombre d'essais
-        return cov_sum / trials.shape[0]
+        return np.asarray(cov_sum / trials.shape[0])
