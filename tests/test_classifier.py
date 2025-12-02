@@ -1,19 +1,20 @@
 """Tests du workflow d'entraînement et de prédiction sur données jouets."""
 
 # Préserve numpy pour construire des données EEG synthétiques
+# Offre la lecture des artefacts sauvegardés par joblib
+import joblib
 import numpy as np
 
 # Garantit l'accès aux fixtures temporaires et assertions
 import pytest
 
-# Offre la lecture des artefacts sauvegardés par joblib
-import joblib
-
+# Importe la logique de prédiction pour vérifier l'accuracy
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
+from scripts import predict as predict_cli
 from scripts import train as train_cli
 
-# Importe la logique de prédiction pour vérifier l'accuracy
-from scripts import predict as predict_cli
+# Fige le seuil minimal d'accuracy exigé pour valider le run jouet
+EXPECTED_MIN_ACCURACY = 0.9
 
 
 # Construit un jeu de données EEG linéairement séparable
@@ -31,7 +32,14 @@ def _build_toy_dataset(sfreq: float) -> tuple[np.ndarray, np.ndarray]:
     # Construit la matrice X pour la classe B avec énergie sur le second canal
     class_b = np.stack([np.zeros_like(alpha), alpha])
     # Assemble plusieurs essais pour renforcer la séparation
-    trials = [class_a, class_b, class_a * 1.1, class_b * 1.1, class_a * 0.9, class_b * 0.9]
+    trials = [
+        class_a,
+        class_b,
+        class_a * 1.1,
+        class_b * 1.1,
+        class_a * 0.9,
+        class_b * 0.9,
+    ]
     # Convertit la liste en tenseur (essai, canal, temps)
     X = np.stack(trials)
     # Construit les labels correspondants pour chaque essai
@@ -57,20 +65,26 @@ def test_training_saves_artifacts(tmp_path, scaler_option):
     np.save(data_dir / "R01_y.npy", y)
     # Construit le répertoire d'artefacts isolé pour le test
     artifacts_dir = tmp_path / "artifacts"
-    # Exécute l'entraînement complet et récupère les chemins sauvegardés
-    result = train_cli.run_training(
-        subject="S01",
-        run="R01",
-        classifier="lda",
-        scaler=scaler_option,
+    # Construit la configuration alignée sur la CLI pour l'entraînement
+    config = train_cli.PipelineConfig(
+        sfreq=sfreq,
         feature_strategy="fft",
+        normalize_features=False,
         dim_method="pca",
         n_components=2,
-        normalize_features=False,
+        classifier="lda",
+        scaler=scaler_option,
+    )
+    # Regroupe les paramètres d'entraînement dans une requête dédiée
+    request = train_cli.TrainingRequest(
+        subject="S01",
+        run="R01",
+        pipeline_config=config,
         data_dir=tmp_path / "data",
         artifacts_dir=artifacts_dir,
-        sfreq=sfreq,
     )
+    # Exécute l'entraînement complet et récupère les chemins sauvegardés
+    result = train_cli.run_training(request)
     # Vérifie que le modèle joblib a bien été sauvegardé
     assert result["model_path"].exists()
     # Vérifie que la matrice W est bien persistée pour le streaming
@@ -97,26 +111,32 @@ def test_prediction_report(tmp_path):
     np.save(data_dir / "R02_y.npy", y)
     # Construit le répertoire d'artefacts isolé pour le test
     artifacts_dir = tmp_path / "artifacts"
-    # Entraîne une pipeline pour alimenter la prédiction
-    train_cli.run_training(
-        subject="S02",
-        run="R02",
-        classifier="lda",
-        scaler=None,
+    # Construit la configuration alignée sur la CLI pour l'entraînement
+    config = train_cli.PipelineConfig(
+        sfreq=sfreq,
         feature_strategy="fft",
+        normalize_features=False,
         dim_method="pca",
         n_components=2,
-        normalize_features=False,
+        classifier="lda",
+        scaler=None,
+    )
+    # Regroupe les paramètres d'entraînement dans une requête dédiée
+    request = train_cli.TrainingRequest(
+        subject="S02",
+        run="R02",
+        pipeline_config=config,
         data_dir=tmp_path / "data",
         artifacts_dir=artifacts_dir,
-        sfreq=sfreq,
     )
+    # Entraîne une pipeline pour alimenter la prédiction
+    train_cli.run_training(request)
     # Évalue le run entraîné pour produire un rapport
     result = predict_cli.evaluate_run("S02", "R02", tmp_path / "data", artifacts_dir)
     # Construit le rapport agrégé par run et sujet
     report = predict_cli.build_report(result)
-    # Vérifie que l'accuracy par run est présente et positive
-    assert report["by_run"]["R02"] > 0.9
+    # Vérifie que l'accuracy par run est présente et dépasse le seuil cible
+    assert report["by_run"]["R02"] > EXPECTED_MIN_ACCURACY
     # Vérifie que l'accuracy par sujet reflète la même valeur
     assert report["by_subject"]["S02"] == report["by_run"]["R02"]
     # Vérifie que l'accuracy globale correspond à la mesure du run

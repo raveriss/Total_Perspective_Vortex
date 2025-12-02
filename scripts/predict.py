@@ -9,11 +9,11 @@ from pathlib import Path
 # Centralise l'accès aux tableaux numpy pour l'évaluation
 import numpy as np
 
-# Permet de charger un pipeline entraîné pour la prédiction
-from tpv.pipeline import load_pipeline
-
 # Permet de restaurer la matrice W pour des usages temps-réel
 from tpv.dimensionality import TPVDimReducer
+
+# Permet de charger un pipeline entraîné pour la prédiction
+from tpv.pipeline import load_pipeline
 
 # Définit le répertoire par défaut où chercher les enregistrements
 DEFAULT_DATA_DIR = Path("data")

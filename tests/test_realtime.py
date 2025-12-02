@@ -1,16 +1,14 @@
 """Tests de cohérence des artefacts pour un usage temps-réel."""
 
 # Préserve numpy pour construire des données EEG synthétiques
-import numpy as np
-
 # Offre la lecture des artefacts sauvegardés par joblib
 import joblib
-
-# Importe la logique d'entraînement pour orchestrer la sauvegarde
-from scripts import train as train_cli
+import numpy as np
 
 # Importe la logique de prédiction pour vérifier les matrices W
+# Importe la logique d'entraînement pour orchestrer la sauvegarde
 from scripts import predict as predict_cli
+from scripts import train as train_cli
 
 
 # Vérifie que la matrice W sauvegardée est cohérente avec la pipeline
@@ -37,27 +35,37 @@ def test_w_matrix_matches_pipeline(tmp_path):
     np.save(data_dir / "R03_y.npy", y)
     # Construit le répertoire d'artefacts isolé pour le test
     artifacts_dir = tmp_path / "artifacts"
-    # Entraîne une pipeline pour alimenter la prédiction
-    train_cli.run_training(
-        subject="S03",
-        run="R03",
-        classifier="lda",
-        scaler=None,
+    # Construit la configuration alignée sur la CLI pour l'entraînement
+    config = train_cli.PipelineConfig(
+        sfreq=sfreq,
         feature_strategy="fft",
+        normalize_features=False,
         dim_method="pca",
         n_components=2,
-        normalize_features=False,
+        classifier="lda",
+        scaler=None,
+    )
+    # Regroupe les paramètres d'entraînement dans une requête dédiée
+    request = train_cli.TrainingRequest(
+        subject="S03",
+        run="R03",
+        pipeline_config=config,
         data_dir=tmp_path / "data",
         artifacts_dir=artifacts_dir,
-        sfreq=sfreq,
     )
+    # Entraîne une pipeline pour alimenter la prédiction
+    train_cli.run_training(request)
     # Charge la pipeline complète pour comparer la matrice interne
     pipeline = joblib.load(artifacts_dir / "S03" / "R03" / "model.joblib")
     # Charge la matrice W sauvegardée par le réducteur
     stored_matrix = joblib.load(artifacts_dir / "S03" / "R03" / "w_matrix.joblib")
     # Recharge le réducteur pour simuler une utilisation temps-réel
-    loaded_reducer = predict_cli._load_w_matrix(artifacts_dir / "S03" / "R03" / "w_matrix.joblib")
+    loaded_reducer = predict_cli._load_w_matrix(
+        artifacts_dir / "S03" / "R03" / "w_matrix.joblib"
+    )
     # Vérifie que la matrice W rechargée correspond à celle de la pipeline
-    assert np.allclose(loaded_reducer.w_matrix, pipeline.named_steps["dimensionality"].w_matrix)
+    assert np.allclose(
+        loaded_reducer.w_matrix, pipeline.named_steps["dimensionality"].w_matrix
+    )
     # Vérifie que la matrice W stockée contient la même structure
     assert np.allclose(stored_matrix["w_matrix"], loaded_reducer.w_matrix)

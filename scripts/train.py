@@ -1,25 +1,29 @@
 """CLI d'entraînement pour le pipeline TPV."""
 
 # Préserve argparse pour exposer une interface CLI homogène avec mybci
+# Expose les primitives d'analyse des arguments CLI
 import argparse
+
+# Rassemble la construction de structures immuables orientées données
+from dataclasses import dataclass
 
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
 
-# Centralise l'accès aux tableaux manipulés par scikit-learn
-import numpy as np
-
 # Offre la persistance dédiée aux objets scikit-learn pour inspection séparée
 import joblib
+
+# Centralise l'accès aux tableaux manipulés par scikit-learn
+import numpy as np
 
 # Fournit la validation croisée pour évaluer la pipeline complète
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 
-# Assemble la pipeline cohérente pour l'entraînement
-from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
-
 # Permet de persister séparément la matrice W apprise
 from tpv.dimensionality import TPVDimReducer
+
+# Assemble la pipeline cohérente pour l'entraînement
+from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
 
 # Définit le répertoire par défaut où chercher les enregistrements
 DEFAULT_DATA_DIR = Path("data")
@@ -29,6 +33,26 @@ DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 
 # Fige la fréquence d'échantillonnage par défaut utilisée pour les features
 DEFAULT_SAMPLING_RATE = 50.0
+
+# Déclare le seuil minimal de splits exigé pour la validation croisée
+MIN_CV_SPLITS = 3
+
+
+# Regroupe toutes les informations nécessaires à un run d'entraînement
+@dataclass
+class TrainingRequest:
+    """Décrit les paramètres nécessaires pour entraîner un run."""
+
+    # Identifie le sujet cible pour l'entraînement
+    subject: str
+    # Identifie le run ciblé pour le sujet sélectionné
+    run: str
+    # Transporte la configuration complète de pipeline
+    pipeline_config: PipelineConfig
+    # Spécifie le répertoire contenant les données numpy
+    data_dir: Path
+    # Spécifie le répertoire racine pour déposer les artefacts
+    artifacts_dir: Path
 
 
 # Construit un argument parser aligné sur la CLI mybci
@@ -136,45 +160,25 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
 
 
 # Exécute la validation croisée et l'entraînement final
-def run_training(
-    subject: str,
-    run: str,
-    classifier: str,
-    scaler: str | None,
-    feature_strategy: str,
-    dim_method: str,
-    n_components: int | None,
-    normalize_features: bool,
-    data_dir: Path,
-    artifacts_dir: Path,
-    sfreq: float,
-) -> dict:
+def run_training(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Résout les chemins des fichiers de données pour le sujet/run
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    features_path, labels_path = _resolve_data_paths(
+        request.subject, request.run, request.data_dir
+    )
     # Charge les tableaux numpy nécessaires à l'entraînement
     X, y = _load_data(features_path, labels_path)
-    # Prépare la configuration de pipeline alignée sur mybci
-    config = PipelineConfig(
-        sfreq=sfreq,
-        feature_strategy=feature_strategy,
-        normalize_features=normalize_features,
-        dim_method=dim_method,
-        n_components=n_components,
-        classifier=classifier,
-        scaler=scaler,
-    )
     # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(None, config)
+    pipeline = build_pipeline(None, request.pipeline_config)
     # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
     min_class_count = int(np.bincount(y).min())
     # Choisit le nombre de splits en restant compatible avec la taille des classes
-    n_splits = min(3, min_class_count) if min_class_count > 0 else 0
+    n_splits = min(MIN_CV_SPLITS, min_class_count) if min_class_count > 0 else 0
     # Initialise un tableau vide lorsque la validation croisée est impossible
     cv_scores = np.array([])
     # Lance la validation croisée uniquement si chaque classe possède trois exemples
-    if n_splits >= 3:
+    if n_splits >= MIN_CV_SPLITS:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
         cv = StratifiedKFold(n_splits=n_splits)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
@@ -182,7 +186,7 @@ def run_training(
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = artifacts_dir / subject / run
+    target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
@@ -203,7 +207,9 @@ def run_training(
     return {
         "cv_scores": cv_scores,
         "model_path": model_path,
-        "scaler_path": target_dir / "scaler.joblib" if scaler_step is not None else None,
+        "scaler_path": (
+            target_dir / "scaler.joblib" if scaler_step is not None else None
+        ),
         "w_matrix_path": target_dir / "w_matrix.joblib",
     }
 
@@ -222,20 +228,26 @@ def main(argv: list[str] | None = None) -> int:
     normalize = not args.no_normalize_features
     # Récupère le paramètre n_components s'il est fourni
     n_components = getattr(args, "n_components", None)
-    # Exécute l'entraînement et la sauvegarde des artefacts
-    run_training(
-        subject=args.subject,
-        run=args.run,
-        classifier=args.classifier,
-        scaler=scaler,
+    # Construit la configuration de pipeline alignée sur mybci
+    config = PipelineConfig(
+        sfreq=args.sfreq,
         feature_strategy=args.feature_strategy,
+        normalize_features=normalize,
         dim_method=args.dim_method,
         n_components=n_components,
-        normalize_features=normalize,
+        classifier=args.classifier,
+        scaler=scaler,
+    )
+    # Regroupe les paramètres d'entraînement dans une structure dédiée
+    request = TrainingRequest(
+        subject=args.subject,
+        run=args.run,
+        pipeline_config=config,
         data_dir=args.data_dir,
         artifacts_dir=args.artifacts_dir,
-        sfreq=args.sfreq,
     )
+    # Exécute l'entraînement et la sauvegarde des artefacts
+    run_training(request)
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
 
