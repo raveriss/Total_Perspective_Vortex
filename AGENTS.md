@@ -18,6 +18,56 @@ Tous les agents doivent considérer comme **sources de vérité** :
 Aucune implémentation, refactor ou ajout de fichier ne doit être réalisé
 hors de ce cadrage (WBS + risques + issues).
 
+---
+
+## ⚠️ Règle absolue pour les agents (LLM / Codex)
+
+Un agent n’a **jamais** le droit de proposer un `git commit` ou un `git push`
+tant qu’il n’a pas, dans **cette réponse précise** :
+
+1. Rappelé la **checklist pré-commit locale** de la section **2)**.
+2. Affiché la section :
+
+   > `CHECKLIST 2) – état AVANT COMMIT`
+
+   avec les trois lignes suivantes **exactement** :
+
+   - `2.2 Pre-commit + static analysis : ✅/❌`
+   - `2.3 Couverture 100 % (make cov) : ✅/❌`
+   - `2.4 Mutmut (aucun survivant) : ✅/❌`
+   - `→ Commit autorisé : ✅/❌`
+
+3. Listé les **commandes locales** à exécuter, **dans l’ordre 2.1 → 2.4**.
+4. Indiqué pour chaque étape si l’état est **réellement connu** :
+
+   - ✅ : l’agent a vu un log de succès ou a lui-même exécuté la commande.
+   - ❌ : la commande est en échec.
+   - ❌ (inconnu) : l’agent n’a **aucune preuve** que la commande est OK.
+
+> **Règle dure** :  
+> Si une seule des lignes 2.2, 2.3 ou 2.4 est ❌ ou inconnue,  
+> l’agent doit **écrire explicitement** `→ Commit autorisé : ❌`.
+
+Dans ce cas, l’agent doit :
+
+- **refuser** toute proposition de message de commit ou de `git push`,
+- limiter la fin de sa réponse à :
+  - un plan de modifications,
+  - un patch (diff),
+  - la checklist 2) à exécuter,
+  - les tests supplémentaires à ajouter.
+
+Si une étape est **KO** ou non mentionnée, la réponse doit se terminer par :
+
+> « ❌ CI potentiellement en échec : interdiction de committer tant que la
+>  checklist 2) n’est pas entièrement verte. »
+
+Toute divergence entre la pipeline locale (section 2) et les jobs CI
+(`.github/workflows/ci.yml`) est considérée comme un **échec de l’agent**.
+
+Toute réponse qui ne contient **pas** la section structurée
+« CHECKLIST 2) – état AVANT COMMIT » est considérée comme **invalide**.
+
 
 ---
 
@@ -574,62 +624,130 @@ jobs:
 
 ## 2) 🔁 Pipeline local avant commit (miroir du CI)
 
-Avant **tout `git commit`**, l’agent doit exécuter **exactement** cette séquence,
-dans cet ordre, et **abandonner le commit** dès qu’une étape échoue.
+Avant **tout `git commit` ou proposition de commit message**, l’agent doit :
+
+1. **Énoncer cette checklist** dans sa réponse.
+2. **Proposer les commandes** à exécuter dans cet ordre exact (2.1 → 2.4).
+3. **Demander explicitement** les résultats (logs) si l’agent ne peut pas
+   exécuter lui-même les commandes.
+4. **Refuser le commit** si une étape n’est pas verte ou inconnue.
+
+Cette section est le miroir local des jobs CI :
+
+* `pre-commit` (incluant `check yaml/toml`, `fix end of files`,
+  `trim trailing whitespace`, `mixed line ending`, `black`, `isort`,
+  `ruff`, `mypy`, `bandit`, `radon`, `xenon`, etc.),
+* `static-analysis`,
+* `tests` + `mutmut`.
+
+L’agent doit toujours rappeler en **texte clair** que :
+
+> « Tant que 2.2, 2.3 et 2.4 ne sont pas toutes ✅, le commit est interdit. »
 
 ### 2.1 Préparation (si nouveau clone ou `poetry.lock` modifié)
 
-Si l’agent ne sait pas si l’environnement est à jour (nouveau clone,
-changement de branche, doute sur `poetry.lock`), il doit exécuter
-systématiquement 2.1.1 et 2.1.2.
+Si l’agent ne sait pas si l’environnement est à jour (nouveau clone, changement de branche, doute sur `poetry.lock`), il doit exécuter systématiquement 2.1.1 et 2.1.2.
 
 1. `poetry install --no-interaction --with dev`
 2. Vérifier que la commande `poetry run pytest -q` fonctionne au moins une fois.
 
 ### 2.2 Pre-commit + Static analysis (miroir CI)
 
-Ces commandes reflètent les jobs `pre-commit` et `static-analysis` de la CI
-GitHub. Elles doivent être exécutées **dans cet ordre**.
+L’agent doit proposer cette séquence **exacte** et **dans cet ordre** :
 
-> La redondance avec `pre-commit` (qui lance déjà une partie de ces outils)
-> est **volontaire** pour reproduire fidèlement les jobs de la CI et détecter
-> toute divergence locale/CI.
+```bash
+poetry run pre-commit run --all-files
+poetry run black --check .
+poetry run isort --check-only .
+poetry run ruff check .
+poetry run mypy src scripts tests
+poetry run pip-audit --progress-spinner=off
+```
 
-1. `poetry run pre-commit run --all-files`
-2. `poetry run black --check .`
-3. `poetry run isort --check-only .`
-4. `poetry run ruff check .`
-5. `poetry run mypy src scripts tests`
-6. `poetry run pip-audit --progress-spinner=off`
+Règles :
 
-Si une de ces commandes échoue → **corriger le code** puis **rejouer depuis 2.2.1**.
+* Si `pre-commit` échoue (`check yaml`, `check toml`, `fix end of files`,
+  `trim trailing whitespace`, `mixed line ending`, `black`, `isort`,
+  `ruff`, `mypy`, etc.) :
 
-### 2.3 Tests unitaires + couverture (miroir du job `tests`)
-1. `make cov`
-   - doit produire `coverage.json`, `coverage.xml`, `htmlcov/`
-   - doit finir avec `coverage report --fail-under=100` **OK**
-2. Vérifier qu’aucun fichier n’est sous 100 % via le script de la CI
-   (contrôle par fichier avec `coverage.json` si script local existant).
+  * l’agent doit :
 
-### 2.4 Mutation testing (miroir du job `tests` – step Mutmut)
-1. `poetry run mutmut run --use-coverage --simple-output`
-2. `poetry run mutmut results > mutmut-results.txt`
-3. Vérifier **manuellement** ou via script qu’il n’y a **aucune ligne** contenant
-   `survived` dans `mutmut-results.txt`.
+    * expliquer brièvement l’erreur,
+    * proposer un **patch minimal**,
+    * redemander à relancer **toute** la séquence 2.2.
+* Tant qu’une commande de 2.2 est **KO** ou non exécutée :
 
-Si au moins un mutant **survit** → **interdiction de committer** tant que :
-- les tests n’ont pas été renforcés, puis
-- `poetry run mutmut run` et `poetry run mutmut results` repassent sans `survived`.
+  * l’agent ne doit pas proposer de message de commit,
+  * l’agent ne doit pas indiquer que « tout est bon »,
+  * l’agent ne doit pas parler de `git push`.
 
-### 2.5 Règle d’or pour les agents
+### 2.3 Tests unitaires + couverture (miroir job `tests`)
 
-- Un commit n’est **valide** que si toutes les étapes 2.2, 2.3 et 2.4 sont **vertes**.
-- Tout message “Modifie ton pre-commit car il y a des fails dans le CI” doit déclencher :
-  1. Relecture de cette section 2),
-  2. Exécution complète de la séquence,
-  3. Correction des échecs **avant** de proposer un nouveau commit.
+L’agent doit proposer :
+
+```bash
+make cov
+```
+
+`make cov` doit :
+
+* générer `coverage.json`, `coverage.xml`, `htmlcov/`,
+* se terminer avec `coverage report --fail-under=100` **OK**.
+
+Si `make cov` est **KO**, la réponse doit :
+
+* pointer les fichiers sous-couverts,
+* proposer **au moins un test** supplémentaire pour remonter la couverture,
+* rappeler de relancer `make cov` jusqu’à obtention de 100 %.
+
+### 2.4 Mutation testing (miroir Mutmut)
+
+L’agent doit proposer :
+
+```bash
+poetry run mutmut run --use-coverage --simple-output
+poetry run mutmut results > mutmut-results.txt
+```
+
+Puis demander la vérification suivante :
+
+* **aucune** ligne ne doit contenir `survived` dans `mutmut-results.txt`.
+
+Si un mutant **survit**, l’agent doit :
+
+* identifier la zone de code concernée (fonction, fichier),
+* proposer des tests supplémentaires ciblés,
+* refaire la séquence 2.4 jusqu’à ce que tous les mutants soient tués.
+
+### 2.5 Contrat de validité d’un commit
+
+Un commit n’est **valide** que si **toutes** les conditions suivantes sont
+satisfaites :
+
+* 2.2 **complète** et **verte**.
+* 2.3 **OK** avec **100 %** de couverture globale (et par fichier si script
+  dédié).
+* 2.4 **OK** sans mutant survivant sur le périmètre modifié.
+
+La réponse de l’agent doit **toujours** contenir, avant toute suggestion de
+message de commit, une synthèse explicite :
+
+> « Checklist 2) :
+>
+> * 2.2 Pre-commit + static analysis : ✅/❌
+> * 2.3 Couverture 100 % (make cov) : ✅/❌
+> * 2.4 Mutmut (aucun survivant) : ✅/❌
+>   → Commit autorisé : ✅/❌. »
+
+Si l’agent ne peut pas remplir cette synthèse de façon honnête, il doit
+conclure par :
+
+> « ❌ CI potentiellement en échec : commit interdit tant que la checklist 2)
+> n’est pas entièrement verte. »
 
 ---
+
+
 
 ## 3) 🧪 Plan de tests (défense‑proof)
 **Objectifs** : 100 % couverture (branches + diff), **contrôle par fichier**, tests rapides.
@@ -646,18 +764,24 @@ Si au moins un mutant **survit** → **interdiction de committer** tant que :
 ## 4) ⚙️ Spécifications d’implémentation
 
 ### 4.1 Formules
--
-...
+
+* Les formules utilisées pour CSP/PCA/ICA doivent être documentées
+  (docstring + référence mathématique).
 
 ### 4.2 CLI (exemples)
-```bash
 
+```bash
+python mybci.py S01 R01 train
+python mybci.py S01 R01 predict
 ```
 
 ### 4.3 Persistance
--
-  ```
-- **Ne jamais** committer les datasets bruts ou fichiers issus de Physionet.
+
+* Sauvegardes de modèles et paramètres dans un répertoire dédié (`models/`
+  ou équivalent), jamais dans `src/`.
+* **Ne jamais** committer les datasets bruts ou fichiers issus de Physionet.
+
+---
 
 ### 4.4 Structure projet
 ```
@@ -716,6 +840,9 @@ Si au moins un mutant **survit** → **interdiction de committer** tant que :
 
 ## 5) 🛡️ Loi de Murphy — risques & contre‑mesures (condensé)
 
+> À maintenir synchronisé avec `docs/risk/tpv_murphy_map.csv`.
+> Chaque WBS ID modifié doit rappeler au moins un Murphy ID couvert
+> par les tests.
 
 ---
 
@@ -741,7 +868,7 @@ usage: train.py
 usage: predict.py
 ```
 
-### 7.2 Modèle de messages d’erreurs (tests de régression)
+### 7.2 Modèle de messages d’erreurs
 - `ERROR:
 - `ERROR:
 - `ERROR:
@@ -751,6 +878,216 @@ usage: predict.py
 ## 8) 🔭 Bonus CI perso (hors soutenance 42)
 - `vulture`, `bandit`, `radon/xenon` (analyse dead‑code/sécurité/complexité)
 - Job Python 3.11 Ubuntu (smoke) en plus du 3.10
+
+---
+
+## 9) 🧾 Format obligatoire des réponses des agents
+
+Toute réponse qui propose **du code ou un changement de fichier** doit
+**impérativement** respecter ce format, dans cet **ordre** :
+
+1. **Contexte / WBS / Murphy**
+
+   * WBS ID concerné.
+   * Murphy ID concernés.
+   * Issue GitHub associée (lien ou titre).
+
+2. **Plan**
+
+   * Liste des étapes de modification du code.
+   * Impact attendu sur les risques (Murphy) et sur la BCI (section 🎯).
+
+3. **Checklist pré-commit (section 2)**
+
+   * Rappel des étapes 2.1 → 2.4.
+   * Commandes à exécuter **dans l’ordre**.
+   * Bloc **obligatoire** :
+
+     ```text
+     CHECKLIST 2) – état AVANT COMMIT
+
+     2.2 Pre-commit + static analysis : ✅/❌
+     2.3 Couverture 100 % (make cov)   : ✅/❌
+     2.4 Mutmut (aucun survivant)      : ✅/❌
+     → Commit autorisé                 : ✅/❌
+     ```
+
+   * L’agent doit **expliquer** pourquoi il met ✅ ou ❌
+     (logs vus, échec, inconnu).
+
+4. **Patch proposé**
+
+   * Diff formaté (un seul patch cohérent).
+   * Références claires aux tests impactés ou ajoutés.
+
+5. **Validation**
+
+   * Synthèse explicite (en cohérence avec le bloc CHECKLIST 2) ) :
+
+     * 2.2 : ✅/❌
+     * 2.3 : ✅/❌
+     * 2.4 : ✅/❌
+   * Interdiction d’écrire ou suggérer une commande `git commit` ou
+     `git push` si `→ Commit autorisé` n’est pas à ✅.
+
+   * Si une case est ❌ ou inconnue, la réponse doit se terminer par :
+
+     > « ❌ CI potentiellement en échec : commit interdit tant que la
+     > checklist 2) n’est pas entièrement verte. »
+
+Toute réponse qui ne suit pas ce format doit être considérée comme **non
+conforme** au blueprint AGENTS.
+
+### 9.1 Exemple de réponse idéale (petite modif, tout est vert)
+
+> Cas : correction mineure dans `src/tpv/utils.py` pour clarifier un message
+> d’erreur, WBS ID = TPV-UTIL-01.
+
+1. **Contexte / WBS / Murphy**
+
+- WBS ID : TPV-UTIL-01 (utilitaires communs BCI)
+- Murphy ID : M-UTIL-01 (messages d’erreurs ambigus)
+- Issue GitHub : `TPV-UTIL-01 – Clarifier message d'erreur invalid channel`
+
+2. **Plan**
+
+- Mettre à jour le message d’erreur dans `utils.py` pour mentionner
+  explicitement l’ID de canal.
+- Ajouter/adapter un test dans `tests/test_utils.py` qui vérifie le message.
+- Rejouer la pipeline locale 2.2 → 2.4.
+
+3. **Checklist pré-commit (section 2)**
+
+Commandes à exécuter :
+
+```bash
+# 2.1 Préparation (si besoin)
+poetry install --no-interaction --with dev
+poetry run pytest -q
+
+# 2.2 Pre-commit + static analysis
+poetry run pre-commit run --all-files
+poetry run black --check .
+poetry run isort --check-only .
+poetry run ruff check .
+poetry run mypy src scripts tests
+poetry run pip-audit --progress-spinner=off
+
+# 2.3 Tests + couverture 100 %
+make cov
+
+# 2.4 Mutation testing
+poetry run mutmut run --use-coverage --simple-output
+poetry run mutmut results > mutmut-results.txt
+````
+
+Supposons que toutes ces commandes ont été exécutées avec succès (logs OK).
+
+```text
+CHECKLIST 2) – état AVANT COMMIT
+
+2.2 Pre-commit + static analysis : ✅
+2.3 Couverture 100 % (make cov)   : ✅
+2.4 Mutmut (aucun survivant)      : ✅
+→ Commit autorisé                 : ✅
+```
+
+4. **Patch proposé**
+
+```diff
+diff --git a/src/tpv/utils.py b/src/tpv/utils.py
+index 1234567..89abcde 100644
+--- a/src/tpv/utils.py
++++ b/src/tpv/utils.py
+@@ -10,7 +10,8 @@ def validate_channel_index(index: int, max_index: int) -> None:
+-    # Vérifie que l'index de canal est dans les bornes autorisées
++    # Refuse explicitement les canaux hors bornes pour faciliter le debug
+     if index < 0 or index > max_index:
+-        raise ValueError("Invalid channel index")
++        raise ValueError(
++            f"Index de canal invalide: {index} (max autorisé: {max_index})"
++        )
+```
+
+Tests associés : ajout/ajustement de `test_validate_channel_index_raises` dans
+`tests/test_utils.py`.
+
+5. **Validation**
+
+* 2.2 : ✅ (pre-commit + black + isort + ruff + mypy + pip-audit OK)
+* 2.3 : ✅ (coverage report --fail-under=100 OK)
+* 2.4 : ✅ (`mutmut results` sans `survived`)
+
+→ Commit autorisé : ✅
+
+Message de commit possible :
+
+> `fix: clarifier message d'erreur sur index de canal`
+
+
+---
+
+### 9.2 Exemple de réponse idéale (KO pre-commit, commit interdit)
+
+> Cas : ajout d’un paramètre dans `mybci.py`, oubli du formatage → ruff/black KO.
+
+1. **Contexte / WBS / Murphy**
+
+- WBS ID : TPV-CLI-02 (CLI mybci – ergonomie)
+- Murphy ID : M-CLI-02 (messages usage confus)
+- Issue GitHub : `TPV-CLI-02 – Améliorer message d'aide de mybci.py`
+
+2. **Plan**
+
+- Mettre à jour le message d’aide de `mybci.py`.
+- Corriger le formatage pour respecter black/ruff.
+- Rejouer 2.2 → 2.4 jusqu’à tout vert.
+
+3. **Checklist pré-commit (section 2)**
+
+Commandes à exécuter :
+
+```bash
+poetry run pre-commit run --all-files
+poetry run black --check .
+poetry run isort --check-only .
+poetry run ruff check .
+poetry run mypy src scripts tests
+poetry run pip-audit --progress-spinner=off
+make cov
+poetry run mutmut run --use-coverage --simple-output
+poetry run mutmut results > mutmut-results.txt
+````
+
+Supposons que :
+
+* `poetry run pre-commit run --all-files` échoue sur `ruff` (ligne trop longue),
+* les autres commandes **n’ont pas encore été rejouées** après correction.
+
+```text
+CHECKLIST 2) – état AVANT COMMIT
+
+2.2 Pre-commit + static analysis : ❌ (ruff KO sur mybci.py)
+2.3 Couverture 100 % (make cov)   : ❌ (non relancé après correction)
+2.4 Mutmut (aucun survivant)      : ❌ (non relancé après correction)
+→ Commit autorisé                 : ❌
+```
+
+4. **Patch proposé**
+
+L’agent propose un patch minimal pour corriger la ligne incriminée
+(formatage / longueur).
+*Aucun message de commit n’est proposé.*
+
+5. **Validation**
+
+* 2.2 : ❌ (doit être rejoué jusqu’à succès)
+* 2.3 : ❌ (doit être rejoué après correction)
+* 2.4 : ❌ (doit être rejoué après correction)
+
+> « ❌ CI potentiellement en échec : commit interdit tant que la checklist 2)
+> n’est pas entièrement verte. »
+
 
 ---
 
