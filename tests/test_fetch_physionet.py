@@ -53,8 +53,10 @@ def test_load_manifest_requires_existing_file(tmp_path: Path) -> None:
     # Construit un chemin inexistant pour simuler un oubli utilisateur
     missing_manifest = tmp_path / "manifest.json"
     # Vérifie que l'appel signale explicitement l'absence du manifeste
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError) as error:
         fetch_physionet.load_manifest(missing_manifest)
+    # Contrôle que le message d'erreur mentionne le chemin incriminé
+    assert str(missing_manifest) in str(error.value)
 
 
 # Garantit le rejet des manifestes mal typés
@@ -64,8 +66,10 @@ def test_load_manifest_rejects_non_list_files(tmp_path: Path) -> None:
     # Sérialise un dictionnaire au lieu d'une liste pour déclencher l'erreur attendue
     manifest_path.write_text(json.dumps({"files": {"path": "bad"}}), encoding="utf-8")
     # Vérifie que la validation signale le format incorrect
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as error:
         fetch_physionet.load_manifest(manifest_path)
+    # Confirme que le message cite le champ files pour guider l'utilisateur
+    assert "files" in str(error.value)
 
 
 # Confirme que la validation détecte une taille de fichier incorrecte
@@ -77,8 +81,10 @@ def test_validate_file_rejects_size_mismatch(tmp_path: Path) -> None:
     # Déclare une taille attendue erronée pour forcer la validation à échouer
     entry = {"size": 1}
     # Vérifie que l'erreur est levée dès la comparaison de taille
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as error:
         fetch_physionet.validate_file(file_path, entry)
+    # Vérifie que le message mentionne la taille inattendue
+    assert "taille inattendue" in str(error.value)
 
 
 # Confirme que la validation détecte un hash SHA-256 divergent
@@ -90,8 +96,10 @@ def test_validate_file_rejects_hash_mismatch(tmp_path: Path) -> None:
     # Fixe un hash attendu incorrect pour forcer l'exception
     entry = {"sha256": "deadbeef"}
     # Vérifie que le hash divergent déclenche une erreur explicite
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as error:
         fetch_physionet.validate_file(file_path, entry)
+    # Vérifie que le message mentionne le hash SHA-256 invalide
+    assert "SHA-256" in str(error.value)
 
 
 # Valide que la copie locale est opérante lorsque la source n'est pas distante
@@ -137,8 +145,10 @@ def test_retrieve_file_propagates_network_failure(monkeypatch, tmp_path: Path) -
         fetch_physionet.urllib.request, "build_opener", lambda: FakeOpener()
     )
     # Vérifie que l'erreur réseau se traduit en ConnectionError explicite
-    with pytest.raises(ConnectionError):
+    with pytest.raises(ConnectionError) as error:
         fetch_physionet.retrieve_file("https://example.com", entry, destination_root)
+    # Vérifie que le message conserve le préfixe d'erreur attendu
+    assert "téléchargement impossible" in str(error.value)
 
 
 # Refuse les manifestes qui pointent vers un répertoire au lieu d'un fichier
@@ -148,8 +158,10 @@ def test_load_manifest_rejects_directory(tmp_path: Path) -> None:
     # Instancie physiquement le dossier pour déclencher la vérification
     manifest_dir.mkdir()
     # Vérifie que la validation signale l'usage d'un dossier
-    with pytest.raises(IsADirectoryError):
+    with pytest.raises(IsADirectoryError) as error:
         fetch_physionet.load_manifest(manifest_dir)
+    # Vérifie que le message pointe le dossier erroné
+    assert str(manifest_dir) in str(error.value)
 
 
 # Accepte un manifeste bien formé avec des entrées dictionnaires
@@ -257,8 +269,10 @@ def test_validate_file_requires_presence(tmp_path: Path) -> None:
     # Déclare un chemin inexistant pour simuler un oubli en amont
     missing_file = tmp_path / "ghost.edf"
     # Vérifie que la validation refuse un fichier manquant
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError) as error:
         fetch_physionet.validate_file(missing_file, {})
+    # Vérifie que le chemin absent est reporté dans le message
+    assert str(missing_file) in str(error.value)
 
 
 # Valide un fichier existant lorsque la taille et le hash correspondent
@@ -284,8 +298,10 @@ def test_fetch_dataset_rejects_empty_manifest(tmp_path: Path) -> None:
     # Définit un dossier de destination pour l'appel simulé
     destination_root = tmp_path / "destination"
     # Vérifie que le pipeline refuse de fonctionner sans fichiers listés
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as error:
         fetch_physionet.fetch_dataset("/source", manifest_path, destination_root)
+    # Confirme que le message signale explicitement l'absence d'entrées
+    assert "aucun fichier" in str(error.value)
 
 
 # Parcourt un manifeste valide et copie les fichiers locaux attendus
@@ -356,6 +372,81 @@ def test_parse_args_reads_cli(monkeypatch, tmp_path: Path) -> None:
     assert parsed.manifest == str(manifest_path)
     # Confirme la prise en compte de la destination personnalisée
     assert parsed.destination == str(destination_root)
+
+
+# Détecte un manifeste dont la racine n'est pas un dictionnaire JSON
+def test_load_manifest_rejects_non_mapping(tmp_path: Path) -> None:
+    # Stocke un manifeste racine sous forme de liste pour simuler une erreur de format
+    manifest_path = tmp_path / "manifest.json"
+    # Écrit un tableau vide pour déclencher la validation de type
+    manifest_path.write_text(json.dumps([]), encoding="utf-8")
+    # Vérifie que la fonction remonte une ValueError explicite
+    with pytest.raises(ValueError) as error:
+        fetch_physionet.load_manifest(manifest_path)
+    # Confirme que le type erroné est mentionné dans le message
+    assert "list" in str(error.value)
+
+
+# Vérifie que l'aide CLI expose la description et les options attendues
+def test_parse_args_displays_help(monkeypatch, capsys) -> None:
+    # Force la demande d'aide via l'argument --help
+    monkeypatch.setattr(sys, "argv", ["fetch_physionet.py", "--help"], raising=True)
+    # Capture la sortie standard pour inspecter l'aide générée
+    with pytest.raises(SystemExit):
+        fetch_physionet.parse_args()
+    # Récupère la sortie standard formatée par argparse
+    output = capsys.readouterr().out
+    # Vérifie que la description personnalisée est bien présente
+    assert "Récupère Physionet" in output
+    # Confirme que les paramètres source et manifeste sont documentés
+    assert "--source" in output
+    assert "--manifest" in output
+
+
+# Vérifie que les options obligatoires sont réellement requises
+def test_parse_args_requires_mandatory(monkeypatch) -> None:
+    # Supprime tous les arguments pour provoquer un échec argparse
+    monkeypatch.setattr(sys, "argv", ["fetch_physionet.py"], raising=True)
+    # Vérifie qu'un SystemExit est levé faute d'arguments requis
+    with pytest.raises(SystemExit):
+        fetch_physionet.parse_args()
+
+
+# Garantit que le hachage lit les blocs avec la taille attendue
+def test_compute_sha256_uses_chunk_size(monkeypatch, tmp_path: Path) -> None:
+    # Prépare un fichier fictif pour fournir des octets à hacher
+    file_path = tmp_path / "data.bin"
+    # Écrit un contenu supérieur à un octet pour déclencher plusieurs lectures
+    file_path.write_bytes(b"abc")
+
+    # Enregistre les tailles de lecture observées
+    read_sizes: list[int | None] = []
+
+    # Définit un flux factice qui mémorise la taille demandée
+    class FakeHandle:
+        # Initialise la séquence de blocs à retourner
+        def __init__(self) -> None:
+            self.chunks = [b"ab", b"c", b""]
+
+        # Enregistre chaque taille demandée et renvoie le bloc suivant
+        def read(self, size: int | None) -> bytes:
+            read_sizes.append(size)
+            return self.chunks.pop(0)
+
+        # Fournit le support du contexte pour imiter Path.open
+        def __enter__(self) -> "FakeHandle":
+            return self
+
+        # Nettoie la ressource sans action spécifique
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    # Redirige l'ouverture de fichier vers le flux factice
+    monkeypatch.setattr(Path, "open", lambda *_: FakeHandle())
+    # Calcule le hash en utilisant le flux instrumenté
+    fetch_physionet.compute_sha256(file_path)
+    # Vérifie que les lectures utilisent la taille configurée
+    assert read_sizes == [8192, 8192, 8192]
 
 
 # Vérifie que la destination par défaut est appliquée sans argument explicite
