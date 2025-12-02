@@ -36,10 +36,14 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         self.w_matrix: np.ndarray
         # Initialise la moyenne pour la centration éventuelle
         self.mean_: np.ndarray
+        # Prépare le stockage des valeurs propres pour validation et débogage
+        self.eigenvalues_: np.ndarray
         # Positionne None pour refléter l'absence d'apprentissage initial
         self.w_matrix = None  # type: ignore[assignment]
         # Positionne None pour éviter un centrage tant que fit n'est pas appelé
         self.mean_ = None  # type: ignore[assignment]
+        # Positionne None avant calcul des valeurs propres
+        self.eigenvalues_ = None  # type: ignore[assignment]
 
     # Apprend la matrice de projection à partir des données et des labels
     def fit(self, X: np.ndarray, y: np.ndarray | None = None):
@@ -53,8 +57,8 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             self.mean_ = np.mean(X, axis=0)
             # Calcule les données centrées pour la covariance
             centered = X - self.mean_
-            # Calcule la covariance empirique des features
-            covariance = np.cov(centered, rowvar=False)
+            # Calcule manuellement la covariance sans recentrer une seconde fois
+            covariance = (centered.T @ centered) / (centered.shape[0] - 1)
             # Extrait les vecteurs propres pour définir la projection
             eigvals, eigvecs = np.linalg.eigh(covariance)
             # Trie les composantes par variance décroissante
@@ -65,8 +69,15 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             if self.n_components is not None:
                 # Sélectionne uniquement les premières composantes utiles
                 sorted_vecs = sorted_vecs[:, : self.n_components]
+                # Tronque aussi la liste des valeurs propres
+                eigvals = eigvals[order][: self.n_components]
+            else:
+                # Conserve toutes les valeurs propres si aucune coupe n'est demandée
+                eigvals = eigvals[order]
             # Stocke la matrice de projection apprise
             self.w_matrix = sorted_vecs
+            # Stocke les valeurs propres associées pour vérification externe
+            self.eigenvalues_ = eigvals
         else:
             # Vérifie la présence des étiquettes pour la méthode CSP
             if y is None:
@@ -94,8 +105,15 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             if self.n_components is not None:
                 # Sélectionne la tranche désirée de composantes
                 sorted_vecs = sorted_vecs[:, : self.n_components]
+                # Tronque également les valeurs propres associées
+                eigvals = eigvals[order][: self.n_components]
+            else:
+                # Conserve toutes les valeurs propres si aucune coupe n'est appliquée
+                eigvals = eigvals[order]
             # Stocke la matrice de projection CSP
             self.w_matrix = sorted_vecs
+            # Stocke les valeurs propres pour inspection éventuelle
+            self.eigenvalues_ = eigvals
         # Retourne l'instance pour chaînage scikit-learn
         return self
 
@@ -116,7 +134,9 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         # Gère explicitement les données trial x channel x time
         if X.ndim == TRIAL_DIMENSION:
             # Projette chaque essai en conservant la dynamique temporelle
-            return np.asarray(np.einsum("ij,ajt->ait", self.w_matrix.T, X))
+            projected = np.tensordot(self.w_matrix.T, X, axes=([1], [1]))
+            # Réorganise les axes pour retrouver l'ordre trial x comp x time
+            return np.asarray(np.moveaxis(projected, 0, 1))
         # Refuse les dimensions inattendues pour maintenir la clarté
         raise ValueError("X must be 2D or 3D for transform")
 
@@ -127,7 +147,10 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             # Signale à l'utilisateur que fit doit précéder la sauvegarde
             raise ValueError("Cannot save before fitting the model")
         # Utilise joblib pour sérialiser la matrice et la moyenne
-        joblib.dump({"w_matrix": self.w_matrix, "mean": self.mean_}, str(path))
+        joblib.dump(
+            {"w_matrix": self.w_matrix, "mean": self.mean_, "eig": self.eigenvalues_},
+            str(path),
+        )
 
     # Charge la matrice de projection depuis un fichier joblib
     def load(self, path: str | os.PathLike[str]) -> None:
@@ -137,6 +160,8 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         self.w_matrix = data.get("w_matrix")
         # Restaure la moyenne si elle existe
         self.mean_ = data.get("mean")
+        # Restaure les valeurs propres éventuelles
+        self.eigenvalues_ = data.get("eig")
 
     # Calcule la moyenne des matrices de covariance sur un ensemble d'essais
     def _average_covariance(self, trials: np.ndarray) -> np.ndarray:
