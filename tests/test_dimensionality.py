@@ -3,11 +3,14 @@
 # Vérifie que numpy est disponible pour les constructions matricielles
 import numpy as np
 
-# Garantit l'accès aux assertions de test
-import pytest
-
 # Importe le réducteur TPV à valider
 from tpv.dimensionality import TPVDimReducer
+
+# Définit le seuil minimal de variance principale acceptable
+PCA_VARIANCE_THRESHOLD = 0.8
+
+# Définit la tolérance d'acceptation pour les valeurs propres négatives
+EIGENVALUE_TOLERANCE = 1e-8
 
 
 # Vérifie que la projection CSP reste orthogonale
@@ -47,7 +50,7 @@ def test_csp_projection_orthogonality():
         # Accumule la covariance sur la classe
         cov_a += trial_cov
     # Moyenne la covariance de la classe A
-    cov_a = cov_a / trials_per_class
+    cov_a /= float(trials_per_class)
     # Construit la covariance moyenne de la seconde classe
     cov_b = np.zeros((channels, channels))
     # Parcourt chaque essai de la seconde classe
@@ -59,7 +62,7 @@ def test_csp_projection_orthogonality():
         # Accumule la covariance de la seconde classe
         cov_b += trial_cov
     # Moyenne la covariance de la classe B
-    cov_b = cov_b / trials_per_class
+    cov_b /= float(trials_per_class)
     # Ajoute la régularisation définie sur le modèle
     composite = cov_a + cov_b + reducer.regularization * np.eye(channels)
     # Calcule le produit qui doit se rapprocher de l'identité
@@ -88,7 +91,7 @@ def test_pca_explained_variance():
     # Calcule la part de variance captée par chaque composante
     variance_ratio = reducer.eigenvalues_ / np.sum(reducer.eigenvalues_)
     # Vérifie que la première composante dépasse la majorité de la variance
-    assert variance_ratio[0] > 0.8
+    assert variance_ratio[0] > PCA_VARIANCE_THRESHOLD
     # Vérifie que la deuxième composante reste positive
     assert variance_ratio[1] > 0
 
@@ -112,4 +115,4 @@ def test_regularization_stabilizes_singular_covariance():
     # Vérifie l'absence de valeurs infinies dans la projection
     assert np.isfinite(transformed).all()
     # Vérifie que les valeurs propres restent non négatives sous tolérance
-    assert np.all(reducer.eigenvalues_ >= -1e-8)
+    assert np.all(reducer.eigenvalues_ >= -EIGENVALUE_TOLERANCE)
