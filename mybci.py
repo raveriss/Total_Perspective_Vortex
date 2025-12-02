@@ -9,42 +9,64 @@ import subprocess
 # Préserve sys pour identifier l'interpréteur courant
 import sys
 
+# Préserve dataclass pour regrouper les paramètres du pipeline
+from dataclasses import dataclass
+
 # Garantit l'accès aux séquences typées pour mypy
 from typing import Sequence
 
 
+# Centralise les options nécessaires pour invoquer un module TPV
+@dataclass
+class ModuleCallConfig:
+    """Conteneur des paramètres transmis aux modules train/predict."""
+
+    # Identifie le sujet cible pour charger les données correspondantes
+    subject: str
+    # Identifie le run cible pour charger la bonne session
+    run: str
+    # Sélectionne le classifieur pour harmoniser train et predict
+    classifier: str
+    # Sélectionne le scaler optionnel pour stabiliser les features
+    scaler: str | None
+    # Harmonise la stratégie d'extraction des features
+    feature_strategy: str
+    # Choisit la méthode de réduction de dimension
+    dim_method: str
+    # Spécifie le nombre de composantes projetées
+    n_components: int | None
+    # Indique si les features doivent être normalisées
+    normalize_features: bool
+
+
 # Construit la ligne de commande pour invoquer un module TPV
-def _call_module(
-    module_name: str,
-    subject: str,
-    run: str,
-    classifier: str,
-    scaler: str | None,
-    feature_strategy: str,
-    dim_method: str,
-    n_components: int | None,
-    normalize_features: bool,
-) -> int:
+def _call_module(module_name: str, config: ModuleCallConfig) -> int:
     """Invoke un module TPV en ajoutant les options du pipeline."""
 
     # Initialise la commande avec l'interpréteur courant et le module ciblé
-    command: list[str] = [sys.executable, "-m", module_name, subject, run]
+    command: list[str] = [
+        sys.executable,
+        "-m",
+        module_name,
+        config.subject,
+        config.run,
+    ]
     # Ajoute le classifieur choisi pour transmettre la préférence utilisateur
-    command.extend(["--classifier", classifier])
+    command.extend(["--classifier", config.classifier])
     # Ajoute la stratégie de scaler uniquement lorsqu'elle est définie
-    if scaler is not None:
+    if config.scaler is not None:
         # Propulse le scaler choisi vers le module appelé
-        command.extend(["--scaler", scaler])
+        command.extend(["--scaler", config.scaler])
     # Ajoute la stratégie de features pour harmoniser train et predict
-    command.extend(["--feature-strategy", feature_strategy])
+    command.extend(["--feature-strategy", config.feature_strategy])
     # Ajoute la méthode de réduction de dimension pour la cohérence
-    command.extend(["--dim-method", dim_method])
+    command.extend(["--dim-method", config.dim_method])
     # Ajoute le nombre de composantes si fourni pour contrôler la compression
-    if n_components is not None:
+    if config.n_components is not None:
         # Passe n_components sous forme de chaîne pour argparse descendant
-        command.extend(["--n-components", str(n_components)])
+        command.extend(["--n-components", str(config.n_components)])
     # Ajoute un indicateur pour désactiver la normalisation si demandé
-    if not normalize_features:
+    if not config.normalize_features:
         # Utilise un flag booléen pour inverser la valeur par défaut
         command.append("--no-normalize-features")
     # Exécute la commande en capturant le code retour sans lever d'exception
@@ -137,31 +159,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     scaler = None if args.scaler == "none" else args.scaler
     # Applique la normalisation en inversant le flag d'opt-out
     normalize_features = not args.no_normalize_features
+    # Construit la configuration partagée entre les modules train et predict
+    config = ModuleCallConfig(
+        subject=args.subject,
+        run=args.run,
+        classifier=args.classifier,
+        scaler=scaler,
+        feature_strategy=args.feature_strategy,
+        dim_method=args.dim_method,
+        n_components=args.n_components,
+        normalize_features=normalize_features,
+    )
     # Appelle le module train si le mode le demande
     if args.mode == "train":
         # Retourne le code retour du module train avec la configuration
         return _call_module(
             "tpv.train",
-            args.subject,
-            args.run,
-            args.classifier,
-            scaler,
-            args.feature_strategy,
-            args.dim_method,
-            args.n_components,
-            normalize_features,
+            config,
         )
     # Appelle le module predict pour le mode prédiction
     return _call_module(
         "tpv.predict",
-        args.subject,
-        args.run,
-        args.classifier,
-        scaler,
-        args.feature_strategy,
-        args.dim_method,
-        args.n_components,
-        normalize_features,
+        config,
     )
 
 

@@ -3,40 +3,60 @@
 # Garantit l'accès aux types attendus par les signatures publiques
 from __future__ import annotations
 
+# Offre un conteneur immuable pour configurer la pipeline
+from dataclasses import dataclass
+
 # Maintient la compatibilité avec les types génériques scikit-learn
 from typing import Iterable, List, Tuple
+
+# Garantit la persistance pickle via le protocole scikit-learn
+from joblib import dump, load
+
+# Fournit les interfaces typées communes aux transformateurs scikit-learn
+from sklearn.base import TransformerMixin
+
+# Fournit les classifieurs linéaires et à marge large
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.linear_model import LogisticRegression
 
 # Fournit les pipelines séquentiels pour chaîner les transformateurs
 from sklearn.pipeline import Pipeline
 
 # Offre des scalers robustes et standards pour stabiliser les features
 from sklearn.preprocessing import RobustScaler, StandardScaler
-
-# Fournit les classifieurs linéaires et à marge large
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
-
-# Garantit la persistance pickle via le protocole scikit-learn
-from joblib import dump, load
-
-# Récupère l'extracteur de features de puissance bande
-from tpv.features import ExtractFeatures
 
 # Récupère le réducteur de dimension CSP ou PCA
 from tpv.dimensionality import TPVDimReducer
 
+# Récupère l'extracteur de features de puissance bande
+from tpv.features import ExtractFeatures
+
+
+# Centralise la configuration du pipeline pour limiter les paramètres
+@dataclass
+class PipelineConfig:
+    """Configuration complète pour assembler le pipeline TPV."""
+
+    # Fréquence d'échantillonnage utilisée par l'extracteur de features
+    sfreq: float
+    # Stratégie de features pour harmoniser extraction et prédiction
+    feature_strategy: str = "fft"
+    # Active la normalisation pour stabiliser les entrées du classifieur
+    normalize_features: bool = True
+    # Méthode de réduction de dimension pour compacter les features
+    dim_method: str = "pca"
+    # Nombre de composantes conservées par le réducteur
+    n_components: int | None = None
+    # Classifieur final choisi par l'utilisateur
+    classifier: str = "lda"
+    # Scaler optionnel appliqué après l'extraction des features
+    scaler: str | None = None
+
 
 # Construit une pipeline complète incluant préprocessing, features et classification
 def build_pipeline(
-    preprocessors: Iterable[Tuple[str, object]] | None,
-    sfreq: float,
-    feature_strategy: str = "fft",
-    normalize_features: bool = True,
-    dim_method: str = "pca",
-    n_components: int | None = None,
-    classifier: str = "lda",
-    scaler: str | None = None,
+    preprocessors: Iterable[Tuple[str, object]] | None, config: PipelineConfig
 ) -> Pipeline:
     """Assemble un pipeline scikit-learn cohérent pour l'EEG."""
 
@@ -47,14 +67,14 @@ def build_pipeline(
         (
             "features",
             ExtractFeatures(
-                sfreq=sfreq,
-                feature_strategy=feature_strategy,
-                normalize=normalize_features,
+                sfreq=config.sfreq,
+                feature_strategy=config.feature_strategy,
+                normalize=config.normalize_features,
             ),
         )
     )
     # Insère un scaler optionnel pour stabiliser la variance des features
-    scaler_instance = _build_scaler(scaler)
+    scaler_instance = _build_scaler(config.scaler)
     # Ajoute le scaler uniquement lorsqu'il est explicitement demandé
     if scaler_instance is not None:
         # Sécurise la position du scaler juste après les features tabulaires
@@ -63,11 +83,13 @@ def build_pipeline(
     steps.append(
         (
             "dimensionality",
-            TPVDimReducer(method=dim_method, n_components=n_components),
+            TPVDimReducer(
+                method=config.dim_method, n_components=config.n_components
+            ),
         )
     )
     # Construit le classifieur final selon la stratégie choisie
-    classifier_instance = _build_classifier(classifier)
+    classifier_instance = _build_classifier(config.classifier)
     # Ajoute le classifieur au pipeline pour la prédiction finale
     steps.append(("classifier", classifier_instance))
     # Assemble et retourne la pipeline scikit-learn séquentielle
@@ -75,7 +97,7 @@ def build_pipeline(
 
 
 # Sélectionne le scaler adapté selon la configuration utilisateur
-def _build_scaler(option: str | None) -> object | None:
+def _build_scaler(option: str | None) -> TransformerMixin | None:
     """Retourne l'instance de scaler correspondant au paramètre fourni."""
 
     # Ignore la construction lorsqu'aucun scaler n'est demandé

@@ -1,6 +1,10 @@
+# Préserve sys pour récupérer l'interpréteur courant dans les assertions
 import sys
+
+# Garantit l'accès aux types génériques pour annoter les fakes
 from typing import Any
 
+# Utilise pytest pour vérifier les erreurs de parsing
 import pytest
 
 import mybci
@@ -67,8 +71,8 @@ def test_parse_args_requires_all_positional_arguments(capsys):
 def test_main_invokes_train_pipeline(monkeypatch):
     called: dict[str, Any] = {}
 
-    def fake_call(module_name: str, subject: str, run: str) -> int:
-        called["args"] = (module_name, subject, run)
+    def fake_call(module_name: str, config: mybci.ModuleCallConfig) -> int:
+        called["args"] = (module_name, config)
         return 0
 
     monkeypatch.setattr(mybci, "_call_module", fake_call)
@@ -76,14 +80,16 @@ def test_main_invokes_train_pipeline(monkeypatch):
     exit_code = mybci.main(["S01", "R02", "train"])
 
     assert exit_code == 0
-    assert called["args"] == ("tpv.train", "S01", "R02")
+    assert called["args"][0] == "tpv.train"
+    assert called["args"][1].subject == "S01"
+    assert called["args"][1].run == "R02"
 
 
 def test_main_invokes_predict_pipeline(monkeypatch):
     called: dict[str, Any] = {}
 
-    def fake_call(module_name: str, subject: str, run: str) -> int:
-        called["args"] = (module_name, subject, run)
+    def fake_call(module_name: str, config: mybci.ModuleCallConfig) -> int:
+        called["args"] = (module_name, config)
         return 0
 
     monkeypatch.setattr(mybci, "_call_module", fake_call)
@@ -91,7 +97,9 @@ def test_main_invokes_predict_pipeline(monkeypatch):
     exit_code = mybci.main(["S02", "R03", "predict"])
 
     assert exit_code == 0
-    assert called["args"] == ("tpv.predict", "S02", "R03")
+    assert called["args"][0] == "tpv.predict"
+    assert called["args"][1].subject == "S02"
+    assert called["args"][1].run == "R03"
 
 
 def test_call_module_executes_python_module(monkeypatch):
@@ -107,10 +115,34 @@ def test_call_module_executes_python_module(monkeypatch):
 
     monkeypatch.setattr(mybci.subprocess, "run", fake_run)
 
-    exit_code = mybci._call_module("tpv.train", "S03", "R04")
+    exit_code = mybci._call_module(
+        "tpv.train",
+        mybci.ModuleCallConfig(
+            subject="S03",
+            run="R04",
+            classifier="lda",
+            scaler=None,
+            feature_strategy="fft",
+            dim_method="pca",
+            n_components=None,
+            normalize_features=True,
+        ),
+    )
 
     assert exit_code == 0
-    assert recorded_command == [sys.executable, "-m", "tpv.train", "S03", "R04"]
+    assert recorded_command == [
+        sys.executable,
+        "-m",
+        "tpv.train",
+        "S03",
+        "R04",
+        "--classifier",
+        "lda",
+        "--feature-strategy",
+        "fft",
+        "--dim-method",
+        "pca",
+    ]
 
 
 # Vérifie que main remonte l'échec propagé par un module sous-jacent

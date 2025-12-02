@@ -3,14 +3,23 @@
 # Garantit l'accès à numpy pour générer des données synthétiques
 import numpy as np
 
-# Vérifie la compatibilité scikit-learn pour les scores de CV
-from sklearn.model_selection import cross_val_score
-
 # Utilise pytest pour les assertions et la gestion des fixtures temporaires
 import pytest
 
+# Vérifie la compatibilité scikit-learn pour les scores de CV
+from sklearn.model_selection import cross_val_score
+
 # Importe la construction et la persistance du pipeline TPV
-from tpv.pipeline import build_pipeline, load_pipeline, save_pipeline
+from tpv.pipeline import PipelineConfig, build_pipeline, load_pipeline, save_pipeline
+
+# Fixe le nombre de plis pour harmoniser les tests de validation croisée
+CROSS_VALIDATION_SPLITS = 3
+
+# Fixe le nombre de plis dédié au test de fuite de labels
+LEAKAGE_SPLITS = 4
+
+# Fixe la borne d'exactitude pour détecter des fuites de labels
+LEAKAGE_THRESHOLD = 0.7
 
 
 # Vérifie que le pipeline peut être sauvegardé puis rechargé sans perte
@@ -25,10 +34,12 @@ def test_pipeline_pickling_roundtrip(tmp_path):
     # Construit un pipeline complet avec scaler et réducteur PCA
     pipeline = build_pipeline(
         preprocessors=[],
-        sfreq=100.0,
-        scaler="standard",
-        classifier="logistic",
-        dim_method="pca",
+        config=PipelineConfig(
+            sfreq=100.0,
+            scaler="standard",
+            classifier="logistic",
+            dim_method="pca",
+        ),
     )
     # Entraîne le pipeline sur les données synthétiques
     pipeline.fit(X, y)
@@ -54,14 +65,12 @@ def test_pipeline_cross_val_score_runs():
     # Construit un pipeline sans scaler pour tester la configuration minimale
     pipeline = build_pipeline(
         preprocessors=[],
-        sfreq=100.0,
-        classifier="lda",
-        dim_method="pca",
+        config=PipelineConfig(sfreq=100.0, classifier="lda", dim_method="pca"),
     )
     # Exécute une validation croisée à trois plis pour vérifier l'intégration
-    scores = cross_val_score(pipeline, X, y, cv=3)
+    scores = cross_val_score(pipeline, X, y, cv=CROSS_VALIDATION_SPLITS)
     # Valide que trois scores sont produits sans lever d'exception
-    assert len(scores) == 3
+    assert len(scores) == CROSS_VALIDATION_SPLITS
 
 
 # Vérifie l'absence de fuite de labels sur des données sans signal
@@ -76,12 +85,14 @@ def test_pipeline_no_label_leakage():
     # Construit un pipeline avec scaler robuste pour varier la configuration
     pipeline = build_pipeline(
         preprocessors=[],
-        sfreq=120.0,
-        scaler="robust",
-        classifier="svm",
-        dim_method="pca",
+        config=PipelineConfig(
+            sfreq=120.0,
+            scaler="robust",
+            classifier="svm",
+            dim_method="pca",
+        ),
     )
     # Évalue la performance moyenne sur quatre plis de validation croisée
-    scores = cross_val_score(pipeline, X, y, cv=4)
+    scores = cross_val_score(pipeline, X, y, cv=LEAKAGE_SPLITS)
     # Vérifie que la moyenne reste proche du hasard pour exclure une fuite
-    assert np.mean(scores) < 0.7
+    assert np.mean(scores) < LEAKAGE_THRESHOLD
