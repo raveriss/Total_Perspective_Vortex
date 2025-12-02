@@ -1,12 +1,45 @@
 # Physionet EEG Motor Imagery — récupération des données
 
-## Lien officiel
-- Portail Physionet : https://physionet.org/content/eegmmidb/1.0.0/
+## Jeu de données attendu
+- Portail officiel : https://physionet.org/content/eegmmidb/1.0.0/
+- Périmètre : 109 sujets, 14 runs par sujet (`R01` à `R14`).
+- Volume : ~1.5 Go en EDF bruts, prévoir 2 Go libres pour les copies temporaires.
+- Licence d'accès : inscription Physionet requise (ensemble "EEG Motor Movement/Imagery").
 
 ## Format des fichiers
 - Enregistrements EDF issus de BCI2000 (64 canaux, 160 Hz) structurés en matrices channels × time.
 - Sessions séparées par sujet/run avec fichiers nommés `SXXXRYY.edf`.
 - Les téléchargements s’effectuent sans ré-emballage : la structure Physionet doit être conservée dans `data/raw/`.
+
+## Arborescence locale `data/raw/`
+```
+data/
+└── raw/
+    ├── manifest.json
+    ├── S001/
+    │   ├── S001R01.edf
+    │   ├── ...
+    │   └── S001R14.edf
+    └── S109/
+        ├── S109R01.edf
+        └── S109R14.edf
+```
+Le fichier `manifest.json` suit la structure :
+```json
+{
+  "files": [
+    {
+      "path": "S001/S001R01.edf",
+      "size": 1513488,
+      "sha256": "<hash officiel de S001R01.edf>"
+    }
+  ]
+}
+```
+
+## Points de vigilance sur le stockage
+- Les disques formatés FAT limitent la longueur des chemins : privilégier ext4 ou APFS.
+- Vérifier la présence des 64 canaux et de l'échantillonnage 160 Hz avant tout pré-traitement.
 
 ## Prérequis d’accès
 - Compte Physionet validé (accès restreint et acceptation de la licence des données EEG Motor Movement/Imagery).
