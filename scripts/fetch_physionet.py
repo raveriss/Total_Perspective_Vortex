@@ -45,9 +45,14 @@ def load_manifest(manifest_path: Path) -> list[dict[str, Any]]:
         raise IsADirectoryError(
             f"{ERROR_PREFIX} manifeste non lisible: {manifest_path}"
         )
-    # Charge le contenu JSON de manière déterministe
+    # Refuse les manifestes non dictionnaires pour éviter les attributs manquants
     with manifest_path.open("r", encoding="utf-8") as handle:
         manifest_data = json.load(handle)
+    # Valide le type du manifeste avant toute lecture de champ
+    if not isinstance(manifest_data, dict):
+        raise ValueError(
+            f"{ERROR_PREFIX} format de manifeste inattendu: {type(manifest_data)}"
+        )
     # Extrait la liste brute en validant le format du manifeste
     raw_files = manifest_data.get("files", [])
     # Bloque les schémas inattendus pour stabiliser la boucle d'import
