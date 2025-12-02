@@ -6,14 +6,14 @@ import matplotlib
 # Active Agg pour générer les PNG sans dépendre d'un écran
 matplotlib.use("Agg")
 
-# Importe pyplot pour tracer les figures comparatives
-import matplotlib.pyplot as plt
-
 # Importe argparse pour exposer les options CLI sujet/run/canaux
 import argparse
 
 # Importe json pour sérialiser la configuration accompagnant les figures
 import json
+
+# Importe dataclass pour encapsuler les paramètres de visualisation
+from dataclasses import dataclass
 
 # Importe pathlib pour gérer les chemins dataset et de sortie
 from pathlib import Path
@@ -21,8 +21,33 @@ from pathlib import Path
 # Importe typing pour typer explicitement les séquences et tuples
 from typing import Sequence, Tuple
 
+# Importe pyplot pour tracer les figures comparatives
+import matplotlib.pyplot as plt
+
+# Importe BaseRaw pour typer précisément les enregistrements EEG
+from mne.io import BaseRaw
+
 # Importe le filtrage validé pour rester aligné avec preprocessing
 from tpv.preprocessing import apply_bandpass_filter, load_physionet_raw
+
+
+# Regroupe les paramètres de visualisation pour limiter les arguments
+@dataclass
+class VisualizationConfig:
+    """Conteneur des options CLI pour la visualisation brut/filtré."""
+
+    # Définit la sélection facultative de canaux à tracer
+    channels: Sequence[str] | None
+    # Définit le répertoire de sortie des figures générées
+    output_dir: Path
+    # Choisit la méthode de filtrage alignée avec preprocessing
+    filter_method: str
+    # Spécifie la bande fréquentielle appliquée au signal
+    freq_band: Tuple[float, float]
+    # Spécifie la durée de padding pour réduire les artefacts de bord
+    pad_duration: float
+    # Définit un titre optionnel pour annoter la figure
+    title: str | None
 
 
 # Centralise la construction du parseur pour harmoniser l'interface CLI
@@ -102,7 +127,7 @@ def build_recording_path(data_root: Path, subject: str, run: str) -> Path:
 
 
 # Charge un enregistrement Physionet complet avec métadonnées associées
-def load_recording(recording_path: Path) -> Tuple[object, dict]:
+def load_recording(recording_path: Path) -> Tuple[BaseRaw, dict]:
     """Charge un Raw EDF et retourne le Raw plus ses métadonnées."""
 
     # Vérifie l'existence du fichier pour fournir un message clair au CLI
@@ -123,7 +148,7 @@ def load_recording(recording_path: Path) -> Tuple[object, dict]:
 
 
 # Sélectionne éventuellement les canaux avant filtrage pour accélérer les plots
-def pick_channels(raw: object, channels: Sequence[str] | None) -> object:
+def pick_channels(raw: BaseRaw, channels: Sequence[str] | None) -> BaseRaw:
     """Retourne un Raw limité aux canaux demandés si fournis."""
 
     # Court-circuite si aucun filtre de canaux n'est demandé
@@ -144,11 +169,11 @@ def pick_channels(raw: object, channels: Sequence[str] | None) -> object:
 
 # Applique le filtre passe-bande avec les paramètres CLI
 def filter_recording(
-    raw: object,
+    raw: BaseRaw,
     method: str,
     freq_band: Tuple[float, float],
     pad_duration: float,
-) -> object:
+) -> BaseRaw:
     """Applique le filtre bande-passante 8–40 Hz sur le Raw fourni."""
 
     # Délègue au helper preprocessing pour rester cohérent avec WBS 3.1
@@ -164,8 +189,8 @@ def filter_recording(
 
 # Trace le signal brut et filtré sur deux sous-graphiques alignés
 def plot_raw_vs_filtered(
-    raw: object,
-    filtered: object,
+    raw: BaseRaw,
+    filtered: BaseRaw,
     output_path: Path,
     title: str | None,
     metadata: dict,
@@ -226,12 +251,7 @@ def visualize_run(
     data_root: Path,
     subject: str,
     run: str,
-    channels: Sequence[str] | None,
-    output_dir: Path,
-    filter_method: str,
-    freq_band: Tuple[float, float],
-    pad_duration: float,
-    title: str | None,
+    config: VisualizationConfig,
 ) -> Path:
     """Pipeline complet de visualisation brut/filtré pour un run Physionet."""
 
@@ -240,18 +260,24 @@ def visualize_run(
     # Charge l'enregistrement et récupère ses métadonnées enrichies
     raw, metadata = load_recording(recording_path)
     # Limite éventuellement aux canaux sélectionnés pour focaliser la figure
-    picked_raw = pick_channels(raw, channels)
+    picked_raw = pick_channels(raw, config.channels)
     # Applique le filtre avec les paramètres demandés
     filtered = filter_recording(
         picked_raw,
-        method=filter_method,
-        freq_band=freq_band,
-        pad_duration=pad_duration,
+        method=config.filter_method,
+        freq_band=config.freq_band,
+        pad_duration=config.pad_duration,
     )
     # Détermine le chemin de sortie en nommant selon sujet/run
-    output_path = Path(output_dir) / f"raw_vs_filtered_{subject}_{run}.png"
+    output_path = Path(config.output_dir) / f"raw_vs_filtered_{subject}_{run}.png"
     # Enregistre la figure et retourne le chemin généré
-    return plot_raw_vs_filtered(picked_raw, filtered, output_path, title, metadata)
+    return plot_raw_vs_filtered(
+        picked_raw,
+        filtered,
+        output_path,
+        config.title,
+        metadata,
+    )
 
 
 # Point d'entrée CLI conforme aux instructions README
@@ -264,16 +290,20 @@ def main() -> None:
     args = parser.parse_args()
     # Déclenche la visualisation avec les paramètres fournis
     try:
-        visualize_run(
-            data_root=Path(args.data_root),
-            subject=args.subject,
-            run=args.run,
+        # Instancie la configuration pour respecter la limite d'arguments
+        config = VisualizationConfig(
             channels=args.channels,
             output_dir=Path(args.output_dir),
             filter_method=args.filter_method,
             freq_band=(float(args.freq_band[0]), float(args.freq_band[1])),
             pad_duration=float(args.pad_duration),
             title=args.title,
+        )
+        visualize_run(
+            data_root=Path(args.data_root),
+            subject=args.subject,
+            run=args.run,
+            config=config,
         )
     except Exception as error:  # noqa: BLE001
         # Affiche l'erreur pour que la CI capture la cause exacte

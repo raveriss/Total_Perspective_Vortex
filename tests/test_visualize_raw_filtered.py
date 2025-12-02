@@ -3,9 +3,6 @@
 # Importe pathlib pour gérer les répertoires temporaires de sortie
 from pathlib import Path
 
-# Importe typing pour typer explicitement les séquences de canaux
-from typing import Sequence
-
 # Importe mne pour construire un Raw synthétique simulant Physionet
 import mne
 
@@ -66,17 +63,21 @@ def test_visualize_run_smoke(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     monkeypatch.setattr(viz, "load_recording", lambda _: (raw, dict(metadata)))
     # Remplace le filtre pour éviter l'appel MNE coûteux en test
     monkeypatch.setattr(viz, "apply_bandpass_filter", _mock_filter)
-    # Exécute la visualisation avec une sélection de canal unique
-    output_path = viz.visualize_run(
-        data_root=Path("data/raw"),
-        subject="S01",
-        run="R01",
+    # Prépare la configuration pour limiter le nombre d'arguments transmis
+    config = viz.VisualizationConfig(
         channels=["C3"],
         output_dir=tmp_path,
         filter_method="fir",
         freq_band=(8.0, 40.0),
         pad_duration=0.1,
         title="Smoke Test",
+    )
+    # Exécute la visualisation avec une sélection de canal unique
+    output_path = viz.visualize_run(
+        data_root=Path("data/raw"),
+        subject="S01",
+        run="R01",
+        config=config,
     )
     # Vérifie que le PNG a bien été écrit
     assert output_path.exists()
