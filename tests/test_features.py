@@ -3,14 +3,17 @@
 # Importe time pour mesurer le temps d'exécution
 import time
 
+# Importe pytest pour vérifier les erreurs levées par l'extracteur
+import pytest
+
 # Importe numpy pour générer des signaux synthétiques contrôlés
 import numpy as np
 
 # Importe mne pour construire des Epochs simulant des enregistrements EEG
 from mne import EpochsArray, create_info
 
-# Importe l'extracteur de features configurables développé dans le module tpv
-from tpv.features import extract_features
+# Importe les API d'extraction pour vérifier la conformité des contrôles
+from tpv.features import ExtractFeatures, extract_features
 
 # Définit un budget temporel strict pour garantir des performances interactives
 TIME_BUDGET_S = 0.05
@@ -83,3 +86,50 @@ def test_extract_features_runtime_budget() -> None:
     stop = time.perf_counter()
     # Garantit que le traitement reste inférieur au budget temporel fixé
     assert (stop - start) < TIME_BUDGET_S
+
+
+def test_extract_features_transform_rejects_wrong_shape() -> None:
+    """The scikit-learn wrapper should guard against malformed tensors."""
+
+    # Construit un tenseur 2D pour déclencher la validation des dimensions
+    bad_tensor = np.zeros((4, 16))
+    # Instancie l'extracteur avec une fréquence arbitraire pour le test
+    extractor = ExtractFeatures(sfreq=128.0)
+    # Vérifie que la validation signale l'absence de la troisième dimension
+    with pytest.raises(ValueError):
+        extractor.transform(bad_tensor)
+
+
+def test_extract_features_transform_rejects_unknown_strategy() -> None:
+    """The wrapper must refuse unsupported feature strategies."""
+
+    # Crée un tenseur conforme pour isoler l'erreur de stratégie
+    eeg_tensor = np.zeros((1, 1, 16))
+    # Force une stratégie inconnue afin d'atteindre la branche d'erreur
+    extractor = ExtractFeatures(sfreq=128.0, feature_strategy="unknown")
+    # Confirme que l'appelant est informé de la stratégie non supportée
+    with pytest.raises(ValueError):
+        extractor.transform(eeg_tensor)
+
+
+def test_extract_features_transform_wavelet_placeholder() -> None:
+    """The wrapper should mirror the procedural placeholder for wavelets."""
+
+    # Génère un tenseur factice pour tester la branche placeholder
+    eeg_tensor = np.ones((2, 3, 32))
+    # Configure l'extracteur pour utiliser la stratégie wavelet non implémentée
+    extractor = ExtractFeatures(sfreq=128.0, feature_strategy="wavelet")
+    # Vérifie que le placeholder respecte la forme attendue sans calcul réel
+    output = extractor.transform(eeg_tensor)
+    # Garantit que le placeholder renvoie des zéros dimensionnés par bande
+    assert np.array_equal(output, np.zeros((2, 12)))
+
+
+def test_extract_features_rejects_unknown_method() -> None:
+    """The procedural helper should reject unhandled extraction methods."""
+
+    # Prépare des epochs pour activer la voie de validation de méthode
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=64, sfreq=64.0)
+    # Passe une méthode inconnue pour vérifier le message d'erreur explicite
+    with pytest.raises(ValueError):
+        extract_features(epochs, config={"method": "unknown"})
