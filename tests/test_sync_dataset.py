@@ -1,8 +1,7 @@
 # Oriente le test vers l'exécution réelle du script CLI
-import subprocess
-
 # Fournit la sérialisation du manifeste de test
 import json
+import subprocess
 
 # Centralise la gestion des chemins temporaires
 from pathlib import Path
@@ -15,11 +14,7 @@ def test_sync_dataset_fails_on_missing_file(tmp_path: Path) -> None:
     # Crée effectivement le répertoire pour éviter une erreur d'accès
     source_root.mkdir()
     # Décrit un manifeste pointant vers un fichier manquant
-    manifest_content = {
-        "files": [
-            {"path": "missing.bin", "size": 1, "sha256": "00"}
-        ]
-    }
+    manifest_content = {"files": [{"path": "missing.bin", "size": 1, "sha256": "00"}]}
     # Sérialise le manifeste pour l'injecter dans le script
     manifest_path = tmp_path / "manifest.json"
     # Écrit le manifeste sur disque afin que le CLI puisse le lire
@@ -34,7 +29,8 @@ def test_sync_dataset_fails_on_missing_file(tmp_path: Path) -> None:
         str(manifest_path),
     ]
     # Exécute le script en capturant stdout et stderr pour validation
-    result = subprocess.run(command, capture_output=True, text=True)
+    # Désactive la levée automatique pour inspecter manuellement le retour
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
     # Confirme que le code de retour signale bien l'échec
     assert result.returncode == 1
     # Vérifie que le message d'erreur mentionne l'absence du fichier
@@ -77,7 +73,8 @@ def test_sync_dataset_fails_on_corrupted_file(tmp_path: Path) -> None:
         str(manifest_path),
     ]
     # Exécute le script en capturant stdout et stderr pour validation
-    result = subprocess.run(command, capture_output=True, text=True)
+    # Désactive la levée automatique pour inspecter manuellement le retour
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
     # Confirme que le code de retour signale bien l'échec
     assert result.returncode == 1
     # Vérifie que le message d'erreur mentionne le hash invalide

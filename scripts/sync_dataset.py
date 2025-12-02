@@ -22,7 +22,6 @@ import urllib.request
 # Gère les chemins de manière portable entre plateformes
 from pathlib import Path
 
-
 # Normalise le chemin racine de destination pour les données brutes
 DEFAULT_DESTINATION = Path("data/raw")
 
@@ -98,12 +97,14 @@ def retrieve_file(source_root: str, entry: dict, destination_root: Path) -> Path
         return destination_path
     # Valide le schéma pour éviter des protocoles inattendus
     parsed_url = urllib.parse.urlparse(source_location)
-    # Refuse tout schéma non HTTP pour contenir la surface d'attaque
-    if parsed_url.scheme not in ("http", "https"):
+    # Refuse tout schéma non HTTPS pour contenir la surface d'attaque
+    if parsed_url.scheme != "https":
         raise ValueError(f"schéma URL interdit: {parsed_url.scheme}")
+    # Construit un opener dédié aux connexions HTTPS sécurisées
+    https_opener = urllib.request.build_opener(urllib.request.HTTPSHandler())
     # Tente un téléchargement contrôlé avec gestion des erreurs réseau
     try:
-        with urllib.request.urlopen(source_location) as response:
+        with https_opener.open(source_location) as response:
             with destination_path.open("wb") as target:
                 shutil.copyfileobj(response, target)
     except OSError as error:
