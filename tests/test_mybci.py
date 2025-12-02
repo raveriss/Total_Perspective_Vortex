@@ -17,6 +17,12 @@ MODULE_FAILURE_CODE = 5
 
 EXIT_USAGE = 2
 
+# Fixe le nombre de composantes demandé lors du mode train
+TRAIN_COMPONENTS = 7
+
+# Fixe le nombre de composantes demandé lors du mode predict
+PREDICT_COMPONENTS = 9
+
 
 def test_parse_args_returns_expected_namespace():
     args = mybci.parse_args(["S01", "R01", "train"])
@@ -220,6 +226,8 @@ def test_main_propagates_module_failure(monkeypatch):
     exit_code = mybci.main(["S01", "R01", "train"])
     # Valide que main renvoie exactement le code d'échec du module
     assert exit_code == MODULE_FAILURE_CODE
+
+
 def test_build_parser_defines_optional_defaults_and_choices():
     parser = mybci.build_parser()
 
@@ -292,39 +300,45 @@ def test_parse_args_defaults_match_parser_configuration():
 
 def test_parse_args_rejects_unknown_optional_choices(capsys):
     with pytest.raises(SystemExit) as excinfo:
-        mybci.parse_args([
-            "S01",
-            "R01",
-            "train",
-            "--classifier",
-            "invalid",
-        ])
+        mybci.parse_args(
+            [
+                "S01",
+                "R01",
+                "train",
+                "--classifier",
+                "invalid",
+            ]
+        )
 
     assert excinfo.value.code == EXIT_USAGE
     stderr = capsys.readouterr().err
     assert "invalid choice" in stderr
 
     with pytest.raises(SystemExit) as excinfo:
-        mybci.parse_args([
-            "S01",
-            "R01",
-            "train",
-            "--n-components",
-            "invalid",
-        ])
+        mybci.parse_args(
+            [
+                "S01",
+                "R01",
+                "train",
+                "--n-components",
+                "invalid",
+            ]
+        )
 
     assert excinfo.value.code == EXIT_USAGE
     stderr = capsys.readouterr().err
     assert "invalid int value" in stderr
 
     with pytest.raises(SystemExit) as excinfo:
-        mybci.parse_args([
-            "S01",
-            "R01",
-            "train",
-            "--scaler",
-            "invalid",
-        ])
+        mybci.parse_args(
+            [
+                "S01",
+                "R01",
+                "train",
+                "--scaler",
+                "invalid",
+            ]
+        )
 
     assert excinfo.value.code == EXIT_USAGE
     stderr = capsys.readouterr().err
@@ -359,19 +373,21 @@ def test_main_respects_no_normalize_flag(monkeypatch):
 
     monkeypatch.setattr(mybci, "_call_module", fake_call)
 
-    exit_code = mybci.main([
-        "S11",
-        "R12",
-        "train",
-        "--no-normalize-features",
-        "--n-components",
-        "7",
-    ])
+    exit_code = mybci.main(
+        [
+            "S11",
+            "R12",
+            "train",
+            "--no-normalize-features",
+            "--n-components",
+            str(TRAIN_COMPONENTS),
+        ]
+    )
 
     assert exit_code == 0
     config = captured["config"]
     assert config.normalize_features is False
-    assert config.n_components == 7
+    assert config.n_components == TRAIN_COMPONENTS
 
 
 def test_main_propagates_all_cli_options(monkeypatch):
@@ -397,7 +413,7 @@ def test_main_propagates_all_cli_options(monkeypatch):
             "--dim-method",
             "csp",
             "--n-components",
-            "9",
+            str(PREDICT_COMPONENTS),
         ]
     )
 
@@ -408,6 +424,5 @@ def test_main_propagates_all_cli_options(monkeypatch):
     assert config.scaler == "robust"
     assert config.feature_strategy == "wavelet"
     assert config.dim_method == "csp"
-    assert config.n_components == 9
+    assert config.n_components == PREDICT_COMPONENTS
     assert config.normalize_features is True
-

@@ -5,13 +5,13 @@ import numpy as np
 
 # Utilise pytest pour les assertions et la gestion des fixtures temporaires
 import pytest
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.linear_model import LogisticRegression
 
 # Vérifie la compatibilité scikit-learn pour les scores de CV
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.svm import LinearSVC
-from sklearn.linear_model import LogisticRegression
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 # Importe la construction et la persistance du pipeline TPV
 from tpv.pipeline import (
@@ -31,6 +31,12 @@ LEAKAGE_SPLITS = 4
 
 # Fixe la borne d'exactitude pour détecter des fuites de labels
 LEAKAGE_THRESHOLD = 0.7
+
+# Fixe le nombre maximal d'itérations utilisé par la régression logistique
+LOGISTIC_MAX_ITER = 1000
+
+# Fixe le nombre de composantes CSP utilisé dans les tests de pipeline
+CSP_COMPONENTS = 5
 
 
 # Vérifie que le pipeline peut être sauvegardé puis rechargé sans perte
@@ -112,7 +118,9 @@ def test_pipeline_no_label_leakage():
 def test_build_scaler_rejects_invalid_value():
     """Garantit une erreur explicite lorsque le scaler est inconnu."""
 
-    with pytest.raises(ValueError, match="scaler must be 'standard', 'robust', or None"):
+    with pytest.raises(
+        ValueError, match="scaler must be 'standard', 'robust', or None"
+    ):
         build_pipeline(
             preprocessors=[],
             config=PipelineConfig(
@@ -127,7 +135,9 @@ def test_build_scaler_rejects_invalid_value():
 def test_build_classifier_rejects_invalid_value():
     """Garantit une erreur explicite lorsque le classifieur est inconnu."""
 
-    with pytest.raises(ValueError, match="classifier must be 'lda', 'logistic', or 'svm'"):
+    with pytest.raises(
+        ValueError, match="classifier must be 'lda', 'logistic', or 'svm'"
+    ):
         build_pipeline(
             preprocessors=[],
             config=PipelineConfig(
@@ -166,7 +176,8 @@ def test_build_classifier_supports_valid_variants():
 def test_build_classifier_sets_expected_parameters():
     classifier = _build_classifier("logistic")
 
-    assert classifier.max_iter == 1000
+    assert isinstance(classifier, LogisticRegression)
+    assert classifier.max_iter == LOGISTIC_MAX_ITER
 
 
 def test_build_classifier_accepts_uppercase_values():
@@ -207,7 +218,9 @@ def test_build_pipeline_includes_preprocessors_and_scaler():
 def test_build_pipeline_omits_scaler_when_none():
     pipeline = build_pipeline(
         preprocessors=[],
-        config=PipelineConfig(sfreq=128.0, scaler=None, classifier="lda", dim_method="csp"),
+        config=PipelineConfig(
+            sfreq=128.0, scaler=None, classifier="lda", dim_method="csp"
+        ),
     )
 
     assert "scaler" not in pipeline.named_steps
@@ -237,11 +250,11 @@ def test_build_pipeline_uses_configured_strategies():
             scaler="robust",
             classifier="logistic",
             dim_method="csp",
-            n_components=5,
+            n_components=CSP_COMPONENTS,
             feature_strategy="wavelet",
         ),
     )
 
     assert pipeline.named_steps["features"].feature_strategy == "wavelet"
     assert pipeline.named_steps["dimensionality"].method == "csp"
-    assert pipeline.named_steps["dimensionality"].n_components == 5
+    assert pipeline.named_steps["dimensionality"].n_components == CSP_COMPONENTS
