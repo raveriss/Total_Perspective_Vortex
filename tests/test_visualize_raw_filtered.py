@@ -3,6 +3,15 @@
 # Importe pathlib pour gérer les répertoires temporaires de sortie
 from pathlib import Path
 
+# Importe sys pour manipuler argv lors des tests CLI
+import sys
+
+# Importe runpy pour exécuter le module en mode script
+import runpy
+
+# Importe types pour créer un module factice tpv.preprocessing
+import types
+
 # Importe mne pour construire un Raw synthétique simulant Physionet
 import mne
 
@@ -40,6 +49,163 @@ def _mock_filter(raw: mne.io.Raw, **_: object) -> mne.io.Raw:
     filtered._data = raw.get_data() * 0.5
     # Retourne le Raw filtré synthétique
     return filtered
+
+
+# Vérifie que le parseur propose bien les valeurs par défaut attendues
+def test_build_parser_defaults() -> None:
+    """Valide la configuration CLI minimale sans overrides."""
+
+    # Construit le parseur dédié à la visualisation
+    parser = viz.build_parser()
+    # Parse uniquement sujet/run pour activer les valeurs par défaut
+    args = parser.parse_args(["S01", "R02"])
+    # Vérifie la racine dataset par défaut
+    assert args.data_root == "data/raw"
+    # Vérifie le répertoire de sortie par défaut
+    assert args.output_dir == "docs/viz"
+    # Vérifie la méthode de filtrage par défaut
+    assert args.filter_method == "fir"
+    # Vérifie la bande de fréquence par défaut
+    assert tuple(args.freq_band) == (8.0, 40.0)
+    # Vérifie la durée de padding par défaut
+    assert args.pad_duration == 0.5
+
+
+# Vérifie que load_recording signale l'absence du fichier demandé
+def test_load_recording_missing_file(tmp_path: Path) -> None:
+    """Assure une erreur explicite lorsque le run n'existe pas."""
+
+    # Construit un chemin inexistant pour déclencher l'erreur
+    missing_path = tmp_path / "absent" / "R01.edf"
+    # Vérifie que FileNotFoundError est bien levée
+    with pytest.raises(FileNotFoundError):
+        viz.load_recording(missing_path)
+
+
+# Vérifie que load_recording enrichit les métadonnées lorsque le fichier existe
+def test_load_recording_hydrates_metadata(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Confirme que sujet et run sont ajoutés aux métadonnées."""
+
+    # Construit un fichier EDF factice pour passer le check d'existence
+    recording_path = tmp_path / "S99" / "R05.edf"
+    # Crée les répertoires nécessaires
+    recording_path.parent.mkdir(parents=True)
+    # Écrit un contenu vide pour matérialiser le fichier
+    recording_path.write_bytes(b"")
+    # Prépare un Raw et des métadonnées simulées
+    raw = _build_dummy_raw()
+    metadata = {"foo": "bar"}
+    # Remplace le loader Physionet par un mock contrôlé
+    monkeypatch.setattr(viz, "load_physionet_raw", lambda _: (raw, dict(metadata)))
+    # Charge le fichier avec le mock
+    loaded_raw, loaded_metadata = viz.load_recording(recording_path)
+    # Vérifie que le Raw retourné correspond au mock
+    assert loaded_raw is raw
+    # Vérifie l'enrichissement des métadonnées avec sujet et run
+    assert loaded_metadata["subject"] == "S99"
+    # Vérifie le nom de run inséré
+    assert loaded_metadata["run"] == "R05"
+
+
+# Vérifie que pick_channels retourne le Raw original lorsque aucun filtre n'est demandé
+def test_pick_channels_pass_through() -> None:
+    """Garantit l'absence de copie quand channels est None."""
+
+    # Construit un Raw synthétique pour l'appel
+    raw = _build_dummy_raw()
+    # Appelle pick_channels sans sélection
+    picked = viz.pick_channels(raw, None)
+    # Vérifie que l'objet retourné est identique
+    assert picked is raw
+
+
+# Vérifie que pick_channels signale les canaux inconnus
+def test_pick_channels_unknown_channel() -> None:
+    """S'assure qu'une erreur claire est levée sur un canal manquant."""
+
+    # Construit un Raw synthétique pour l'appel
+    raw = _build_dummy_raw()
+    # Vérifie que la demande d'un canal absent lève une ValueError
+    with pytest.raises(ValueError):
+        viz.pick_channels(raw, ["CZ"])
+
+
+# Vérifie que main construit bien la configuration et invoque visualize_run
+def test_main_invokes_visualize_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Valide le parcours CLI nominal sans échec."""
+
+    # Prépare une fonction sentinelle pour capturer les arguments
+    called = {}
+
+    # Définit un stub qui mémorise les paramètres reçus
+    def _spy_visualize_run(**kwargs: object) -> None:
+        called.update(kwargs)
+
+    # Injecte le stub à la place de visualize_run
+    monkeypatch.setattr(viz, "visualize_run", _spy_visualize_run)
+    # Configure argv pour simuler une invocation CLI minimale
+    monkeypatch.setattr(sys, "argv", ["prog", "S10", "R03"])
+    # Exécute main pour déclencher la construction de config
+    viz.main()
+    # Vérifie que visualize_run a bien été invoqué
+    assert called["subject"] == "S10"
+    # Vérifie que le run transmis correspond à argv
+    assert called["run"] == "R03"
+    # Vérifie que la configuration passée est une VisualizationConfig
+    assert isinstance(called["config"], viz.VisualizationConfig)
+
+
+# Vérifie que le guard __main__ s'exécute sans lancer la CLI réelle
+def test_main_guard_covered(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Exécute le module en mode script en isolant les dépendances."""
+
+    # Crée un module preprocessing factice pour intercepter les imports
+    fake_preprocessing = types.ModuleType("tpv.preprocessing")
+    # Construit un Raw synthétique à renvoyer par le loader mocké
+    dummy_raw = _build_dummy_raw()
+    # Fournit un filtre no-op pour éviter tout calcul lourd
+    fake_preprocessing.apply_bandpass_filter = lambda raw, **_: raw
+    # Fournit un loader factice qui renvoie le Raw synthétique
+    fake_preprocessing.load_physionet_raw = lambda path: (dummy_raw.copy(), {"path": str(path)})
+    # Injecte le module factice dans sys.modules pour l'exécution runpy
+    monkeypatch.setitem(sys.modules, "tpv.preprocessing", fake_preprocessing)
+    # Prépare un répertoire data/root minimal pour satisfaire load_recording
+    data_root = tmp_path / "data"
+    # Crée le dossier sujet pour respecter la hiérarchie attendue
+    (data_root / "S20").mkdir(parents=True)
+    # Crée un fichier EDF vide pour passer le check d'existence
+    (data_root / "S20" / "R09.edf").write_bytes(b"")
+    # Configure argv pour pointer vers le dataset factice et un output temporaire
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "prog",
+            "S20",
+            "R09",
+            "--data-root",
+            str(data_root),
+            "--output-dir",
+            str(tmp_path / "viz"),
+        ],
+    )
+    # Exécute le module comme un script pour couvrir le guard
+    runpy.run_module("scripts.visualize_raw_filtered", run_name="__main__", alter_sys=True)
+
+
+# Vérifie que main relaie correctement les erreurs via SystemExit
+def test_main_propagates_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Assure la conversion des erreurs runtime en code de sortie non nul."""
+
+    # Force visualize_run à lever une exception contrôlée
+    monkeypatch.setattr(viz, "visualize_run", lambda **_: (_ for _ in ()).throw(RuntimeError("boom")))
+    # Configure argv pour fournir les arguments requis
+    monkeypatch.setattr(sys, "argv", ["prog", "S11", "R07"])
+    # Vérifie que main convertit l'erreur en SystemExit
+    with pytest.raises(SystemExit) as excinfo:
+        viz.main()
+    # Vérifie que le code de sortie est non nul
+    assert excinfo.value.code == 1
 
 
 # Vérifie que visualize_run produit bien un PNG et un JSON sans dataset
