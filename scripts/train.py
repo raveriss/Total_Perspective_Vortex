@@ -170,7 +170,7 @@ def run_training(request: TrainingRequest) -> dict:
     # Charge les tableaux numpy nécessaires à l'entraînement
     X, y = _load_data(features_path, labels_path)
     # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(None, request.pipeline_config)
+    pipeline = build_pipeline(request.pipeline_config)
     # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
     min_class_count = int(np.bincount(y).min())
     # Choisit le nombre de splits en restant compatible avec la taille des classes
