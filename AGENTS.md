@@ -68,6 +68,18 @@ Toute divergence entre la pipeline locale (section 2) et les jobs CI
 Toute réponse qui ne contient **pas** la section structurée
 « CHECKLIST 2) – état AVANT COMMIT » est considérée comme **invalide**.
 
+### ⛔ Blocage préventif sur `pre-commit`
+
+- Tant que **tous les tests locaux** (2.3 `make cov` et 2.4 `mutmut`) ne sont
+  pas **exécutés et verts dans la session en cours**, l’agent n’exécute pas
+  `poetry run pre-commit run --all-files` ni aucun alias équivalent.
+- Si 2.3 ou 2.4 sont ❌ ou inconnus, l’agent doit **refuser** tout lancement de
+  `pre-commit`, l’indiquer explicitement dans la réponse et clôturer par
+  `→ Commit autorisé : ❌`.
+- Seule exception : pour diagnostiquer un hook, l’agent peut lire la
+  configuration (`.pre-commit-config.yaml`) ou les logs, mais sans exécuter
+  `pre-commit` tant que la checklist 2) n’est pas entièrement verte.
+
 
 ---
 
