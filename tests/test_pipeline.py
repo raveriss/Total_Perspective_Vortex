@@ -1,18 +1,18 @@
+# Garantit l'accès à numpy pour générer des données synthétiques
+import numpy as np
+
 # Garantit l'accès à pytest pour structurer les tests
 import pytest
 
-# Garantit l'accès à numpy pour générer des données synthétiques
-import numpy as np
+# Offre les classifieurs pour valider le mapping des options
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.linear_model import LogisticRegression
 
 # Offre cross_val_score pour vérifier l'intégration scikit-learn
 from sklearn.model_selection import cross_val_score
 
 # Offre les scalers pour valider la configuration du pipeline
 from sklearn.preprocessing import RobustScaler, StandardScaler
-
-# Offre les classifieurs pour valider le mapping des options
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
 
 # Récupère les API du pipeline à tester
@@ -25,7 +25,6 @@ from tpv.pipeline import (
     load_pipeline,
     save_pipeline,
 )
-
 
 # Fixe le nombre de plis pour harmoniser les validations croisées
 CROSS_VALIDATION_SPLITS = 3
@@ -97,9 +96,7 @@ def test_pipeline_no_label_leakage():
     y = np.random.randint(0, 2, size=60)
     # Construit un pipeline avec scaler robuste
     pipeline = build_pipeline(
-        PipelineConfig(
-            sfreq=120.0, scaler="robust", classifier="svm", dim_method="pca"
-        )
+        PipelineConfig(sfreq=120.0, scaler="robust", classifier="svm", dim_method="pca")
     )
     # Calcule les scores moyens sur quatre plis
     scores = cross_val_score(pipeline, X, y, cv=LEAKAGE_SPLITS)
