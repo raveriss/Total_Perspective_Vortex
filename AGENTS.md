@@ -44,8 +44,8 @@ tant qu’il n’a pas, dans **cette réponse précise** :
    - ❌ : la commande est en échec.
    - ❌ (inconnu) : l’agent n’a **aucune preuve** que la commande est OK.
 
-> **Règle dure** :  
-> Si une seule des lignes 2.2, 2.3 ou 2.4 est ❌ ou inconnue,  
+> **Règle dure** :
+> Si une seule des lignes 2.2, 2.3 ou 2.4 est ❌ ou inconnue,
 > l’agent doit **écrire explicitement** `→ Commit autorisé : ❌`.
 
 Dans ce cas, l’agent doit :
