@@ -1393,6 +1393,21 @@ def test_create_epochs_respects_custom_window(tmp_path: Path) -> None:
     assert epochs.tmax == pytest.approx(0.1, abs=2e-3)
 
 
+def test_create_epochs_rejects_non_numeric_events() -> None:
+    """Ensure event validation rejects non-integer indices."""
+
+    # Build a raw instance with valid annotations
+    raw = _build_dummy_raw()
+    # Inject a non-integer event code to trigger validation
+    invalid_events = np.array([[0, 0, "a"]], dtype=object)
+    # Map the invalid code to an integer label to mimic misuse
+    event_id = {"a": 1}
+    # Expect a clear error before MNE receives malformed events
+    with pytest.raises(ValueError, match="integer-coded sample indices"):
+        # Invoke the helper to surface the validation error
+        create_epochs_from_raw(raw, invalid_events, event_id)
+
+
 def test_create_epochs_uses_default_window() -> None:
     """Ensure the default epoch window remains unchanged."""
 
