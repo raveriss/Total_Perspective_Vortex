@@ -96,3 +96,33 @@ def test_pipeline_no_label_leakage():
     scores = cross_val_score(pipeline, X, y, cv=LEAKAGE_SPLITS)
     # Vérifie que la moyenne reste proche du hasard pour exclure une fuite
     assert np.mean(scores) < LEAKAGE_THRESHOLD
+
+
+def test_build_scaler_rejects_invalid_value():
+    """Garantit une erreur explicite lorsque le scaler est inconnu."""
+
+    with pytest.raises(ValueError):
+        build_pipeline(
+            preprocessors=[],
+            config=PipelineConfig(
+                sfreq=100.0,
+                scaler="invalid",
+                classifier="lda",
+                dim_method="pca",
+            ),
+        )
+
+
+def test_build_classifier_rejects_invalid_value():
+    """Garantit une erreur explicite lorsque le classifieur est inconnu."""
+
+    with pytest.raises(ValueError):
+        build_pipeline(
+            preprocessors=[],
+            config=PipelineConfig(
+                sfreq=100.0,
+                scaler=None,
+                classifier="invalid",
+                dim_method="pca",
+            ),
+        )

@@ -145,6 +145,54 @@ def test_call_module_executes_python_module(monkeypatch):
     ]
 
 
+def test_call_module_appends_optional_arguments(monkeypatch):
+    recorded_command: list[str] = []
+
+    class DummyCompletedProcess:
+        returncode = 0
+
+    def fake_run(command: list[str], check: bool) -> DummyCompletedProcess:
+        recorded_command.extend(command)
+        assert check is False
+        return DummyCompletedProcess()
+
+    monkeypatch.setattr(mybci.subprocess, "run", fake_run)
+
+    exit_code = mybci._call_module(
+        "tpv.predict",
+        mybci.ModuleCallConfig(
+            subject="S05",
+            run="R06",
+            classifier="svm",
+            scaler="standard",
+            feature_strategy="wavelet",
+            dim_method="csp",
+            n_components=12,
+            normalize_features=False,
+        ),
+    )
+
+    assert exit_code == 0
+    assert recorded_command == [
+        sys.executable,
+        "-m",
+        "tpv.predict",
+        "S05",
+        "R06",
+        "--classifier",
+        "svm",
+        "--scaler",
+        "standard",
+        "--feature-strategy",
+        "wavelet",
+        "--dim-method",
+        "csp",
+        "--n-components",
+        "12",
+        "--no-normalize-features",
+    ]
+
+
 # Vérifie que main remonte l'échec propagé par un module sous-jacent
 def test_main_propagates_module_failure(monkeypatch):
     # Force un code retour non nul pour simuler un pipeline échoué
