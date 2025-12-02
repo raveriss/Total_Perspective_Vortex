@@ -1,16 +1,19 @@
 """Tests de fumée pour scripts/visualize_raw_filtered.py sans dataset."""
 
-# Importe pathlib pour gérer les répertoires temporaires de sortie
-from pathlib import Path
+# Importe runpy pour exécuter le module en mode script
+import runpy
 
 # Importe sys pour manipuler argv lors des tests CLI
 import sys
 
-# Importe runpy pour exécuter le module en mode script
-import runpy
-
 # Importe types pour créer un module factice tpv.preprocessing
 import types
+
+# Importe pathlib pour gérer les répertoires temporaires de sortie
+from pathlib import Path
+
+# Importe typing pour typer explicitement les modules patchés
+from typing import Any, cast
 
 # Importe mne pour construire un Raw synthétique simulant Physionet
 import mne
@@ -23,6 +26,9 @@ import pytest
 
 # Importe le module à tester pour cibler directement visualize_run
 import scripts.visualize_raw_filtered as viz
+
+# Centralise la valeur de padding par défaut pour éviter une constante magique
+PAD_DURATION_DEFAULT = 0.5
 
 
 # Construit un Raw synthétique minimal pour les tests rapides
@@ -68,7 +74,7 @@ def test_build_parser_defaults() -> None:
     # Vérifie la bande de fréquence par défaut
     assert tuple(args.freq_band) == (8.0, 40.0)
     # Vérifie la durée de padding par défaut
-    assert args.pad_duration == 0.5
+    assert args.pad_duration == PAD_DURATION_DEFAULT
 
 
 # Vérifie que load_recording signale l'absence du fichier demandé
@@ -83,7 +89,9 @@ def test_load_recording_missing_file(tmp_path: Path) -> None:
 
 
 # Vérifie que load_recording enrichit les métadonnées lorsque le fichier existe
-def test_load_recording_hydrates_metadata(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_load_recording_hydrates_metadata(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Confirme que sujet et run sont ajoutés aux métadonnées."""
 
     # Construit un fichier EDF factice pour passer le check d'existence
@@ -163,10 +171,15 @@ def test_main_guard_covered(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     fake_preprocessing = types.ModuleType("tpv.preprocessing")
     # Construit un Raw synthétique à renvoyer par le loader mocké
     dummy_raw = _build_dummy_raw()
+    # Bascule le module factice en Any pour déclarer les attributs attendus
+    typed_preprocessing = cast(Any, fake_preprocessing)
     # Fournit un filtre no-op pour éviter tout calcul lourd
-    fake_preprocessing.apply_bandpass_filter = lambda raw, **_: raw
+    typed_preprocessing.apply_bandpass_filter = lambda raw, **_: raw
     # Fournit un loader factice qui renvoie le Raw synthétique
-    fake_preprocessing.load_physionet_raw = lambda path: (dummy_raw.copy(), {"path": str(path)})
+    typed_preprocessing.load_physionet_raw = lambda path: (
+        dummy_raw.copy(),
+        {"path": str(path)},
+    )
     # Injecte le module factice dans sys.modules pour l'exécution runpy
     monkeypatch.setitem(sys.modules, "tpv.preprocessing", fake_preprocessing)
     # Prépare un répertoire data/root minimal pour satisfaire load_recording
@@ -190,7 +203,9 @@ def test_main_guard_covered(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
         ],
     )
     # Exécute le module comme un script pour couvrir le guard
-    runpy.run_module("scripts.visualize_raw_filtered", run_name="__main__", alter_sys=True)
+    runpy.run_module(
+        "scripts.visualize_raw_filtered", run_name="__main__", alter_sys=True
+    )
 
 
 # Vérifie que main relaie correctement les erreurs via SystemExit
@@ -198,7 +213,9 @@ def test_main_propagates_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     """Assure la conversion des erreurs runtime en code de sortie non nul."""
 
     # Force visualize_run à lever une exception contrôlée
-    monkeypatch.setattr(viz, "visualize_run", lambda **_: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        viz, "visualize_run", lambda **_: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     # Configure argv pour fournir les arguments requis
     monkeypatch.setattr(sys, "argv", ["prog", "S11", "R07"])
     # Vérifie que main convertit l'erreur en SystemExit
