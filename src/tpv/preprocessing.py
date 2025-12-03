@@ -164,6 +164,8 @@ def load_mne_raw_checked(
         raise ValueError(f"Montage '{expected_montage}' could not be applied")
     # Capture montage channel names to compare against expected layout
     montage_channels = set(montage.ch_names)
+    # Capture surplus montage channels to document unexpected electrodes
+    extra_montage_channels = sorted(montage_channels - set(expected_channels))
     # Identify montage omissions that would break 10–20 assumptions
     missing_montage_channels = sorted(set(expected_channels) - montage_channels)
     # Raise explicit error when the montage lacks required 10–20 electrodes
@@ -174,6 +176,7 @@ def load_mne_raw_checked(
                 {
                     "error": "Montage missing expected channels",
                     "missing_channels": missing_montage_channels,
+                    "extra": extra_montage_channels,
                     "montage": expected_montage,
                 }
             )
