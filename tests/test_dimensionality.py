@@ -48,6 +48,8 @@ def test_csp_returns_log_variances_and_orthogonality() -> None:
     composite = reducer._regularize_matrix(
         reducer._average_covariance(class_a) + reducer._average_covariance(class_b)
     )
+    # Vérifie que la matrice W apprise est disponible avant le produit
+    assert reducer.w_matrix is not None
     # Calcule le produit attendu proche de l'identité
     identity_candidate = reducer.w_matrix.T @ composite @ reducer.w_matrix
     # Vérifie l'orthogonalité dans l'espace régularisé
@@ -77,8 +79,10 @@ def test_pca_explained_variance_and_projection_shape() -> None:
     # Vérifie la forme de la projection obtenue
     assert transformed.shape == (samples, 2)
     # Vérifie que les vecteurs propres sont orthonormés
+    assert reducer.w_matrix is not None
     assert np.allclose(reducer.w_matrix.T @ reducer.w_matrix, np.eye(2), atol=1e-6)
     # Calcule le ratio de variance expliquée
+    assert reducer.eigenvalues_ is not None
     variance_ratio = reducer.eigenvalues_ / reducer.eigenvalues_.sum()
     # Vérifie que la première composante capte la majorité de la variance
     assert variance_ratio[0] > DOMINANT_VARIANCE_THRESHOLD
@@ -196,6 +200,7 @@ def test_csp_handles_default_component_count_and_empty_trials_guard() -> None:
     # Apprend la matrice de projection en mode par défaut
     reducer.fit(trials, labels)
     # Vérifie que la matrice de projection conserve toutes les composantes
+    assert reducer.w_matrix is not None
     assert reducer.w_matrix.shape[1] == channels
     # Transforme les essais pour préparer un appel avec une dimension invalide
     _ = reducer.transform(trials)
