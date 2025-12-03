@@ -1,7 +1,10 @@
-# Importe numpy pour construire des signaux contrôlés et vérifier les résultats
+# Importe time pour suivre le budget temporel d'extraction
+from time import perf_counter
+
+# Importe numpy pour générer des signaux et des tenseurs de test
 import numpy as np
 
-# Importe pytest pour capturer les erreurs et les assertions
+# Importe pytest pour vérifier les erreurs et les approximations
 import pytest
 
 # Importe mne pour créer des epochs synthétiques conformes à l'API
@@ -9,6 +12,9 @@ from mne import EpochsArray, create_info
 
 # Importe l'extracteur procédural et la classe scikit-learn associée
 from tpv.features import ExtractFeatures, extract_features
+
+# Définit une constante pour le budget temps afin d'éviter les magic numbers
+MAX_EXTRACTION_SECONDS = 0.25
 
 
 def _build_epochs(
@@ -99,6 +105,21 @@ def test_extract_features_wavelet_placeholder_preserves_shape() -> None:
     assert np.array_equal(transformed, np.zeros((1, 12)))
 
 
+def test_extract_features_returns_zeros_when_band_mask_empty() -> None:
+    """Une bande hors spectre doit produire des puissances nulles."""
+
+    # Prépare des epochs avec une fréquence d'échantillonnage limitée
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=64, sfreq=64.0)
+    # Demande une bande trop haute pour être couverte par la FFT
+    features, labels = extract_features(
+        epochs, config={"method": "welch", "bands": [("void", (100.0, 120.0))]}
+    )
+    # Vérifie que la bande inexistante génère uniquement des zéros
+    assert np.array_equal(features, np.zeros((1, 1)))
+    # Vérifie que l'étiquette reflète la bande personnalisée
+    assert labels == ["C0_void"]
+
+
 def test_extract_features_wrapper_rejects_unknown_strategy() -> None:
     """La classe scikit-learn doit refuser les stratégies non supportées."""
 
@@ -144,3 +165,22 @@ def test_extract_features_numeric_stability() -> None:
     assert np.isfinite(features).all()
     # Vérifie l'absence de valeurs négatives après la moyenne de puissance
     assert (features >= 0).all()
+
+
+def test_extract_features_respects_time_budget() -> None:
+    """L'extraction Welch doit rester sous un budget temps raisonnable."""
+
+    # Construit des epochs plus longs pour sonder la performance temporelle
+    epochs = _build_epochs(n_epochs=5, n_channels=4, n_times=512, sfreq=256.0)
+    # Mesure l'instant initial pour contrôler la durée d'extraction
+    start = perf_counter()
+    # Lance l'extraction avec une configuration Welch recouvrante
+    features, labels = extract_features(
+        epochs, config={"method": "welch", "nperseg": 256, "noverlap": 128}
+    )
+    # Calcule la durée écoulée pour valider le budget temporel
+    elapsed = perf_counter() - start
+    # Vérifie que le nombre de colonnes correspond bien aux étiquettes
+    assert features.shape[1] == len(labels)
+    # Vérifie que l'extraction reste sous un quart de seconde
+    assert elapsed < MAX_EXTRACTION_SECONDS
