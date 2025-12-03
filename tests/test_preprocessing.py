@@ -55,8 +55,8 @@ from tpv.preprocessing import (
     map_events_and_validate,
     map_events_to_motor_labels,
     normalize_channels,
-    report_epoch_anomalies,
     quality_control_epochs,
+    report_epoch_anomalies,
     summarize_epoch_quality,
     verify_dataset_integrity,
 )
@@ -111,7 +111,11 @@ def _build_epoch_array(
     data = rng.normal(scale=0.01, size=(epoch_count, 2, samples))
     # Bâtit une liste d'événements espacés pour satisfaire la construction MNE
     events = np.column_stack(
-        [np.arange(epoch_count), np.zeros(epoch_count, dtype=int), np.ones(epoch_count, dtype=int)]
+        [
+            np.arange(epoch_count),
+            np.zeros(epoch_count, dtype=int),
+            np.ones(epoch_count, dtype=int),
+        ]
     )
     # Génère des labels équilibrés pour tester le comptage par classe
     labels = ["A" if idx % 2 == 0 else "B" for idx in range(epoch_count)]
@@ -231,14 +235,15 @@ def test_report_epoch_anomalies_reports_clean_run(tmp_path: Path) -> None:
     run_metadata = {"subject": TEST_SUBJECT, "run": TEST_RUN}
     # Fixe le chemin de sortie pour valider l'écriture JSON
     output_path = tmp_path / "report.json"
+    # Construit la configuration de rapport en imposant le format JSON
+    report_config = preprocessing.ReportConfig(path=output_path, fmt="json")
     # Génère le rapport tout en récupérant les epochs nettoyées
     cleaned, report, path = report_epoch_anomalies(
         epochs,
         labels,
         run_metadata,
         max_peak_to_peak=1.0,
-        output_path=output_path,
-        fmt="json",
+        report_config=report_config,
     )
     # Vérifie que le chemin correspond au fichier produit
     assert path == output_path
@@ -300,19 +305,22 @@ def test_report_epoch_anomalies_flags_corrupted_segments(tmp_path: Path) -> None
     run_metadata = {"subject": TEST_SUBJECT, "run": TEST_RUN}
     # Positionne le chemin de sortie en CSV pour valider le format tabulaire
     output_path = tmp_path / "report.csv"
+    # Construit la configuration de rapport pour la sortie CSV
+    report_config = preprocessing.ReportConfig(path=output_path, fmt="csv")
     # Lance la génération du rapport avec un seuil strict pour capturer le pic
     cleaned, report, path = report_epoch_anomalies(
         epochs,
         labels,
         run_metadata,
         max_peak_to_peak=1.0,
-        output_path=output_path,
-        fmt="csv",
+        report_config=report_config,
     )
     # Vérifie que le chemin retourné pointe vers le CSV attendu
     assert path == output_path
+    # Fixe le nombre d'epochs attendues après suppression des anomalies
+    expected_kept_epochs = 2
     # Contrôle que deux epochs seulement restent après suppression des anomalies
-    assert len(cleaned) == 2
+    assert len(cleaned) == expected_kept_epochs
     # Vérifie que les indices d'artefact et d'incomplétude sont bien signalés
     assert report["anomalies"] == {"artifact": [0], "incomplete": [1]}
     # Confirme que le comptage par classe reflète la suppression de deux epochs
