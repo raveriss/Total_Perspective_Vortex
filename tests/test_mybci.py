@@ -32,6 +32,56 @@ def test_parse_args_returns_expected_namespace():
     assert args.mode == "train"
 
 
+def test_call_realtime_executes_python_module(monkeypatch):
+    captured: dict[str, Any] = {}
+
+    class _Completed:
+        def __init__(self, code: int):
+            self.returncode = code
+
+    def fake_run(command, check):
+        captured["command"] = command
+        captured["check"] = check
+        return _Completed(code=7)
+
+    monkeypatch.setattr(mybci.subprocess, "run", fake_run)
+
+    exit_code = mybci._call_realtime(
+        mybci.RealtimeCallConfig(
+            subject="S20",
+            run="R21",
+            window_size=10,
+            step_size=5,
+            buffer_size=3,
+            sfreq=42.0,
+            data_dir="data",
+            artifacts_dir="artifacts",
+        )
+    )
+
+    assert exit_code == 7
+    assert captured["check"] is False
+    assert captured["command"] == [
+        sys.executable,
+        "-m",
+        "tpv.realtime",
+        "S20",
+        "R21",
+        "--window-size",
+        "10",
+        "--step-size",
+        "5",
+        "--buffer-size",
+        "3",
+        "--sfreq",
+        "42.0",
+        "--data-dir",
+        "data",
+        "--artifacts-dir",
+        "artifacts",
+    ]
+
+
 def test_build_parser_metadata():
     parser = mybci.build_parser()
 
@@ -426,3 +476,45 @@ def test_main_propagates_all_cli_options(monkeypatch):
     assert config.dim_method == "csp"
     assert config.n_components == PREDICT_COMPONENTS
     assert config.normalize_features is True
+
+
+def test_main_routes_to_realtime(monkeypatch):
+    captured: dict[str, Any] = {}
+
+    def fake_realtime(config: mybci.RealtimeCallConfig) -> int:
+        captured["config"] = config
+        return 12
+
+    monkeypatch.setattr(mybci, "_call_realtime", fake_realtime)
+
+    exit_code = mybci.main(
+        [
+            "S30",
+            "R31",
+            "realtime",
+            "--window-size",
+            "8",
+            "--step-size",
+            "4",
+            "--buffer-size",
+            "5",
+            "--sfreq",
+            "64.0",
+            "--data-dir",
+            "custom-data",
+            "--artifacts-dir",
+            "custom-artifacts",
+        ]
+    )
+
+    assert exit_code == 12
+    assert captured["config"] == mybci.RealtimeCallConfig(
+        subject="S30",
+        run="R31",
+        window_size=8,
+        step_size=4,
+        buffer_size=5,
+        sfreq=64.0,
+        data_dir="custom-data",
+        artifacts_dir="custom-artifacts",
+    )

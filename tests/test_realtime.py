@@ -8,12 +8,16 @@ import time
 import joblib
 import numpy as np
 
+# Importe Path pour configurer les répertoires temporaires
+from pathlib import Path
+
 # Importe la logique de prédiction pour vérifier les matrices W
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
 from scripts import predict as predict_cli
 from scripts import train as train_cli
 
 # Importe la boucle temps réel pour vérifier les métriques de streaming
+import tpv.realtime as realtime
 from tpv.realtime import RealtimeConfig, run_realtime_inference
 
 # Définit une latence minimale attendue pour les tests de performance
@@ -180,3 +184,143 @@ def test_realtime_smoothed_predictions():
     smoothed = [event.smoothed_prediction for event in result["events"]]
     # Vérifie que le lissage maintient la majorité récente
     assert smoothed == [0, 0, 1, 1, 1]
+
+
+# Vérifie que la pipeline factice retourne une valeur de secours sans outputs
+def test_realtime_pipeline_default_prediction():
+    # Instancie une pipeline avec une seule prédiction fournie
+    pipeline = _FakePipeline(delay=0.0, outputs=[1])
+    # Construit un flux minimal générant deux fenêtres
+    stream = np.zeros((1, 4))
+    # Exécute la boucle temps réel pour épuiser les outputs prévus
+    result = run_realtime_inference(
+        pipeline=pipeline,
+        stream=stream,
+        config=RealtimeConfig(
+            window_size=2,
+            step_size=2,
+            buffer_size=2,
+            sfreq=10.0,
+        ),
+    )
+
+    # Vérifie que la prédiction de repli est bien utilisée après épuisement
+    assert [event.raw_prediction for event in result["events"]] == [1, 0]
+
+
+# Vérifie que la session realtime charge les données et invoque le modèle
+def test_run_realtime_session_streams_saved_data(monkeypatch, tmp_path):
+    # Conserve le chemin transmis à load_pipeline pour validation
+    captured: dict[str, str] = {}
+
+    # Définit une pipeline factice pour contrôler les prédictions
+    class _StubPipeline:
+        """Pipeline minimale pour simuler une prédiction constante."""
+
+        # Retourne systématiquement la classe zéro pour chaque fenêtre
+        def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803 - API sklearn
+            return np.array([0])
+
+    # Conserve le chemin du modèle demandé avant d'invoquer la pipeline
+    def fake_load(path: str) -> _StubPipeline:
+        captured["model_path"] = path
+        return _StubPipeline()
+
+    # Remplace load_pipeline pour éviter des accès disque inutiles
+    monkeypatch.setattr(realtime, "load_pipeline", fake_load)
+
+    # Construit un flux synthétique avec deux essais concaténables
+    X = np.stack([np.ones((1, 4)), np.full((1, 4), 2.0)])
+    # Crée des labels alignés avec la forme attendue
+    y = np.array([0, 1])
+    # Prépare l'arborescence data/subject pour respecter la CLI
+    data_dir = tmp_path / "data"
+    # Prépare l'arborescence artifacts/subject pour simuler le modèle
+    artifacts_dir = tmp_path / "artifacts"
+    # Crée les répertoires nécessaires pour les sauvegardes
+    (data_dir / "S55").mkdir(parents=True)
+    (artifacts_dir / "S55" / "R02").mkdir(parents=True)
+    # Sauvegarde les features et labels au format numpy attendu
+    np.save(data_dir / "S55" / "R02_X.npy", X)
+    np.save(data_dir / "S55" / "R02_y.npy", y)
+
+    # Lance la session realtime pour parcourir le flux sauvegardé
+    result = realtime.run_realtime_session(
+        subject="S55",
+        run="R02",
+        data_dir=data_dir,
+        artifacts_dir=artifacts_dir,
+        config=RealtimeConfig(
+            window_size=4,
+            step_size=4,
+            buffer_size=1,
+            sfreq=10.0,
+        ),
+    )
+
+    # Vérifie que la pipeline chargée provient du chemin attendu
+    assert captured["model_path"].endswith(
+        str(Path("artifacts") / "S55" / "R02" / "model.joblib")
+    )
+    # Vérifie que le flux a généré deux événements séquentiels
+    assert [event.window_index for event in result["events"]] == [0, 1]
+    # Vérifie que les offsets reflètent la concaténation des essais
+    assert [event.window_offset for event in result["events"]] == [0.0, 0.4]
+
+
+# Vérifie que l'exécutable realtime parse les options et délègue la session
+def test_realtime_main_invokes_session(monkeypatch, tmp_path):
+    # Conserve les arguments reçus par la session simulée
+    captured: dict[str, object] = {}
+
+    # Simule run_realtime_session pour éviter un chargement réel
+    def fake_session(subject, run, data_dir, artifacts_dir, config):
+        captured["subject"] = subject
+        captured["run"] = run
+        captured["data_dir"] = data_dir
+        captured["artifacts_dir"] = artifacts_dir
+        captured["config"] = config
+        return {"events": [], "latency_mean": 0.0, "latency_max": 0.0}
+
+    # Remplace la fonction pour capturer les paramètres construits
+    monkeypatch.setattr(realtime, "run_realtime_session", fake_session)
+
+    # Construit des chemins temporaires pour éviter l'usage du repo local
+    data_dir = tmp_path / "input"
+    artifacts_dir = tmp_path / "models"
+
+    # Exécute le main avec des paramètres explicites
+    exit_code = realtime.main(
+        [
+            "S77",
+            "R03",
+            "--data-dir",
+            str(data_dir),
+            "--artifacts-dir",
+            str(artifacts_dir),
+            "--window-size",
+            "6",
+            "--step-size",
+            "3",
+            "--buffer-size",
+            "2",
+            "--sfreq",
+            "25",
+        ]
+    )
+
+    # Vérifie que l'exécution renvoie un code de succès explicite
+    assert exit_code == 0
+    # Vérifie que la session simulée a reçu les bons arguments
+    assert captured == {
+        "subject": "S77",
+        "run": "R03",
+        "data_dir": data_dir,
+        "artifacts_dir": artifacts_dir,
+        "config": RealtimeConfig(
+            window_size=6,
+            step_size=3,
+            buffer_size=2,
+            sfreq=25.0,
+        ),
+    }
