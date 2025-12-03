@@ -138,6 +138,20 @@ def load_mne_raw_checked(
 
     # Normalize the file path to avoid surprises from relative inputs
     normalized_path = Path(file_path).expanduser().resolve()
+    # Capture the suffix to enforce EDF/BDF compatibility explicitly
+    file_suffix = normalized_path.suffix.lower()
+    # Reject unsupported formats early to avoid ambiguous MNE errors
+    if file_suffix not in {".edf", ".bdf"}:
+        # Raise a clear error when the extension does not match EDF/BDF
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Unsupported file format",
+                    "path": str(normalized_path),
+                    "suffix": file_suffix,
+                }
+            )
+        )
     # Load the raw file with preload enabled for immediate validation
     raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
     # Apply the montage to ensure spatial layout matches expectations
@@ -148,6 +162,24 @@ def load_mne_raw_checked(
     if montage is None:
         # Raise a clear error describing the missing montage configuration
         raise ValueError(f"Montage '{expected_montage}' could not be applied")
+    # Capture montage channel names to compare against expected layout
+    montage_channels = set(montage.ch_names)
+    # Identify montage omissions that would break 10–20 assumptions
+    missing_montage_channels = sorted(
+        set(expected_channels) - montage_channels
+    )
+    # Raise explicit error when the montage lacks required 10–20 electrodes
+    if missing_montage_channels:
+        # Include missing channels in a structured report for debugging
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Montage missing expected channels",
+                    "missing_channels": missing_montage_channels,
+                    "montage": expected_montage,
+                }
+            )
+        )
     # Extract the sampling frequency reported by the recording
     sampling_rate = float(raw.info["sfreq"])
     # Validate the sampling frequency against the expected configuration
@@ -314,6 +346,21 @@ def map_events_to_motor_labels(
     )
     # Prépare une inversion code → étiquette pour projeter les labels
     reverse_map = {code: label for label, code in event_id.items()}
+    # Détecte les codes numériques non présents dans le mapping d'événements
+    unknown_event_codes = sorted(
+        {event[2] for event in events if event[2] not in reverse_map}
+    )
+    # Refuse la poursuite quand un code non identifié apparaît dans les événements
+    if unknown_event_codes:
+        # Produit un rapport JSON détaillant les codes non reconnus
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Unknown event codes",
+                    "unknown_codes": unknown_event_codes,
+                }
+            )
+        )
     # Conserve uniquement les événements traduisibles en A/B
     filtered_events: List[np.ndarray] = []
     # Construit une liste alignée des étiquettes motrices associées
@@ -361,7 +408,14 @@ def _validate_annotation_labels(
     # Stop early when unknown labels are detected to prevent silent errors
     if unknown_labels:
         # Raise a descriptive error to support dataset hygiene during setup
-        raise ValueError(f"Unknown labels in annotations: {sorted(unknown_labels)}")
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Unknown annotation labels",
+                    "unknown_labels": sorted(unknown_labels),
+                }
+            )
+        )
 
 
 def _validate_motor_mapping(

@@ -952,6 +952,44 @@ def test_load_mne_raw_checked_flags_missing_only_channels(
     assert payload["missing"] == ["Cz"]
 
 
+def test_load_mne_raw_checked_supports_bdf_and_montage_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Validate BDF loading, montage 10-20 coverage, and sampling checks."""
+
+    # Construit un enregistrement 10-20 minimal pour simuler un fichier BDF
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.5)
+    # Applique le montage pour fournir des positions attendues aux validations
+    raw.set_montage("standard_1020")
+    # Capture les arguments transmis à la lecture EDF/BDF pour vérification
+    captured_args: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    # Remplace le lecteur EDF/BDF pour tracer les appels sans accès disque
+    def reader_stub(*args: object, **kwargs: object) -> mne.io.BaseRaw:
+        # Enregistre les arguments afin de valider l'appel au chargeur
+        captured_args.append((args, kwargs))
+        # Retourne une copie pour éviter de modifier l'instance d'origine
+        return raw.copy()
+
+    # Patch la fonction de lecture pour intercepter les requêtes de chargement
+    monkeypatch.setattr(mne.io, "read_raw_edf", reader_stub)
+    # Crée un chemin BDF factice pour valider la prise en charge de l'extension
+    bdf_path = tmp_path / "sample.bdf"
+    # Charge l'enregistrement en imposant les paramètres attendus
+    loaded_raw = load_mne_raw_checked(
+        bdf_path,
+        expected_montage="standard_1020",
+        expected_sampling_rate=128.0,
+        expected_channels=["C3", "C4"],
+    )
+    # Vérifie que la fonction de lecture a bien reçu le chemin normalisé
+    assert captured_args[0][0][0] == bdf_path.resolve()
+    # Contrôle que le taux d'échantillonnage est bien respecté
+    assert loaded_raw.info["sfreq"] == 128.0
+    # S'assure que le montage reste attaché après la validation des canaux
+    assert loaded_raw.get_montage() is not None
+
+
 def test_map_events_validates_motor_label_mapping() -> None:
     """Ensure motor label mapping enforces A/B coverage and known keys."""
 
@@ -2056,6 +2094,29 @@ def test_map_events_to_motor_labels_rejects_runs_without_motor_activity() -> Non
     # Confirme la nature de l'erreur et les étiquettes disponibles observées
     assert payload["error"] == "No motor events present"
     assert payload["available_labels"] == ["T0", "T1", "T2"]
+
+
+def test_map_events_to_motor_labels_reports_unknown_codes() -> None:
+    """Expose un rapport JSON lorsqu'un code d'événement est inconnu."""
+
+    # Construit un enregistrement avec un code d'annotation hors mapping
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.25)
+    # Remplace les annotations pour ne contenir que le code non référencé
+    raw.set_annotations(
+        mne.Annotations(
+            onset=[0.05], duration=[0.05], description=["T9"], orig_time=None
+        )
+    )
+    # Applique le montage standard pour rester cohérent avec la validation
+    raw.set_montage("standard_1020")
+    # Vérifie qu'une erreur structurée recense le code inconnu rencontré
+    with pytest.raises(ValueError) as excinfo:
+        map_events_to_motor_labels(raw)
+    # Décode la charge utile JSON afin de vérifier le contenu détaillé
+    payload = json.loads(str(excinfo.value))
+    # Confirme la nature explicite de l'erreur et le code détecté
+    assert payload["error"] == "Unknown annotation labels"
+    assert payload["unknown_labels"] == ["T9"]
 
 
 def test_summarize_epoch_quality_counts_and_rejects_incomplete() -> None:
