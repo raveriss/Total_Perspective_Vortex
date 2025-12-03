@@ -1,6 +1,9 @@
 # Sérialise les manifestes pour construire les fichiers temporaires
 import json
 
+# Exécute un module comme script pour couvrir le garde main
+import runpy
+
 # Manipule les chemins dans les répertoires temporaires isolés
 from pathlib import Path
 
@@ -83,3 +86,90 @@ def test_prepare_physionet_stops_on_corrupted_file(
     captured = capsys.readouterr()
     # Contrôle la présence du préfixe d'erreur pour les fichiers corrompus
     assert "préparation échouée" in captured.out
+
+
+# Vérifie que l'analyse des arguments conserve les valeurs fournies
+def test_parse_args_preserves_explicit_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Déclare une ligne de commande complète simulée
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepare_physionet",
+            "--source",
+            "SOURCE",  # pragma: allowlist secret
+            "--manifest",
+            "MANIFEST",
+            "--destination",
+            "DESTINATION",
+        ],
+    )
+    # Exécute le parseur pour récupérer les valeurs fournies
+    args = prepare_physionet.parse_args()
+    # Confirme que la source CLI est correctement relayée
+    assert args.source == "SOURCE"  # pragma: allowlist secret
+    # Vérifie que le manifeste CLI est bien propagé
+    assert args.manifest == "MANIFEST"
+    # Garantit que la destination explicite est conservée
+    assert args.destination == "DESTINATION"
+
+
+# Valide l'exécution nominale de main avec un téléchargement simulé
+def test_main_invokes_fetch_dataset(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Prépare des chemins bidons compatibles avec la CLI
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepare_physionet",
+            "--source",
+            "SOURCE",  # pragma: allowlist secret
+            "--manifest",
+            "MANIFEST",
+            "--destination",
+            "DESTINATION",
+        ],
+    )
+    # Compte le nombre d'appels pour vérifier l'exécution
+    calls = {"count": 0}
+    # Simule la récupération réussie sans accès réseau
+    monkeypatch.setattr(
+        prepare_physionet.fetch_physionet,
+        "fetch_dataset",
+        lambda source, manifest, destination: calls.update(
+            {"count": calls["count"] + 1}
+        ),
+    )
+    # Exécute main pour couvrir le flux nominal
+    prepare_physionet.main()
+    # Confirme que fetch_dataset a été sollicité une fois
+    assert calls["count"] == 1
+
+
+# Couvre l'exécution du garde main lorsque le module est lancé directement
+def test_module_guard_invokes_main(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Rejoue les paramètres CLI attendus pour l'exécution module
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepare_physionet",
+            "--source",
+            "SOURCE",  # pragma: allowlist secret
+            "--manifest",
+            "MANIFEST",
+            "--destination",
+            "DESTINATION",
+        ],
+    )
+    # Observe le passage dans main via un compteur partagé
+    calls = {"count": 0}
+    # Force fetch_dataset à incrémenter le compteur sans I/O
+    monkeypatch.setattr(
+        prepare_physionet.fetch_physionet,
+        "fetch_dataset",
+        lambda source, manifest, destination: calls.update(
+            {"count": calls["count"] + 1}
+        ),
+    )
+    # Exécute le module comme s'il était lancé en ligne de commande
+    runpy.run_module("scripts.prepare_physionet", run_name="__main__")
+    # Vérifie que main a été déclenché une fois
+    assert calls["count"] == 1
