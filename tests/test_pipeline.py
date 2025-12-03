@@ -1,7 +1,7 @@
-# Garantit l'accès à numpy pour générer des données synthétiques
+# Importe NumPy pour générer des échantillons synthétiques
 import numpy as np
 
-# Garantit l'accès à pytest pour structurer les tests
+# Importe pytest pour vérifier les erreurs attendues
 import pytest
 
 # Offre les classifieurs pour valider le mapping des options

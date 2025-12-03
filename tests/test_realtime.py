@@ -63,6 +63,9 @@ def test_w_matrix_matches_pipeline(tmp_path):
     loaded_reducer = predict_cli._load_w_matrix(
         artifacts_dir / "S03" / "R03" / "w_matrix.joblib"
     )
+    # Vérifie que les matrices W sont bien présentes avant comparaison
+    assert loaded_reducer.w_matrix is not None
+    assert pipeline.named_steps["dimensionality"].w_matrix is not None
     # Vérifie que la matrice W rechargée correspond à celle de la pipeline
     assert np.allclose(
         loaded_reducer.w_matrix, pipeline.named_steps["dimensionality"].w_matrix

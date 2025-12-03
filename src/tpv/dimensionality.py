@@ -40,17 +40,17 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         # Conserve la régularisation ajoutée aux covariances
         self.regularization = regularization
         # Initialise la matrice de projection à None avant apprentissage
-        self.w_matrix: np.ndarray
+        self.w_matrix: np.ndarray | None
         # Initialise la moyenne pour la centration éventuelle
-        self.mean_: np.ndarray
+        self.mean_: np.ndarray | None
         # Prépare le stockage des valeurs propres pour validation et débogage
-        self.eigenvalues_: np.ndarray
+        self.eigenvalues_: np.ndarray | None
         # Positionne None pour refléter l'absence d'apprentissage initial
-        self.w_matrix = None  # type: ignore[assignment]
+        self.w_matrix = None
         # Positionne None pour éviter un centrage tant que fit n'est pas appelé
-        self.mean_ = None  # type: ignore[assignment]
+        self.mean_ = None
         # Positionne None avant calcul des valeurs propres
-        self.eigenvalues_ = None  # type: ignore[assignment]
+        self.eigenvalues_ = None
 
     # Apprend la matrice de projection à partir des données et des labels
     def fit(self, X: np.ndarray, y: np.ndarray | None = None):
