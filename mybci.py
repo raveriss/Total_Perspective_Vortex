@@ -1,6 +1,6 @@
 """Interface CLI pour piloter les workflows d'entraînement et de prédiction."""
 
-# Préserve argparse pour exposer les paramètres utilisateurs
+# Préserve argparse pour construire le parser principal
 import argparse
 
 # Préserve subprocess pour lancer les modules en sous-processus isolés

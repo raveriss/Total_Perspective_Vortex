@@ -2,11 +2,11 @@
 
 # Préserve numpy pour construire des données EEG synthétiques
 # Offre la lecture des artefacts sauvegardés par joblib
-import joblib
-import numpy as np
-
 # Fournit time pour simuler une latence volontaire
 import time
+
+import joblib
+import numpy as np
 
 # Importe la logique de prédiction pour vérifier les matrices W
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
@@ -14,7 +14,10 @@ from scripts import predict as predict_cli
 from scripts import train as train_cli
 
 # Importe la boucle temps réel pour vérifier les métriques de streaming
-from tpv.realtime import run_realtime_inference
+from tpv.realtime import RealtimeConfig, run_realtime_inference
+
+# Définit une latence minimale attendue pour les tests de performance
+MIN_EXPECTED_LATENCY = 0.009
 
 
 # Vérifie que la matrice W sauvegardée est cohérente avec la pipeline
@@ -116,13 +119,15 @@ def test_realtime_latency_metrics():
     result = run_realtime_inference(
         pipeline=pipeline,
         stream=stream,
-        sfreq=50.0,
-        window_size=20,
-        step_size=10,
-        buffer_size=2,
+        config=RealtimeConfig(
+            window_size=20,
+            step_size=10,
+            buffer_size=2,
+            sfreq=50.0,
+        ),
     )
     # Vérifie que chaque latence dépasse le délai simulé
-    assert all(event.latency >= 0.009 for event in result["events"])
+    assert all(event.latency >= MIN_EXPECTED_LATENCY for event in result["events"])
     # Vérifie que la moyenne et le maximum sont cohérents avec les mesures
     assert result["latency_max"] >= result["latency_mean"] > 0.0
 
@@ -137,10 +142,12 @@ def test_realtime_time_ordering():
     result = run_realtime_inference(
         pipeline=pipeline,
         stream=stream,
-        sfreq=20.0,
-        window_size=20,
-        step_size=5,
-        buffer_size=2,
+        config=RealtimeConfig(
+            window_size=20,
+            step_size=5,
+            buffer_size=2,
+            sfreq=20.0,
+        ),
     )
     # Extrait les offsets temporels pour vérifier la progression
     offsets = [event.window_offset for event in result["events"]]
@@ -162,10 +169,12 @@ def test_realtime_smoothed_predictions():
     result = run_realtime_inference(
         pipeline=pipeline,
         stream=stream,
-        sfreq=10.0,
-        window_size=4,
-        step_size=2,
-        buffer_size=3,
+        config=RealtimeConfig(
+            window_size=4,
+            step_size=2,
+            buffer_size=3,
+            sfreq=10.0,
+        ),
     )
     # Extrait les prédictions lissées pour les comparer à l'attendu
     smoothed = [event.smoothed_prediction for event in result["events"]]

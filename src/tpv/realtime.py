@@ -1,7 +1,10 @@
 """Boucle d'inférence fenêtrée pour la prédiction temps réel."""
 
-# Préserve argparse pour exposer un mode CLI cohérent avec mybci
+# Fournit argparse pour exposer un parser CLI dédié
 import argparse
+
+# Mesure précisément le temps d'exécution pour les métriques de latence
+import time
 
 # Fournit dataclass pour encapsuler les événements de streaming
 from dataclasses import dataclass
@@ -9,14 +12,37 @@ from dataclasses import dataclass
 # Garantit l'accès aux chemins portables pour les données et artefacts
 from pathlib import Path
 
-# Mesure précisément le temps d'exécution pour les métriques de latence
-import time
+# Spécifie les Protocol et générateurs pour typer le streaming
+from typing import Generator, Protocol, TypedDict
 
 # Centralise les opérations numériques nécessaires au fenêtrage
 import numpy as np
 
 # Récupère la restauration du pipeline entraîné pour la prédiction
 from tpv.pipeline import load_pipeline
+
+
+# Définit une interface minimale pour les pipelines prédictifs
+class PredictablePipeline(Protocol):
+    """Expose la méthode predict attendue pour une pipeline sklearn."""
+
+    # Fournit une méthode predict compatible avec scikit-learn
+    def predict(self, X: np.ndarray) -> np.ndarray: ...
+
+
+# Regroupe les hyperparamètres nécessaires à l'inférence temps réel
+@dataclass
+class RealtimeConfig:
+    """Encapsule les paramètres fenêtrage et cadence pour le streaming."""
+
+    # Fixe la taille de fenêtre glissante en échantillons
+    window_size: int
+    # Fixe le pas de glissement entre deux fenêtres
+    step_size: int
+    # Fixe la taille du buffer de lissage des prédictions
+    buffer_size: int
+    # Fixe la fréquence d'échantillonnage pour les offsets
+    sfreq: float
 
 
 # Décrit un événement individuel produit par la boucle temps réel
@@ -38,10 +64,22 @@ class RealtimeEvent:
     smoothed_prediction: int
 
 
+# Typedef pour décrire les métriques retournées par l'inférence
+class RealtimeResult(TypedDict):
+    """Structure typée des métriques retournées par le streaming."""
+
+    # Expose la liste d'événements générés durant l'inférence
+    events: list[RealtimeEvent]
+    # Expose la latence moyenne observée sur la session
+    latency_mean: float
+    # Expose la latence maximale observée sur la session
+    latency_max: float
+
+
 # Génère des fenêtres glissantes sur un flux continu
 def _window_stream(
     stream: np.ndarray, window_size: int, step_size: int
-) -> tuple[int, np.ndarray]:
+) -> Generator[tuple[int, np.ndarray], None, None]:
     """Itère sur des segments de signal pour une pipeline scikit-learn."""
 
     # Parcourt les indices de début compatibles avec la taille du flux
@@ -65,20 +103,17 @@ def _smooth_prediction(buffer: list[int]) -> int:
         # Incrémente le compteur associé à la classe rencontrée
         counts[value] = counts.get(value, 0) + 1
     # Sélectionne la classe la plus fréquente dans le buffer courant
-    majority = max(counts, key=counts.get)
+    majority = max(counts, key=lambda key: counts[key])
     # Retourne la classe majoritaire pour lisser la séquence
     return majority
 
 
 # Applique la pipeline entraînée à un flux continu en mesurant la latence
 def run_realtime_inference(
-    pipeline: object,
+    pipeline: PredictablePipeline,
     stream: np.ndarray,
-    sfreq: float,
-    window_size: int,
-    step_size: int,
-    buffer_size: int,
-) -> dict:
+    config: RealtimeConfig,
+) -> RealtimeResult:
     """Produit des prédictions fenêtrées et des métriques de latence."""
 
     # Initialise la liste des événements pour tracer l'ordre temporel
@@ -88,9 +123,11 @@ def run_realtime_inference(
     # Capture l'instant initial pour obtenir des timestamps relatifs
     base_time = time.perf_counter()
     # Itère sur les fenêtres générées à partir du flux continu
-    for index, (start, window) in enumerate(_window_stream(stream, window_size, step_size)):
+    for index, (start, window) in enumerate(
+        _window_stream(stream, config.window_size, config.step_size)
+    ):
         # Calcule l'offset temporel correspondant à la fenêtre courante
-        offset_seconds = float(start) / sfreq
+        offset_seconds = float(start) / config.sfreq
         # Capture l'instant de début pour mesurer la latence d'inférence
         inference_start = time.perf_counter()
         # Lance la prédiction sur la fenêtre encapsulée dans un batch
@@ -100,7 +137,7 @@ def run_realtime_inference(
         # Alimente le buffer de lissage avec la prédiction obtenue
         buffer.append(raw_prediction)
         # Tronque le buffer pour respecter la taille maximale demandée
-        buffer = buffer[-buffer_size:]
+        buffer = buffer[-config.buffer_size :]
         # Calcule la prédiction lissée en fonction des valeurs récentes
         smoothed = _smooth_prediction(buffer)
         # Construit l'événement associé à la fenêtre courante
@@ -115,11 +152,17 @@ def run_realtime_inference(
             )
         )
     # Calcule la latence moyenne sur l'ensemble des fenêtres traitées
-    mean_latency = float(np.mean([event.latency for event in events])) if events else 0.0
+    mean_latency = (
+        float(np.mean([event.latency for event in events])) if events else 0.0
+    )
     # Calcule la latence maximale pour identifier d'éventuels pics
     max_latency = float(np.max([event.latency for event in events])) if events else 0.0
     # Retourne les événements et les agrégats de latence pour inspection
-    return {"events": events, "latency_mean": mean_latency, "latency_max": max_latency}
+    return {
+        "events": events,
+        "latency_mean": mean_latency,
+        "latency_max": max_latency,
+    }
 
 
 # Construit un argument parser aligné avec le mode realtime de mybci
@@ -212,11 +255,8 @@ def run_realtime_session(
     run: str,
     data_dir: Path,
     artifacts_dir: Path,
-    window_size: int,
-    step_size: int,
-    buffer_size: int,
-    sfreq: float,
-) -> dict:
+    config: RealtimeConfig,
+) -> RealtimeResult:
     """Charge le modèle entraîné et lance l'inférence fenêtrée."""
 
     # Résout les chemins des fichiers de données pour le sujet/run
@@ -231,10 +271,7 @@ def run_realtime_session(
     return run_realtime_inference(
         pipeline=pipeline,
         stream=stream,
-        sfreq=sfreq,
-        window_size=window_size,
-        step_size=step_size,
-        buffer_size=buffer_size,
+        config=config,
     )
 
 
@@ -252,10 +289,12 @@ def main(argv: list[str] | None = None) -> int:
         run=args.run,
         data_dir=args.data_dir,
         artifacts_dir=args.artifacts_dir,
-        window_size=args.window_size,
-        step_size=args.step_size,
-        buffer_size=args.buffer_size,
-        sfreq=args.sfreq,
+        config=RealtimeConfig(
+            window_size=args.window_size,
+            step_size=args.step_size,
+            buffer_size=args.buffer_size,
+            sfreq=args.sfreq,
+        ),
     )
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
