@@ -96,14 +96,24 @@ def extract_features(
     data: np.ndarray = epochs.get_data()
     # Récupère la fréquence d'échantillonnage indispensable au calcul fréquentiel
     sfreq: float = float(epochs.info["sfreq"])
+    # Stocke le nombre d'échantillons pour calibrer les fenêtres de Welch
+    n_times: int = data.shape[-1]
     # Oriente vers le calcul Welch lorsque la méthode par défaut est demandée
     if method == "welch":
         # Applique une fenêtre lisse pour limiter les fuites fréquentielles
         window: str | Iterable[float] = effective_config.get("window", "hann")
         # Permet d'ajuster la taille de segment pour contrôler la résolution
         nperseg: int | None = effective_config.get("nperseg")
+        # Borne la taille de segment pour éviter les avertissements SciPy
+        effective_nperseg: int = min(nperseg or n_times, n_times)
         # Offre un recouvrement configurable pour stabiliser l'estimation
         noverlap: int | None = effective_config.get("noverlap")
+        # Borne le recouvrement pour garantir une fenêtre strictement positive
+        effective_noverlap: int | None = None
+        # Vérifie que l'appelant a fourni un recouvrement explicite
+        if noverlap is not None:
+            # Coupe le recouvrement juste avant la taille de fenêtre autorisée
+            effective_noverlap = min(noverlap, effective_nperseg - 1)
         # Permet de choisir la stratégie d'agrégation des segments
         average: str = effective_config.get("average", "mean")
         # Permet de choisir la densité ou la puissance intégrée
@@ -113,8 +123,8 @@ def extract_features(
             data,
             sfreq,
             window=window,
-            nperseg=nperseg,
-            noverlap=noverlap,
+            nperseg=effective_nperseg,
+            noverlap=effective_noverlap,
             axis=-1,
             average=average,
             scaling=scaling,
@@ -125,8 +135,13 @@ def extract_features(
         for _, (low, high) in band_ranges.items():
             # Construit un masque fréquentiel pour isoler l'intervalle cible
             band_mask = (freqs >= low) & (freqs <= high)
-            # Moyenne la PSD sur la bande pour réduire la dimension temporelle
-            band_powers.append(psd[:, :, band_mask].mean(axis=-1))
+            # Renvoie des zéros si aucune fréquence n'est disponible dans la bande
+            if not np.any(band_mask):
+                # Fournit un tenseur nul pour préserver la forme de sortie
+                band_powers.append(np.zeros(psd.shape[:2]))
+            else:
+                # Moyenne la PSD sur la bande pour réduire la dimension temporelle
+                band_powers.append(psd[:, :, band_mask].mean(axis=-1))
         # Empile les bandes pour conserver la structure epochs x canaux x bandes
         stacked = np.stack(band_powers, axis=2)
     # Fournit un placeholder neutre pour les méthodes non encore implémentées

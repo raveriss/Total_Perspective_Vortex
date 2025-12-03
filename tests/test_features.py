@@ -1,8 +1,11 @@
-# Importe numpy pour construire des signaux contrôlés et vérifier les résultats
+# Importe numpy pour produire des signaux synthétiques contrôlés
 import numpy as np
 
-# Importe pytest pour capturer les erreurs et les assertions
+# Importe pytest pour les assertions numériques tolérantes
 import pytest
+
+# Importe time pour suivre le budget temporel d'extraction
+from time import perf_counter
 
 # Importe mne pour créer des epochs synthétiques conformes à l'API
 from mne import EpochsArray, create_info
@@ -144,3 +147,22 @@ def test_extract_features_numeric_stability() -> None:
     assert np.isfinite(features).all()
     # Vérifie l'absence de valeurs négatives après la moyenne de puissance
     assert (features >= 0).all()
+
+
+def test_extract_features_respects_time_budget() -> None:
+    """L'extraction Welch doit rester sous un budget temps raisonnable."""
+
+    # Construit des epochs plus longs pour sonder la performance temporelle
+    epochs = _build_epochs(n_epochs=5, n_channels=4, n_times=512, sfreq=256.0)
+    # Mesure l'instant initial pour contrôler la durée d'extraction
+    start = perf_counter()
+    # Lance l'extraction avec une configuration Welch recouvrante
+    features, labels = extract_features(
+        epochs, config={"method": "welch", "nperseg": 256, "noverlap": 128}
+    )
+    # Calcule la durée écoulée pour valider le budget temporel
+    elapsed = perf_counter() - start
+    # Vérifie que le nombre de colonnes correspond bien aux étiquettes
+    assert features.shape[1] == len(labels)
+    # Vérifie que l'extraction reste sous un quart de seconde
+    assert elapsed < 0.25
