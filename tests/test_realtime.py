@@ -5,11 +5,11 @@
 # Fournit time pour simuler une latence volontaire
 import time
 
-import joblib
-import numpy as np
-
 # Importe Path pour configurer les répertoires temporaires
 from pathlib import Path
+
+import joblib
+import numpy as np
 
 # Importe la logique de prédiction pour vérifier les matrices W
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
@@ -17,7 +17,9 @@ from scripts import predict as predict_cli
 from scripts import train as train_cli
 
 # Importe la boucle temps réel pour vérifier les métriques de streaming
-import tpv.realtime as realtime
+from tpv import realtime
+
+# Importe la configuration et l'entrée pour vérifier le routage
 from tpv.realtime import RealtimeConfig, run_realtime_inference
 
 # Définit une latence minimale attendue pour les tests de performance

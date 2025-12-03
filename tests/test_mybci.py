@@ -23,6 +23,12 @@ TRAIN_COMPONENTS = 7
 # Fixe le nombre de composantes demandé lors du mode predict
 PREDICT_COMPONENTS = 9
 
+# Fixe le code de sortie du sous-processus temps réel pour simuler l'échec
+REALTIME_SUBPROCESS_CODE = 7
+
+# Fixe le code de sortie retourné lors du routage temps réel dans main
+REALTIME_ROUTING_CODE = 12
+
 
 def test_parse_args_returns_expected_namespace():
     args = mybci.parse_args(["S01", "R01", "train"])
@@ -59,7 +65,7 @@ def test_call_realtime_executes_python_module(monkeypatch):
         )
     )
 
-    assert exit_code == 7
+    assert exit_code == REALTIME_SUBPROCESS_CODE
     assert captured["check"] is False
     assert captured["command"] == [
         sys.executable,
@@ -507,7 +513,7 @@ def test_main_routes_to_realtime(monkeypatch):
         ]
     )
 
-    assert exit_code == 12
+    assert exit_code == REALTIME_ROUTING_CODE
     assert captured["config"] == mybci.RealtimeCallConfig(
         subject="S30",
         run="R31",
