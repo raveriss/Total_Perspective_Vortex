@@ -23,7 +23,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Crée le parser avec une description orientée traçabilité
     parser = argparse.ArgumentParser(
-        description="Agrège les accuracies par run, sujet et global à partir des artefacts",
+        description=(
+            "Agrège les accuracies par run, sujet et global à partir des " "artefacts"
+        ),
     )
     # Ajoute une option pour pointer vers un répertoire de données alternatif
     parser.add_argument(
@@ -100,7 +102,9 @@ def aggregate_accuracies(data_dir: Path, artifacts_dir: Path) -> dict:
         # Ajoute l'accuracy aux scores globaux pour la moyenne finale
         all_scores.append(result["accuracy"])
     # Calcule la moyenne par sujet en conservant un float natif
-    by_subject = {key: float(np.mean(values)) for key, values in by_subject_scores.items()}
+    by_subject = {
+        key: float(np.mean(values)) for key, values in by_subject_scores.items()
+    }
     # Calcule l'accuracy globale en renvoyant 0.0 s'il n'y a pas de run
     global_accuracy = float(np.mean(all_scores)) if all_scores else 0.0
     # Retourne la structure complète prête pour l'affichage ou les tests

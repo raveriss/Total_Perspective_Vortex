@@ -8,10 +8,10 @@ import numpy as np
 # Garantit l'accès aux fixtures temporaires et assertions
 import pytest
 
-# Importe l'agrégation pour résumer les accuracies multi-runs
-from scripts import aggregate_accuracy as aggregate_cli
 # Importe la logique de prédiction pour vérifier l'accuracy
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
+# Importe l'agrégation pour résumer les accuracies multi-runs
+from scripts import aggregate_accuracy as aggregate_cli
 from scripts import predict as predict_cli
 from scripts import train as train_cli
 
@@ -299,3 +299,91 @@ def test_accuracy_aggregation_across_runs(tmp_path):
     expected_global = float(np.mean(list(report["by_run"].values())))
     # Vérifie que l'accuracy globale reflète la moyenne des runs
     assert pytest.approx(report["global"], rel=0.01) == expected_global
+
+
+# Vérifie que l'agrégation gère l'absence d'artefacts sans planter
+def test_aggregate_accuracy_handles_missing_artifacts(tmp_path):
+    # Construit un chemin d'artefacts inexistant pour simuler l'absence de run
+    missing_artifacts_dir = tmp_path / "artifacts_missing"
+    # Appelle la découverte des runs pour vérifier le retour vide
+    discovered = aggregate_cli._discover_runs(missing_artifacts_dir)
+    # Vérifie qu'aucun run n'est détecté lorsque le dossier manque
+    assert discovered == []
+    # Crée un répertoire d'artefacts avec un fichier parasite
+    artifacts_dir = tmp_path / "artifacts"
+    # Assure la création du répertoire exploré par l'agrégateur
+    artifacts_dir.mkdir()
+    # Dépose un fichier pour couvrir la branche qui ignore les éléments non dossiers
+    stray_file = artifacts_dir / "README.txt"
+    # Écrit un contenu pour matérialiser le fichier à ignorer
+    stray_file.write_text("placeholder")
+    # Relance la découverte pour couvrir le saut sur les fichiers
+    discovered_with_file = aggregate_cli._discover_runs(artifacts_dir)
+    # Vérifie que le fichier parasite est ignoré et qu'aucun run n'est trouvé
+    assert discovered_with_file == []
+
+
+# Vérifie le parsing CLI, le formatage et l'affichage du tableau agrégé
+def test_aggregate_accuracy_cli_parser_and_table(tmp_path, capsys):
+    # Fige la fréquence d'échantillonnage pour aligner les features FFT
+    sfreq = 120.0
+    # Génère des données jouets linéairement séparables
+    X, y = _build_toy_dataset(sfreq)
+    # Construit le répertoire racine des données temporaires
+    data_dir = tmp_path / "data"
+    # Construit le répertoire racine des artefacts temporaires
+    artifacts_dir = tmp_path / "artifacts"
+    # Construit le répertoire dédié au sujet S20
+    subject_dir = data_dir / "S20"
+    # Assure la création du répertoire avant les sauvegardes numpy
+    subject_dir.mkdir(parents=True, exist_ok=True)
+    # Sauvegarde les features au format attendu par la CLI
+    np.save(subject_dir / "R01_X.npy", X)
+    # Sauvegarde les labels au format attendu par la CLI
+    np.save(subject_dir / "R01_y.npy", y)
+    # Construit la configuration alignée sur la CLI pour l'entraînement
+    config = train_cli.PipelineConfig(
+        sfreq=sfreq,
+        feature_strategy="fft",
+        normalize_features=False,
+        dim_method="pca",
+        n_components=2,
+        classifier="lda",
+        scaler=None,
+    )
+    # Regroupe les paramètres d'entraînement dans une requête dédiée
+    request = train_cli.TrainingRequest(
+        subject="S20",
+        run="R01",
+        pipeline_config=config,
+        data_dir=data_dir,
+        artifacts_dir=artifacts_dir,
+    )
+    # Exécute l'entraînement et la sauvegarde des artefacts
+    train_cli.run_training(request)
+    # Construit un parser via la fonction dédiée pour couvrir les options
+    parser = aggregate_cli.build_parser()
+    # Parse les arguments fournis pour s'assurer de la configuration
+    args = parser.parse_args(
+        ["--data-dir", str(data_dir), "--artifacts-dir", str(artifacts_dir)]
+    )
+    # Vérifie que le parser restitue les chemins attendus
+    assert args.data_dir == data_dir
+    # Vérifie que le parser retourne le répertoire d'artefacts fourni
+    assert args.artifacts_dir == artifacts_dir
+    # Calcule un rapport complet en réutilisant les artefacts générés
+    report = aggregate_cli.aggregate_accuracies(args.data_dir, args.artifacts_dir)
+    # Formate le tableau pour vérifier l'inclusion du run et du sujet
+    table = aggregate_cli.format_accuracy_table(report)
+    # Vérifie que le tableau contient l'identifiant du run et du sujet
+    assert "R01\tS20" in table
+    # Exécute la CLI principale pour couvrir l'impression du tableau
+    exit_code = aggregate_cli.main(
+        ["--data-dir", str(data_dir), "--artifacts-dir", str(artifacts_dir)]
+    )
+    # Vérifie que la CLI retourne un code de succès
+    assert exit_code == 0
+    # Capture la sortie standard pour contrôler la présence du tableau
+    captured = capsys.readouterr()
+    # Vérifie que la sortie inclut l'accuracy globale formatée
+    assert "Global" in captured.out
