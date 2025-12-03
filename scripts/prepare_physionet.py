@@ -1,12 +1,12 @@
-
 # Gère le découpage des arguments en ligne de commande
+# Centralise la collecte des paramètres depuis la CLI
 import argparse
-
-# Réutilise les primitives de téléchargement et de validation déjà testées
-from scripts import fetch_physionet
 
 # Manipule les chemins pour uniformiser les conversions de paramètres
 from pathlib import Path
+
+# Réutilise les primitives de téléchargement et de validation déjà testées
+from scripts import fetch_physionet
 
 
 # Encapsule l'exécution pour fournir des messages cohérents
@@ -39,15 +39,21 @@ def parse_args() -> argparse.Namespace:
     )
     # Ajoute la source obligatoire (URL ou dossier local)
     parser.add_argument(
-        "--source", required=True, help="URL Physionet ou répertoire local contenant les EDF"
+        "--source",
+        required=True,
+        help="URL Physionet ou répertoire local contenant les EDF",
     )
     # Ajoute le chemin du manifeste décrivant hashes et tailles attendus
     parser.add_argument(
-        "--manifest", required=True, help="Manifeste JSON listant les fichiers à récupérer"
+        "--manifest",
+        required=True,
+        help="Manifeste JSON listant les fichiers à récupérer",
     )
     # Permet de surcharger la destination tout en conservant data/raw par défaut
     parser.add_argument(
-        "--destination", default="data/raw", help="Répertoire cible pour les données brutes"
+        "--destination",
+        default="data/raw",
+        help="Répertoire cible pour les données brutes",
     )
     # Retourne les arguments interprétés pour la fonction de préparation
     return parser.parse_args()

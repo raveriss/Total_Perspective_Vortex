@@ -1,19 +1,20 @@
-
-# Sérialise un manifeste minimal pour piloter le script
+# Sérialise les manifestes pour construire les fichiers temporaires
 import json
-
-# Capture les exceptions liées à l'arrêt volontaire du CLI
-import pytest
 
 # Manipule les chemins dans les répertoires temporaires isolés
 from pathlib import Path
+
+# Capture les exceptions liées à l'arrêt volontaire du CLI
+import pytest
 
 # Importe la surface CLI nouvellement exposée
 from scripts import prepare_physionet
 
 
 # Vérifie que l'absence de fichiers source provoque un arrêt propre
-def test_prepare_physionet_stops_on_missing_source(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_prepare_physionet_stops_on_missing_source(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     # Définit un dossier source inexistant pour simuler un oubli utilisateur
     missing_source = tmp_path / "missing_source"
     # Rédige un manifeste pointant vers un fichier attendu absent
@@ -39,7 +40,9 @@ def test_prepare_physionet_stops_on_missing_source(tmp_path: Path, capsys: pytes
 
 
 # Vérifie que la corruption des fichiers détectée par le hash arrête le script
-def test_prepare_physionet_stops_on_corrupted_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_prepare_physionet_stops_on_corrupted_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     # Crée la source locale avec un fichier volontairement invalide
     source_root = tmp_path / "source"
     # Matérialise l'arborescence attendue par le manifeste
@@ -51,6 +54,8 @@ def test_prepare_physionet_stops_on_corrupted_file(tmp_path: Path, capsys: pytes
     # Déclare un manifeste avec une taille attendue divergente
     manifest_path = tmp_path / "manifest.json"
     # Stocke un hash irréaliste pour provoquer l'échec de validation
+    zero_hash = "0" * 64
+    # Écrit le manifeste avec un hash forcé pour provoquer la détection d'erreur
     manifest_path.write_text(
         json.dumps(
             {
@@ -58,7 +63,7 @@ def test_prepare_physionet_stops_on_corrupted_file(tmp_path: Path, capsys: pytes
                     {
                         "path": "S001/S001R01.edf",
                         "size": 10,
-                        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+                        "sha256": zero_hash,
                     }
                 ]
             }
