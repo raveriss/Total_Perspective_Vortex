@@ -1,6 +1,6 @@
 """Interface CLI pour piloter les workflows d'entraînement et de prédiction."""
 
-# Préserve argparse pour exposer les paramètres utilisateurs
+# Préserve argparse pour construire le parser principal
 import argparse
 
 # Préserve subprocess pour lancer les modules en sous-processus isolés
@@ -14,6 +14,29 @@ from dataclasses import dataclass
 
 # Garantit l'accès aux séquences typées pour mypy
 from typing import Sequence
+
+
+# Centralise les options nécessaires pour invoquer le mode realtime
+@dataclass
+class RealtimeCallConfig:
+    """Conteneur des paramètres transmis au module realtime."""
+
+    # Identifie le sujet cible pour cibler les artefacts du modèle
+    subject: str
+    # Identifie le run cible pour sélectionner la session
+    run: str
+    # Fixe la taille de fenêtre glissante en échantillons
+    window_size: int
+    # Fixe le pas entre deux fenêtres successives
+    step_size: int
+    # Fixe la taille du buffer utilisé pour lisser les prédictions
+    buffer_size: int
+    # Renseigne la fréquence d'échantillonnage pour calculer les offsets
+    sfreq: float
+    # Spécifie le répertoire contenant les fichiers numpy streamés
+    data_dir: str
+    # Spécifie le répertoire racine où lire les artefacts entraînés
+    artifacts_dir: str
 
 
 # Centralise les options nécessaires pour invoquer un module TPV
@@ -75,6 +98,36 @@ def _call_module(module_name: str, config: ModuleCallConfig) -> int:
     return completed.returncode
 
 
+# Construit la ligne de commande pour invoquer le mode realtime
+def _call_realtime(config: RealtimeCallConfig) -> int:
+    """Invoke le module tpv.realtime avec les paramètres streaming."""
+
+    # Initialise la commande avec l'interpréteur courant et le module ciblé
+    command: list[str] = [
+        sys.executable,
+        "-m",
+        "tpv.realtime",
+        config.subject,
+        config.run,
+    ]
+    # Ajoute la taille de fenêtre demandée pour le streaming
+    command.extend(["--window-size", str(config.window_size)])
+    # Ajoute le pas de glissement entre fenêtres successives
+    command.extend(["--step-size", str(config.step_size)])
+    # Ajoute la taille du buffer utilisé pour lisser les prédictions
+    command.extend(["--buffer-size", str(config.buffer_size)])
+    # Ajoute la fréquence d'échantillonnage pour calculer les offsets
+    command.extend(["--sfreq", str(config.sfreq)])
+    # Ajoute le répertoire des données streamées
+    command.extend(["--data-dir", config.data_dir])
+    # Ajoute le répertoire d'artefacts contenant le modèle entraîné
+    command.extend(["--artifacts-dir", config.artifacts_dir])
+    # Exécute la commande en capturant le code retour sans lever d'exception
+    completed = subprocess.run(command, check=False)
+    # Retourne le code retour pour propagation à l'appelant principal
+    return completed.returncode
+
+
 # Construit le parser CLI avec toutes les options du pipeline
 def build_parser() -> argparse.ArgumentParser:
     """Construit l'argument parser pour mybci."""
@@ -82,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Instancie le parser avec description et usage explicite
     parser = argparse.ArgumentParser(
         description="Pilote un workflow d'entraînement ou de prédiction TPV",
-        usage="python mybci.py <subject> <run> {train,predict}",
+        usage="python mybci.py <subject> <run> {train,predict,realtime}",
     )
     # Ajoute l'identifiant du sujet pour cibler les données
     parser.add_argument("subject", help="Identifiant du sujet (ex: S01)")
@@ -91,7 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Ajoute le mode pour distinguer entraînement et prédiction
     parser.add_argument(
         "mode",
-        choices=("train", "predict"),
+        choices=("train", "predict", "realtime"),
         help="Choix du pipeline à lancer",
     )
     # Ajoute le choix du classifieur pour composer le pipeline
@@ -134,6 +187,46 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-normalize-features",
         action="store_true",
         help="Désactive la normalisation des features",
+    )
+    # Ajoute la taille de fenêtre pour la lecture streaming en realtime
+    parser.add_argument(
+        "--window-size",
+        type=int,
+        default=50,
+        help="Taille de fenêtre glissante pour le mode realtime",
+    )
+    # Ajoute le pas entre deux fenêtres successives
+    parser.add_argument(
+        "--step-size",
+        type=int,
+        default=25,
+        help="Pas entre deux fenêtres en streaming realtime",
+    )
+    # Ajoute la taille du buffer pour lisser les prédictions instantanées
+    parser.add_argument(
+        "--buffer-size",
+        type=int,
+        default=3,
+        help="Taille du buffer de lissage pour le mode realtime",
+    )
+    # Ajoute la fréquence d'échantillonnage utilisée pour les offsets
+    parser.add_argument(
+        "--sfreq",
+        type=float,
+        default=50.0,
+        help="Fréquence d'échantillonnage appliquée au flux realtime",
+    )
+    # Ajoute le répertoire de données nécessaire au streaming
+    parser.add_argument(
+        "--data-dir",
+        default="data",
+        help="Répertoire racine contenant les fichiers numpy",
+    )
+    # Ajoute le répertoire d'artefacts où lire le modèle entraîné
+    parser.add_argument(
+        "--artifacts-dir",
+        default="artifacts",
+        help="Répertoire racine où récupérer le modèle entraîné",
     )
     # Retourne le parser configuré
     return parser
@@ -179,6 +272,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             "tpv.train",
             config,
         )
+    # Bascule vers le module realtime pour le streaming fenêtré
+    if args.mode == "realtime":
+        # Construit la configuration spécifique au lissage et fenêtrage
+        realtime_config = RealtimeCallConfig(
+            subject=args.subject,
+            run=args.run,
+            window_size=args.window_size,
+            step_size=args.step_size,
+            buffer_size=args.buffer_size,
+            sfreq=args.sfreq,
+            data_dir=args.data_dir,
+            artifacts_dir=args.artifacts_dir,
+        )
+        # Retourne le code retour du module realtime avec la configuration
+        return _call_realtime(realtime_config)
     # Appelle le module predict pour le mode prédiction
     return _call_module(
         "tpv.predict",

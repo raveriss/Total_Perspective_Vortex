@@ -23,6 +23,12 @@ TRAIN_COMPONENTS = 7
 # Fixe le nombre de composantes demandé lors du mode predict
 PREDICT_COMPONENTS = 9
 
+# Fixe le code de sortie du sous-processus temps réel pour simuler l'échec
+REALTIME_SUBPROCESS_CODE = 7
+
+# Fixe le code de sortie retourné lors du routage temps réel dans main
+REALTIME_ROUTING_CODE = 12
+
 
 def test_parse_args_returns_expected_namespace():
     args = mybci.parse_args(["S01", "R01", "train"])
@@ -30,6 +36,56 @@ def test_parse_args_returns_expected_namespace():
     assert args.subject == "S01"
     assert args.run == "R01"
     assert args.mode == "train"
+
+
+def test_call_realtime_executes_python_module(monkeypatch):
+    captured: dict[str, Any] = {}
+
+    class _Completed:
+        def __init__(self, code: int):
+            self.returncode = code
+
+    def fake_run(command, check):
+        captured["command"] = command
+        captured["check"] = check
+        return _Completed(code=7)
+
+    monkeypatch.setattr(mybci.subprocess, "run", fake_run)
+
+    exit_code = mybci._call_realtime(
+        mybci.RealtimeCallConfig(
+            subject="S20",
+            run="R21",
+            window_size=10,
+            step_size=5,
+            buffer_size=3,
+            sfreq=42.0,
+            data_dir="data",
+            artifacts_dir="artifacts",
+        )
+    )
+
+    assert exit_code == REALTIME_SUBPROCESS_CODE
+    assert captured["check"] is False
+    assert captured["command"] == [
+        sys.executable,
+        "-m",
+        "tpv.realtime",
+        "S20",
+        "R21",
+        "--window-size",
+        "10",
+        "--step-size",
+        "5",
+        "--buffer-size",
+        "3",
+        "--sfreq",
+        "42.0",
+        "--data-dir",
+        "data",
+        "--artifacts-dir",
+        "artifacts",
+    ]
 
 
 def test_build_parser_metadata():
@@ -40,7 +96,7 @@ def test_build_parser_metadata():
     )
     assert (
         parser.usage or ""
-    ).strip() == "python mybci.py <subject> <run> {train,predict}"
+    ).strip() == "python mybci.py <subject> <run> {train,predict,realtime}"
 
 
 def test_build_parser_defines_expected_arguments():
@@ -56,7 +112,7 @@ def test_build_parser_defines_expected_arguments():
     assert subject_arg.help == "Identifiant du sujet (ex: S01)"
     assert run_arg.help == "Identifiant du run (ex: R01)"
     assert mode_arg.help == "Choix du pipeline à lancer"
-    assert tuple(mode_arg.choices) == ("train", "predict")
+    assert tuple(mode_arg.choices) == ("train", "predict", "realtime")
 
 
 def test_build_parser_argument_types_and_defaults():
@@ -90,7 +146,7 @@ def test_parse_args_requires_all_positional_arguments(capsys):
 
     assert excinfo.value.code == EXIT_USAGE
     stderr = capsys.readouterr().err
-    assert "usage: python mybci.py <subject> <run> {train,predict}" in stderr
+    assert "usage: python mybci.py <subject> <run> {train,predict,realtime}" in stderr
 
 
 def test_main_invokes_train_pipeline(monkeypatch):
@@ -426,3 +482,45 @@ def test_main_propagates_all_cli_options(monkeypatch):
     assert config.dim_method == "csp"
     assert config.n_components == PREDICT_COMPONENTS
     assert config.normalize_features is True
+
+
+def test_main_routes_to_realtime(monkeypatch):
+    captured: dict[str, Any] = {}
+
+    def fake_realtime(config: mybci.RealtimeCallConfig) -> int:
+        captured["config"] = config
+        return 12
+
+    monkeypatch.setattr(mybci, "_call_realtime", fake_realtime)
+
+    exit_code = mybci.main(
+        [
+            "S30",
+            "R31",
+            "realtime",
+            "--window-size",
+            "8",
+            "--step-size",
+            "4",
+            "--buffer-size",
+            "5",
+            "--sfreq",
+            "64.0",
+            "--data-dir",
+            "custom-data",
+            "--artifacts-dir",
+            "custom-artifacts",
+        ]
+    )
+
+    assert exit_code == REALTIME_ROUTING_CODE
+    assert captured["config"] == mybci.RealtimeCallConfig(
+        subject="S30",
+        run="R31",
+        window_size=8,
+        step_size=4,
+        buffer_size=5,
+        sfreq=64.0,
+        data_dir="custom-data",
+        artifacts_dir="custom-artifacts",
+    )
