@@ -1,17 +1,20 @@
-# Importe numpy pour produire des signaux synthétiques contrôlés
-import numpy as np
-
-# Importe pytest pour les assertions numériques tolérantes
-import pytest
-
 # Importe time pour suivre le budget temporel d'extraction
 from time import perf_counter
+
+# Importe numpy pour générer des signaux et des tenseurs de test
+import numpy as np
+
+# Importe pytest pour vérifier les erreurs et les approximations
+import pytest
 
 # Importe mne pour créer des epochs synthétiques conformes à l'API
 from mne import EpochsArray, create_info
 
 # Importe l'extracteur procédural et la classe scikit-learn associée
 from tpv.features import ExtractFeatures, extract_features
+
+# Définit une constante pour le budget temps afin d'éviter les magic numbers
+MAX_EXTRACTION_SECONDS = 0.25
 
 
 def _build_epochs(
@@ -165,4 +168,4 @@ def test_extract_features_respects_time_budget() -> None:
     # Vérifie que le nombre de colonnes correspond bien aux étiquettes
     assert features.shape[1] == len(labels)
     # Vérifie que l'extraction reste sous un quart de seconde
-    assert elapsed < 0.25
+    assert elapsed < MAX_EXTRACTION_SECONDS
