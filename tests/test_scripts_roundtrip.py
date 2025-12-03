@@ -4,14 +4,14 @@ import json
 # Importe numpy pour générer des données synthétiques
 import numpy as np
 
-# Importe PipelineConfig pour aligner les paramètres du pipeline
-from tpv.pipeline import PipelineConfig
-
-# Importe TrainingRequest pour formuler la demande d'entraînement
-from scripts.train import TrainingRequest, run_training
-
 # Importe evaluate_run pour vérifier la génération des rapports prédictifs
 from scripts.predict import evaluate_run
+
+# Importe _get_git_commit pour couvrir les branches de repli git
+from scripts.train import TrainingRequest, _get_git_commit, run_training
+
+# Importe PipelineConfig pour aligner les paramètres du pipeline
+from tpv.pipeline import PipelineConfig
 
 
 # Vérifie qu'entraînement et prédiction produisent manifestes et rapports
@@ -83,3 +83,51 @@ def test_train_and_predict_produce_manifests_and_reports(tmp_path):
     assert isinstance(json_report["confusion_matrix"], list)
     # Vérifie que le nombre d'échantillons loggé correspond aux données
     assert json_report["samples"] == len(y)
+
+
+# Vérifie que _get_git_commit gère l'absence complète du dépôt
+def test_get_git_commit_returns_unknown_without_repo(tmp_path, monkeypatch):
+    """Couvre les branches de secours lorsque .git n'existe pas."""
+
+    # Définit un répertoire sans initialisation git pour tester le repli
+    naked_dir = tmp_path / "no_git"
+    # Crée le répertoire isolé pour éviter tout artefact git
+    naked_dir.mkdir()
+    # Change le répertoire courant pour pointer vers l'emplacement vierge
+    monkeypatch.chdir(naked_dir)
+    # Vérifie que l'absence de HEAD renvoie la valeur inconnue attendue
+    assert _get_git_commit() == "unknown"
+
+
+# Vérifie que _get_git_commit gère une référence manquante
+def test_get_git_commit_returns_unknown_without_ref(tmp_path, monkeypatch):
+    """Valide le repli lorsque la référence HEAD est introuvable."""
+
+    # Prépare l'emplacement git minimal pour simuler une référence brisée
+    git_dir = tmp_path / "broken_git" / ".git"
+    # Crée l'arborescence .git factice pour écrire le HEAD
+    git_dir.mkdir(parents=True)
+    # Déclare une référence HEAD vers une branche inexistante
+    head_content = "ref: refs/heads/main"
+    # Écrit la référence dans le fichier HEAD sans créer la cible
+    (git_dir / "HEAD").write_text(head_content)
+    # Bascule dans le dépôt factice pour invoquer la fonction
+    monkeypatch.chdir(git_dir.parent)
+    # Vérifie que l'absence du fichier de référence déclenche le repli
+    assert _get_git_commit() == "unknown"
+
+
+# Vérifie que _get_git_commit gère un HEAD vide
+def test_get_git_commit_returns_unknown_with_empty_head(tmp_path, monkeypatch):
+    """Assure le repli lorsque HEAD ne contient aucun hash."""
+
+    # Prépare un dépôt minimal avec fichier HEAD vide
+    git_dir = tmp_path / "empty_head" / ".git"
+    # Crée l'arborescence git simulée pour manipuler HEAD
+    git_dir.mkdir(parents=True)
+    # Écrit un fichier HEAD vide pour déclencher la valeur de secours
+    (git_dir / "HEAD").write_text("")
+    # Bascule dans le dépôt simulé pour exécuter la fonction
+    monkeypatch.chdir(git_dir.parent)
+    # Vérifie que la valeur retournée correspond au repli attendu
+    assert _get_git_commit() == "unknown"

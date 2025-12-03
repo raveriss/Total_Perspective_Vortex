@@ -1,183 +1,51 @@
-    scripts.fetch_physionet.x_load_manifest__mutmut_1: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_2: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_3: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_4: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_5: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_6: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_7: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_8: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_9: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_10: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_11: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_12: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_13: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_14: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_15: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_16: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_17: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_18: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_19: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_20: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_21: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_22: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_23: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_24: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_25: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_26: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_27: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_28: not checked
-    scripts.fetch_physionet.x_load_manifest__mutmut_29: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_1: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_2: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_3: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_4: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_5: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_6: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_7: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_8: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_9: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_10: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_11: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_12: not checked
-    scripts.fetch_physionet.x_compute_sha256__mutmut_13: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_1: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_2: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_3: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_4: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_5: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_6: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_7: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_8: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_9: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_10: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_11: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_12: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_13: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_14: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_15: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_16: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_17: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_18: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_19: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_20: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_21: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_22: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_23: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_24: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_25: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_26: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_27: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_28: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_29: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_30: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_31: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_32: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_33: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_34: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_35: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_36: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_37: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_38: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_39: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_40: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_41: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_42: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_43: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_44: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_45: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_46: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_47: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_48: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_49: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_50: not checked
-    scripts.fetch_physionet.x_retrieve_file__mutmut_51: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_1: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_2: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_3: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_4: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_5: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_6: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_7: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_8: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_9: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_10: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_11: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_12: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_13: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_14: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_15: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_16: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_17: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_18: not checked
-    scripts.fetch_physionet.x_validate_file__mutmut_19: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_1: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_2: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_3: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_4: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_5: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_6: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_7: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_8: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_9: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_10: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_11: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_12: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_13: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_14: not checked
-    scripts.fetch_physionet.x_fetch_dataset__mutmut_15: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_1: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_2: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_3: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_4: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_5: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_6: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_7: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_8: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_9: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_10: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_11: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_12: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_13: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_14: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_15: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_16: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_17: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_18: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_19: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_20: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_21: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_22: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_23: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_24: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_25: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_26: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_27: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_28: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_29: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_30: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_31: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_32: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_33: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_34: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_35: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_36: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_37: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_38: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_39: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_40: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_41: not checked
-    scripts.fetch_physionet.x_parse_args__mutmut_42: not checked
-    scripts.fetch_physionet.x_main__mutmut_1: not checked
-    scripts.fetch_physionet.x_main__mutmut_2: not checked
-    scripts.fetch_physionet.x_main__mutmut_3: not checked
-    scripts.fetch_physionet.x_main__mutmut_4: not checked
-    scripts.fetch_physionet.x_main__mutmut_5: not checked
-    scripts.fetch_physionet.x_main__mutmut_6: not checked
-    scripts.fetch_physionet.x_main__mutmut_7: not checked
-    scripts.fetch_physionet.x_main__mutmut_8: not checked
-    scripts.fetch_physionet.x_main__mutmut_9: not checked
-    scripts.fetch_physionet.x_main__mutmut_10: not checked
-    scripts.fetch_physionet.x_main__mutmut_11: not checked
-    scripts.fetch_physionet.x_main__mutmut_12: not checked
-    scripts.fetch_physionet.x_main__mutmut_13: not checked
-    scripts.fetch_physionet.x_main__mutmut_14: not checked
+    scripts.fetch_physionet.x_load_manifest__mutmut_5: survived
+    scripts.fetch_physionet.x_load_manifest__mutmut_6: survived
+    scripts.fetch_physionet.x_load_manifest__mutmut_7: survived
+    scripts.fetch_physionet.x_load_manifest__mutmut_11: survived
+    scripts.fetch_physionet.x_load_manifest__mutmut_19: survived
+    scripts.fetch_physionet.x_load_manifest__mutmut_21: survived
+    scripts.fetch_physionet.x_load_manifest__mutmut_28: survived
+    scripts.fetch_physionet.x_compute_sha256__mutmut_6: timeout
+    scripts.fetch_physionet.x_compute_sha256__mutmut_12: timeout
+    scripts.fetch_physionet.x_retrieve_file__mutmut_8: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_10: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_12: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_16: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_17: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_22: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_24: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_37: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_38: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_41: survived
+    scripts.fetch_physionet.x_retrieve_file__mutmut_43: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_3: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_7: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_8: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_10: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_11: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_14: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_15: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_16: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_17: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_19: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_20: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_22: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_23: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_26: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_27: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_28: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_29: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_32: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_35: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_40: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_41: survived
+    scripts.fetch_physionet.x_parse_args__mutmut_42: survived
+    scripts.fetch_physionet.x_main__mutmut_2: survived
+    scripts.fetch_physionet.x_main__mutmut_4: survived
+    scripts.fetch_physionet.x_main__mutmut_6: survived
+    scripts.fetch_physionet.x_main__mutmut_7: survived
+    scripts.fetch_physionet.x_main__mutmut_8: survived
+    scripts.fetch_physionet.x_main__mutmut_9: survived
+    scripts.fetch_physionet.x_main__mutmut_10: survived
+    scripts.fetch_physionet.x_main__mutmut_11: survived
+    scripts.fetch_physionet.x_main__mutmut_12: survived
