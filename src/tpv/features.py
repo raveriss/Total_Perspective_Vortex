@@ -104,6 +104,10 @@ def extract_features(
         nperseg: int | None = effective_config.get("nperseg")
         # Offre un recouvrement configurable pour stabiliser l'estimation
         noverlap: int | None = effective_config.get("noverlap")
+        # Permet de choisir la stratégie d'agrégation des segments
+        average: str = effective_config.get("average", "mean")
+        # Permet de choisir la densité ou la puissance intégrée
+        scaling: str = effective_config.get("scaling", "density")
         # Calcule la densité spectrale de puissance par canal et par essai
         freqs, psd = signal.welch(
             data,
@@ -112,7 +116,8 @@ def extract_features(
             nperseg=nperseg,
             noverlap=noverlap,
             axis=-1,
-            average="mean",
+            average=average,
+            scaling=scaling,
         )
         # Accumule les puissances de bande pour chaque intervalle demandé
         band_powers: List[np.ndarray] = []

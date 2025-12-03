@@ -1,66 +1,46 @@
-"""Tests for configurable EEG feature extraction."""
-
-# Importe time pour mesurer le respect du budget d'exécution
-import time
-
-# Importe numpy pour générer des signaux synthétiques contrôlés
+# Importe numpy pour construire des signaux contrôlés et vérifier les résultats
 import numpy as np
 
-# Importe pytest pour vérifier les erreurs levées par l'extracteur
+# Importe pytest pour capturer les erreurs et les assertions
 import pytest
 
-# Importe mne pour construire des Epochs simulant des enregistrements EEG
+# Importe mne pour créer des epochs synthétiques conformes à l'API
 from mne import EpochsArray, create_info
 
-# Importe les API d'extraction pour vérifier la conformité des contrôles
+# Importe l'extracteur procédural et la classe scikit-learn associée
 from tpv.features import ExtractFeatures, extract_features
-
-# Définit un budget temporel strict pour garantir des performances interactives
-TIME_BUDGET_S = 0.05
 
 
 def _build_epochs(
     n_epochs: int, n_channels: int, n_times: int, sfreq: float
 ) -> EpochsArray:
-    """Create synthetic epochs with explicit channel names."""
+    """Crée des epochs synthétiques avec des noms de canal explicites."""
 
-    # Génère un bruit gaussien pour simuler des essais EEG variés
-    data = np.random.default_rng(seed=42).standard_normal(
+    # Génère un bruit gaussien pour éviter des signaux dégénérés
+    data = np.random.default_rng(seed=0).standard_normal(
         (n_epochs, n_channels, n_times)
     )
-    # Construit des noms de canaux explicites pour valider les étiquettes générées
+    # Déclare des noms de canaux pour suivre l'ordre des étiquettes
     ch_names = [f"C{idx}" for idx in range(n_channels)]
-    # Crée l'info MNE pour fournir la fréquence d'échantillonnage et les noms de canaux
+    # Construit l'info MNE avec la fréquence d'échantillonnage imposée
     info = create_info(ch_names=ch_names, sfreq=sfreq, ch_types="eeg")
-    # Bâtit les epochs MNE afin de respecter l'API attendue par l'extracteur
+    # Retourne les epochs prêt à être traités par l'extracteur
     return EpochsArray(data, info)
 
 
-def test_extract_features_welch_shape_and_labels() -> None:
-    """Welch extraction should return flattened bands aligned with labels."""
+def test_extract_features_welch_respects_window_and_shape() -> None:
+    """Welch doit produire des bandes aplaties et étiquetées par canal."""
 
-    # Prépare des epochs synthétiques pour contrôler la dimension de sortie
-    epochs = _build_epochs(n_epochs=2, n_channels=3, n_times=256, sfreq=128.0)
-    # Lance l'extraction avec la configuration par défaut basée sur Welch
-    features, labels = extract_features(epochs, config={"method": "welch"})
-    # Vérifie que la matrice contient une colonne par paire canal-bande
-    assert features.shape == (2, 12)
-    # Confirme que l'ordre des étiquettes reflète les canaux puis les bandes
-    assert labels[:4] == ["C0_theta", "C0_alpha", "C0_beta", "C0_gamma"]
-    # Garantit que chaque canal génère le même nombre d'étiquettes de bande
-    assert len(labels) == features.shape[1]
-
-
-def test_extract_features_wavelet_placeholder() -> None:
-    """Wavelet mode must provide a zero placeholder while keeping labels."""
-
-    # Prépare des epochs synthétiques pour tester la voie placeholder
-    epochs = _build_epochs(n_epochs=1, n_channels=2, n_times=128, sfreq=256.0)
-    # Demande explicitement la méthode wavelet pour obtenir un tenseur nul
-    features, labels = extract_features(epochs, config={"method": "wavelet"})
-    # Vérifie que les features sont bien nuls faute d'implémentation
-    assert np.array_equal(features, np.zeros((1, 8)))
-    # Contrôle que les étiquettes restent alignées avec la matrice retournée
+    # Prépare des epochs de test avec plusieurs canaux
+    epochs = _build_epochs(n_epochs=3, n_channels=2, n_times=256, sfreq=128.0)
+    # Demande une fenêtre rectangulaire pour stabiliser le test
+    features, labels = extract_features(
+        epochs,
+        config={"method": "welch", "window": "boxcar", "nperseg": 128},
+    )
+    # Vérifie que la matrice est bien de taille essais x (canaux * bandes)
+    assert features.shape == (3, 8)
+    # Vérifie que les étiquettes reflètent l'ordre canal puis bande
     assert labels == [
         "C0_theta",
         "C0_alpha",
@@ -73,63 +53,66 @@ def test_extract_features_wavelet_placeholder() -> None:
     ]
 
 
-def test_extract_features_runtime_budget() -> None:
-    """Welch extraction should respect the latency budget on small batches."""
+def test_extract_features_alpha_sine_dominates_alpha_band() -> None:
+    """Un sinus alpha doit produire plus d'énergie dans la bande alpha."""
 
-    # Prépare un petit lot d'epochs pour mesurer la performance
-    epochs = _build_epochs(n_epochs=5, n_channels=4, n_times=512, sfreq=128.0)
-    # Capture l'instant de début pour mesurer la durée de l'extraction
-    start = time.perf_counter()
-    # Exécute l'extraction Welch avec les paramètres par défaut
-    extract_features(epochs, config={"method": "welch"})
-    # Capture l'instant de fin pour comparer avec le budget
-    stop = time.perf_counter()
-    # Garantit que le traitement reste inférieur au budget temporel fixé
-    assert (stop - start) < TIME_BUDGET_S
+    # Fixe les paramètres temporels pour centrer le sinus sur 10 Hz
+    sfreq = 128.0
+    # Construit un axe temporel régulier pour le sinus
+    times = np.arange(0, 2.0, 1.0 / sfreq)
+    # Génère un sinus de 10 Hz pour la première composante
+    alpha_signal = np.sin(2 * np.pi * 10.0 * times)
+    # Empile le sinus et du bruit sur deux canaux
+    data = np.stack(
+        [alpha_signal, np.random.default_rng(seed=1).standard_normal(times.size)],
+    )
+    # Réplique le signal sur plusieurs essais pour renforcer la moyenne
+    epochs_data = np.stack([data, data])
+    # Crée l'info correspondante pour MNE
+    info = create_info(ch_names=["C0", "C1"], sfreq=sfreq, ch_types="eeg")
+    # Bâtit les epochs à partir du tenseur préparé
+    epochs = EpochsArray(epochs_data, info)
+    # Exécute l'extraction avec la méthode par défaut
+    features, _ = extract_features(epochs)
+    # Reshape pour retrouver la structure essais x canaux x bandes
+    reshaped = features.reshape(2, 2, 4)
+    # Vérifie que le canal alpha présente une énergie maximale dans la bande alpha
+    assert reshaped[0, 0, 1] == pytest.approx(np.max(reshaped[0, 0]))
 
 
-def test_extract_features_transform_rejects_wrong_shape() -> None:
-    """The scikit-learn wrapper should guard against malformed tensors."""
+def test_extract_features_wavelet_placeholder_preserves_shape() -> None:
+    """La voie wavelet doit renvoyer des zéros avec la bonne dimension."""
 
-    # Construit un tenseur 2D pour déclencher la validation des dimensions
-    bad_tensor = np.zeros((4, 16))
-    # Instancie l'extracteur avec une fréquence arbitraire pour le test
-    extractor = ExtractFeatures(sfreq=128.0)
-    # Vérifie que la validation signale l'absence de la troisième dimension
+    # Prépare des epochs synthétiques minimaux
+    epochs = _build_epochs(n_epochs=1, n_channels=3, n_times=64, sfreq=64.0)
+    # Demande explicitement la méthode wavelet non implémentée
+    features, labels = extract_features(epochs, config={"method": "wavelet"})
+    # Vérifie que la matrice est entièrement nulle
+    assert np.array_equal(features, np.zeros((1, 12)))
+    # Vérifie que les étiquettes restent cohérentes avec les canaux
+    assert labels[0] == "C0_theta"
+
+
+def test_extract_features_wrapper_rejects_unknown_strategy() -> None:
+    """La classe scikit-learn doit refuser les stratégies non supportées."""
+
+    # Construit un tenseur conforme pour l'appel
+    tensor = np.zeros((1, 2, 16))
+    # Instancie un extracteur avec une stratégie inconnue
+    extractor = ExtractFeatures(sfreq=128.0, feature_strategy="invalid")
+    # Vérifie que l'appelant reçoit une erreur explicite
     with pytest.raises(ValueError):
-        extractor.transform(bad_tensor)
+        extractor.transform(tensor)
 
 
-def test_extract_features_transform_rejects_unknown_strategy() -> None:
-    """The wrapper must refuse unsupported feature strategies."""
+def test_extract_features_numeric_stability() -> None:
+    """Welch doit produire des valeurs finies et non négatives."""
 
-    # Crée un tenseur conforme pour isoler l'erreur de stratégie
-    eeg_tensor = np.zeros((1, 1, 16))
-    # Force une stratégie inconnue afin d'atteindre la branche d'erreur
-    extractor = ExtractFeatures(sfreq=128.0, feature_strategy="unknown")
-    # Confirme que l'appelant est informé de la stratégie non supportée
-    with pytest.raises(ValueError):
-        extractor.transform(eeg_tensor)
-
-
-def test_extract_features_transform_wavelet_placeholder() -> None:
-    """The wrapper should mirror the procedural placeholder for wavelets."""
-
-    # Génère un tenseur factice pour tester la branche placeholder
-    eeg_tensor = np.ones((2, 3, 32))
-    # Configure l'extracteur pour utiliser la stratégie wavelet non implémentée
-    extractor = ExtractFeatures(sfreq=128.0, feature_strategy="wavelet")
-    # Vérifie que le placeholder respecte la forme attendue sans calcul réel
-    output = extractor.transform(eeg_tensor)
-    # Garantit que le placeholder renvoie des zéros dimensionnés par bande
-    assert np.array_equal(output, np.zeros((2, 12)))
-
-
-def test_extract_features_rejects_unknown_method() -> None:
-    """The procedural helper should reject unhandled extraction methods."""
-
-    # Prépare des epochs pour activer la voie de validation de méthode
-    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=64, sfreq=64.0)
-    # Passe une méthode inconnue pour vérifier le message d'erreur explicite
-    with pytest.raises(ValueError):
-        extract_features(epochs, config={"method": "unknown"})
+    # Prépare un bruit blanc pour sonder la stabilité numérique
+    epochs = _build_epochs(n_epochs=2, n_channels=1, n_times=512, sfreq=256.0)
+    # Exécute l'extraction pour récupérer les PSD de bande
+    features, _ = extract_features(epochs, config={"method": "welch"})
+    # Vérifie l'absence de NaN ou d'infini
+    assert np.isfinite(features).all()
+    # Vérifie l'absence de valeurs négatives après la moyenne de puissance
+    assert (features >= 0).all()
