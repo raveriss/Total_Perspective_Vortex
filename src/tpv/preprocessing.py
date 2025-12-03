@@ -18,6 +18,10 @@ import hashlib
 import json
 
 # Utilise pathlib pour assurer la portabilité des interactions fichiers
+# Introduit dataclass pour regrouper la configuration de rapport
+from dataclasses import dataclass
+
+# Utilise pathlib pour assurer la portabilité des interactions fichiers
 from pathlib import Path
 
 # Centralise les hints pour clarifier les attentes des appels et des tests
@@ -39,6 +43,8 @@ from numpy.typing import NDArray
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
 # Provide an explicit mapping from Physionet events to motor imagery labels
 MOTOR_EVENT_LABELS: Dict[str, str] = {"T1": "A", "T2": "B"}
+# Déclare les étiquettes attendues pour vérifier la présence des classes
+EXPECTED_LABELS: Tuple[str, str] = ("A", "B")
 # Fixe la méthode de filtrage par défaut pour la cohérence API et tests
 DEFAULT_FILTER_METHOD = "fir"
 # Fixe la méthode de normalisation par défaut pour les canaux EEG
@@ -687,6 +693,204 @@ def summarize_epoch_quality(
         )
     # Retourne les epochs nettoyées, le rapport et les labels filtrés
     return cleaned_epochs, report, cleaned_labels
+
+
+@dataclass
+class ReportConfig:
+    """Regroupe les paramètres nécessaires à la sérialisation du rapport."""
+
+    # Stocke le chemin cible pour centraliser la sortie des rapports
+    path: Path
+    # Spécifie le format attendu pour contrôler la normalisation amont
+    fmt: str = "json"
+
+
+def _ensure_label_alignment(epochs: mne.Epochs, motor_labels: List[str]) -> None:
+    """Valide la correspondance entre événements MNE et labels utilisateur."""
+
+    # Détecte immédiatement les décalages pour éviter des rapports incohérents
+    if len(motor_labels) != len(epochs):
+        # Fournit un rapport JSON pour aider à diagnostiquer le désalignement
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Label/event mismatch",
+                    "expected_events": len(epochs),
+                    "labels": len(motor_labels),
+                }
+            )
+        )
+
+
+def _apply_quality_control(
+    epochs: mne.Epochs,
+    motor_labels: List[str],
+    max_peak_to_peak: float,
+) -> Tuple[mne.Epochs, Dict[str, List[int]], List[str]]:
+    """Applique le rejet automatique et conserve les labels alignés."""
+
+    # Filtre les artefacts et segments incomplets selon le seuil fourni
+    cleaned_epochs, flagged = quality_control_epochs(
+        epochs, max_peak_to_peak=max_peak_to_peak, mode="reject"
+    )
+    # Liste les indices rejetés pour synchroniser le filtrage des labels
+    removed_indices = set(flagged["artifact"]) | set(flagged["incomplete"])
+    # Retient les labels qui restent alignés avec les epochs conservées
+    cleaned_labels = [
+        label for idx, label in enumerate(motor_labels) if idx not in removed_indices
+    ]
+    # Retourne les données nettoyées et les labels synchronisés
+    return cleaned_epochs, flagged, cleaned_labels
+
+
+def _count_remaining_labels(cleaned_labels: List[str]) -> Dict[str, int]:
+    """Calcule le nombre d'occurrences par classe attendue."""
+
+    # Utilise les labels attendus pour assurer la cohérence des rapports
+    return {label: cleaned_labels.count(label) for label in EXPECTED_LABELS}
+
+
+def _assert_expected_labels_present(
+    report: Dict[str, Any], counts: Dict[str, int]
+) -> None:
+    """Lève une erreur claire lorsque des classes manquent après nettoyage."""
+
+    # Repère les classes dont le comptage tombe à zéro après filtrage
+    missing_labels = [label for label, count in counts.items() if count == 0]
+    # Remonte une erreur structurée pour faciliter le diagnostic utilisateur
+    if missing_labels:
+        # Injecte les labels manquants dans le rapport pour guider l'enquête
+        raise ValueError(
+            json.dumps(
+                {**report, "error": "Missing labels", "missing_labels": missing_labels}
+            )
+        )
+
+
+def _build_epoch_report(
+    run_metadata: Mapping[str, str],
+    total_epochs: int,
+    kept_epochs: int,
+    counts: Dict[str, int],
+    flagged: Dict[str, List[int]],
+) -> Dict[str, Any]:
+    """Assemble les informations nécessaires au rapport qualité."""
+
+    # Centralise les informations utiles pour le suivi par sujet et par run
+    return {
+        "subject": run_metadata["subject"],
+        "run": run_metadata["run"],
+        "total_epochs_before": total_epochs,
+        "kept_epochs": kept_epochs,
+        "counts": counts,
+        "anomalies": {
+            "artifact": flagged["artifact"],
+            "incomplete": flagged["incomplete"],
+        },
+    }
+
+
+def _normalize_report_config(report_config: ReportConfig) -> ReportConfig:
+    """Normalise la configuration pour sécuriser la sérialisation."""
+
+    # Harmonise la casse pour éviter des variations inattendues dans les noms
+    fmt_normalized = report_config.fmt.lower()
+    # Vérifie que la casse initiale respecte la normalisation imposée
+    if report_config.fmt != fmt_normalized:
+        # Refuse une casse incohérente pour prévenir des collisions de fichiers
+        raise ValueError("fmt must be lowercase")
+    # Valide la liste des formats acceptés pour verrouiller l'API
+    if fmt_normalized not in {"json", "csv"}:
+        # Signale explicitement la liste des formats supportés par la pipeline
+        raise ValueError("fmt must be either 'json' or 'csv'")
+    # Retourne la configuration avec un format uniformisé
+    return ReportConfig(path=report_config.path, fmt=fmt_normalized)
+
+
+def _write_json_report(report: Dict[str, Any], target: Path) -> None:
+    """Écrit le rapport qualité au format JSON."""
+
+    # Crée les dossiers parents pour éviter une erreur d'écriture
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Sérialise le rapport avec indentation pour faciliter la lecture humaine
+    target.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
+def _write_csv_report(
+    report: Dict[str, Any],
+    flagged: Dict[str, List[int]],
+    counts: Dict[str, int],
+    total_epochs: int,
+    target: Path,
+) -> None:
+    """Écrit le rapport qualité au format CSV."""
+
+    # Crée les dossiers parents pour éviter une erreur d'écriture
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Construit l'en-tête en exposant les colonnes critiques pour la QA
+    lines = [
+        "subject,run,total_epochs_before,kept_epochs,dropped_artifact,dropped_incomplete,label,count"
+    ]
+    # Génère une ligne par classe pour détailler les indices supprimés
+    for label, count in counts.items():
+        # Concatène les indices artefacts pour conserver la traçabilité
+        artifact_indices = ";".join(str(idx) for idx in flagged["artifact"])
+        # Concatène les indices incomplets pour un niveau de détail équivalent
+        incomplete_indices = ";".join(str(idx) for idx in flagged["incomplete"])
+        # Agrège la ligne finale pour la classe courante
+        lines.append(
+            ",".join(
+                [
+                    report["subject"],
+                    report["run"],
+                    str(total_epochs),
+                    str(report["kept_epochs"]),
+                    artifact_indices,
+                    incomplete_indices,
+                    label,
+                    str(count),
+                ]
+            )
+        )
+    # Écrit le contenu complet pour permettre une inspection rapide
+    target.write_text("\n".join(lines), encoding="utf-8")
+
+
+def report_epoch_anomalies(
+    epochs: mne.Epochs,
+    motor_labels: List[str],
+    run_metadata: Mapping[str, str],
+    max_peak_to_peak: float,
+    report_config: ReportConfig,
+) -> Tuple[mne.Epochs, Dict[str, Any], Path]:
+    """Reject corrupted epochs then persist a detailed quality report."""
+
+    # Vérifie l'alignement entre événements et labels pour fiabiliser le rapport
+    _ensure_label_alignment(epochs, motor_labels)
+    # Applique le contrôle qualité afin de mesurer l'impact des anomalies
+    cleaned_epochs, flagged, cleaned_labels = _apply_quality_control(
+        epochs, motor_labels, max_peak_to_peak
+    )
+    # Calcule le décompte par classe après filtrage
+    counts = _count_remaining_labels(cleaned_labels)
+    # Assemble le rapport avec les métadonnées de run
+    report = _build_epoch_report(
+        run_metadata, len(epochs), len(cleaned_epochs), counts, flagged
+    )
+    # Valide la présence de toutes les classes attendues
+    _assert_expected_labels_present(report, counts)
+    # Normalise la configuration pour sécuriser le format
+    normalized_config = _normalize_report_config(report_config)
+    # Sérialise en JSON lorsque demandé
+    if normalized_config.fmt == "json":
+        # Écrit le rapport JSON prêt à l'usage
+        _write_json_report(report, normalized_config.path)
+        # Retourne les résultats accompagnés du chemin généré
+        return cleaned_epochs, report, normalized_config.path
+    # Sérialise en CSV lorsque demandé
+    _write_csv_report(report, flagged, counts, len(epochs), normalized_config.path)
+    # Retourne les résultats accompagnés du chemin généré
+    return cleaned_epochs, report, normalized_config.path
 
 
 def detect_artifacts(

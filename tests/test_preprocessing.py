@@ -37,14 +37,18 @@ from tpv.preprocessing import (
     DEFAULT_NORMALIZE_METHOD,
     MOTOR_EVENT_LABELS,
     PHYSIONET_LABEL_MAP,
+    ReportConfig,
     _apply_marking,
+    _assert_expected_labels_present,
     _build_file_entry,
     _build_keep_mask,
     _collect_run_counts,
+    _ensure_label_alignment,
     _expected_epoch_samples,
     _extract_bad_intervals,
     _flag_epoch_quality,
     _is_bad_description,
+    _normalize_report_config,
     apply_bandpass_filter,
     create_epochs_from_raw,
     detect_artifacts,
@@ -56,6 +60,7 @@ from tpv.preprocessing import (
     map_events_to_motor_labels,
     normalize_channels,
     quality_control_epochs,
+    report_epoch_anomalies,
     summarize_epoch_quality,
     verify_dataset_integrity,
 )
@@ -66,6 +71,10 @@ MAX_FILTER_AMPLITUDE = 10.0
 CUSTOM_IIR_ORDER = 6
 # Fixe l'ordre IIR par défaut pour surveiller la configuration interne
 EXPECTED_IIR_DEFAULT_ORDER = 4
+# Fixe un identifiant de sujet de test pour les rapports synthétiques
+TEST_SUBJECT = "S-test"
+# Fixe un identifiant de run de test pour homogénéiser les métadonnées
+TEST_RUN = "R-test"
 
 
 def _build_dummy_raw(sfreq: float = 128.0, duration: float = 1.0) -> mne.io.Raw:
@@ -89,6 +98,35 @@ def _build_dummy_raw(sfreq: float = 128.0, duration: float = 1.0) -> mne.io.Raw:
     )
     # Return the constructed Raw object for downstream export
     return raw
+
+
+def _build_epoch_array(
+    epoch_count: int = 4, sfreq: float = 128.0
+) -> tuple[mne.Epochs, list[str]]:
+    """Create deterministic epochs with balanced motor labels."""
+
+    # Construit les métadonnées des canaux pour aligner MNE et les tests
+    info = mne.create_info(ch_names=["C3", "C4"], sfreq=sfreq, ch_types="eeg")
+    # Génère des données à faible amplitude pour éviter les rejets inattendus
+    rng = np.random.default_rng(seed=123)
+    # Calcule le nombre d'échantillons attendu pour un segment de 1 seconde
+    samples = int(round(sfreq)) + 1
+    # Crée un cube de données stable pour maintenir les tests déterministes
+    data = rng.normal(scale=0.01, size=(epoch_count, 2, samples))
+    # Bâtit une liste d'événements espacés pour satisfaire la construction MNE
+    events = np.column_stack(
+        [
+            np.arange(epoch_count),
+            np.zeros(epoch_count, dtype=int),
+            np.ones(epoch_count, dtype=int),
+        ]
+    )
+    # Génère des labels équilibrés pour tester le comptage par classe
+    labels = ["A" if idx % 2 == 0 else "B" for idx in range(epoch_count)]
+    # Assemble des epochs à partir des données synthétiques
+    epochs = mne.EpochsArray(data=data, info=info, events=events, tmin=0.0)
+    # Retourne les epochs et les labels alignés pour alimenter les tests
+    return epochs, labels
 
 
 def test_apply_bandpass_filter_preserves_shape_and_stability() -> None:
@@ -192,6 +230,41 @@ def test_apply_bandpass_filter_invalid_method_message() -> None:
         apply_bandpass_filter(raw, method="bad")
 
 
+def test_report_epoch_anomalies_reports_clean_run(tmp_path: Path) -> None:
+    """Ensure reports stay empty of anomalies for clean epochs."""
+
+    # Construit des epochs synthétiques sans artefacts pour le rapport
+    epochs, labels = _build_epoch_array()
+    # Prépare les métadonnées de run attendues par la routine de rapport
+    run_metadata = {"subject": TEST_SUBJECT, "run": TEST_RUN}
+    # Fixe le chemin de sortie pour valider l'écriture JSON
+    output_path = tmp_path / "report.json"
+    # Construit la configuration de rapport en imposant le format JSON
+    report_config = preprocessing.ReportConfig(path=output_path, fmt="json")
+    # Génère le rapport tout en récupérant les epochs nettoyées
+    cleaned, report, path = report_epoch_anomalies(
+        epochs,
+        labels,
+        run_metadata,
+        max_peak_to_peak=1.0,
+        report_config=report_config,
+    )
+    # Vérifie que le chemin correspond au fichier produit
+    assert path == output_path
+    # S'assure que le fichier de rapport a bien été écrit sur disque
+    assert output_path.exists()
+    # Contrôle que les epochs conservées respectent le comptage attendu
+    assert len(cleaned) == len(epochs)
+    # Valide l'absence totale d'anomalies dans le rapport synthétique
+    assert report["anomalies"] == {"artifact": [], "incomplete": []}
+    # Vérifie que chaque classe conserve deux occurrences après filtrage nul
+    assert report["counts"] == {"A": 2, "B": 2}
+    # Charge le fichier pour garantir la cohérence du contenu sérialisé
+    loaded = json.loads(output_path.read_text(encoding="utf-8"))
+    # Confirme que la charge reflète les mêmes données que le rapport en mémoire
+    assert loaded == report
+
+
 def test_apply_bandpass_filter_accepts_uppercase_method(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -217,6 +290,115 @@ def test_apply_bandpass_filter_accepts_uppercase_method(
     kwargs: dict[str, object] = captured["kwargs"]
     # Vérifie que la méthode transmise reste bien le chemin FIR attendu
     assert kwargs.get("method") == "fir"
+
+
+def test_report_epoch_anomalies_flags_corrupted_segments(tmp_path: Path) -> None:
+    """Validate that corrupted epochs are removed and reported in CSV."""
+
+    # Construit un lot d'epochs avec labels équilibrés pour la détection
+    epochs, labels = _build_epoch_array()
+    # Extrait les données brutes pour injecter des anomalies contrôlées
+    corrupted_data = epochs.get_data(copy=True)
+    # Insère un pic artificiel pour dépasser le seuil d'amplitude
+    corrupted_data[0, 0, 0] = 50.0
+    # Ajoute un NaN pour marquer une epoch incomplète détectable
+    corrupted_data[1] = np.nan
+    # Remplace les données internes afin que le contrôle qualité les inspecte
+    epochs._data = corrupted_data
+    # Prépare les métadonnées nécessaires au rapport CSV
+    run_metadata = {"subject": TEST_SUBJECT, "run": TEST_RUN}
+    # Positionne le chemin de sortie en CSV pour valider le format tabulaire
+    output_path = tmp_path / "report.csv"
+    # Construit la configuration de rapport pour la sortie CSV
+    report_config = preprocessing.ReportConfig(path=output_path, fmt="csv")
+    # Lance la génération du rapport avec un seuil strict pour capturer le pic
+    cleaned, report, path = report_epoch_anomalies(
+        epochs,
+        labels,
+        run_metadata,
+        max_peak_to_peak=1.0,
+        report_config=report_config,
+    )
+    # Vérifie que le chemin retourné pointe vers le CSV attendu
+    assert path == output_path
+    # Fixe le nombre d'epochs attendues après suppression des anomalies
+    expected_kept_epochs = 2
+    # Contrôle que deux epochs seulement restent après suppression des anomalies
+    assert len(cleaned) == expected_kept_epochs
+    # Vérifie que les indices d'artefact et d'incomplétude sont bien signalés
+    assert report["anomalies"] == {"artifact": [0], "incomplete": [1]}
+    # Confirme que le comptage par classe reflète la suppression de deux epochs
+    assert report["counts"] == {"A": 1, "B": 1}
+    # Lit le contenu du CSV pour contrôler la présence des anomalies
+    rows = output_path.read_text(encoding="utf-8").splitlines()
+    # Vérifie que le CSV contient un en-tête et deux lignes de données
+    assert rows[0].startswith("subject,run,total_epochs_before")
+    # Inspecte la ligne de la classe A pour valider les indices d'artefacts
+    assert f"{TEST_SUBJECT},{TEST_RUN},4,2,0,1,A,1" in rows
+    # Inspecte la ligne de la classe B pour valider le comptage restant
+    assert f"{TEST_SUBJECT},{TEST_RUN},4,2,0,1,B,1" in rows
+
+
+def test_ensure_label_alignment_reports_mismatch() -> None:
+    """Ensure misaligned label counts raise a structured error."""
+
+    # Construit des epochs équilibrés pour détecter le désalignement
+    epochs, labels = _build_epoch_array()
+    # Retire un label pour provoquer un écart entre événements et labels
+    mismatched_labels = labels[:-1]
+    # Vérifie que la validation remonte une erreur de désalignement
+    with pytest.raises(ValueError) as excinfo:
+        _ensure_label_alignment(epochs, mismatched_labels)
+    # Convertit le message en dictionnaire pour faciliter les assertions
+    payload = json.loads(str(excinfo.value))
+    # Contrôle que le rapport explicite bien les longueurs attendues
+    assert payload == {
+        "error": "Label/event mismatch",
+        "expected_events": len(epochs),
+        "labels": len(mismatched_labels),
+    }
+
+
+def test_assert_expected_labels_present_reports_missing() -> None:
+    """Confirm missing labels trigger a detailed diagnostic payload."""
+
+    # Prépare un rapport minimal pour contextualiser l'erreur attendue
+    report = {"subject": TEST_SUBJECT, "run": TEST_RUN, "counts": {}}
+    # Construit un comptage lacunaire pour simuler une classe absente
+    counts = {"A": 0, "B": 1}
+    # Vérifie que l'absence de label est signalée via une erreur structurée
+    with pytest.raises(ValueError) as excinfo:
+        _assert_expected_labels_present(report, counts)
+    # Convertit la charge utile JSON pour vérifier le contenu détaillé
+    payload = json.loads(str(excinfo.value))
+    # Contrôle que l'erreur inclut le libellé et la classe manquante
+    assert payload == {
+        "subject": TEST_SUBJECT,
+        "run": TEST_RUN,
+        "counts": {},
+        "error": "Missing labels",
+        "missing_labels": ["A"],
+    }
+
+
+def test_normalize_report_config_rejects_uppercase_format(tmp_path: Path) -> None:
+    """Reject uppercase format names to keep serialization predictable."""
+
+    # Fixe un chemin valide pour initialiser la configuration de rapport
+    report_config = ReportConfig(path=tmp_path / "report.json", fmt="JSON")
+    # Vérifie que la normalisation refuse la casse incorrecte
+    with pytest.raises(ValueError, match=r"^fmt must be lowercase$"):
+        _normalize_report_config(report_config)
+
+
+def test_normalize_report_config_rejects_unknown_format(tmp_path: Path) -> None:
+    """Reject unsupported formats to avoid ambiguous file outputs."""
+
+    # Fixe un chemin valide pour initialiser la configuration de rapport
+    report_config = ReportConfig(path=tmp_path / "report.txt", fmt="txt")
+    # Vérifie que la validation refuse tout format hors JSON ou CSV
+    with pytest.raises(ValueError, match=r"fmt must be either 'json' or 'csv'"):
+        _normalize_report_config(report_config)
 
 
 def test_apply_bandpass_filter_defaults_to_fir(monkeypatch: pytest.MonkeyPatch) -> None:
