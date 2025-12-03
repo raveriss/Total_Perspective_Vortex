@@ -53,18 +53,17 @@ repos:
           - "src"
           - "scripts"
 
-  # Audit dépendances (sécurité supply chain)
-  - repo: https://github.com/pypa/pip-audit
-    rev: v2.7.3
-    hooks:
-      - id: pip-audit
-        args:
-          - "--requirement=requirements.txt"
-        stages: [push]
-
   # Analyse complexité + mutation testing + tests
   - repo: local
     hooks:
+      # Audit dépendances (via l'environnement Poetry local)
+      - id: pip-audit
+        name: pip-audit
+        entry: poetry run pip-audit --progress-spinner=off --skip-editable
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
       # Complexité cyclomatique (radon)
       - id: radon
         name: radon
@@ -85,7 +84,7 @@ repos:
         entry: poetry run pytest
         language: system
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
 
       # Mutation testing sur le cœur ML/BCI
       - id: mutmut
@@ -93,4 +92,4 @@ repos:
         entry: poetry run mutmut run --paths-to-mutate src/tpv
         language: system
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
