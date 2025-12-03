@@ -1,9 +1,9 @@
 # Physionet EEG Motor Imagery — récupération des données
 
 ## Jeu de données attendu
-- Portail officiel : https://physionet.org/content/eegmmidb/1.0.0/
+- Portail officiel : https://physionet.org/content/eegmmidb/1.0.0/ (fichiers statiques : `https://physionet.org/static/published-projects/eegmmidb/1.0.0/`).
 - Périmètre : 109 sujets, 14 runs par sujet (`R01` à `R14`).
-- Volume : ~1.5 Go en EDF bruts, prévoir 2 Go libres pour les copies temporaires.
+- Volume : ~1.5 Go en EDF bruts, prévoir 2 Go libres pour les copies temporaires et la vérification d'intégrité.
 - Licence d'accès : inscription Physionet requise (ensemble "EEG Motor Movement/Imagery").
 
 ## Format des fichiers
@@ -36,6 +36,7 @@ Le fichier `manifest.json` suit la structure :
   ]
 }
 ```
+- Le dossier `data/raw/` est ignoré par Git ; les fichiers doivent être regénérés localement via le script CLI.
 
 ## Points de vigilance sur le stockage
 - Les disques formatés FAT limitent la longueur des chemins : privilégier ext4 ou APFS.
@@ -47,7 +48,7 @@ Le fichier `manifest.json` suit la structure :
 - Outils réseau standard (`curl` ou `wget`) opérationnels si vous utilisez les URLs HTTP(S).
 
 ## Script de récupération
-- Le script `scripts/fetch_physionet.py` automatise le téléchargement ou la copie locale vers `data/raw/`.
+- Le script `scripts/prepare_physionet.py` automatise le téléchargement ou la copie locale vers `data/raw/`.
 - Il repose sur un manifeste JSON listant les fichiers attendus avec leurs métadonnées :
   ```json
   {
@@ -62,10 +63,10 @@ Le fichier `manifest.json` suit la structure :
   ```
 - Commande type pour copier depuis un répertoire local :
   ```bash
-  python scripts/fetch_physionet.py --source /chemin/vers/physionet/eegmmidb --manifest manifest.json
+  python scripts/prepare_physionet.py --source /chemin/vers/physionet/eegmmidb --manifest manifest.json
   ```
 - Commande type pour télécharger depuis Physionet :
   ```bash
-  python scripts/fetch_physionet.py --source https://physionet.org/static/published-projects/eegmmidb --manifest manifest.json
+  python scripts/prepare_physionet.py --source https://physionet.org/static/published-projects/eegmmidb/1.0.0 --manifest manifest.json
   ```
-- Le script vérifie la présence, la taille et le hash SHA-256 de chaque fichier ; un échec explicite est déclenché en cas d’écart ou d’absence.
+- Le script vérifie la présence, la taille et le hash SHA-256 de chaque fichier ; un échec explicite est déclenché en cas d’écart ou d’absence, avec des messages contextualisés côté CLI.
