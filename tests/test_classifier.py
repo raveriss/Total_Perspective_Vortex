@@ -8,6 +8,8 @@ import numpy as np
 # Garantit l'accès aux fixtures temporaires et assertions
 import pytest
 
+# Importe l'agrégation pour résumer les accuracies multi-runs
+from scripts import aggregate_accuracy as aggregate_cli
 # Importe la logique de prédiction pour vérifier l'accuracy
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
 from scripts import predict as predict_cli
@@ -239,3 +241,61 @@ def test_predict_cli_main_covers_parser_and_report(tmp_path):
     exit_code = predict_cli.main(argv)
     # Vérifie que la CLI retourne un succès standard
     assert exit_code == 0
+
+
+# Vérifie que l'agrégation restitue les métriques multi-runs synthétiques
+def test_accuracy_aggregation_across_runs(tmp_path):
+    # Fige la fréquence d'échantillonnage pour aligner les features FFT
+    sfreq = 120.0
+    # Génère des données jouets linéairement séparables
+    X, y = _build_toy_dataset(sfreq)
+    # Construit le répertoire racine des données temporaires
+    data_dir = tmp_path / "data"
+    # Construit le répertoire racine des artefacts temporaires
+    artifacts_dir = tmp_path / "artifacts"
+    # Déclare la configuration de pipeline identique pour tous les runs
+    config = train_cli.PipelineConfig(
+        sfreq=sfreq,
+        feature_strategy="fft",
+        normalize_features=False,
+        dim_method="pca",
+        n_components=2,
+        classifier="lda",
+        scaler=None,
+    )
+    # Liste les couples (sujet, run) à entraîner pour l'agrégation
+    runs = [("S10", "R01"), ("S10", "R02"), ("S11", "R01")]
+    # Entraîne chaque run pour générer les artefacts attendus
+    for subject, run in runs:
+        # Construit le répertoire propre au sujet courant
+        subject_dir = data_dir / subject
+        # Assure la création du répertoire avant les sauvegardes numpy
+        subject_dir.mkdir(parents=True, exist_ok=True)
+        # Sauvegarde les features au format attendu par la CLI
+        np.save(subject_dir / f"{run}_X.npy", X)
+        # Sauvegarde les labels au format attendu par la CLI
+        np.save(subject_dir / f"{run}_y.npy", y)
+        # Regroupe les paramètres d'entraînement dans une requête dédiée
+        request = train_cli.TrainingRequest(
+            subject=subject,
+            run=run,
+            pipeline_config=config,
+            data_dir=data_dir,
+            artifacts_dir=artifacts_dir,
+        )
+        # Exécute l'entraînement et la sauvegarde des artefacts
+        train_cli.run_training(request)
+    # Agrège les accuracies calculées à partir des artefacts générés
+    report = aggregate_cli.aggregate_accuracies(data_dir, artifacts_dir)
+    # Vérifie que tous les runs sont bien présents dans le rapport
+    assert set(report["by_run"].keys()) == {"S10/R01", "S10/R02", "S11/R01"}
+    # Vérifie que chaque run dépasse le seuil minimal d'accuracy
+    for accuracy in report["by_run"].values():
+        # Garantit une performance élevée sur le dataset synthétique
+        assert accuracy > EXPECTED_MIN_ACCURACY
+    # Vérifie que les agrégations par sujet couvrent les deux identifiants
+    assert set(report["by_subject"].keys()) == {"S10", "S11"}
+    # Calcule la moyenne attendue des accuracies individuelles
+    expected_global = float(np.mean(list(report["by_run"].values())))
+    # Vérifie que l'accuracy globale reflète la moyenne des runs
+    assert pytest.approx(report["global"], rel=0.01) == expected_global
