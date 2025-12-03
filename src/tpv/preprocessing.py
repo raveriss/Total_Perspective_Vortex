@@ -689,6 +689,101 @@ def summarize_epoch_quality(
     return cleaned_epochs, report, cleaned_labels
 
 
+def report_epoch_anomalies(
+    epochs: mne.Epochs,
+    motor_labels: List[str],
+    run_metadata: Mapping[str, str],
+    max_peak_to_peak: float,
+    output_path: Path,
+    fmt: str = "json",
+    expected_labels: Tuple[str, str] = ("A", "B"),
+) -> Tuple[mne.Epochs, Dict[str, Any], Path]:
+    """Reject corrupted epochs then persist a detailed quality report."""
+
+    # Vérifie l'alignement entre événements et labels pour éviter un rapport biaisé
+    if len(motor_labels) != len(epochs):
+        # Lève une erreur structurée pour signaler le décalage constaté
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Label/event mismatch",
+                    "expected_events": len(epochs),
+                    "labels": len(motor_labels),
+                }
+            )
+        )
+    # Applique le contrôle qualité pour supprimer les artefacts et segments incomplets
+    cleaned_epochs, flagged = quality_control_epochs(
+        epochs, max_peak_to_peak=max_peak_to_peak, mode="reject"
+    )
+    # Construit un ensemble d'indices supprimés pour filtrer les labels associés
+    removed_indices = set(flagged["artifact"]) | set(flagged["incomplete"])
+    # Conserve uniquement les labels correspondant aux epochs retenues
+    cleaned_labels = [
+        label for idx, label in enumerate(motor_labels) if idx not in removed_indices
+    ]
+    # Calcule le décompte par classe après nettoyage pour mesurer l'impact des rejets
+    counts = {label: cleaned_labels.count(label) for label in expected_labels}
+    # Agrège un rapport détaillé incluant les anomalies détectées
+    report: Dict[str, Any] = {
+        "subject": run_metadata["subject"],
+        "run": run_metadata["run"],
+        "total_epochs_before": len(epochs),
+        "kept_epochs": len(cleaned_epochs),
+        "counts": counts,
+        "anomalies": {"artifact": flagged["artifact"], "incomplete": flagged["incomplete"]},
+    }
+    # Normalise le format pour imposer une casse cohérente dans les rapports
+    fmt_normalized = fmt.lower()
+    # Interdit les formats fournis avec une casse incohérente pour éviter des noms ambigus
+    if fmt != fmt_normalized:
+        # Lève une erreur explicite lorsque la casse ne respecte pas la convention
+        raise ValueError("fmt must be lowercase")
+    # Valide le format demandé pour garantir une sérialisation supportée
+    if fmt_normalized not in {"json", "csv"}:
+        # Lève une erreur claire lorsque le format sort du contrat prévu
+        raise ValueError("fmt must be either 'json' or 'csv'")
+    # Prépare le chemin de sortie en garantissant l'existence du dossier parent
+    normalized_path = Path(output_path)
+    # Crée l'arborescence cible afin d'éviter des échecs d'écriture
+    normalized_path.parent.mkdir(parents=True, exist_ok=True)
+    # Sérialise le rapport en JSON lorsque demandé par l'appelant
+    if fmt_normalized == "json":
+        # Écrit le rapport complet pour permettre une lecture humaine
+        normalized_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        # Retourne les résultats et le chemin du rapport généré
+        return cleaned_epochs, report, normalized_path
+    # Construit un contenu CSV lorsque le format tabulaire est requis
+    lines = [
+        "subject,run,total_epochs_before,kept_epochs,dropped_artifact,dropped_incomplete,label,count"
+    ]
+    # Ajoute une ligne par classe pour exposer les décomptes et anomalies
+    for label, count in counts.items():
+        # Concatène les indices d'artefacts pour conserver la granularité
+        artifact_indices = ";".join(str(idx) for idx in flagged["artifact"])
+        # Concatène les indices incomplets pour le même niveau de détail
+        incomplete_indices = ";".join(str(idx) for idx in flagged["incomplete"])
+        # Ajoute la ligne détaillée pour la classe courante
+        lines.append(
+            ",".join(
+                [
+                    run_metadata["subject"],
+                    run_metadata["run"],
+                    str(len(epochs)),
+                    str(len(cleaned_epochs)),
+                    artifact_indices,
+                    incomplete_indices,
+                    label,
+                    str(count),
+                ]
+            )
+        )
+    # Écrit le CSV complet pour faciliter l'ingestion en tableur
+    normalized_path.write_text("\n".join(lines), encoding="utf-8")
+    # Retourne les résultats et le chemin du rapport généré
+    return cleaned_epochs, report, normalized_path
+
+
 def detect_artifacts(
     signal: np.ndarray,
     amplitude_threshold: float,
