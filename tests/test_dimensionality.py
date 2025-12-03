@@ -1,7 +1,7 @@
-# Importe numpy pour créer des matrices jouets et mesurer l'orthogonalité
+# Importe NumPy pour générer des données synthétiques stables
 import numpy as np
 
-# Importe pytest pour capturer les erreurs attendues
+# Importe pytest pour vérifier les erreurs attendues
 import pytest
 
 # Importe le réducteur dimensionnel de TPV à vérifier
