@@ -60,6 +60,10 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             raise ValueError("method must be 'pca' or 'csp'")
         # Applique la méthode PCA si spécifiée
         if self.method == "pca":
+            # Vérifie que les données sont tabulaires pour PCA
+            if X.ndim != TABLE_DIMENSION:
+                # Informe que PCA attend des données échantillon x feature
+                raise ValueError("PCA expects a 2D array")
             # Centre les données pour une covariance cohérente
             self.mean_ = np.mean(X, axis=0)
             # Calcule les données centrées pour la covariance
@@ -90,6 +94,10 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             if y is None:
                 # Informe que CSP requiert des labels binaires
                 raise ValueError("y is required for CSP")
+            # Valide la dimension trial x channel x time attendue
+            if X.ndim != TRIAL_DIMENSION:
+                # Informe que CSP demande des essais temporels bruts
+                raise ValueError("CSP expects a 3D array")
             # Identifie les classes présentes pour contrôler le problème
             classes = np.unique(y)
             # Valide que seules deux classes sont fournies
@@ -144,8 +152,12 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         if X.ndim == TRIAL_DIMENSION:
             # Projette chaque essai en conservant la dynamique temporelle
             projected = np.tensordot(self.w_matrix.T, X, axes=([1], [1]))
-            # Réorganise les axes pour retrouver l'ordre trial x comp x time
-            return np.asarray(np.moveaxis(projected, 0, 1))
+            # Réordonne les axes pour revenir à trial x composante x temps
+            reordered = np.moveaxis(projected, 1, 0)
+            # Calcule la variance par composante pour résumer chaque essai
+            variances = np.var(reordered, axis=2)
+            # Retourne la variance logarithmique pour stabiliser la distribution
+            return np.asarray(np.log(variances + np.finfo(float).eps))
         # Refuse les dimensions inattendues pour maintenir la clarté
         raise ValueError("X must be 2D or 3D for transform")
 
