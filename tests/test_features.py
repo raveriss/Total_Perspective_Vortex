@@ -105,6 +105,21 @@ def test_extract_features_wavelet_placeholder_preserves_shape() -> None:
     assert np.array_equal(transformed, np.zeros((1, 12)))
 
 
+def test_extract_features_returns_zeros_when_band_mask_empty() -> None:
+    """Une bande hors spectre doit produire des puissances nulles."""
+
+    # Prépare des epochs avec une fréquence d'échantillonnage limitée
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=64, sfreq=64.0)
+    # Demande une bande trop haute pour être couverte par la FFT
+    features, labels = extract_features(
+        epochs, config={"method": "welch", "bands": [("void", (100.0, 120.0))]}
+    )
+    # Vérifie que la bande inexistante génère uniquement des zéros
+    assert np.array_equal(features, np.zeros((1, 1)))
+    # Vérifie que l'étiquette reflète la bande personnalisée
+    assert labels == ["C0_void"]
+
+
 def test_extract_features_wrapper_rejects_unknown_strategy() -> None:
     """La classe scikit-learn doit refuser les stratégies non supportées."""
 
