@@ -5,10 +5,16 @@
 import joblib
 import numpy as np
 
+# Fournit time pour simuler une latence volontaire
+import time
+
 # Importe la logique de prédiction pour vérifier les matrices W
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
 from scripts import predict as predict_cli
 from scripts import train as train_cli
+
+# Importe la boucle temps réel pour vérifier les métriques de streaming
+from tpv.realtime import run_realtime_inference
 
 
 # Vérifie que la matrice W sauvegardée est cohérente avec la pipeline
@@ -72,3 +78,96 @@ def test_w_matrix_matches_pipeline(tmp_path):
     )
     # Vérifie que la matrice W stockée contient la même structure
     assert np.allclose(stored_matrix["w_matrix"], loaded_reducer.w_matrix)
+
+
+# Simule une pipeline déterministe pour mesurer la latence
+class _FakePipeline:
+    """Pipeline synthétique pour contrôler la latence et les sorties."""
+
+    # Enregistre la latence artificielle à appliquer sur predict
+    def __init__(self, delay: float, outputs: list[int]):
+        # Conserve le délai simulé pour représenter le temps de calcul
+        self.delay = delay
+        # Conserve la séquence de prédictions à jouer pendant le test
+        self.outputs = outputs
+
+    # Simule l'appel predict en ajoutant une latence volontaire
+    def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803 - API sklearn
+        # Ajoute une pause contrôlée pour mesurer la latence rapportée
+        time.sleep(self.delay)
+        # Sélectionne la prochaine prédiction ou recycle la dernière valeur
+        if self.outputs:
+            # Retire la première valeur pour suivre l'ordre d'appel
+            value = self.outputs.pop(0)
+        else:
+            # Réutilise la dernière prédiction pour compléter la séquence
+            value = 0
+        # Retourne un tableau numpy compatible avec les attentes sklearn
+        return np.array([value])
+
+
+# Vérifie que la latence enregistrée reflète le délai imposé
+def test_realtime_latency_metrics():
+    # Instancie une pipeline factice avec une latence de 10 ms
+    pipeline = _FakePipeline(delay=0.01, outputs=[0] * 9)
+    # Construit un flux synthétique pour générer neuf fenêtres
+    stream = np.zeros((2, 100))
+    # Exécute la boucle temps réel avec une fenêtre de 20 échantillons
+    result = run_realtime_inference(
+        pipeline=pipeline,
+        stream=stream,
+        sfreq=50.0,
+        window_size=20,
+        step_size=10,
+        buffer_size=2,
+    )
+    # Vérifie que chaque latence dépasse le délai simulé
+    assert all(event.latency >= 0.009 for event in result["events"])
+    # Vérifie que la moyenne et le maximum sont cohérents avec les mesures
+    assert result["latency_max"] >= result["latency_mean"] > 0.0
+
+
+# Vérifie que les fenêtres sont traitées dans l'ordre chronologique
+def test_realtime_time_ordering():
+    # Instancie une pipeline factice sans latence pour isoler l'ordre
+    pipeline = _FakePipeline(delay=0.0, outputs=[1] * 5)
+    # Construit un flux synthétique correspondant à cinq fenêtres
+    stream = np.zeros((1, 40))
+    # Exécute la boucle temps réel avec un pas constant
+    result = run_realtime_inference(
+        pipeline=pipeline,
+        stream=stream,
+        sfreq=20.0,
+        window_size=20,
+        step_size=5,
+        buffer_size=2,
+    )
+    # Extrait les offsets temporels pour vérifier la progression
+    offsets = [event.window_offset for event in result["events"]]
+    # Vérifie que chaque offset est strictement croissant
+    assert offsets == sorted(offsets)
+    # Extrait les timestamps relatifs des appels predict
+    starts = [event.inference_started_at for event in result["events"]]
+    # Vérifie que les timestamps respectent l'ordre de traitement
+    assert starts == sorted(starts)
+
+
+# Vérifie que le buffer de lissage stabilise les prédictions
+def test_realtime_smoothed_predictions():
+    # Instancie une pipeline factice avec une séquence oscillante
+    pipeline = _FakePipeline(delay=0.0, outputs=[0, 1, 1, 0, 1])
+    # Construit un flux synthétique pour générer cinq fenêtres
+    stream = np.zeros((1, 12))
+    # Exécute la boucle temps réel avec un buffer de taille trois
+    result = run_realtime_inference(
+        pipeline=pipeline,
+        stream=stream,
+        sfreq=10.0,
+        window_size=4,
+        step_size=2,
+        buffer_size=3,
+    )
+    # Extrait les prédictions lissées pour les comparer à l'attendu
+    smoothed = [event.smoothed_prediction for event in result["events"]]
+    # Vérifie que le lissage maintient la majorité récente
+    assert smoothed == [0, 0, 1, 1, 1]
