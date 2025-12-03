@@ -91,6 +91,12 @@ def test_extract_features_wavelet_placeholder_preserves_shape() -> None:
     assert np.array_equal(features, np.zeros((1, 12)))
     # Vérifie que les étiquettes restent cohérentes avec les canaux
     assert labels[0] == "C0_theta"
+    # Instancie la classe pour couvrir le chemin wavelet interne
+    extractor = ExtractFeatures(sfreq=64.0, feature_strategy="wavelet")
+    # Applique transform pour déclencher le placeholder de la classe
+    transformed = extractor.transform(epochs.get_data())
+    # Vérifie que le placeholder renvoie aussi des zéros
+    assert np.array_equal(transformed, np.zeros((1, 12)))
 
 
 def test_extract_features_wrapper_rejects_unknown_strategy() -> None:
@@ -103,6 +109,28 @@ def test_extract_features_wrapper_rejects_unknown_strategy() -> None:
     # Vérifie que l'appelant reçoit une erreur explicite
     with pytest.raises(ValueError):
         extractor.transform(tensor)
+
+
+def test_extract_features_wrapper_rejects_incorrect_shape() -> None:
+    """La classe scikit-learn doit refuser une dimension d'entrée erronée."""
+
+    # Prépare un extracteur pour tester la validation de dimension
+    extractor = ExtractFeatures(sfreq=128.0)
+    # Prépare un tableau bidimensionnel pour déclencher la validation
+    bad_shape = np.zeros((2, 16))
+    # Vérifie que la méthode transforme lève une erreur de forme
+    with pytest.raises(ValueError):
+        extractor.transform(bad_shape)
+
+
+def test_extract_features_wrapper_rejects_unknown_method() -> None:
+    """La fonction procédurale doit refuser une méthode non supportée."""
+
+    # Prépare des epochs minimaux pour l'appel procédural
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=32, sfreq=64.0)
+    # Vérifie que la fonction signale la méthode inconnue
+    with pytest.raises(ValueError):
+        extract_features(epochs, config={"method": "invalid"})
 
 
 def test_extract_features_numeric_stability() -> None:
