@@ -2002,6 +2002,8 @@ def test_load_mne_motor_run_reports_channel_mismatch(
 def test_summarize_epoch_quality_counts_and_rejects_incomplete() -> None:
     """Drop incomplete epochs then count A/B labels per run."""
 
+    # Fixe le nombre d'epochs attendues pour clarifier la validation
+    expected_valid_epochs = 2
     # Construit un enregistrement synthétique avec trois essais moteurs
     info = mne.create_info(["C3", "C4"], sfreq=64.0, ch_types="eeg")
     data = np.ones((2, 64))
@@ -2020,11 +2022,10 @@ def test_summarize_epoch_quality_counts_and_rejects_incomplete() -> None:
     cleaned_epochs, report, cleaned_labels = summarize_epoch_quality(
         epochs,
         motor_labels,
-        subject="S01",
-        run="R01",
+        session=("S01", "R01"),
         max_peak_to_peak=0.5,
     )
-    assert len(cleaned_epochs) == 2
+    assert len(cleaned_epochs) == expected_valid_epochs
     assert cleaned_labels == ["B", "A"]
     assert report["counts"] == {"A": 1, "B": 1}
     assert report["dropped"]["incomplete"] == 1
@@ -2033,6 +2034,8 @@ def test_summarize_epoch_quality_counts_and_rejects_incomplete() -> None:
 def test_summarize_epoch_quality_reports_missing_labels() -> None:
     """Raise a structured error when a motor class is absent."""
 
+    # Fixe le nombre d'essais pour la classe A afin d'éviter les valeurs magiques
+    expected_trials_for_a = 2
     # Construit un enregistrement ne contenant qu'une seule classe motrice
     info = mne.create_info(["C3", "C4"], sfreq=64.0, ch_types="eeg")
     data = np.ones((2, 64))
@@ -2051,14 +2054,13 @@ def test_summarize_epoch_quality_reports_missing_labels() -> None:
         summarize_epoch_quality(
             epochs,
             motor_labels,
-            subject="S99",
-            run="R02",
+            session=("S99", "R02"),
             max_peak_to_peak=0.5,
         )
     payload = json.loads(str(excinfo.value))
     assert payload["error"] == "Missing labels"
     assert payload["missing_labels"] == ["B"]
-    assert payload["counts"]["A"] == 2
+    assert payload["counts"]["A"] == expected_trials_for_a
 
 
 def test_preprocessing_signatures_preserve_documented_defaults() -> None:

@@ -583,8 +583,7 @@ def quality_control_epochs(
 def summarize_epoch_quality(
     epochs: mne.Epochs,
     motor_labels: List[str],
-    subject: str,
-    run: str,
+    session: Tuple[str, str],
     max_peak_to_peak: float,
     expected_labels: Tuple[str, str] = ("A", "B"),
 ) -> Tuple[mne.Epochs, Dict[str, Any], List[str]]:
@@ -616,8 +615,8 @@ def summarize_epoch_quality(
     counts = {label: cleaned_labels.count(label) for label in expected_labels}
     # Prépare un rapport synthétique pour la surveillance par sujet et run
     report = {
-        "subject": subject,
-        "run": run,
+        "subject": session[0],
+        "run": session[1],
         "dropped": {key: len(value) for key, value in flagged.items()},
         "counts": counts,
     }
