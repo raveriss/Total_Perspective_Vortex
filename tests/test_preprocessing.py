@@ -37,14 +37,18 @@ from tpv.preprocessing import (
     DEFAULT_NORMALIZE_METHOD,
     MOTOR_EVENT_LABELS,
     PHYSIONET_LABEL_MAP,
+    ReportConfig,
     _apply_marking,
+    _assert_expected_labels_present,
     _build_file_entry,
     _build_keep_mask,
     _collect_run_counts,
+    _ensure_label_alignment,
     _expected_epoch_samples,
     _extract_bad_intervals,
     _flag_epoch_quality,
     _is_bad_description,
+    _normalize_report_config,
     apply_bandpass_filter,
     create_epochs_from_raw,
     detect_artifacts,
@@ -333,6 +337,68 @@ def test_report_epoch_anomalies_flags_corrupted_segments(tmp_path: Path) -> None
     assert f"{TEST_SUBJECT},{TEST_RUN},4,2,0,1,A,1" in rows
     # Inspecte la ligne de la classe B pour valider le comptage restant
     assert f"{TEST_SUBJECT},{TEST_RUN},4,2,0,1,B,1" in rows
+
+
+def test_ensure_label_alignment_reports_mismatch() -> None:
+    """Ensure misaligned label counts raise a structured error."""
+
+    # Construit des epochs équilibrés pour détecter le désalignement
+    epochs, labels = _build_epoch_array()
+    # Retire un label pour provoquer un écart entre événements et labels
+    mismatched_labels = labels[:-1]
+    # Vérifie que la validation remonte une erreur de désalignement
+    with pytest.raises(ValueError) as excinfo:
+        _ensure_label_alignment(epochs, mismatched_labels)
+    # Convertit le message en dictionnaire pour faciliter les assertions
+    payload = json.loads(str(excinfo.value))
+    # Contrôle que le rapport explicite bien les longueurs attendues
+    assert payload == {
+        "error": "Label/event mismatch",
+        "expected_events": len(epochs),
+        "labels": len(mismatched_labels),
+    }
+
+
+def test_assert_expected_labels_present_reports_missing() -> None:
+    """Confirm missing labels trigger a detailed diagnostic payload."""
+
+    # Prépare un rapport minimal pour contextualiser l'erreur attendue
+    report = {"subject": TEST_SUBJECT, "run": TEST_RUN, "counts": {}}
+    # Construit un comptage lacunaire pour simuler une classe absente
+    counts = {"A": 0, "B": 1}
+    # Vérifie que l'absence de label est signalée via une erreur structurée
+    with pytest.raises(ValueError) as excinfo:
+        _assert_expected_labels_present(report, counts)
+    # Convertit la charge utile JSON pour vérifier le contenu détaillé
+    payload = json.loads(str(excinfo.value))
+    # Contrôle que l'erreur inclut le libellé et la classe manquante
+    assert payload == {
+        "subject": TEST_SUBJECT,
+        "run": TEST_RUN,
+        "counts": {},
+        "error": "Missing labels",
+        "missing_labels": ["A"],
+    }
+
+
+def test_normalize_report_config_rejects_uppercase_format(tmp_path: Path) -> None:
+    """Reject uppercase format names to keep serialization predictable."""
+
+    # Fixe un chemin valide pour initialiser la configuration de rapport
+    report_config = ReportConfig(path=tmp_path / "report.json", fmt="JSON")
+    # Vérifie que la normalisation refuse la casse incorrecte
+    with pytest.raises(ValueError, match=r"^fmt must be lowercase$"):
+        _normalize_report_config(report_config)
+
+
+def test_normalize_report_config_rejects_unknown_format(tmp_path: Path) -> None:
+    """Reject unsupported formats to avoid ambiguous file outputs."""
+
+    # Fixe un chemin valide pour initialiser la configuration de rapport
+    report_config = ReportConfig(path=tmp_path / "report.txt", fmt="txt")
+    # Vérifie que la validation refuse tout format hors JSON ou CSV
+    with pytest.raises(ValueError, match=r"fmt must be either 'json' or 'csv'"):
+        _normalize_report_config(report_config)
 
 
 def test_apply_bandpass_filter_defaults_to_fir(monkeypatch: pytest.MonkeyPatch) -> None:
