@@ -959,6 +959,8 @@ def test_load_mne_raw_checked_supports_bdf_and_montage_guard(
 
     # Construit un enregistrement 10-20 minimal pour simuler un fichier BDF
     raw = _build_dummy_raw(sfreq=128.0, duration=0.5)
+    # Déclare la fréquence attendue pour éviter une valeur magique dans les tests
+    expected_sampling_rate = 128.0
     # Applique le montage pour fournir des positions attendues aux validations
     raw.set_montage("standard_1020")
     # Capture les arguments transmis à la lecture EDF/BDF pour vérification
@@ -979,13 +981,13 @@ def test_load_mne_raw_checked_supports_bdf_and_montage_guard(
     loaded_raw = load_mne_raw_checked(
         bdf_path,
         expected_montage="standard_1020",
-        expected_sampling_rate=128.0,
+        expected_sampling_rate=expected_sampling_rate,
         expected_channels=["C3", "C4"],
     )
     # Vérifie que la fonction de lecture a bien reçu le chemin normalisé
     assert captured_args[0][0][0] == bdf_path.resolve()
     # Contrôle que le taux d'échantillonnage est bien respecté
-    assert loaded_raw.info["sfreq"] == 128.0
+    assert loaded_raw.info["sfreq"] == expected_sampling_rate
     # S'assure que le montage reste attaché après la validation des canaux
     assert loaded_raw.get_montage() is not None
 

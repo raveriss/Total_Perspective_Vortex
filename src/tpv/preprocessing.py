@@ -165,9 +165,7 @@ def load_mne_raw_checked(
     # Capture montage channel names to compare against expected layout
     montage_channels = set(montage.ch_names)
     # Identify montage omissions that would break 10–20 assumptions
-    missing_montage_channels = sorted(
-        set(expected_channels) - montage_channels
-    )
+    missing_montage_channels = sorted(set(expected_channels) - montage_channels)
     # Raise explicit error when the montage lacks required 10–20 electrodes
     if missing_montage_channels:
         # Include missing channels in a structured report for debugging
