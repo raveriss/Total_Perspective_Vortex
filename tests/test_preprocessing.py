@@ -485,6 +485,35 @@ def test_map_events_and_validate_rejects_unknown_labels() -> None:
     assert "Unknown annotation labels" in str(exc.value)
 
 
+def test_map_events_to_motor_labels_reports_unknown_event_codes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure a structured error surfaces when events reference unknown codes."""
+
+    # Build a raw instance to satisfy the function signature
+    raw = _build_dummy_raw()
+    # Craft an event array with a numeric code absent from the event_id map
+    fake_events = np.array([[0, 0, 999]])
+    # Provide a minimal event_id map that omits the fabricated code
+    fake_event_id = {"T1": 1}
+    # Stub the mapping helper to return the crafted events and identifiers
+    monkeypatch.setattr(
+        "tpv.preprocessing.map_events_and_validate",
+        lambda *_args, **_kwargs: (fake_events, fake_event_id),
+    )
+    # Force motor mapping validation to succeed with a minimal mapping
+    monkeypatch.setattr(
+        "tpv.preprocessing._validate_motor_mapping",
+        lambda *_args, **_kwargs: {"T1": "A"},
+    )
+    # Expect a ValueError exposing the unknown event code in JSON form
+    with pytest.raises(ValueError) as excinfo:
+        map_events_to_motor_labels(raw, label_map=fake_event_id)
+    payload = json.loads(str(excinfo.value))
+    assert payload["error"] == "Unknown event codes"
+    assert payload["unknown_codes"] == [999]
+
+
 def test_quality_control_and_reporting(tmp_path: Path) -> None:
     """Ensure artifact epochs are removed and reports capture remaining counts."""
 
@@ -923,6 +952,26 @@ def test_load_mne_raw_checked_flags_extra_only_channels(
         )
     # Confirm the error payload documents the unexpected channel
     assert "extra" in str(exc.value)
+
+
+def test_load_mne_raw_checked_rejects_unknown_suffix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject non-EDF/BDF files with a structured JSON payload."""
+
+    # Ensure the EDF reader is never called for unsupported formats
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: None)
+    # Expect a ValueError when the extension is neither EDF nor BDF
+    with pytest.raises(ValueError) as exc:
+        load_mne_raw_checked(
+            Path("record.txt"),
+            expected_montage="standard_1020",
+            expected_sampling_rate=128.0,
+            expected_channels=["C3", "C4", "Cz"],
+        )
+    payload = json.loads(str(exc.value))
+    assert payload["error"] == "Unsupported file format"
+    assert payload["suffix"] == ".txt"
 
 
 def test_load_mne_raw_checked_flags_missing_only_channels(

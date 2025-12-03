@@ -347,9 +347,9 @@ def map_events_to_motor_labels(
     )
     # Prépare une inversion code → étiquette pour projeter les labels
     reverse_map = {code: label for label, code in event_id.items()}
-    # Détecte les codes numériques non présents dans le mapping d'événements
+    # Convertit les codes en int pour assurer une sérialisation JSON fiable
     unknown_event_codes = sorted(
-        {event[2] for event in events if event[2] not in reverse_map}
+        {int(event[2]) for event in events if int(event[2]) not in reverse_map}
     )
     # Refuse la poursuite quand un code non identifié apparaît dans les événements
     if unknown_event_codes:
