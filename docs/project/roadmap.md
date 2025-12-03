@@ -1,43 +1,32 @@
-# Backlog prioritaire à implémenter
+# Backlog prioritaire aligné sur le WBS
 
-Les éléments ci-dessous convertissent les manques identifiés en tâches exécutables. Ils sont classés par ordre logique d'implémentation et doivent toutes être réalisées pour atteindre les exigences BCI définies dans le dépôt.
+## État de l'implémentation
+- Parsing et préparation Physionet réalisés : scripts `fetch_physionet.py`, `prepare_physionet.py` et `sync_dataset.py` couvrent le Lot 2, avec tests de contrôle d'intégrité et de synchronisation.
+- Pipeline offline fonctionnelle : filtrage 8–40 Hz, contrôle qualité des epochs, extraction PSD/bandes Welch, réduction PCA/CSP, classifieurs LDA/Logistic/SVM et scripts `train.py`/`predict.py` déjà raccordés à `mybci.py`.
+- Visualisation et tests : script `visualize_raw_filtered.py` opérationnel, couverture de tests sur preprocessing, features, réduction dimensionnelle, pipeline, CLI et import dataset.
 
-1. **Parsing EEG (Physionet) et structuration des events dans `preprocessing.py`**
-   - Charger les fichiers bruts avec MNE, extraire les métadonnées des runs et mapper les labels en epochs prêts à traiter.
-   - Valider la cohérence des dimensions channels × time et des marqueurs d'événements.
+## Prochaines étapes (alignées sur le WBS)
+1. **Stratégie Train/Val/Test et score global** (WBS 7.1, 7.4)
+   - Documenter dans `docs/project/` la politique de splits sujet/run, seeds et métriques exigées (≥60 % / cible 75 %).
+   - Ajouter un script/commande pour agréger les accuracies par run, sujet et globale à partir des artefacts sauvegardés.
+   - Étendre les tests `test_classifier.py`/`test_realtime.py` avec un scénario d'agrégation sur dataset jouet.
 
-2. **Filtrage passe-bande 8–40 Hz et gestion des artefacts**
-   - Implémenter le filtrage de base (band-pass, notch si besoin) et les routines de nettoyage avancé pour éliminer artefacts musculaires/ligne 50-60 Hz.
-   - Ajouter des paramètres configurables pour l'ordre du filtre et les fréquences de coupure.
+2. **Consolider l'API temps réel** (WBS 8.1–8.3)
+   - Implémenter `src/tpv/realtime.py` pour lire un flux fenêtré, appliquer le pipeline existant et mesurer la latence < 2 s.
+   - Ajouter un mode CLI (ex. `mybci.py realtime`) et un buffer/queue pour lisser les prédictions.
+   - Créer des tests synthétiques validant l'absence de fuite temporelle et la stabilité des délais.
 
-3. **Script de visualisation brut vs filtré `scripts/visualize_raw_filtered.py`**
-   - Générer des tracés comparant les signaux d'entrée et ceux après prétraitement pour un run donné.
-   - Sauvegarder les figures dans `docs/assets/` avec titres et légendes normalisées.
+3. **Renforcer la traçabilité des artefacts et rapports** (WBS 7.2, 7.3, 10.3)
+   - Persister aux côtés des modèles un manifeste (JSON/CSV) listant dataset, hyperparams, scores CV et version du code.
+   - Générer automatiquement un rapport de prédiction par sujet/run (confusion matrix ou tableau d'accuracy) dans `artifacts/`.
+   - Ajouter un test d'intégration qui vérifie la présence et la cohérence de ces rapports après `train` puis `predict` sur données jouets.
 
-4. **Extraction de features fréquentielles dans `features.py`**
-   - Concevoir une fonction `extract_features` produisant des descripteurs PSD/bandes fréquentielles adaptées à l'imagerie motrice.
-   - Paramétrer le choix des bandes (theta/alpha/beta) et la fenêtre de calcul (Welch ou similaire).
+4. **Documentation de défense et traçabilité checklist** (WBS 10.1, 10.5)
+   - Compléter `README.md` et `docs/project/` avec la matrice “Checklist ↔ tâches WBS” et les choix de features/filtrage.
+   - Ajouter un index `docs/index.md` reliant WBS, Gantt, roadmap et Murphy map.
+   - Vérifier que chaque item critique de la checklist TPV pointe vers un test ou un script reproductible.
 
-5. **Réduction dimensionnelle maison (CSP/PCA/ICA) dans `dimensionality.py`**
-   - Implémenter les décompositions sans utiliser les versions prêtes de sklearn/MNE, en construisant la matrice de projection W.
-   - Documenter les hypothèses numériques (régularisation, tolérance) et ajouter des tests de stabilité.
-
-6. **Pipeline sklearn complet dans `pipeline.py`**
-   - Chaîner preprocessing, extraction de features, réduction dimensionnelle et classifieur via `sklearn.pipeline.Pipeline` avec des transformers maison.
-   - Exposer une interface de configuration unique pour ajuster chaque étape.
-
-7. **Implémentation des classifieurs (LDA/Logistic/SVM) dans `classifier.py`**
-   - Fournir des wrappers cohérents avec le pipeline, avec réglage des hyperparamètres par défaut adaptés aux EEG.
-   - Garantir la compatibilité avec la validation croisée et l'export des modèles entraînés.
-
-8. **Script d’entraînement `scripts/train.py` avec cross-validation et sauvegarde des artefacts**
-   - Mettre en place le chargement du dataset, la construction du pipeline, la cross-validation et la persistance des modèles/paramètres.
-   - Reporter l’accuracy moyenne et enregistrer les métriques par run et par sujet.
-
-9. **Script de prédiction `scripts/predict.py`**
-   - Charger les artefacts entraînés, ingérer de nouvelles données et calculer l’accuracy sur un jeu de test distinct.
-   - Exposer une CLI simple pour sélectionner le modèle et la source de données.
-
-10. **Flux temps réel dans `realtime.py`**
-    - Simuler la lecture progressive du flux EEG, appliquer le pipeline et publier chaque prédiction en moins de 2 secondes après réception du chunk.
-    - Intégrer une queue/buffer pour lisser la latence et journaliser les délais.
+5. **Bonus ciblés pour robustesse/science** (WBS 11.1, 11.2)
+   - Implémenter l'option wavelets dans `features.py` et un classifieur maison (ex. réseau linéaire léger) sélectionnables via CLI.
+   - Comparer FFT vs wavelets et LDA/Logistic vs classifieur bonus sur un benchmark synthétique documenté.
+   - Reporter les gains/coûts dans un tableau de résultats versionné dans `docs/project/`.
