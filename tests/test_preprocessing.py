@@ -482,7 +482,7 @@ def test_map_events_and_validate_rejects_unknown_labels() -> None:
     with pytest.raises(ValueError) as exc:
         map_events_and_validate(raw, label_map=PHYSIONET_LABEL_MAP)
     # Confirm the message surfaces the unknown label for debugging
-    assert "Unknown labels" in str(exc.value)
+    assert "Unknown annotation labels" in str(exc.value)
 
 
 def test_quality_control_and_reporting(tmp_path: Path) -> None:
@@ -945,11 +945,11 @@ def test_load_mne_raw_checked_flags_missing_only_channels(
     # Parse the JSON payload to inspect the structured error contents
     payload = json.loads(str(exc.value))
     # Confirm the top-level error message remains stable for CI assertions
-    assert payload["error"] == "Channel mismatch"
+    assert payload["error"] == "Montage missing expected channels"
     # Ensure no extra channels are reported when only missing channels occur
     assert payload["extra"] == []
     # Ensure the missing list highlights the absent channel explicitly
-    assert payload["missing"] == ["Cz"]
+    assert payload["missing_channels"] == ["Cz"]
 
 
 def test_load_mne_raw_checked_supports_bdf_and_montage_guard(
@@ -1580,7 +1580,7 @@ def test_map_events_rejects_unknown_labels() -> None:
     with pytest.raises(ValueError) as exc:
         map_events_and_validate(raw)
     # Confirm the error message originates from the explicit unknown label guard
-    assert "Unknown labels" in str(exc.value)
+    assert "Unknown annotation labels" in str(exc.value)
 
 
 def test_verify_dataset_integrity_missing_root_raises(tmp_path: Path) -> None:
@@ -2035,8 +2035,8 @@ def test_load_mne_motor_run_reports_channel_mismatch(
         )
     message = str(excinfo.value)
     payload = json.loads(message)
-    assert payload["error"] == "Channel mismatch"
-    assert payload["missing"] == ["Cz"]
+    assert payload["error"] == "Montage missing expected channels"
+    assert payload["missing_channels"] == ["Cz"]
 
 
 def test_load_mne_motor_run_maps_motor_events(
