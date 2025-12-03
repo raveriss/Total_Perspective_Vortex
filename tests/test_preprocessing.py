@@ -482,7 +482,36 @@ def test_map_events_and_validate_rejects_unknown_labels() -> None:
     with pytest.raises(ValueError) as exc:
         map_events_and_validate(raw, label_map=PHYSIONET_LABEL_MAP)
     # Confirm the message surfaces the unknown label for debugging
-    assert "Unknown labels" in str(exc.value)
+    assert "Unknown annotation labels" in str(exc.value)
+
+
+def test_map_events_to_motor_labels_reports_unknown_event_codes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure a structured error surfaces when events reference unknown codes."""
+
+    # Build a raw instance to satisfy the function signature
+    raw = _build_dummy_raw()
+    # Craft an event array with a numeric code absent from the event_id map
+    fake_events = np.array([[0, 0, 999]])
+    # Provide a minimal event_id map that omits the fabricated code
+    fake_event_id = {"T1": 1}
+    # Stub the mapping helper to return the crafted events and identifiers
+    monkeypatch.setattr(
+        "tpv.preprocessing.map_events_and_validate",
+        lambda *_args, **_kwargs: (fake_events, fake_event_id),
+    )
+    # Force motor mapping validation to succeed with a minimal mapping
+    monkeypatch.setattr(
+        "tpv.preprocessing._validate_motor_mapping",
+        lambda *_args, **_kwargs: {"T1": "A"},
+    )
+    # Expect a ValueError exposing the unknown event code in JSON form
+    with pytest.raises(ValueError) as excinfo:
+        map_events_to_motor_labels(raw, label_map=fake_event_id)
+    payload = json.loads(str(excinfo.value))
+    assert payload["error"] == "Unknown event codes"
+    assert payload["unknown_codes"] == [999]
 
 
 def test_quality_control_and_reporting(tmp_path: Path) -> None:
@@ -925,6 +954,26 @@ def test_load_mne_raw_checked_flags_extra_only_channels(
     assert "extra" in str(exc.value)
 
 
+def test_load_mne_raw_checked_rejects_unknown_suffix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject non-EDF/BDF files with a structured JSON payload."""
+
+    # Ensure the EDF reader is never called for unsupported formats
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: None)
+    # Expect a ValueError when the extension is neither EDF nor BDF
+    with pytest.raises(ValueError) as exc:
+        load_mne_raw_checked(
+            Path("record.txt"),
+            expected_montage="standard_1020",
+            expected_sampling_rate=128.0,
+            expected_channels=["C3", "C4", "Cz"],
+        )
+    payload = json.loads(str(exc.value))
+    assert payload["error"] == "Unsupported file format"
+    assert payload["suffix"] == ".txt"
+
+
 def test_load_mne_raw_checked_flags_missing_only_channels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -945,11 +994,51 @@ def test_load_mne_raw_checked_flags_missing_only_channels(
     # Parse the JSON payload to inspect the structured error contents
     payload = json.loads(str(exc.value))
     # Confirm the top-level error message remains stable for CI assertions
-    assert payload["error"] == "Channel mismatch"
+    assert payload["error"] == "Montage missing expected channels"
     # Ensure no extra channels are reported when only missing channels occur
     assert payload["extra"] == []
     # Ensure the missing list highlights the absent channel explicitly
-    assert payload["missing"] == ["Cz"]
+    assert payload["missing_channels"] == ["Cz"]
+
+
+def test_load_mne_raw_checked_supports_bdf_and_montage_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Validate BDF loading, montage 10-20 coverage, and sampling checks."""
+
+    # Construit un enregistrement 10-20 minimal pour simuler un fichier BDF
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.5)
+    # Déclare la fréquence attendue pour éviter une valeur magique dans les tests
+    expected_sampling_rate = 128.0
+    # Applique le montage pour fournir des positions attendues aux validations
+    raw.set_montage("standard_1020")
+    # Capture les arguments transmis à la lecture EDF/BDF pour vérification
+    captured_args: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    # Remplace le lecteur EDF/BDF pour tracer les appels sans accès disque
+    def reader_stub(*args: object, **kwargs: object) -> mne.io.BaseRaw:
+        # Enregistre les arguments afin de valider l'appel au chargeur
+        captured_args.append((args, kwargs))
+        # Retourne une copie pour éviter de modifier l'instance d'origine
+        return raw.copy()
+
+    # Patch la fonction de lecture pour intercepter les requêtes de chargement
+    monkeypatch.setattr(mne.io, "read_raw_edf", reader_stub)
+    # Crée un chemin BDF factice pour valider la prise en charge de l'extension
+    bdf_path = tmp_path / "sample.bdf"
+    # Charge l'enregistrement en imposant les paramètres attendus
+    loaded_raw = load_mne_raw_checked(
+        bdf_path,
+        expected_montage="standard_1020",
+        expected_sampling_rate=expected_sampling_rate,
+        expected_channels=["C3", "C4"],
+    )
+    # Vérifie que la fonction de lecture a bien reçu le chemin normalisé
+    assert captured_args[0][0][0] == bdf_path.resolve()
+    # Contrôle que le taux d'échantillonnage est bien respecté
+    assert loaded_raw.info["sfreq"] == expected_sampling_rate
+    # S'assure que le montage reste attaché après la validation des canaux
+    assert loaded_raw.get_montage() is not None
 
 
 def test_map_events_validates_motor_label_mapping() -> None:
@@ -1540,7 +1629,7 @@ def test_map_events_rejects_unknown_labels() -> None:
     with pytest.raises(ValueError) as exc:
         map_events_and_validate(raw)
     # Confirm the error message originates from the explicit unknown label guard
-    assert "Unknown labels" in str(exc.value)
+    assert "Unknown annotation labels" in str(exc.value)
 
 
 def test_verify_dataset_integrity_missing_root_raises(tmp_path: Path) -> None:
@@ -1995,8 +2084,8 @@ def test_load_mne_motor_run_reports_channel_mismatch(
         )
     message = str(excinfo.value)
     payload = json.loads(message)
-    assert payload["error"] == "Channel mismatch"
-    assert payload["missing"] == ["Cz"]
+    assert payload["error"] == "Montage missing expected channels"
+    assert payload["missing_channels"] == ["Cz"]
 
 
 def test_load_mne_motor_run_maps_motor_events(
@@ -2056,6 +2145,29 @@ def test_map_events_to_motor_labels_rejects_runs_without_motor_activity() -> Non
     # Confirme la nature de l'erreur et les étiquettes disponibles observées
     assert payload["error"] == "No motor events present"
     assert payload["available_labels"] == ["T0", "T1", "T2"]
+
+
+def test_map_events_to_motor_labels_reports_unknown_codes() -> None:
+    """Expose un rapport JSON lorsqu'un code d'événement est inconnu."""
+
+    # Construit un enregistrement avec un code d'annotation hors mapping
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.25)
+    # Remplace les annotations pour ne contenir que le code non référencé
+    raw.set_annotations(
+        mne.Annotations(
+            onset=[0.05], duration=[0.05], description=["T9"], orig_time=None
+        )
+    )
+    # Applique le montage standard pour rester cohérent avec la validation
+    raw.set_montage("standard_1020")
+    # Vérifie qu'une erreur structurée recense le code inconnu rencontré
+    with pytest.raises(ValueError) as excinfo:
+        map_events_to_motor_labels(raw)
+    # Décode la charge utile JSON afin de vérifier le contenu détaillé
+    payload = json.loads(str(excinfo.value))
+    # Confirme la nature explicite de l'erreur et le code détecté
+    assert payload["error"] == "Unknown annotation labels"
+    assert payload["unknown_labels"] == ["T9"]
 
 
 def test_summarize_epoch_quality_counts_and_rejects_incomplete() -> None:
