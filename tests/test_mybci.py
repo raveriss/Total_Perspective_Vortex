@@ -40,7 +40,7 @@ def test_build_parser_metadata():
     )
     assert (
         parser.usage or ""
-    ).strip() == "python mybci.py <subject> <run> {train,predict}"
+    ).strip() == "python mybci.py <subject> <run> {train,predict,realtime}"
 
 
 def test_build_parser_defines_expected_arguments():
@@ -56,7 +56,7 @@ def test_build_parser_defines_expected_arguments():
     assert subject_arg.help == "Identifiant du sujet (ex: S01)"
     assert run_arg.help == "Identifiant du run (ex: R01)"
     assert mode_arg.help == "Choix du pipeline à lancer"
-    assert tuple(mode_arg.choices) == ("train", "predict")
+    assert tuple(mode_arg.choices) == ("train", "predict", "realtime")
 
 
 def test_build_parser_argument_types_and_defaults():
@@ -90,7 +90,7 @@ def test_parse_args_requires_all_positional_arguments(capsys):
 
     assert excinfo.value.code == EXIT_USAGE
     stderr = capsys.readouterr().err
-    assert "usage: python mybci.py <subject> <run> {train,predict}" in stderr
+    assert "usage: python mybci.py <subject> <run> {train,predict,realtime}" in stderr
 
 
 def test_main_invokes_train_pipeline(monkeypatch):
