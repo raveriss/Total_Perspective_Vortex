@@ -49,11 +49,14 @@ from tpv.preprocessing import (
     create_epochs_from_raw,
     detect_artifacts,
     generate_epoch_report,
+    load_mne_motor_run,
     load_mne_raw_checked,
     load_physionet_raw,
     map_events_and_validate,
+    map_events_to_motor_labels,
     normalize_channels,
     quality_control_epochs,
+    summarize_epoch_quality,
     verify_dataset_integrity,
 )
 
@@ -1971,6 +1974,180 @@ def test_normalize_channels_calls_asarray_with_dtype_for_robust(
     normalize_channels(signal, method="robust", epsilon=0.25)
     # Contrôle que deux conversions dtype=float ont été requises
     assert recorded_dtypes.count(float) == EXPECTED_NORMALIZE_DTYPE_CALLS
+
+
+def test_load_mne_motor_run_reports_channel_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure explicit JSON reports surface when channels are missing."""
+
+    # Construit un enregistrement minimal conforme au montage 10-20
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.5)
+    raw.set_montage("standard_1020")
+    file_path = tmp_path / "sample.edf"
+    monkeypatch.setattr("mne.io.read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Vérifie qu'un canal absent déclenche un rapport structuré
+    with pytest.raises(ValueError) as excinfo:
+        load_mne_motor_run(
+            file_path,
+            expected_sampling_rate=128.0,
+            expected_channels=["C3", "C4", "Cz"],
+        )
+    message = str(excinfo.value)
+    payload = json.loads(message)
+    assert payload["error"] == "Channel mismatch"
+    assert payload["missing"] == ["Cz"]
+
+
+def test_load_mne_motor_run_maps_motor_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Load a run end-to-end and keep only mapped motor events."""
+
+    # Construit un enregistrement motorisé avec une annotation de repos T0
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.5)
+    # Recalibre les annotations pour rester dans la fenêtre temporelle utile
+    raw.set_annotations(
+        mne.Annotations(
+            onset=[0.05, 0.15, 0.25],
+            duration=[0.05, 0.05, 0.05],
+            description=["T0", "T1", "T2"],
+        )
+    )
+    # Applique le montage attendu pour aligner la validation des canaux
+    raw.set_montage("standard_1020")
+    # Fixe un chemin factice pour simuler la lecture disque
+    file_path = tmp_path / "motor.edf"
+    # Remplace la lecture EDF pour renvoyer l'enregistrement synthétique
+    monkeypatch.setattr("mne.io.read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Charge le run en exigeant uniquement les canaux présents
+    loaded_raw, events, event_id, motor_labels = load_mne_motor_run(
+        file_path,
+        expected_sampling_rate=128.0,
+        expected_channels=["C3", "C4"],
+    )
+    # Vérifie que l'enregistrement retourné correspond à l'objet source
+    assert loaded_raw is raw
+    # Contrôle que seul le couple T1/T2 est conservé malgré la présence de T0
+    assert motor_labels == ["A", "B"]
+    # S'assure que les événements filtrés excluent l'annotation de repos
+    assert np.array_equal(events[:, 2], np.array([event_id["T1"], event_id["T2"]]))
+
+
+def test_map_events_to_motor_labels_rejects_runs_without_motor_activity() -> None:
+    """Expose une erreur structurée lorsqu'aucun événement moteur n'existe."""
+
+    # Crée un enregistrement ne contenant que des marqueurs de repos T0
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.25)
+    # Force des annotations neutres pour éliminer toute cible A/B
+    raw.set_annotations(
+        mne.Annotations(
+            onset=[0.05, 0.15],
+            duration=[0.05, 0.05],
+            description=["T0", "T0"],
+        )
+    )
+    # Fixe le montage pour rester cohérent avec le pipeline standard
+    raw.set_montage("standard_1020")
+    # Vérifie qu'une erreur JSON est levée faute d'événements moteurs
+    with pytest.raises(ValueError) as excinfo:
+        map_events_to_motor_labels(raw)
+    payload = json.loads(str(excinfo.value))
+    # Confirme la nature de l'erreur et les étiquettes disponibles observées
+    assert payload["error"] == "No motor events present"
+    assert payload["available_labels"] == ["T0", "T1", "T2"]
+
+
+def test_summarize_epoch_quality_counts_and_rejects_incomplete() -> None:
+    """Drop incomplete epochs then count A/B labels per run."""
+
+    # Fixe le nombre d'epochs attendues pour clarifier la validation
+    expected_valid_epochs = 2
+    # Construit un enregistrement synthétique avec trois essais moteurs
+    info = mne.create_info(["C3", "C4"], sfreq=64.0, ch_types="eeg")
+    data = np.ones((2, 64))
+    raw = mne.io.RawArray(data, info)
+    raw.set_annotations(
+        mne.Annotations(
+            onset=[0.1, 0.3, 0.5],
+            duration=[0.1, 0.1, 0.1],
+            description=["T1", "T2", "T1"],
+        )
+    )
+    raw.set_montage("standard_1020")
+    events, event_id, motor_labels = map_events_to_motor_labels(raw)
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    epochs._data[0, 0, 0] = np.nan
+    cleaned_epochs, report, cleaned_labels = summarize_epoch_quality(
+        epochs,
+        motor_labels,
+        session=("S01", "R01"),
+        max_peak_to_peak=0.5,
+    )
+    assert len(cleaned_epochs) == expected_valid_epochs
+    assert cleaned_labels == ["B", "A"]
+    assert report["counts"] == {"A": 1, "B": 1}
+    assert report["dropped"]["incomplete"] == 1
+
+
+def test_summarize_epoch_quality_reports_missing_labels() -> None:
+    """Raise a structured error when a motor class is absent."""
+
+    # Fixe le nombre d'essais pour la classe A afin d'éviter les valeurs magiques
+    expected_trials_for_a = 2
+    # Construit un enregistrement ne contenant qu'une seule classe motrice
+    info = mne.create_info(["C3", "C4"], sfreq=64.0, ch_types="eeg")
+    data = np.ones((2, 64))
+    raw = mne.io.RawArray(data, info)
+    raw.set_annotations(
+        mne.Annotations(
+            onset=[0.1, 0.4],
+            duration=[0.1, 0.1],
+            description=["T1", "T1"],
+        )
+    )
+    raw.set_montage("standard_1020")
+    events, event_id, motor_labels = map_events_to_motor_labels(raw)
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    with pytest.raises(ValueError) as excinfo:
+        summarize_epoch_quality(
+            epochs,
+            motor_labels,
+            session=("S99", "R02"),
+            max_peak_to_peak=0.5,
+        )
+    payload = json.loads(str(excinfo.value))
+    assert payload["error"] == "Missing labels"
+    assert payload["missing_labels"] == ["B"]
+    assert payload["counts"]["A"] == expected_trials_for_a
+
+
+def test_summarize_epoch_quality_reports_label_mismatch() -> None:
+    """Détecte un décalage entre événements et étiquettes fournies."""
+
+    # Construit un enregistrement avec deux essais moteurs équilibrés
+    raw = _build_dummy_raw(sfreq=64.0, duration=0.5)
+    # Applique un montage standard pour rester aligné avec la validation
+    raw.set_montage("standard_1020")
+    # Convertit les annotations en événements et identifiants numériques
+    events, event_id, motor_labels = map_events_to_motor_labels(raw)
+    # Crée des epochs courtes autour des événements détectés
+    epochs = create_epochs_from_raw(raw, events, event_id, tmin=0.0, tmax=0.1)
+    # Supprime un label pour provoquer un décalage volontaire
+    truncated_labels = motor_labels[:-1]
+    # Vérifie qu'un rapport clair est produit pour ce décalage détecté
+    with pytest.raises(ValueError) as excinfo:
+        summarize_epoch_quality(
+            epochs,
+            truncated_labels,
+            session=("S05", "R03"),
+            max_peak_to_peak=0.5,
+        )
+    payload = json.loads(str(excinfo.value))
+    # Confirme la présence du message d'erreur attendu dans le rapport JSON
+    assert payload["error"] == "Label/event mismatch"
+    assert payload["expected_events"] == len(epochs)
+    assert payload["labels"] == len(truncated_labels)
 
 
 def test_preprocessing_signatures_preserve_documented_defaults() -> None:

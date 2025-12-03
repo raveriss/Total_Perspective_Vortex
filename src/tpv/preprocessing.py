@@ -179,6 +179,27 @@ def load_mne_raw_checked(
     return raw
 
 
+def load_mne_motor_run(
+    file_path: Path,
+    expected_sampling_rate: float,
+    expected_channels: List[str],
+    expected_montage: str = "standard_1020",
+) -> Tuple[mne.io.BaseRaw, np.ndarray, Dict[str, int], List[str]]:
+    """Load an EDF/BDF run and expose motor labels A/B."""
+
+    # Vérifie et charge le fichier en imposant montage et fréquence attendus
+    raw = load_mne_raw_checked(
+        file_path,
+        expected_montage=expected_montage,
+        expected_sampling_rate=expected_sampling_rate,
+        expected_channels=expected_channels,
+    )
+    # Mappe les événements vers des étiquettes motrices compatibles A/B
+    events, event_id, motor_labels = map_events_to_motor_labels(raw)
+    # Retourne l'enregistrement et les structures nécessaires au découpage
+    return raw, events, event_id, motor_labels
+
+
 def load_physionet_raw(
     file_path: Path, montage: str = "standard_1020"
 ) -> Tuple[mne.io.BaseRaw, Dict[str, object]]:
@@ -274,6 +295,54 @@ def map_events_and_validate(
     filtered_events = np.array(filtered_events_list)
     # Return clean events and the mapping for downstream epoch creation
     return filtered_events, event_id
+
+
+def map_events_to_motor_labels(
+    raw: mne.io.BaseRaw,
+    label_map: Mapping[str, int] | None = None,
+    motor_label_map: Mapping[str, str] | None = None,
+) -> Tuple[np.ndarray, Dict[str, int], List[str]]:
+    """Convert annotations into events and motor labels A/B."""
+
+    # Déduit les événements filtrés et la table d'identifiants mnémoniques
+    events, event_id = map_events_and_validate(raw, label_map, motor_label_map)
+    # Valide la correspondance moteur pour imposer les cibles A/B
+    effective_motor_map = _validate_motor_mapping(
+        raw,
+        event_id,
+        motor_label_map if motor_label_map is not None else MOTOR_EVENT_LABELS,
+    )
+    # Prépare une inversion code → étiquette pour projeter les labels
+    reverse_map = {code: label for label, code in event_id.items()}
+    # Conserve uniquement les événements traduisibles en A/B
+    filtered_events: List[np.ndarray] = []
+    # Construit une liste alignée des étiquettes motrices associées
+    motor_labels: List[str] = []
+    # Parcourt chaque événement pour le mapper ou l'ignorer explicitement
+    for event in events:
+        # Récupère l'étiquette d'origine associée au code numérique
+        label_name = reverse_map[event[2]]
+        # Ignore les événements hors mapping moteur (ex. T0 repos)
+        if label_name not in effective_motor_map:
+            # Passe au suivant pour éviter de contaminer les comptages
+            continue
+        # Mémorise l'événement retenu pour l'epoching moteur
+        filtered_events.append(event)
+        # Associe l'étiquette A/B correspondante pour le contrôle qualité
+        motor_labels.append(effective_motor_map[label_name])
+    # Refuse les runs dépourvus d'événements moteurs exploitables
+    if not filtered_events:
+        # Produit un rapport JSON pour faciliter l'analyse d'intégrité
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "No motor events present",
+                    "available_labels": sorted(set(reverse_map.values())),
+                }
+            )
+        )
+    # Retourne les événements filtrés, la table d'identifiants et les labels A/B
+    return np.asarray(filtered_events), event_id, motor_labels
 
 
 def _validate_annotation_labels(
@@ -509,6 +578,60 @@ def quality_control_epochs(
         return _apply_marking(safe_epochs, flagged)
     # Raise when the mode is unsupported to avoid silent misuse
     raise ValueError("mode must be either 'reject' or 'mark'")
+
+
+def summarize_epoch_quality(
+    epochs: mne.Epochs,
+    motor_labels: List[str],
+    session: Tuple[str, str],
+    max_peak_to_peak: float,
+    expected_labels: Tuple[str, str] = ("A", "B"),
+) -> Tuple[mne.Epochs, Dict[str, Any], List[str]]:
+    """Drop incomplete epochs then count valid labels per subject/run."""
+
+    # Vérifie l'alignement entre événements et étiquettes transmises
+    if len(motor_labels) != len(epochs):
+        # Génère un rapport clair pour identifier le décalage détecté
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Label/event mismatch",
+                    "expected_events": len(epochs),
+                    "labels": len(motor_labels),
+                }
+            )
+        )
+    # Applique le contrôle qualité pour supprimer les segments incomplets
+    cleaned_epochs, flagged = quality_control_epochs(
+        epochs, max_peak_to_peak=max_peak_to_peak, mode="reject"
+    )
+    # Calcule les indices supprimés afin de filtrer les étiquettes associées
+    removed_indices = set(flagged["artifact"]) | set(flagged["incomplete"])
+    # Construit la liste des labels conservés après suppression des segments
+    cleaned_labels = [
+        label for idx, label in enumerate(motor_labels) if idx not in removed_indices
+    ]
+    # Décompte les occurrences pour chaque étiquette attendue
+    counts = {label: cleaned_labels.count(label) for label in expected_labels}
+    # Prépare un rapport synthétique pour la surveillance par sujet et run
+    report = {
+        "subject": session[0],
+        "run": session[1],
+        "dropped": {key: len(value) for key, value in flagged.items()},
+        "counts": counts,
+    }
+    # Identifie les classes absentes après nettoyage pour remonter une erreur
+    missing_labels = [label for label, count in counts.items() if count == 0]
+    # Génère une erreur explicite lorsque des classes attendues manquent
+    if missing_labels:
+        # Insère le rapport de comptage pour faciliter le diagnostic utilisateur
+        raise ValueError(
+            json.dumps(
+                {**report, "error": "Missing labels", "missing_labels": missing_labels}
+            )
+        )
+    # Retourne les epochs nettoyées, le rapport et les labels filtrés
+    return cleaned_epochs, report, cleaned_labels
 
 
 def detect_artifacts(
