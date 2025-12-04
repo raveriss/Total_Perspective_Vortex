@@ -4,6 +4,9 @@ import json
 # Importe numpy pour générer des données synthétiques
 import numpy as np
 
+# Importe le module train pour invoquer le main CLI sans ambiguïté
+from scripts import train
+
 # Importe evaluate_run pour vérifier la génération des rapports prédictifs
 from scripts.predict import evaluate_run
 
@@ -83,6 +86,63 @@ def test_train_and_predict_produce_manifests_and_reports(tmp_path):
     assert isinstance(json_report["confusion_matrix"], list)
     # Vérifie que le nombre d'échantillons loggé correspond aux données
     assert json_report["samples"] == len(y)
+
+
+# Vérifie que l'entrée CLI produit bien un manifeste et un scaler dédié
+def test_train_main_produces_manifest_and_scaler(tmp_path, monkeypatch):
+    """Couvre le chemin CLI avec scaler explicite et manifeste attendu."""
+
+    # Fige le sujet simulé pour préparer les chemins attendus
+    subject = "S99"
+    # Fige le run simulé pour contrôler le nommage des fichiers
+    run = "R09"
+    # Prépare le répertoire de données isolé pour le scénario CLI
+    data_dir = tmp_path / "data"
+    # Prépare le répertoire d'artefacts isolé pour vérifier la sortie
+    artifacts_dir = tmp_path / "artifacts"
+    # Construit l'arborescence du sujet pour placer les fichiers numpy
+    subject_dir = data_dir / subject
+    # Crée les dossiers pour accueillir les matrices synthétiques
+    subject_dir.mkdir(parents=True)
+    # Initialise un générateur déterministe pour stabiliser la CV
+    rng = np.random.default_rng(42)
+    # Génère des observations bidimensionnelles réalistes pour le test
+    X = rng.normal(size=(6, 2, 20))
+    # Alterne les étiquettes pour forcer la stratification tripartite
+    y = np.array([0, 1, 0, 1, 0, 1])
+    # Sauvegarde les features dans la structure attendue par la CLI
+    np.save(subject_dir / f"{run}_X.npy", X)
+    # Sauvegarde les labels alignés pour déclencher la CV
+    np.save(subject_dir / f"{run}_y.npy", y)
+    # Construit les arguments CLI en forçant un scaler explicite
+    argv = [
+        subject,
+        run,
+        "--data-dir",
+        str(data_dir),
+        "--artifacts-dir",
+        str(artifacts_dir),
+        "--sfreq",
+        "64.0",
+        "--feature-strategy",
+        "fft",
+        "--dim-method",
+        "pca",
+        "--scaler",
+        "standard",
+    ]
+    # Bascule dans un répertoire neutre pour éviter les effets globaux
+    monkeypatch.chdir(tmp_path)
+    # Exécute le main CLI et vérifie le code retour de succès
+    assert train.main(argv) == 0
+    # Construit le chemin attendu du manifeste pour l'assertion
+    manifest_path = artifacts_dir / subject / run / "manifest.json"
+    # Vérifie que le manifeste CLI est bien présent sur disque
+    assert manifest_path.exists()
+    # Charge le JSON pour inspecter la section des artefacts
+    manifest = json.loads(manifest_path.read_text())
+    # Vérifie que le chemin du scaler est renseigné après sauvegarde
+    assert manifest["artifacts"]["scaler"]
 
 
 # Vérifie que _get_git_commit gère l'absence complète du dépôt
