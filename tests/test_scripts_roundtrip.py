@@ -141,8 +141,10 @@ def test_train_main_produces_manifest_and_scaler(tmp_path, monkeypatch):
     assert manifest_path.exists()
     # Charge le JSON pour inspecter la section des artefacts
     manifest = json.loads(manifest_path.read_text())
-    # Vérifie que le chemin du scaler est renseigné après sauvegarde
-    assert manifest["artifacts"]["scaler"]
+    # Vérifie que le scaler sérialisé correspond exactement au chemin attendu
+    assert manifest["artifacts"]["scaler"] == str(
+        artifacts_dir / subject / run / "scaler.joblib"
+    )
 
 
 # Vérifie que _get_git_commit gère l'absence complète du dépôt
