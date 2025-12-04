@@ -273,6 +273,8 @@ Contraintes :
 * mypy
 * coverage
 * mutation testing (mutmut)
+  * la configuration Mutmut couvre `mybci.py`, `src/tpv` et `scripts` pour
+    évaluer la qualité sur l'ensemble du pipeline
 * CI GitHub Actions + Codecov
 
 ---
