@@ -60,8 +60,12 @@ cov:
 
 # Mutation testing avec Mutmut (guidé par la couverture)
 mut: clean-mutants cov
-	$(POETRY) mutmut run
+	MUTMUT_USE_COVERAGE=1 $(POETRY) mutmut run
 	$(POETRY) mutmut results > mutmut-results.txt
+	@if grep -E "(survived|timeout)" mutmut-results.txt; then \
+	echo "Surviving or timed-out mutants detected" >&2; \
+	exit 1; \
+	fi
 
 clean-mutants:
 	rm -rf mutants
