@@ -149,6 +149,60 @@ def test_train_main_produces_manifest_and_scaler(tmp_path, monkeypatch):
     )
 
 
+def test_run_training_handles_two_splits_without_cv(tmp_path):
+    """Valide la génération de manifeste quand la validation croisée est bypassée."""
+
+    # Fixe le sujet synthétique pour construire l'arborescence attendue
+    subject = "S02"
+    # Fixe le run synthétique pour aligner le nommage des fichiers
+    run = "R02"
+    # Prépare le répertoire racine de données jouets
+    data_dir = tmp_path / "data"
+    # Prépare le répertoire racine des artefacts générés
+    artifacts_dir = tmp_path / "artifacts"
+    # Construit le sous-dossier dédié au sujet synthétique
+    subject_dir = data_dir / subject
+    # Crée l'arborescence des fichiers numpy pour le sujet cible
+    subject_dir.mkdir(parents=True)
+    # Initialise un générateur aléatoire pour des données stables
+    rng = np.random.default_rng(123)
+    # Génère quatre échantillons pour rester sous le seuil des trois splits
+    X = rng.normal(size=(4, 2, 20))
+    # Associe deux classes équilibrées pour conserver la stratification
+    y = np.array([0, 1, 0, 1])
+    # Sauvegarde les features dans le format attendu par la CLI
+    np.save(subject_dir / f"{run}_X.npy", X)
+    # Sauvegarde les labels alignés pour l'entraînement
+    np.save(subject_dir / f"{run}_y.npy", y)
+    # Construit une configuration minimale pour accélérer l'entraînement
+    config = PipelineConfig(
+        sfreq=64.0,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+    )
+    # Prépare la requête d'entraînement avec les chemins simulés
+    request = TrainingRequest(
+        subject=subject,
+        run=run,
+        pipeline_config=config,
+        data_dir=data_dir,
+        artifacts_dir=artifacts_dir,
+    )
+    # Lance l'entraînement pour générer le modèle et le manifeste
+    result = run_training(request)
+    # Vérifie que la validation croisée a été ignorée faute de splits suffisants
+    assert result["cv_scores"].size == 0
+    # Charge le manifeste pour inspecter les valeurs sérialisées
+    manifest = json.loads(result["manifest_path"].read_text())
+    # Vérifie que la liste des scores est bien vide dans le manifeste
+    assert manifest["scores"]["cv_scores"] == []
+    # Vérifie que la moyenne des scores est absente lorsque la CV est omise
+    assert manifest["scores"]["cv_mean"] is None
+    # Vérifie que le scaler reste absent lorsqu'aucun scaler n'est configuré
+    assert manifest["artifacts"]["scaler"] is None
+
+
 # Vérifie que _get_git_commit gère l'absence complète du dépôt
 def test_get_git_commit_returns_unknown_without_repo(tmp_path, monkeypatch):
     """Couvre les branches de secours lorsque .git n'existe pas."""
