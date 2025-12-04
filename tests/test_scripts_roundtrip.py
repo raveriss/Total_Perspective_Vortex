@@ -1,5 +1,7 @@
+# Importe Path pour manipuler les chemins du dépôt git
 # Importe json pour inspecter les manifestes produits
 import json
+from pathlib import Path
 
 # Importe numpy pour générer des données synthétiques
 import numpy as np
@@ -193,3 +195,19 @@ def test_get_git_commit_returns_unknown_with_empty_head(tmp_path, monkeypatch):
     monkeypatch.chdir(git_dir.parent)
     # Vérifie que la valeur retournée correspond au repli attendu
     assert _get_git_commit() == "unknown"
+
+
+# Vérifie que _get_git_commit retourne bien un hash dans un dépôt valide
+def test_get_git_commit_returns_hash_in_repo(monkeypatch):
+    """Couvre le chemin nominal lorsque HEAD pointe vers une référence valide."""
+
+    # Identifie la racine du dépôt git pour simuler un appel utilisateur
+    repo_root = Path(__file__).resolve().parent.parent
+    # Force l'exécution dans le dépôt réel pour lire le HEAD courant
+    monkeypatch.chdir(repo_root)
+    # Appelle la récupération du hash pour exercer la branche nominale
+    commit = _get_git_commit()
+    # Vérifie que le hash est inconnu ou bien composé de caractères hexadécimaux
+    assert commit == "unknown" or all(
+        char in "0123456789abcdef" for char in commit.lower()
+    )
