@@ -5,8 +5,6 @@
     scripts.fetch_physionet.x_load_manifest__mutmut_19: survived
     scripts.fetch_physionet.x_load_manifest__mutmut_21: survived
     scripts.fetch_physionet.x_load_manifest__mutmut_28: survived
-    scripts.fetch_physionet.x_compute_sha256__mutmut_6: timeout
-    scripts.fetch_physionet.x_compute_sha256__mutmut_12: timeout
     scripts.fetch_physionet.x_retrieve_file__mutmut_8: survived
     scripts.fetch_physionet.x_retrieve_file__mutmut_10: survived
     scripts.fetch_physionet.x_retrieve_file__mutmut_12: survived

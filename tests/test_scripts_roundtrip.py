@@ -199,7 +199,7 @@ def test_get_git_commit_returns_unknown_with_empty_head(tmp_path, monkeypatch):
 
 # Vérifie que _get_git_commit retourne bien un hash dans un dépôt valide
 def test_get_git_commit_returns_hash_in_repo(monkeypatch):
-    """Couvre le chemin nominal lorsque HEAD pointe vers une référence valide."""
+    """Couvre le chemin nominal lorsque HEAD pointe vers une ref valide."""
 
     # Identifie la racine du dépôt git pour simuler un appel utilisateur
     repo_root = Path(__file__).resolve().parent.parent
@@ -211,3 +211,21 @@ def test_get_git_commit_returns_hash_in_repo(monkeypatch):
     assert commit == "unknown" or all(
         char in "0123456789abcdef" for char in commit.lower()
     )
+
+
+# Garantit la couverture lorsque HEAD stocke directement un hash détaché
+def test_get_git_commit_returns_detached_hash(tmp_path, monkeypatch):
+    """Couvre le cas HEAD contenant directement un hash détaché."""
+
+    # Prépare une arborescence .git artificielle pour simuler un HEAD isolé
+    git_dir = tmp_path / "detached" / ".git"
+    # Crée les dossiers .git pour écrire un fichier HEAD détaché
+    git_dir.mkdir(parents=True)
+    # Construit un hash hexadécimal réaliste pour le scénario de test
+    detached_hash = "abcde" * 8
+    # Écrit le hash dans HEAD pour activer la branche sans référence symbolique
+    (git_dir / "HEAD").write_text(detached_hash)
+    # Change le répertoire courant pour cibler le dépôt simulé
+    monkeypatch.chdir(git_dir.parent)
+    # Vérifie que _get_git_commit retourne exactement le hash détaché attendu
+    assert _get_git_commit() == detached_hash
