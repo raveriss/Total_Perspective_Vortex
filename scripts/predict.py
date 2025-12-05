@@ -1,13 +1,24 @@
 """CLI de prédiction pour le pipeline TPV."""
 
 # Préserve argparse pour exposer une interface CLI homogène avec mybci
+# Garantit l'accès aux chemins portables pour données et artefacts
 import argparse
+
+# Fournit l'écriture CSV pour exposer les prédictions individuelles
+import csv
+
+# Fournit la sérialisation JSON pour tracer les rapports générés
+import json
+
 
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
 
 # Centralise l'accès aux tableaux numpy pour l'évaluation
 import numpy as np
+
+# Calcule les métriques de classification pour le rapport
+from sklearn.metrics import confusion_matrix
 
 # Permet de restaurer la matrice W pour des usages temps-réel
 from tpv.dimensionality import TPVDimReducer
@@ -89,6 +100,62 @@ def _load_w_matrix(path: Path) -> TPVDimReducer:
     # Retourne le réducteur prêt pour une projection éventuelle
     return reducer
 
+# Sérialise les rapports JSON et CSV pour un run donné
+def _write_reports(
+    target_dir: Path,
+    identifiers: dict[str, str],
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    accuracy: float,
+) -> dict:
+    """Écrit les rapports de prédiction et retourne les chemins créés."""
+
+    # Calcule la matrice de confusion pour diagnostiquer les erreurs
+    confusion = confusion_matrix(y_true, y_pred).tolist()
+    # Prépare un rapport JSON synthétique pour la CLI et la CI
+    report = {
+        "subject": identifiers["subject"],
+        "run": identifiers["run"],
+        "accuracy": accuracy,
+        "confusion_matrix": confusion,
+        "samples": len(y_true),
+    }
+    # Définit le chemin du rapport JSON dans les artefacts
+    report_path = target_dir / "report.json"
+    # Écrit le rapport JSON en UTF-8 avec indentation pour inspection
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    # Définit le chemin du CSV listant chaque prédiction
+    csv_path = target_dir / "predictions.csv"
+    # Ouvre le fichier CSV en écriture sans lignes superflues
+    with csv_path.open("w", newline="") as handle:
+        # Prépare les en-têtes pour aligner vérité terrain et prédiction
+        fieldnames = ["subject", "run", "index", "y_true", "y_pred"]
+        # Crée un writer dict pour simplifier l'écriture ligne par ligne
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        # Inscrit l'en-tête pour faciliter la lecture
+        writer.writeheader()
+        # Parcourt chaque échantillon pour exposer la prédiction individuelle
+        for idx, (true_label, pred_label) in enumerate(
+            zip(y_true, y_pred, strict=False)
+        ):
+            # Écrit la ligne CSV pour l'index courant
+            writer.writerow(
+                {
+                    "subject": identifiers["subject"],
+                    "run": identifiers["run"],
+                    "index": idx,
+                    "y_true": int(true_label),
+                    "y_pred": int(pred_label),
+                }
+            )
+    # Retourne les chemins créés pour validation amont
+    return {
+        "json_report": report_path,
+        "csv_report": csv_path,
+        "confusion": confusion,
+    }
+
+
 
 # Évalue un run donné et produit un rapport structuré
 def evaluate_run(
@@ -105,14 +172,33 @@ def evaluate_run(
     X, y = _load_data(features_path, labels_path)
     # Construit le dossier d'artefacts spécifique au sujet et au run
     target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Charge la pipeline entraînée depuis le joblib sauvegardé
     pipeline = load_pipeline(str(target_dir / "model.joblib"))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
     # Calcule l'accuracy du pipeline sur les données fournies
     accuracy = float(pipeline.score(X, y))
     # Recharge la matrice W pour confirmer sa présence
     w_matrix = _load_w_matrix(target_dir / "w_matrix.joblib")
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
     # Retourne le rapport local incluant la matrice pour les tests
-    return {"run": run, "subject": subject, "accuracy": accuracy, "w_matrix": w_matrix}
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+    }
 
 
 # Construit un rapport agrégé par run, sujet et global
@@ -127,8 +213,16 @@ def build_report(result: dict) -> dict:
     by_subject = {result["subject"]: accuracy}
     # Calcule l'accuracy globale sur le run fourni
     global_accuracy = accuracy
+    # Récupère la matrice de confusion construite lors de l'évaluation
+    confusion = result["reports"]["confusion"]
     # Retourne une structure prête à être sérialisée
-    return {"by_run": by_run, "by_subject": by_subject, "global": global_accuracy}
+    return {
+        "by_run": by_run,
+        "by_subject": by_subject,
+        "global": global_accuracy,
+        "confusion_matrix": confusion,
+        "reports": result["reports"],
+    }
 
 
 # Point d'entrée principal pour l'exécution en ligne de commande
