@@ -2,7 +2,11 @@
 
 # Préserve argparse pour exposer une interface CLI homogène avec mybci
 # Expose les primitives d'analyse des arguments CLI
+# Fournit le parsing CLI pour aligner la signature mybci
 import argparse
+
+# Fournit l'écriture CSV pour exposer un manifeste tabulaire
+import csv
 
 # Fournit la sérialisation JSON pour exposer un manifeste exploitable
 import json
@@ -189,13 +193,26 @@ def _get_git_commit() -> str:
 
 
 # Sérialise un manifeste complet à côté du modèle entraîné
+def _flatten_hyperparams(hyperparams: dict) -> dict[str, str]:
+    """Aplati les hyperparamètres pour une exportation CSV lisible."""
+
+    # Prépare un dictionnaire de sortie initialement vide
+    flattened: dict[str, str] = {}
+    # Parcourt chaque entrée pour extraire les valeurs simples
+    for key, value in hyperparams.items():
+        # Sérialise chaque valeur pour conserver la lisibilité CSV
+        flattened[key] = json.dumps(value, ensure_ascii=False)
+    # Retourne le dictionnaire aplati prêt pour l'écriture CSV
+    return flattened
+
+
 def _write_manifest(
     request: TrainingRequest,
     target_dir: Path,
     cv_scores: np.ndarray,
     artifacts: dict[str, Path | None],
-) -> Path:
-    """Écrit un manifeste JSON décrivant le run d'entraînement."""
+) -> dict[str, Path]:
+    """Écrit des manifestes JSON et CSV décrivant le run d'entraînement."""
 
     # Prépare la section dataset pour identifier les entrées de données
     dataset = {
@@ -228,12 +245,34 @@ def _write_manifest(
         "git_commit": git_commit,
         "artifacts": artifacts_section,
     }
-    # Définit le chemin de sortie du manifeste à côté des artefacts
-    manifest_path = target_dir / "manifest.json"
-    # Écrit le manifeste sur disque en UTF-8 pour la portabilité
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
-    # Retourne le chemin du manifeste pour les appels appelants
-    return manifest_path
+    # Définit le chemin de sortie du manifeste JSON à côté des artefacts
+    manifest_json_path = target_dir / "manifest.json"
+    # Écrit le manifeste JSON sur disque en UTF-8 pour la portabilité
+    manifest_json_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+    # Aplati les hyperparamètres pour faciliter la lecture dans un tableur
+    flattened_hyperparams = _flatten_hyperparams(hyperparams)
+    # Construit une ligne CSV unique regroupant toutes les informations
+    csv_line = {
+        "subject": request.subject,
+        "run": request.run,
+        "data_dir": str(request.data_dir),
+        "git_commit": git_commit,
+        "cv_scores": ";".join(str(score) for score in cv_scores.tolist()),
+        "cv_mean": "" if cv_mean is None else str(cv_mean),
+        **flattened_hyperparams,
+    }
+    # Définit le chemin du manifeste CSV à côté du JSON
+    manifest_csv_path = target_dir / "manifest.csv"
+    # Ouvre le fichier CSV en écriture sans lignes superflues
+    with manifest_csv_path.open("w", newline="") as handle:
+        # Initialise l'écriture CSV avec les clés détectées
+        writer = csv.DictWriter(handle, fieldnames=list(csv_line.keys()))
+        # Inscrit les en-têtes pour faciliter l'import dans un tableur
+        writer.writeheader()
+        # Inscrit la ligne unique décrivant le run en cours
+        writer.writerow(csv_line)
+    # Retourne les chemins des manifestes pour les appels appelants
+    return {"json": manifest_json_path, "csv": manifest_csv_path}
 
 
 # Exécute la validation croisée et l'entraînement final
@@ -289,7 +328,7 @@ def run_training(request: TrainingRequest) -> dict:
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
-    manifest_path = _write_manifest(
+    manifest_paths = _write_manifest(
         request,
         target_dir,
         cv_scores,
@@ -305,7 +344,8 @@ def run_training(request: TrainingRequest) -> dict:
         "model_path": model_path,
         "scaler_path": scaler_path,
         "w_matrix_path": w_matrix_path,
-        "manifest_path": manifest_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
     }
 
 
