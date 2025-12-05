@@ -38,6 +38,7 @@
   - [Traitement du signal / maths](#traitement-du-signal--maths)
   - [Machine Learning](#machine-learning)
   - [Qualité & Murphy Map](#qualité--murphy-map)
+- [🧭 Vue d’ensemble documentation](#-vue-densemble-documentation)
 - [🔎 Pourquoi cette stack ?](#pourquoi-cette-stack-)
  [© Licence](#licence)
 - [📖 Ressources utilisées](#ressources-utilisées)
@@ -277,6 +278,21 @@ Contraintes :
     évaluer la qualité sur l'ensemble du pipeline
 * CI GitHub Actions + Codecov
 
+### Matrice checklist → WBS → tests
+
+| Item checklist TPV | WBS / livrable | Test ou commande reproductible |
+| --- | --- | --- |
+| Visualisation raw vs filtré | 3.3.1–3.3.4 | `poetry run python scripts/visualize_raw_filtered.py data/raw/S01` ; `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
+| Filtre 8–40 Hz maintenu | 3.1.1–3.1.3 | `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
+| Réduction dimension (PCA/CSP) | 5.2.1–5.2.4 | `poetry run pytest tests/test_dimensionality.py::test_csp_returns_log_variances_and_orthogonality` |
+| Pipeline sklearn (BaseEstimator/TransformerMixin) | 5.3.1–5.3.4 | `poetry run pytest tests/test_pipeline.py::test_pipeline_pickling_roundtrip` |
+| Train + score via CLI | 6.3.x & 7.1.x | `poetry run pytest tests/test_classifier.py::test_training_cli_main_covers_parser_and_paths` |
+| Predict renvoie l’ID de classe | 1.2.x & 6.2.x | `poetry run pytest tests/test_classifier.py::test_predict_cli_main_covers_parser_and_report` |
+| Temps réel < 2 s | 8.2.x–8.3.x | `poetry run pytest tests/test_realtime.py::test_realtime_latency_threshold_enforced` |
+| Score ≥ 75 % (agrégation) | 7.2.x | `poetry run pytest tests/test_classifier.py::test_aggregate_scores_exports_files_and_thresholds` |
+
+La version complète et maintenable de cette matrice, incluant les références aux risques Murphy, est disponible dans [`docs/project/checklist_wbs_matrix.md`](docs/project/checklist_wbs_matrix.md).
+
 ---
 
 
@@ -326,6 +342,12 @@ Ces exigences doivent être **présentes et respectées** dans toute la document
 Les fichiers de cartographie des risques (Loi de Murphy) se trouvent dans :
 
 - `docs/qa/murphy_map_tpv.csv`
+
+---
+
+## 🧭 Vue d’ensemble documentation
+
+Tous les jalons projet sont récapitulés dans [`docs/index.md`](docs/index.md), avec des liens directs vers le WBS, le diagramme de Gantt, la roadmap et la Murphy map.
 
 ---
 
