@@ -161,6 +161,7 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
     # Retourne les deux tableaux prêts pour scikit-learn
     return X, y
 
+
 # Récupère le hash git courant pour tracer la reproductibilité
 def _get_git_commit() -> str:
     """Retourne le hash du commit courant ou "unknown" en secours."""
@@ -233,6 +234,7 @@ def _write_manifest(
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
     # Retourne le chemin du manifeste pour les appels appelants
     return manifest_path
+
 
 # Exécute la validation croisée et l'entraînement final
 def run_training(request: TrainingRequest) -> dict:

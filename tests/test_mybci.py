@@ -41,6 +41,7 @@ REALTIME_BUFFER_DEFAULT = 3
 # Fixe la fréquence d'échantillonnage par défaut pour le streaming realtime
 REALTIME_SFREQ_DEFAULT = 50.0
 
+
 def test_parse_args_returns_expected_namespace():
     args = mybci.parse_args(["S01", "R01", "train"])
 
@@ -319,6 +320,7 @@ def test_build_parser_defines_optional_defaults_and_choices():
     assert n_components_action.default is argparse.SUPPRESS
     assert normalize_action.default is False
 
+
 # Vérifie les options spécifiques au mode realtime pour éviter les mutations
 def test_build_parser_defines_realtime_defaults_and_help():
     # Construit le parser afin d'inspecter les actions realtime
@@ -374,6 +376,7 @@ def test_build_parser_defines_realtime_defaults_and_help():
     assert artifacts_action.default == "artifacts"
     # Vérifie que l'aide d'artifacts-dir reste descriptive
     assert artifacts_action.help == "Répertoire racine où récupérer le modèle entraîné"
+
 
 def test_build_parser_help_messages():
     parser = mybci.build_parser()
