@@ -11,6 +11,9 @@ from pathlib import Path
 import joblib
 import numpy as np
 
+# Importe pytest pour vérifier les exceptions attendues
+import pytest
+
 # Importe la logique de prédiction pour vérifier les matrices W
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
 from scripts import predict as predict_cli
@@ -24,6 +27,8 @@ from tpv.realtime import RealtimeConfig, run_realtime_inference
 
 # Définit une latence minimale attendue pour les tests de performance
 MIN_EXPECTED_LATENCY = 0.009
+# Définit la latence maximale autorisée pour les fenêtres streaming
+MAX_ALLOWED_LATENCY = 2.0
 
 
 # Vérifie que la matrice W sauvegardée est cohérente avec la pipeline
@@ -129,6 +134,8 @@ def test_realtime_latency_metrics():
             window_size=20,
             step_size=10,
             buffer_size=2,
+            # Fige la latence max pour garantir le respect du SLA de 2 s
+            max_latency=2.0,
             sfreq=50.0,
         ),
     )
@@ -136,6 +143,29 @@ def test_realtime_latency_metrics():
     assert all(event.latency >= MIN_EXPECTED_LATENCY for event in result["events"])
     # Vérifie que la moyenne et le maximum sont cohérents avec les mesures
     assert result["latency_max"] >= result["latency_mean"] > 0.0
+
+
+# Vérifie que la boucle s'arrête si la latence dépasse le SLA
+def test_realtime_latency_threshold_enforced():
+    # Instancie une pipeline factice qui dépasse le délai autorisé
+    pipeline = _FakePipeline(delay=2.5, outputs=[0])
+    # Construit un flux minimal pour déclencher une seule fenêtre
+    stream = np.zeros((1, 4))
+    # Vérifie que le SLA déclenche une exception explicite
+    with pytest.raises(TimeoutError):
+        # Lance la boucle realtime avec une latence maximale de 2 s
+        run_realtime_inference(
+            pipeline=pipeline,
+            stream=stream,
+            config=RealtimeConfig(
+                window_size=4,
+                step_size=2,
+                buffer_size=1,
+                # Fige la latence maximale à la valeur autorisée
+                max_latency=MAX_ALLOWED_LATENCY,
+                sfreq=5.0,
+            ),
+        )
 
 
 # Vérifie que les fenêtres sont traitées dans l'ordre chronologique
@@ -152,6 +182,8 @@ def test_realtime_time_ordering():
             window_size=20,
             step_size=5,
             buffer_size=2,
+            # Définit la latence maximale pour sécuriser la boucle
+            max_latency=2.0,
             sfreq=20.0,
         ),
     )
@@ -163,6 +195,53 @@ def test_realtime_time_ordering():
     starts = [event.inference_started_at for event in result["events"]]
     # Vérifie que les timestamps respectent l'ordre de traitement
     assert starts == sorted(starts)
+
+
+# Vérifie que le fenêtrage n'inclut pas d'échantillon futur
+def test_realtime_windowing_avoids_future_leakage():
+    # Conserve les fenêtres reçues pour contrôler la découpe temporelle
+    captured: list[np.ndarray] = []
+
+    # Définit une pipeline qui enregistre les fenêtres pour inspection
+    class _RecordingPipeline:
+        """Pipeline minimale enregistrant chaque entrée reçue."""
+
+        # Enregistre la fenêtre et retourne le dernier échantillon
+        def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803 - API sklearn
+            # Clone la fenêtre pour éviter les effets de bord
+            captured.append(np.copy(X[0, 0]))
+            # Retourne la valeur finale pour vérifier la découpe
+            return np.array([int(X[0, 0, -1])])
+
+    # Construit un flux monotone pour tracer l'indexation temporelle
+    stream = np.arange(12, dtype=float).reshape(1, 12)
+    # Exécute la boucle realtime avec un pas inférieur à la fenêtre
+    result = run_realtime_inference(
+        pipeline=_RecordingPipeline(),
+        stream=stream,
+        config=RealtimeConfig(
+            window_size=4,
+            step_size=3,
+            buffer_size=2,
+            # Fige la latence maximale pour respecter le SLA
+            max_latency=MAX_ALLOWED_LATENCY,
+            sfreq=6.0,
+        ),
+    )
+    # Décrit les fenêtres attendues pour exclure tout échantillon futur
+    expected_windows = [
+        np.array([0.0, 1.0, 2.0, 3.0]),
+        np.array([3.0, 4.0, 5.0, 6.0]),
+        np.array([6.0, 7.0, 8.0, 9.0]),
+    ]
+    # Vérifie que chaque fenêtre observée correspond à la découpe prévue
+    assert all(
+        np.array_equal(window, expected)
+        # Force strict=True pour éviter toute fuite temporelle silencieuse
+        for window, expected in zip(captured, expected_windows, strict=True)
+    )
+    # Vérifie que les prédictions reflètent le dernier point de chaque fenêtre
+    assert [event.raw_prediction for event in result["events"]] == [3, 6, 9]
 
 
 # Vérifie que le buffer de lissage stabilise les prédictions
@@ -179,6 +258,8 @@ def test_realtime_smoothed_predictions():
             window_size=4,
             step_size=2,
             buffer_size=3,
+            # Définit la latence maximale attendue pour les prédictions
+            max_latency=2.0,
             sfreq=10.0,
         ),
     )
@@ -202,6 +283,8 @@ def test_realtime_pipeline_default_prediction():
             window_size=2,
             step_size=2,
             buffer_size=2,
+            # Définit la latence maximale pour respecter le SLA
+            max_latency=2.0,
             sfreq=10.0,
         ),
     )
@@ -256,6 +339,8 @@ def test_run_realtime_session_streams_saved_data(monkeypatch, tmp_path):
             window_size=4,
             step_size=4,
             buffer_size=1,
+            # Définit la latence maximale pour sécuriser la simulation
+            max_latency=2.0,
             sfreq=10.0,
         ),
     )
@@ -323,6 +408,8 @@ def test_realtime_main_invokes_session(monkeypatch, tmp_path):
             window_size=6,
             step_size=3,
             buffer_size=2,
+            # Spécifie la latence maximale attendue pour chaque fenêtre
+            max_latency=2.0,
             sfreq=25.0,
         ),
     }

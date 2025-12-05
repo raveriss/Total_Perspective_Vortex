@@ -1,10 +1,13 @@
 """Boucle d'inférence fenêtrée pour la prédiction temps réel."""
 
-# Fournit argparse pour exposer un parser CLI dédié
+# Centralise argparse pour exposer un parser CLI dédié
 import argparse
 
 # Mesure précisément le temps d'exécution pour les métriques de latence
 import time
+
+# Fournit deque pour gérer un buffer borné en O(1)
+from collections import deque
 
 # Fournit dataclass pour encapsuler les événements de streaming
 from dataclasses import dataclass
@@ -12,8 +15,8 @@ from dataclasses import dataclass
 # Garantit l'accès aux chemins portables pour les données et artefacts
 from pathlib import Path
 
-# Spécifie les Protocol et générateurs pour typer le streaming
-from typing import Generator, Protocol, TypedDict
+# Spécifie les Protocol, générateurs et structures typées pour le streaming
+from typing import Deque, Generator, Protocol, TypedDict
 
 # Centralise les opérations numériques nécessaires au fenêtrage
 import numpy as np
@@ -41,6 +44,8 @@ class RealtimeConfig:
     step_size: int
     # Fixe la taille du buffer de lissage des prédictions
     buffer_size: int
+    # Fixe la latence maximale tolérée pour chaque prédiction
+    max_latency: float
     # Fixe la fréquence d'échantillonnage pour les offsets
     sfreq: float
 
@@ -93,7 +98,7 @@ def _window_stream(
 
 
 # Calcule une prédiction lissée à partir d'un buffer borné
-def _smooth_prediction(buffer: list[int]) -> int:
+def _smooth_prediction(buffer: Deque[int]) -> int:
     """Retourne la valeur majoritaire observée dans le buffer."""
 
     # Initialise un comptage vide pour agréger les classes récentes
@@ -119,7 +124,7 @@ def run_realtime_inference(
     # Initialise la liste des événements pour tracer l'ordre temporel
     events: list[RealtimeEvent] = []
     # Conserve un buffer borné pour lisser les prédictions successives
-    buffer: list[int] = []
+    buffer: Deque[int] = deque(maxlen=config.buffer_size)
     # Capture l'instant initial pour obtenir des timestamps relatifs
     base_time = time.perf_counter()
     # Itère sur les fenêtres générées à partir du flux continu
@@ -134,10 +139,14 @@ def run_realtime_inference(
         raw_prediction = int(pipeline.predict(window[np.newaxis, ...])[0])
         # Calcule la latence en secondes pour la fenêtre traitée
         latency = time.perf_counter() - inference_start
+        # Déclenche une erreur si la contrainte temps réel est dépassée
+        if latency > config.max_latency:
+            # Signale une violation de SLA pour interrompre la session
+            raise TimeoutError(
+                f"Latence {latency:.3f}s dépasse {config.max_latency:.3f}s"
+            )
         # Alimente le buffer de lissage avec la prédiction obtenue
         buffer.append(raw_prediction)
-        # Tronque le buffer pour respecter la taille maximale demandée
-        buffer = buffer[-config.buffer_size :]
         # Calcule la prédiction lissée en fonction des valeurs récentes
         smoothed = _smooth_prediction(buffer)
         # Construit l'événement associé à la fenêtre courante
@@ -211,6 +220,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=3,
         help="Taille du buffer pour lisser les prédictions",
+    )
+    # Ajoute une option pour contrôler la latence maximale autorisée
+    parser.add_argument(
+        "--max-latency",
+        type=float,
+        default=2.0,
+        help="Latence maximale tolérée en secondes",
     )
     # Ajoute une option pour définir la fréquence d'échantillonnage
     parser.add_argument(
@@ -293,6 +309,7 @@ def main(argv: list[str] | None = None) -> int:
             window_size=args.window_size,
             step_size=args.step_size,
             buffer_size=args.buffer_size,
+            max_latency=args.max_latency,
             sfreq=args.sfreq,
         ),
     )

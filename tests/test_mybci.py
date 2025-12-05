@@ -41,6 +41,9 @@ REALTIME_BUFFER_DEFAULT = 3
 # Fixe la fréquence d'échantillonnage par défaut pour le streaming realtime
 REALTIME_SFREQ_DEFAULT = 50.0
 
+# Fixe la latence maximale par défaut pour le streaming realtime
+REALTIME_LATENCY_DEFAULT = 2.0
+
 
 def test_parse_args_returns_expected_namespace():
     args = mybci.parse_args(["S01", "R01", "train"])
@@ -71,6 +74,8 @@ def test_call_realtime_executes_python_module(monkeypatch):
             window_size=10,
             step_size=5,
             buffer_size=3,
+            # Fige la latence max pour respecter la contrainte realtime
+            max_latency=REALTIME_LATENCY_DEFAULT,
             sfreq=42.0,
             data_dir="data",
             artifacts_dir="artifacts",
@@ -91,6 +96,8 @@ def test_call_realtime_executes_python_module(monkeypatch):
         "5",
         "--buffer-size",
         "3",
+        "--max-latency",
+        str(REALTIME_LATENCY_DEFAULT),
         "--sfreq",
         "42.0",
         "--data-dir",
@@ -337,6 +344,8 @@ def test_build_parser_defines_realtime_defaults_and_help():
     step_action = get_action("step_size")
     # Récupère l'action de buffer pour valider le paramétrage par défaut
     buffer_action = get_action("buffer_size")
+    # Récupère l'action de latence pour contrôler le SLA
+    latency_action = get_action("max_latency")
     # Récupère l'action de fréquence pour surveiller la valeur par défaut
     sfreq_action = get_action("sfreq")
     # Récupère l'action data-dir pour bloquer les mutations de défaut
@@ -362,6 +371,12 @@ def test_build_parser_defines_realtime_defaults_and_help():
     assert buffer_action.default == REALTIME_BUFFER_DEFAULT
     # Vérifie que l'aide de buffer-size reste intacte
     assert buffer_action.help == "Taille du buffer de lissage pour le mode realtime"
+    # Vérifie que max-latency reste typé en float pour surveiller le SLA
+    assert latency_action.type is float
+    # Vérifie que la valeur par défaut de max-latency reste 2.0
+    assert latency_action.default == REALTIME_LATENCY_DEFAULT
+    # Vérifie que l'aide de max-latency reste explicite
+    assert latency_action.help == "Latence maximale autorisée par fenêtre realtime"
     # Vérifie que sfreq reste typé en float pour protéger le parsing
     assert sfreq_action.type is float
     # Vérifie que la valeur par défaut de sfreq reste 50.0
@@ -573,6 +588,8 @@ def test_main_routes_to_realtime(monkeypatch):
             "4",
             "--buffer-size",
             "5",
+            "--max-latency",
+            "1.5",
             "--sfreq",
             "64.0",
             "--data-dir",
@@ -589,6 +606,7 @@ def test_main_routes_to_realtime(monkeypatch):
         window_size=8,
         step_size=4,
         buffer_size=5,
+        max_latency=1.5,
         sfreq=64.0,
         data_dir="custom-data",
         artifacts_dir="custom-artifacts",
