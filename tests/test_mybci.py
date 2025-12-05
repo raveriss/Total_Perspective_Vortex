@@ -29,6 +29,17 @@ REALTIME_SUBPROCESS_CODE = 7
 # Fixe le code de sortie retourné lors du routage temps réel dans main
 REALTIME_ROUTING_CODE = 12
 
+# Fixe la taille de fenêtre par défaut utilisée en mode realtime
+REALTIME_WINDOW_DEFAULT = 50
+
+# Fixe le pas de fenêtre par défaut utilisé en mode realtime
+REALTIME_STEP_DEFAULT = 25
+
+# Fixe la taille de buffer par défaut utilisée en mode realtime
+REALTIME_BUFFER_DEFAULT = 3
+
+# Fixe la fréquence d'échantillonnage par défaut pour le streaming realtime
+REALTIME_SFREQ_DEFAULT = 50.0
 
 def test_parse_args_returns_expected_namespace():
     args = mybci.parse_args(["S01", "R01", "train"])
@@ -308,6 +319,61 @@ def test_build_parser_defines_optional_defaults_and_choices():
     assert n_components_action.default is argparse.SUPPRESS
     assert normalize_action.default is False
 
+# Vérifie les options spécifiques au mode realtime pour éviter les mutations
+def test_build_parser_defines_realtime_defaults_and_help():
+    # Construit le parser afin d'inspecter les actions realtime
+    parser = mybci.build_parser()
+
+    # Fournit un accès direct aux actions via leur dest
+    def get_action(dest: str):
+        # Recherche l'action correspondant au dest ciblé
+        return next(action for action in parser._actions if action.dest == dest)
+
+    # Récupère l'action de taille de fenêtre pour contrôler son type
+    window_action = get_action("window_size")
+    # Récupère l'action de pas de fenêtre pour vérifier le défaut
+    step_action = get_action("step_size")
+    # Récupère l'action de buffer pour valider le paramétrage par défaut
+    buffer_action = get_action("buffer_size")
+    # Récupère l'action de fréquence pour surveiller la valeur par défaut
+    sfreq_action = get_action("sfreq")
+    # Récupère l'action data-dir pour bloquer les mutations de défaut
+    data_dir_action = get_action("data_dir")
+    # Récupère l'action artifacts-dir pour fixer le chemin par défaut
+    artifacts_action = get_action("artifacts_dir")
+
+    # Vérifie que la conversion window-size reste un entier
+    assert window_action.type is int
+    # Vérifie que la valeur par défaut de window-size reste 50
+    assert window_action.default == REALTIME_WINDOW_DEFAULT
+    # Vérifie que l'aide décrit correctement window-size
+    assert window_action.help == "Taille de fenêtre glissante pour le mode realtime"
+    # Vérifie que la conversion step-size reste un entier
+    assert step_action.type is int
+    # Vérifie que la valeur par défaut de step-size reste 25
+    assert step_action.default == REALTIME_STEP_DEFAULT
+    # Vérifie que l'aide de step-size reste présente
+    assert step_action.help == "Pas entre deux fenêtres en streaming realtime"
+    # Vérifie que buffer-size reste typé en entier
+    assert buffer_action.type is int
+    # Vérifie que la valeur par défaut de buffer-size reste 3
+    assert buffer_action.default == REALTIME_BUFFER_DEFAULT
+    # Vérifie que l'aide de buffer-size reste intacte
+    assert buffer_action.help == "Taille du buffer de lissage pour le mode realtime"
+    # Vérifie que sfreq reste typé en float pour protéger le parsing
+    assert sfreq_action.type is float
+    # Vérifie que la valeur par défaut de sfreq reste 50.0
+    assert sfreq_action.default == REALTIME_SFREQ_DEFAULT
+    # Vérifie que l'aide de sfreq reste descriptive
+    assert sfreq_action.help == "Fréquence d'échantillonnage appliquée au flux realtime"
+    # Vérifie que data-dir conserve le défaut attendu
+    assert data_dir_action.default == "data"
+    # Vérifie que l'aide de data-dir reste informative
+    assert data_dir_action.help == "Répertoire racine contenant les fichiers numpy"
+    # Vérifie qu'artifacts-dir conserve le défaut attendu
+    assert artifacts_action.default == "artifacts"
+    # Vérifie que l'aide d'artifacts-dir reste descriptive
+    assert artifacts_action.help == "Répertoire racine où récupérer le modèle entraîné"
 
 def test_build_parser_help_messages():
     parser = mybci.build_parser()
