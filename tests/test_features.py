@@ -86,23 +86,49 @@ def test_extract_features_alpha_sine_dominates_alpha_band() -> None:
     assert reshaped[0, 0, 1] == pytest.approx(np.max(reshaped[0, 0]))
 
 
-def test_extract_features_wavelet_placeholder_preserves_shape() -> None:
-    """La voie wavelet doit renvoyer des zéros avec la bonne dimension."""
+def test_extract_features_wavelet_emphasizes_alpha_band() -> None:
+    """La voie wavelet doit concentrer l'énergie sur la bande centrale alpha."""
 
-    # Prépare des epochs synthétiques minimaux
-    epochs = _build_epochs(n_epochs=1, n_channels=3, n_times=64, sfreq=64.0)
-    # Demande explicitement la méthode wavelet non implémentée
+    # Prépare un signal dominé par une fréquence alpha et du bruit multicanal
+    sfreq = 64.0
+    # Calibre la durée pour contenir plusieurs périodes alpha
+    times = np.arange(0.0, 1.0, 1.0 / sfreq)
+    # Génère un sinus alpha sur le premier canal et un bruit sur les autres
+    alpha_signal = np.sin(2 * np.pi * 10.0 * times)
+    # Empile trois canaux pour vérifier la stabilité inter-canaux
+    data = np.stack(
+        [
+            alpha_signal,
+            np.random.default_rng(seed=2).standard_normal(times.size),
+            np.random.default_rng(seed=3).standard_normal(times.size),
+        ]
+    )
+    # Réplique le signal sur un seul essai pour isoler la réponse spectrale
+    epochs_data = np.expand_dims(data, axis=0)
+    # Construit les métadonnées MNE nécessaires à extract_features
+    info = create_info(ch_names=["C0", "C1", "C2"], sfreq=sfreq, ch_types="eeg")
+    # Instancie des epochs MNE prêts pour l'extraction
+    epochs = EpochsArray(epochs_data, info)
+    # Exécute l'extraction en mode wavelet pour capter l'énergie alpha
     features, labels = extract_features(epochs, config={"method": "wavelet"})
-    # Vérifie que la matrice est entièrement nulle
-    assert np.array_equal(features, np.zeros((1, 12)))
+    # Reshape pour retrouver la structure essais x canaux x bandes
+    reshaped = features.reshape(1, 3, 4)
+    # Vérifie que l'énergie alpha domine les autres bandes sur le canal ciblé
+    assert reshaped[0, 0, 1] == pytest.approx(np.max(reshaped[0, 0]))
     # Vérifie que les étiquettes restent cohérentes avec les canaux
     assert labels[0] == "C0_theta"
-    # Instancie la classe pour couvrir le chemin wavelet interne
-    extractor = ExtractFeatures(sfreq=64.0, feature_strategy="wavelet")
-    # Applique transform pour déclencher le placeholder de la classe
+    # Instancie la classe wavelet pour couvrir la branche scikit-learn
+    extractor = ExtractFeatures(
+        sfreq=sfreq, feature_strategy="wavelet", normalize=False
+    )
+    # Applique transform pour vérifier que les coefficients sont non nuls
     transformed = extractor.transform(epochs.get_data())
-    # Vérifie que le placeholder renvoie aussi des zéros
-    assert np.array_equal(transformed, np.zeros((1, 12)))
+    # Vérifie que la matrice contient de l'énergie et respecte la forme attendue
+    assert transformed.shape == (1, 12)
+    # Vérifie que la composante alpha reste dominante après l'appel orienté classe
+    assert transformed.reshape(1, 3, 4)[0, 0, 1] == pytest.approx(
+        np.max(transformed.reshape(1, 3, 4)[0, 0])
+    )
 
 
 def test_extract_features_returns_zeros_when_band_mask_empty() -> None:

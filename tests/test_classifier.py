@@ -105,6 +105,50 @@ def test_training_saves_artifacts(tmp_path, scaler_option):
     assert matrix_payload["w_matrix"].size > 0
 
 
+# Vérifie que le classifieur centroid atteint une accuracy élevée sur le jeu jouet
+def test_centroid_classifier_reaches_expected_accuracy(tmp_path):
+    # Fige la fréquence d'échantillonnage pour aligner les features FFT
+    sfreq = 120.0
+    # Génère des données jouets linéairement séparables
+    X, y = _build_toy_dataset(sfreq)
+    # Construit le répertoire des données pour le sujet S99
+    data_dir = tmp_path / "data" / "S99"
+    # Assure la création du répertoire cible avant sauvegarde
+    data_dir.mkdir(parents=True)
+    # Sauvegarde les features au format attendu par la CLI
+    np.save(data_dir / "R99_X.npy", X)
+    # Sauvegarde les labels au format attendu par la CLI
+    np.save(data_dir / "R99_y.npy", y)
+    # Construit le répertoire d'artefacts isolé pour le test
+    artifacts_dir = tmp_path / "artifacts"
+    # Construit la configuration alignée sur la CLI pour tester le classifieur léger
+    config = train_cli.PipelineConfig(
+        sfreq=sfreq,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+        n_components=2,
+        classifier="centroid",
+        scaler="standard",
+    )
+    # Regroupe les paramètres d'entraînement dans une requête dédiée
+    request = train_cli.TrainingRequest(
+        subject="S99",
+        run="R99",
+        pipeline_config=config,
+        data_dir=tmp_path / "data",
+        artifacts_dir=artifacts_dir,
+    )
+    # Exécute l'entraînement complet et récupère les chemins sauvegardés
+    result = train_cli.run_training(request)
+    # Charge le modèle pour vérifier la performance sur le même jeu
+    model = joblib.load(result["model_path"])
+    # Prédit sur les données jouets pour évaluer l'accuracy
+    predictions = model.predict(X)
+    # Vérifie que le classifieur léger atteint une accuracy quasi parfaite
+    assert (predictions == y).mean() >= EXPECTED_MIN_ACCURACY
+
+
 # Vérifie que la prédiction restitue un rapport structuré cohérent
 def test_prediction_report(tmp_path):
     # Fige la fréquence d'échantillonnage pour aligner les features FFT

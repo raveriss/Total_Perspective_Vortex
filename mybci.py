@@ -154,7 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Ajoute le choix du classifieur pour composer le pipeline
     parser.add_argument(
         "--classifier",
-        choices=("lda", "logistic", "svm"),
+        choices=("lda", "logistic", "svm", "centroid"),
         default="lda",
         help="Choix du classifieur final",
     )

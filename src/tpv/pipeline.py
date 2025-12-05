@@ -26,6 +26,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.svm import LinearSVC
 
+# Importe le classifieur léger basé sur les centroïdes
+from tpv.classifier import CentroidClassifier
+
 # Récupère le réducteur de dimension CSP ou PCA
 from tpv.dimensionality import TPVDimReducer
 
@@ -138,8 +141,12 @@ def _build_classifier(option: str) -> object:
     if normalized == "svm":
         # Utilise LinearSVC pour des données tabulaires haute dimension
         return LinearSVC()
+    # Retourne le classifieur léger personnalisé pour des prototypes rapides
+    if normalized == "centroid":
+        # Utilise un classifieur basé sur les centroïdes pour limiter la variance
+        return CentroidClassifier()
     # Provoque une erreur explicite lorsque le classifieur n'est pas reconnu
-    raise ValueError("classifier must be 'lda', 'logistic', or 'svm'")
+    raise ValueError("classifier must be 'lda', 'logistic', 'svm', or 'centroid'")
 
 
 # Sérialise un pipeline entraîné pour usage ultérieur

@@ -1,12 +1,13 @@
 """Feature extraction utilities for EEG signals."""
 
 # Importe les annotations pour clarifier la signature des fonctions
+# Importe Any pour typer la configuration dynamique des fonctions
 from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
 
 # Importe NumPy pour manipuler les tenseurs spectraux et tabulaires
 import numpy as np
 
-# Importe scipy.signal pour accéder à l'estimateur de Welch
+# Importe scipy.signal pour accéder à l'estimateur de Welch et à la CWT
 from scipy import signal
 
 # Importe BaseEstimator et TransformerMixin pour conserver la compatibilité scikit-learn
@@ -91,11 +92,71 @@ def _compute_welch_band_powers(
     return np.stack(band_powers, axis=2)
 
 
-def _placeholder_wavelet(data: np.ndarray, n_bands: int) -> np.ndarray:
-    """Retourne un tenseur nul pour le mode wavelet non implémenté."""
+def _compute_wavelet_coefficients(
+    channel_values: np.ndarray,
+    central_frequencies: Sequence[float],
+    sfreq: float,
+    wavelet_cycles: float,
+) -> np.ndarray:
+    """Calcule les coefficients wavelets en convoluant une gaussienne modulée."""
 
-    # Génère un tenseur nul pour respecter l'API sans calcul réel
-    return np.zeros((data.shape[0], data.shape[1], n_bands))
+    # Prépare un conteneur pour stocker les coefficients par échelle
+    coefficients: List[np.ndarray] = []
+    # Prépare un axe temporel centré pour construire la gaussienne
+    centered_times = np.arange(channel_values.size) - (channel_values.size - 1) / 2
+    # Parcourt les fréquences centrales pour projeter le signal
+    for central_frequency in central_frequencies:
+        # Empêche une fréquence nulle pour éviter des divisions par zéro
+        safe_frequency = max(central_frequency, 1e-9)
+        # Calcule l'écart-type de la gaussienne en fonction du nombre de cycles
+        sigma = wavelet_cycles * sfreq / safe_frequency
+        # Construit la gaussienne centrée pour limiter les fuites temporelles
+        envelope = np.exp(-(centered_times**2) / (2 * sigma**2))
+        # Construit l'oscillation complexe alignée sur la fréquence centrale
+        oscillation = np.exp(2j * np.pi * safe_frequency * centered_times / sfreq)
+        # Combine l'enveloppe et l'oscillation pour former la wavelet
+        wavelet = envelope * oscillation
+        # Convolue le signal avec la wavelet via FFT pour l'efficacité
+        convolved = signal.fftconvolve(channel_values, wavelet, mode="same")
+        # Ajoute le résultat à la liste pour assembler la matrice finale
+        coefficients.append(convolved)
+    # Empile les coefficients en matrice (bandes, temps) pour analyse d'énergie
+    return np.stack(coefficients, axis=0)
+
+
+def _compute_wavelet_band_powers(
+    data: np.ndarray,
+    sfreq: float,
+    band_ranges: Mapping[str, Tuple[float, float]],
+    config: Mapping[str, Any],
+) -> np.ndarray:
+    """Calcule l'énergie de bandes via une CWT Morlet paramétrable."""
+
+    # Configure la largeur de la wavelet pour ajuster la résolution temps-fréquence
+    wavelet_cycles: float = float(config.get("wavelet_width", 6.0))
+    # Calcule la fréquence centrale de chaque bande pour cibler la wavelet
+    central_frequencies: List[float] = [
+        (low + high) / 2.0 for low, high in band_ranges.values()
+    ]
+    # Prépare un tableau pour stocker l'énergie par essai, canal et bande
+    band_powers: np.ndarray = np.zeros((data.shape[0], data.shape[1], len(band_ranges)))
+    # Parcourt chaque essai pour éviter des allocations massives inutiles
+    for epoch_index, epoch_data in enumerate(data):
+        # Parcourt chaque canal pour projeter le signal sur les échelles ciblées
+        for channel_index, channel_values in enumerate(epoch_data):
+            # Calcule les coefficients CWT sur les échelles demandées
+            coefficients = _compute_wavelet_coefficients(
+                channel_values,
+                central_frequencies,
+                sfreq,
+                wavelet_cycles,
+            )
+            # Calcule la puissance moyenne par bande en intégrant la magnitude
+            band_energy = np.abs(coefficients) ** 2
+            # Moyenne temporelle pour stabiliser l'énergie de chaque bande
+            band_powers[epoch_index, channel_index, :] = band_energy.mean(axis=1)
+    # Retourne le tenseur énergie pour alignement avec les étiquettes de bandes
+    return band_powers
 
 
 def _build_labels(
@@ -162,7 +223,7 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         if self.feature_strategy == "fft":
             return self._compute_fft_features(X)
         if self.feature_strategy == "wavelet":
-            return np.zeros((X.shape[0], X.shape[1] * len(self.BAND_RANGES)))
+            return self._compute_wavelet_features(X)
         raise ValueError(f"Unsupported feature strategy: {self.feature_strategy}")
 
     def _compute_fft_features(self, X):
@@ -175,6 +236,35 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
             band_power = power[:, :, band_mask].mean(axis=2)
             features.append(band_power)
         return np.concatenate(features, axis=1)
+
+    def _compute_wavelet_features(self, X):
+        # Calcule la fréquence centrale pour chaque bande prédéfinie
+        central_frequencies = [
+            (low + high) / 2.0 for low, high in self.BAND_RANGES.values()
+        ]
+        # Prépare une matrice vide pour accueillir les features wavelets
+        features = np.zeros((X.shape[0], X.shape[1] * len(self.BAND_RANGES)))
+        # Parcourt chaque essai pour limiter la charge mémoire
+        for epoch_index, epoch_data in enumerate(X):
+            # Parcourt chaque canal pour calculer les coefficients wavelets
+            for channel_index, channel_values in enumerate(epoch_data):
+                # Calcule la CWT pour toutes les bandes en une seule fois
+                coefficients = _compute_wavelet_coefficients(
+                    channel_values,
+                    central_frequencies,
+                    self.sfreq,
+                    wavelet_cycles=6.0,
+                )
+                # Calcule l'énergie moyenne par bande à partir des coefficients
+                band_energy = np.abs(coefficients) ** 2
+                # Aplatit le tenseur pour l'insérer dans la matrice finale
+                start = channel_index * len(self.BAND_RANGES)
+                # Termine l'intervalle correspondant au canal courant
+                end = start + len(self.BAND_RANGES)
+                # Place l'énergie moyenne dans les colonnes associées au canal
+                features[epoch_index, start:end] = band_energy.mean(axis=1)
+        # Retourne la matrice tabulaire prête pour un classifieur scikit-learn
+        return features
 
 
 def extract_features(
@@ -208,10 +298,12 @@ def extract_features(
     if method == "welch":
         # Calcule les PSD de bandes via Welch avec paramètres bornés
         stacked = _compute_welch_band_powers(data, sfreq, band_ranges, effective_config)
-    # Fournit un placeholder neutre pour les méthodes non encore implémentées
+    # Oriente vers la transformée en ondelettes pour une résolution temporelle
     elif method == "wavelet":
-        # Génère un tenseur nul pour respecter l'API sans calcul réel
-        stacked = _placeholder_wavelet(data, len(band_ranges))
+        # Calcule l'énergie de bandes via une CWT configurée
+        stacked = _compute_wavelet_band_powers(
+            data, sfreq, band_ranges, effective_config
+        )
     # Rejette explicitement les méthodes non reconnues pour éviter des surprises
     else:
         # Signale l'erreur avec la méthode fournie par l'appelant

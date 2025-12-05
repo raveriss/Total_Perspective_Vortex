@@ -164,7 +164,8 @@ def test_build_classifier_rejects_invalid_value():
     )
     # Vérifie que la construction du pipeline échoue explicitement
     with pytest.raises(
-        ValueError, match="classifier must be 'lda', 'logistic', or 'svm'"
+        ValueError,
+        match="classifier must be 'lda', 'logistic', 'svm', or 'centroid'",
     ):
         build_pipeline(config)
 
@@ -244,7 +245,8 @@ def test_build_classifier_invalid_value_message():
 
     # Vérifie que la valeur inconnue produit un message précis
     with pytest.raises(
-        ValueError, match="^classifier must be 'lda', 'logistic', or 'svm'$"
+        ValueError,
+        match="^classifier must be 'lda', 'logistic', 'svm', or 'centroid'$",
     ):
         _build_classifier("unknown")
 
