@@ -316,7 +316,7 @@ def test_build_parser_defines_optional_defaults_and_choices():
     n_components_action = get_action("n_components")
     normalize_action = get_action("no_normalize_features")
 
-    assert tuple(classifier_action.choices) == ("lda", "logistic", "svm")
+    assert tuple(classifier_action.choices) == ("lda", "logistic", "svm", "centroid")
     assert classifier_action.default == "lda"
     assert tuple(scaler_action.choices) == ("standard", "robust", "none")
     assert scaler_action.default == "none"

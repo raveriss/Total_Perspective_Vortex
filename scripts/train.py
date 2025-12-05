@@ -77,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Ajoute l'option classifieur pour synchroniser avec mybci
     parser.add_argument(
         "--classifier",
-        choices=("lda", "logistic", "svm"),
+        choices=("lda", "logistic", "svm", "centroid"),
         default="lda",
         help="Classifieur final utilisé pour l'entraînement",
     )
