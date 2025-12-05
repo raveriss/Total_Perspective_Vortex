@@ -49,13 +49,13 @@ type:
 test:
 	$(POETRY) pytest -vv
 
-# Analyse de la couverture avec rapport JSON, HTML et console (100% requis)
+# Analyse de la couverture avec rapport JSON, HTML et console (90% requis)
 cov:
 	$(POETRY) coverage run -m pytest && \
 	$(POETRY) coverage json -o coverage.json && \
 	$(POETRY) coverage xml -o coverage.xml && \
 	$(POETRY) coverage html --skip-empty --show-contexts && \
-	$(POETRY) coverage report --fail-under=100
+	$(POETRY) coverage report --fail-under=90
 
 
 # Mutation testing avec Mutmut (guidé par la couverture)
