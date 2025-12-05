@@ -4,8 +4,11 @@
 # Expose les primitives d'analyse des arguments CLI
 import argparse
 
+# Fournit la sérialisation JSON pour exposer un manifeste exploitable
+import json
+
 # Rassemble la construction de structures immuables orientées données
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
@@ -158,6 +161,78 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
     # Retourne les deux tableaux prêts pour scikit-learn
     return X, y
 
+# Récupère le hash git courant pour tracer la reproductibilité
+def _get_git_commit() -> str:
+    """Retourne le hash du commit courant ou "unknown" en secours."""
+
+    # Localise le fichier HEAD pour extraire la référence courante
+    head_path = Path(".git") / "HEAD"
+    # Retourne unknown lorsque le dépôt git n'est pas disponible
+    if not head_path.exists():
+        # Fournit une valeur de repli pour conserver un manifeste valide
+        return "unknown"
+    # Lit le contenu du HEAD pour déterminer la référence active
+    head_content = head_path.read_text().strip()
+    # Détecte les références symboliques du style "ref: ..."
+    if head_content.startswith("ref:"):
+        # Isole le chemin relatif vers le fichier de référence
+        ref_path = Path(".git") / head_content.split(" ", 1)[1]
+        # Retourne unknown si la référence est introuvable
+        if not ref_path.exists():
+            # Fournit une valeur de repli pour préserver la validation
+            return "unknown"
+        # Lit le hash contenu dans le fichier de référence
+        return ref_path.read_text().strip()
+    # Retourne le contenu brut lorsque HEAD contient déjà un hash
+    return head_content or "unknown"
+
+
+# Sérialise un manifeste complet à côté du modèle entraîné
+def _write_manifest(
+    request: TrainingRequest,
+    target_dir: Path,
+    cv_scores: np.ndarray,
+    artifacts: dict[str, Path | None],
+) -> Path:
+    """Écrit un manifeste JSON décrivant le run d'entraînement."""
+
+    # Prépare la section dataset pour identifier les entrées de données
+    dataset = {
+        "subject": request.subject,
+        "run": request.run,
+        "data_dir": str(request.data_dir),
+    }
+    # Convertit la configuration de pipeline en dictionnaire sérialisable
+    hyperparams = asdict(request.pipeline_config)
+    # Calcule la moyenne des scores si la validation croisée a tourné
+    cv_mean = float(np.mean(cv_scores)) if cv_scores.size else None
+    # Prépare la section des scores en sérialisant les arrays numpy
+    scores = {
+        "cv_scores": cv_scores.tolist(),
+        "cv_mean": cv_mean,
+    }
+    # Résout l'identifiant du commit git pour tracer les artefacts
+    git_commit = _get_git_commit()
+    # Prépare la section chemins pour retrouver rapidement les fichiers
+    artifacts_section = {
+        "model": str(artifacts["model"]),
+        "scaler": str(artifacts["scaler"]) if artifacts["scaler"] else None,
+        "w_matrix": str(artifacts["w_matrix"]),
+    }
+    # Assemble toutes les sections dans un objet manifeste unique
+    manifest = {
+        "dataset": dataset,
+        "hyperparams": hyperparams,
+        "scores": scores,
+        "git_commit": git_commit,
+        "artifacts": artifacts_section,
+    }
+    # Définit le chemin de sortie du manifeste à côté des artefacts
+    manifest_path = target_dir / "manifest.json"
+    # Écrit le manifeste sur disque en UTF-8 pour la portabilité
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+    # Retourne le chemin du manifeste pour les appels appelants
+    return manifest_path
 
 # Exécute la validation croisée et l'entraînement final
 def run_training(request: TrainingRequest) -> dict:
@@ -177,7 +252,7 @@ def run_training(request: TrainingRequest) -> dict:
     n_splits = min(MIN_CV_SPLITS, min_class_count) if min_class_count > 0 else 0
     # Initialise un tableau vide lorsque la validation croisée est impossible
     cv_scores = np.array([])
-    # Lance la validation croisée uniquement si chaque classe possède trois exemples
+    # Lance la validation croisée seulement si chaque classe en dispose de trois
     if n_splits >= MIN_CV_SPLITS:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
         cv = StratifiedKFold(n_splits=n_splits)
@@ -203,14 +278,32 @@ def run_training(request: TrainingRequest) -> dict:
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_path = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
     # Retourne un rapport synthétique pour les tests et la CLI
     return {
         "cv_scores": cv_scores,
         "model_path": model_path,
-        "scaler_path": (
-            target_dir / "scaler.joblib" if scaler_step is not None else None
-        ),
-        "w_matrix_path": target_dir / "w_matrix.joblib",
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_path,
     }
 
 
