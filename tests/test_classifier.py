@@ -2,6 +2,13 @@
 
 # Préserve numpy pour construire des données EEG synthétiques
 # Offre la lecture des artefacts sauvegardés par joblib
+# Permet de relire le CSV produit par l'agrégateur
+import csv
+
+# Permet de valider la sérialisation JSON des rapports
+import json
+
+# Charge les artefacts joblib générés durant les tests
 import joblib
 import numpy as np
 
@@ -12,6 +19,7 @@ import pytest
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
 # Importe l'agrégation pour résumer les accuracies multi-runs
 from scripts import aggregate_accuracy as aggregate_cli
+from scripts import aggregate_scores as aggregate_scores_cli
 from scripts import predict as predict_cli
 from scripts import train as train_cli
 
@@ -387,3 +395,179 @@ def test_aggregate_accuracy_cli_parser_and_table(tmp_path, capsys):
     captured = capsys.readouterr()
     # Vérifie que la sortie inclut l'accuracy globale formatée
     assert "Global" in captured.out
+
+
+# Vérifie que l'agrégateur exporte CSV/JSON et valide les seuils
+def test_aggregate_scores_exports_files_and_thresholds(tmp_path):
+    # Fige la fréquence d'échantillonnage pour aligner les features FFT
+    sfreq = 120.0
+    # Génère des données jouets linéairement séparables
+    X, y = _build_toy_dataset(sfreq)
+    # Construit le répertoire racine des données temporaires
+    data_dir = tmp_path / "data"
+    # Construit le répertoire racine des artefacts temporaires
+    artifacts_dir = tmp_path / "artifacts"
+    # Déclare la configuration de pipeline identique pour tous les runs
+    config = train_cli.PipelineConfig(
+        sfreq=sfreq,
+        feature_strategy="fft",
+        normalize_features=False,
+        dim_method="pca",
+        n_components=2,
+        classifier="lda",
+        scaler=None,
+    )
+    # Liste les couples (sujet, run) à entraîner pour le reporting
+    runs = [("S30", "R01"), ("S31", "R01")]
+    # Entraîne chaque run pour générer les artefacts attendus
+    for subject, run in runs:
+        # Construit le répertoire propre au sujet courant
+        subject_dir = data_dir / subject
+        # Assure la création du répertoire avant les sauvegardes numpy
+        subject_dir.mkdir(parents=True, exist_ok=True)
+        # Sauvegarde les features au format attendu par la CLI
+        np.save(subject_dir / f"{run}_X.npy", X)
+        # Sauvegarde les labels au format attendu par la CLI
+        np.save(subject_dir / f"{run}_y.npy", y)
+        # Regroupe les paramètres d'entraînement dans une requête dédiée
+        request = train_cli.TrainingRequest(
+            subject=subject,
+            run=run,
+            pipeline_config=config,
+            data_dir=data_dir,
+            artifacts_dir=artifacts_dir,
+        )
+        # Exécute l'entraînement et la sauvegarde des artefacts
+        train_cli.run_training(request)
+    # Agrège les accuracies calculées à partir des artefacts générés
+    report = aggregate_scores_cli.aggregate_scores(data_dir, artifacts_dir)
+    # Vérifie que les deux runs apparaissent dans le rapport agrégé
+    assert {(entry["subject"], entry["run"]) for entry in report["runs"]} == set(runs)
+    # Vérifie que tous les runs dépassent les seuils minimum et cible
+    for entry in report["runs"]:
+        # Garantit une performance élevée sur le dataset synthétique
+        assert entry["accuracy"] > EXPECTED_MIN_ACCURACY
+        # Confirme que le seuil minimal est franchi
+        assert entry["meets_minimum"] is True
+        # Confirme que la cible ambitieuse est atteinte
+        assert entry["meets_target"] is True
+    # Vérifie que chaque sujet possède une moyenne cohérente
+    for subject_entry in report["subjects"]:
+        # Confirme que la moyenne par sujet dépasse le seuil cible
+        assert subject_entry["accuracy"] > EXPECTED_MIN_ACCURACY
+        # Confirme que les drapeaux reflètent la performance élevée
+        assert subject_entry["meets_target"] is True
+    # Vérifie que l'accuracy globale respecte les objectifs
+    assert report["global"]["accuracy"] > EXPECTED_MIN_ACCURACY
+    # Confirme que les drapeaux globaux signalent la conformité
+    assert report["global"]["meets_target"] is True
+    # Prépare les chemins de sortie pour le CSV et le JSON
+    csv_path = tmp_path / "reports" / "scores.csv"
+    json_path = tmp_path / "reports" / "scores.json"
+    # Écrit le CSV consolidé pour inspection manuelle
+    aggregate_scores_cli.write_csv(report, csv_path)
+    # Écrit le JSON consolidé pour réutilisation en CI
+    aggregate_scores_cli.write_json(report, json_path)
+    # Vérifie que les fichiers sont bien créés
+    assert csv_path.exists()
+    assert json_path.exists()
+    # Relit le CSV pour valider le contenu et le type global
+    with csv_path.open() as handle:
+        # Charge les lignes du rapport CSV
+        rows = list(csv.DictReader(handle))
+    # Vérifie la présence d'une ligne globale avec drapeaux positifs
+    assert any(
+        row["type"] == "global" and row["meets_target"] == "True" for row in rows
+    )
+    # Relit le JSON pour valider la structure sérialisée
+    with json_path.open() as handle:
+        # Charge le contenu JSON écrit par l'agrégateur
+        serialized = json.load(handle)
+    # Vérifie que les drapeaux JSON reflètent la conformité aux seuils
+    assert serialized["global"]["meets_minimum"] is True
+
+
+# Vérifie que le parser fournit des valeurs par défaut exploitables
+def test_aggregate_scores_parser_and_missing_artifacts(tmp_path):
+    # Construit le parser pour couvrir la configuration des options
+    parser = aggregate_scores_cli.build_parser()
+    # Parse les arguments vides pour vérifier les valeurs par défaut
+    args = parser.parse_args([])
+    # Vérifie que le répertoire de données par défaut est bien exposé
+    assert args.data_dir == aggregate_scores_cli.DEFAULT_DATA_DIR
+    # Vérifie que le répertoire d'artefacts par défaut est bien exposé
+    assert args.artifacts_dir == aggregate_scores_cli.DEFAULT_ARTIFACTS_DIR
+    # Vérifie que l'export CSV est désactivé par défaut
+    assert args.csv_output is None
+    # Vérifie que l'export JSON est désactivé par défaut
+    assert args.json_output is None
+    # Construit un répertoire d'artefacts inexistant pour déclencher le cas absent
+    artifacts_dir = tmp_path / "artifacts_missing"
+    # Calcule un rapport en absence totale d'artefacts sauvegardés
+    report = aggregate_scores_cli.aggregate_scores(tmp_path / "data", artifacts_dir)
+    # Vérifie que la liste des runs est vide lorsque rien n'existe
+    assert report["runs"] == []
+    # Vérifie que la moyenne par sujet est vide sans run détecté
+    assert report["subjects"] == []
+    # Vérifie que l'accuracy globale retombe à zéro sans artefact
+    assert report["global"]["accuracy"] == 0.0
+
+
+# Vérifie que la CLI principale sérialise les rapports CSV et JSON
+def test_aggregate_scores_main_writes_requested_outputs(tmp_path, monkeypatch):
+    # Définit un rapport synthétique pour limiter les calculs en test
+    stub_report = {
+        "runs": [
+            {
+                "subject": "S50",
+                "run": "R01",
+                "accuracy": 0.8,
+                "meets_minimum": True,
+                "meets_target": True,
+            }
+        ],
+        "subjects": [
+            {
+                "subject": "S50",
+                "accuracy": 0.8,
+                "meets_minimum": True,
+                "meets_target": True,
+            }
+        ],
+        "global": {"accuracy": 0.8, "meets_minimum": True, "meets_target": True},
+    }
+    # Force l'agrégateur à renvoyer le rapport synthétique préconstruit
+    monkeypatch.setattr(
+        aggregate_scores_cli, "aggregate_scores", lambda *_: stub_report
+    )
+    # Construit un répertoire d'artefacts contenant un fichier non dossier
+    artifacts_dir = tmp_path / "artifacts"
+    # Crée le répertoire d'artefacts pour tester l'exploration
+    artifacts_dir.mkdir()
+    # Ajoute un fichier factice pour couvrir le parcours qui ignore les fichiers
+    (artifacts_dir / "README.txt").write_text("placeholder")
+    # Vérifie que l'exploration ignore les chemins qui ne sont pas des dossiers
+    assert aggregate_scores_cli._discover_runs(artifacts_dir) == []
+    # Prépare les chemins de sortie demandés à la CLI principale
+    csv_path = tmp_path / "reports" / "scores.csv"
+    # Prépare le chemin JSON pour vérifier la sérialisation secondaire
+    json_path = tmp_path / "reports" / "scores.json"
+    # Construit les arguments CLI incluant les chemins de sortie
+    argv = [
+        "--data-dir",
+        str(tmp_path / "data"),
+        "--artifacts-dir",
+        str(artifacts_dir),
+        "--csv-output",
+        str(csv_path),
+        "--json-output",
+        str(json_path),
+    ]
+    # Exécute la CLI principale pour générer les fichiers attendus
+    exit_code = aggregate_scores_cli.main(argv)
+    # Vérifie que la CLI signale un succès standard
+    assert exit_code == 0
+    # Vérifie que le fichier CSV a bien été écrit par la CLI
+    assert csv_path.exists()
+    # Vérifie que le fichier JSON a bien été écrit par la CLI
+    assert json_path.exists()

@@ -10,7 +10,6 @@ import csv
 # Fournit la sérialisation JSON pour tracer les rapports générés
 import json
 
-
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
 
@@ -100,6 +99,7 @@ def _load_w_matrix(path: Path) -> TPVDimReducer:
     # Retourne le réducteur prêt pour une projection éventuelle
     return reducer
 
+
 # Sérialise les rapports JSON et CSV pour un run donné
 def _write_reports(
     target_dir: Path,
@@ -154,7 +154,6 @@ def _write_reports(
         "csv_report": csv_path,
         "confusion": confusion,
     }
-
 
 
 # Évalue un run donné et produit un rapport structuré
