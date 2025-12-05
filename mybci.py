@@ -1,6 +1,6 @@
 """Interface CLI pour piloter les workflows d'entraînement et de prédiction."""
 
-# Préserve argparse pour construire le parser principal
+# Préserve argparse pour parser les options CLI avec validation
 import argparse
 
 # Préserve subprocess pour lancer les modules en sous-processus isolés
@@ -33,6 +33,8 @@ class RealtimeCallConfig:
     buffer_size: int
     # Renseigne la fréquence d'échantillonnage pour calculer les offsets
     sfreq: float
+    # Spécifie la latence maximale autorisée pour chaque fenêtre
+    max_latency: float
     # Spécifie le répertoire contenant les fichiers numpy streamés
     data_dir: str
     # Spécifie le répertoire racine où lire les artefacts entraînés
@@ -116,6 +118,8 @@ def _call_realtime(config: RealtimeCallConfig) -> int:
     command.extend(["--step-size", str(config.step_size)])
     # Ajoute la taille du buffer utilisé pour lisser les prédictions
     command.extend(["--buffer-size", str(config.buffer_size)])
+    # Ajoute la latence maximale autorisée pour surveiller le SLA
+    command.extend(["--max-latency", str(config.max_latency)])
     # Ajoute la fréquence d'échantillonnage pour calculer les offsets
     command.extend(["--sfreq", str(config.sfreq)])
     # Ajoute le répertoire des données streamées
@@ -216,6 +220,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=50.0,
         help="Fréquence d'échantillonnage appliquée au flux realtime",
     )
+    # Ajoute la latence maximale tolérée pour surveiller la boucle
+    parser.add_argument(
+        "--max-latency",
+        type=float,
+        default=2.0,
+        help="Latence maximale autorisée par fenêtre realtime",
+    )
     # Ajoute le répertoire de données nécessaire au streaming
     parser.add_argument(
         "--data-dir",
@@ -282,6 +293,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             step_size=args.step_size,
             buffer_size=args.buffer_size,
             sfreq=args.sfreq,
+            max_latency=args.max_latency,
             data_dir=args.data_dir,
             artifacts_dir=args.artifacts_dir,
         )
