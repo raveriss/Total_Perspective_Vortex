@@ -2,6 +2,13 @@
 
 # Préserve numpy pour construire des données EEG synthétiques
 # Offre la lecture des artefacts sauvegardés par joblib
+# Permet de relire le CSV produit par l'agrégateur
+import csv
+
+# Permet de valider la sérialisation JSON des rapports
+import json
+
+# Charge les artefacts joblib générés durant les tests
 import joblib
 import numpy as np
 
@@ -12,6 +19,7 @@ import pytest
 # Importe la logique d'entraînement pour orchestrer la sauvegarde
 # Importe l'agrégation pour résumer les accuracies multi-runs
 from scripts import aggregate_accuracy as aggregate_cli
+from scripts import aggregate_scores as aggregate_scores_cli
 from scripts import predict as predict_cli
 from scripts import train as train_cli
 
@@ -387,3 +395,93 @@ def test_aggregate_accuracy_cli_parser_and_table(tmp_path, capsys):
     captured = capsys.readouterr()
     # Vérifie que la sortie inclut l'accuracy globale formatée
     assert "Global" in captured.out
+
+
+# Vérifie que l'agrégateur exporte CSV/JSON et valide les seuils
+def test_aggregate_scores_exports_files_and_thresholds(tmp_path):
+    # Fige la fréquence d'échantillonnage pour aligner les features FFT
+    sfreq = 120.0
+    # Génère des données jouets linéairement séparables
+    X, y = _build_toy_dataset(sfreq)
+    # Construit le répertoire racine des données temporaires
+    data_dir = tmp_path / "data"
+    # Construit le répertoire racine des artefacts temporaires
+    artifacts_dir = tmp_path / "artifacts"
+    # Déclare la configuration de pipeline identique pour tous les runs
+    config = train_cli.PipelineConfig(
+        sfreq=sfreq,
+        feature_strategy="fft",
+        normalize_features=False,
+        dim_method="pca",
+        n_components=2,
+        classifier="lda",
+        scaler=None,
+    )
+    # Liste les couples (sujet, run) à entraîner pour le reporting
+    runs = [("S30", "R01"), ("S31", "R01")]
+    # Entraîne chaque run pour générer les artefacts attendus
+    for subject, run in runs:
+        # Construit le répertoire propre au sujet courant
+        subject_dir = data_dir / subject
+        # Assure la création du répertoire avant les sauvegardes numpy
+        subject_dir.mkdir(parents=True, exist_ok=True)
+        # Sauvegarde les features au format attendu par la CLI
+        np.save(subject_dir / f"{run}_X.npy", X)
+        # Sauvegarde les labels au format attendu par la CLI
+        np.save(subject_dir / f"{run}_y.npy", y)
+        # Regroupe les paramètres d'entraînement dans une requête dédiée
+        request = train_cli.TrainingRequest(
+            subject=subject,
+            run=run,
+            pipeline_config=config,
+            data_dir=data_dir,
+            artifacts_dir=artifacts_dir,
+        )
+        # Exécute l'entraînement et la sauvegarde des artefacts
+        train_cli.run_training(request)
+    # Agrège les accuracies calculées à partir des artefacts générés
+    report = aggregate_scores_cli.aggregate_scores(data_dir, artifacts_dir)
+    # Vérifie que les deux runs apparaissent dans le rapport agrégé
+    assert {(entry["subject"], entry["run"]) for entry in report["runs"]} == set(runs)
+    # Vérifie que tous les runs dépassent les seuils minimum et cible
+    for entry in report["runs"]:
+        # Garantit une performance élevée sur le dataset synthétique
+        assert entry["accuracy"] > EXPECTED_MIN_ACCURACY
+        # Confirme que le seuil minimal est franchi
+        assert entry["meets_minimum"] is True
+        # Confirme que la cible ambitieuse est atteinte
+        assert entry["meets_target"] is True
+    # Vérifie que chaque sujet possède une moyenne cohérente
+    for subject_entry in report["subjects"]:
+        # Confirme que la moyenne par sujet dépasse le seuil cible
+        assert subject_entry["accuracy"] > EXPECTED_MIN_ACCURACY
+        # Confirme que les drapeaux reflètent la performance élevée
+        assert subject_entry["meets_target"] is True
+    # Vérifie que l'accuracy globale respecte les objectifs
+    assert report["global"]["accuracy"] > EXPECTED_MIN_ACCURACY
+    # Confirme que les drapeaux globaux signalent la conformité
+    assert report["global"]["meets_target"] is True
+    # Prépare les chemins de sortie pour le CSV et le JSON
+    csv_path = tmp_path / "reports" / "scores.csv"
+    json_path = tmp_path / "reports" / "scores.json"
+    # Écrit le CSV consolidé pour inspection manuelle
+    aggregate_scores_cli.write_csv(report, csv_path)
+    # Écrit le JSON consolidé pour réutilisation en CI
+    aggregate_scores_cli.write_json(report, json_path)
+    # Vérifie que les fichiers sont bien créés
+    assert csv_path.exists()
+    assert json_path.exists()
+    # Relit le CSV pour valider le contenu et le type global
+    with csv_path.open() as handle:
+        # Charge les lignes du rapport CSV
+        rows = list(csv.DictReader(handle))
+    # Vérifie la présence d'une ligne globale avec drapeaux positifs
+    assert any(
+        row["type"] == "global" and row["meets_target"] == "True" for row in rows
+    )
+    # Relit le JSON pour valider la structure sérialisée
+    with json_path.open() as handle:
+        # Charge le contenu JSON écrit par l'agrégateur
+        serialized = json.load(handle)
+    # Vérifie que les drapeaux JSON reflètent la conformité aux seuils
+    assert serialized["global"]["meets_minimum"] is True
