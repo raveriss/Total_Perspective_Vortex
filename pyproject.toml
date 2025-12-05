@@ -58,7 +58,9 @@ known-first-party = ["mybci", "tpv"]
 
 [tool.mutmut]
 paths_to_mutate = [
+    "src/tpv",
     "mybci.py",
+    "scripts",
 ]
 also_copy = ["scripts", "src"]
 pytest_add_cli_args = ["-q", "-k", "not latency_benchmark"]
