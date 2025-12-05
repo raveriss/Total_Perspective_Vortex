@@ -1,5 +1,9 @@
 # Importe Path pour manipuler les chemins du dépôt git
 # Importe json pour inspecter les manifestes produits
+# Importe csv pour valider les manifestes tabulaires
+import csv
+
+# Importe json pour inspecter les manifestes sérialisés
 import json
 from pathlib import Path
 
@@ -68,10 +72,26 @@ def test_train_and_predict_produce_manifests_and_reports(tmp_path):
     assert manifest_path.exists()
     # Charge le contenu JSON pour valider la structure
     manifest = json.loads(manifest_path.read_text())
+    # Récupère le chemin du manifeste CSV pour valider l'export tabulaire
+    manifest_csv_path = train_result["manifest_csv_path"]
+    # Vérifie que le manifeste CSV est bien créé
+    assert manifest_csv_path.exists()
+    # Ouvre le manifeste CSV pour comparer avec la version JSON
+    with manifest_csv_path.open() as handle:
+        # Construit un reader pour extraire la ligne unique
+        reader = csv.DictReader(handle)
+        # Récupère la ligne décrivant le run
+        csv_manifest = next(reader)
     # Vérifie que le manifeste référence le bon sujet
     assert manifest["dataset"]["subject"] == subject
     # Vérifie que le manifeste référence le bon run
     assert manifest["dataset"]["run"] == run
+    # Vérifie que le manifeste CSV référence bien le sujet
+    assert csv_manifest["subject"] == subject
+    # Vérifie que le manifeste CSV référence bien le run
+    assert csv_manifest["run"] == run
+    # Vérifie que le hash git est synchronisé entre JSON et CSV
+    assert csv_manifest["git_commit"] == manifest["git_commit"]
     # Vérifie que la section des scores expose une liste
     assert isinstance(manifest["scores"]["cv_scores"], list)
     # Lance la prédiction pour produire les rapports demandés
@@ -82,10 +102,14 @@ def test_train_and_predict_produce_manifests_and_reports(tmp_path):
     assert reports["json_report"].exists()
     # Vérifie que le rapport CSV existe bien dans les artefacts
     assert reports["csv_report"].exists()
+    # Vérifie que le rapport par classe existe pour les diagnostics
+    assert reports["class_report"].exists()
     # Charge le rapport JSON pour valider la matrice de confusion
     json_report = json.loads(reports["json_report"].read_text())
     # Vérifie que la matrice de confusion est bien un tableau imbriqué
     assert isinstance(json_report["confusion_matrix"], list)
+    # Vérifie que l'accuracy par classe est bien renseignée
+    assert set(json_report["per_class_accuracy"].keys()) == {"0", "1"}
     # Vérifie que le nombre d'échantillons loggé correspond aux données
     assert json_report["samples"] == len(y)
 

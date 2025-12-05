@@ -2,6 +2,7 @@
 
 # Préserve argparse pour exposer une interface CLI homogène avec mybci
 # Garantit l'accès aux chemins portables pour données et artefacts
+# Fournit le parsing CLI pour aligner la signature mybci
 import argparse
 
 # Fournit l'écriture CSV pour exposer les prédictions individuelles
@@ -110,20 +111,59 @@ def _write_reports(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Calcule la matrice de confusion pour diagnostiquer les erreurs
-    confusion = confusion_matrix(y_true, y_pred).tolist()
+    # Identifie les classes présentes pour stabiliser l'ordre des rapports
+    labels = sorted(np.unique(y_true).tolist())
+    # Calcule la matrice de confusion en préservant l'ordre des labels
+    confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
+    # Convertit la matrice en liste pour la sérialisation JSON
+    confusion = confusion_array.tolist()
+    # Prépare la structure d'accuracy par classe pour la CLI
+    per_class_accuracy: dict[str, float] = {}
+    # Calcule l'accuracy pour chaque classe en utilisant la diagonale
+    for index, label in enumerate(labels):
+        # Calcule le nombre total d'échantillons pour la classe courante
+        class_total = int(confusion_array[index].sum())
+        # Calcule le nombre de prédictions correctes pour la classe courante
+        correct = int(confusion_array[index][index])
+        # Enregistre l'accuracy en évitant la division par zéro
+        per_class_accuracy[str(label)] = correct / class_total if class_total else 0.0
     # Prépare un rapport JSON synthétique pour la CLI et la CI
     report = {
         "subject": identifiers["subject"],
         "run": identifiers["run"],
         "accuracy": accuracy,
         "confusion_matrix": confusion,
+        "per_class_accuracy": per_class_accuracy,
         "samples": len(y_true),
     }
     # Définit le chemin du rapport JSON dans les artefacts
     report_path = target_dir / "report.json"
     # Écrit le rapport JSON en UTF-8 avec indentation pour inspection
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    # Définit le chemin du rapport CSV par classe pour les diagnostics
+    class_report_path = target_dir / "class_report.csv"
+    # Ouvre le fichier CSV pour enregistrer accuracy et support
+    with class_report_path.open("w", newline="") as handle:
+        # Définit les en-têtes pour l'accuracy par classe
+        fieldnames = ["class", "accuracy", "support"]
+        # Construit le writer CSV prêt à écrire chaque classe
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        # Inscrit les en-têtes pour faciliter la lecture
+        writer.writeheader()
+        # Parcourt chaque classe pour détailler les métriques associées
+        for label in labels:
+            # Récupère l'accuracy calculée pour la classe ciblée
+            class_accuracy = per_class_accuracy[str(label)]
+            # Calcule le support en comptant les occurrences de la classe
+            support = int(confusion_array[labels.index(label)].sum())
+            # Écrit la ligne de métriques dédiée à la classe
+            writer.writerow(
+                {
+                    "class": label,
+                    "accuracy": class_accuracy,
+                    "support": support,
+                }
+            )
     # Définit le chemin du CSV listant chaque prédiction
     csv_path = target_dir / "predictions.csv"
     # Ouvre le fichier CSV en écriture sans lignes superflues
@@ -152,7 +192,9 @@ def _write_reports(
     return {
         "json_report": report_path,
         "csv_report": csv_path,
+        "class_report": class_report_path,
         "confusion": confusion,
+        "per_class_accuracy": per_class_accuracy,
     }
 
 
