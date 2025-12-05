@@ -6,7 +6,7 @@
 #   - Fournir des commandes pratiques pour l’entraînement et la prédiction du modèle
 # ========================================================================================
 
-.PHONY: install lint format type test cov mut train predict activate deactivate
+.PHONY: install lint format type test cov mut train predict activate deactivate clean-mutants
 
 VENV = .venv
 VENV_BIN = $(VENV)/bin/activate
@@ -17,6 +17,9 @@ BENCH_CSVS  := $(wildcard $(BENCH_DIR)/*.csv)
 
 # Utilisation raccourcie de Poetry
 POETRY = poetry run
+
+# Désactive le chargement automatique des plugins pytest globaux (ROS, etc.)
+PYTEST_ENV = PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 
 # ----------------------------------------------------------------------------------------
 # Installation des dépendances (dev inclus)
@@ -40,38 +43,34 @@ format:
 type:
 	$(POETRY) mypy src scripts tests
 
-
 # ----------------------------------------------------------------------------------------
 # Tests et couverture
 # ----------------------------------------------------------------------------------------
 
-# Exécution des tests unitaires
-test:
-	$(POETRY) pytest -vv
+# Nettoyage du dossier de mutants pour éviter les conflits de tests
+clean-mutants:
+	rm -rf mutants
 
-# Analyse de la couverture avec rapport JSON, HTML et console (90% requis)
-cov:
-	$(POETRY) coverage run -m pytest && \
+# Exécution des tests unitaires (sans plugins pytest externes)
+test: clean-mutants
+	$(PYTEST_ENV) $(POETRY) pytest -vv
+
+# Analyse de la couverture avec rapport JSON, XML, HTML et console (90% requis)
+cov: clean-mutants
+	$(PYTEST_ENV) $(POETRY) coverage run -m pytest && \
 	$(POETRY) coverage json -o coverage.json && \
 	$(POETRY) coverage xml -o coverage.xml && \
 	$(POETRY) coverage html --skip-empty --show-contexts && \
 	$(POETRY) coverage report --fail-under=90
 
-
 # Mutation testing avec Mutmut (guidé par la couverture)
 mut: clean-mutants cov
-	MUTMUT_USE_COVERAGE=1 $(POETRY) mutmut run
+	MUTMUT_USE_COVERAGE=1 $(PYTEST_ENV) $(POETRY) mutmut run
 	$(POETRY) mutmut results > mutmut-results.txt
 	@if grep -E "(survived|timeout)" mutmut-results.txt; then \
-	echo "Surviving or timed-out mutants detected" >&2; \
-	exit 1; \
+		echo "Surviving or timed-out mutants detected" >&2; \
+		exit 1; \
 	fi
-
-clean-mutants:
-	rm -rf mutants
-
-
-
 
 # ----------------------------------------------------------------------------------------
 # Commandes liées au modèle (Poetry)
@@ -89,8 +88,6 @@ train:
 # Prédiction : exemple minimal réutilisant les identifiants ci-dessus
 predict:
 	$(POETRY) python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict
-
-
 
 # Affiche la commande pour activer le venv
 activate:
