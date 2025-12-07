@@ -374,6 +374,12 @@ monotrial robuste :
   Article de référence décrivant les stratégies d’optimisation de filtres
   spatiaux pour améliorer la robustesse de l’analyse EEG monotrial.
 
+- EEG Motor Movement/Imagery Dataset v1.0.0 — https://physionet.org/content/eegmmidb/1.0.0/  
+- MNE-ICALabel (tutoriel Labeling ICA components) — https://labeling.ucsd.edu/tutorial/labels  
+- MNE-Python : tutoriels officiels — https://mne.tools/dev/auto_tutorials/index.html  
+- Importing EEG data (blog / guide pratique) — https://cbrnr.github.io/blog/importing-eeg-data/
+
+
 ---
 
 # © Licence
