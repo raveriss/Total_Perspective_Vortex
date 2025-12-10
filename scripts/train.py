@@ -23,20 +23,19 @@ import joblib
 # Centralise l'accès aux tableaux manipulés par scikit-learn
 import numpy as np
 
-# Extrait les features fréquentielles depuis des epochs EEG
-from tpv import features as features_extraction
-
 # Fournit la validation croisée pour évaluer la pipeline complète
 from sklearn.model_selection import StratifiedKFold, cross_val_score
+
+# Centralise le parsing et le contrôle qualité des fichiers EDF
+# Extrait les features fréquentielles depuis des epochs EEG
+from tpv import features as features_extraction
+from tpv import preprocessing
 
 # Permet de persister séparément la matrice W apprise
 from tpv.dimensionality import TPVDimReducer
 
 # Assemble la pipeline cohérente pour l'entraînement
 from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
-
-# Centralise le parsing et le contrôle qualité des fichiers EDF
-from tpv import preprocessing
 
 # Définit le répertoire par défaut où chercher les enregistrements
 DEFAULT_DATA_DIR = Path("data")
@@ -70,7 +69,7 @@ class TrainingRequest:
     # Spécifie le répertoire racine pour déposer les artefacts
     artifacts_dir: Path
     # Spécifie le répertoire des enregistrements EDF bruts
-    raw_dir: Path
+    raw_dir: Path = DEFAULT_RAW_DIR
 
 
 # Construit un argument parser aligné sur la CLI mybci
@@ -188,9 +187,7 @@ def _build_npy_from_edf(
     # Interrompt tôt si l'EDF est absent
     if not raw_path.exists():
         # Fournit un message explicite sur le chemin manquant
-        raise FileNotFoundError(
-            f"EDF introuvable pour {subject} {run}: {raw_path}"
-        )
+        raise FileNotFoundError(f"EDF introuvable pour {subject} {run}: {raw_path}")
     # Crée l'arborescence cible pour déposer les .npy
     features_path.parent.mkdir(parents=True, exist_ok=True)
     # Charge l'EDF en conservant les métadonnées essentielles

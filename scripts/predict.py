@@ -17,13 +17,12 @@ from pathlib import Path
 # Centralise l'accès aux tableaux numpy pour l'évaluation
 import numpy as np
 
-# Extrait les features fréquentielles depuis des epochs EEG
-from tpv import features as features_extraction
-
 # Calcule les métriques de classification pour le rapport
 from sklearn.metrics import confusion_matrix
 
 # Centralise le parsing et le contrôle qualité des fichiers EDF
+# Extrait les features fréquentielles depuis des epochs EEG
+from tpv import features as features_extraction
 from tpv import preprocessing
 
 # Permet de restaurer la matrice W pour des usages temps-réel
@@ -109,9 +108,7 @@ def _build_npy_from_edf(
     # Arrête l'exécution si l'EDF est introuvable
     if not raw_path.exists():
         # Signale explicitement le chemin absent pour guider l'utilisateur
-        raise FileNotFoundError(
-            f"EDF introuvable pour {subject} {run}: {raw_path}"
-        )
+        raise FileNotFoundError(f"EDF introuvable pour {subject} {run}: {raw_path}")
     # Crée l'arborescence cible pour déposer les .npy
     features_path.parent.mkdir(parents=True, exist_ok=True)
     # Charge l'EDF en conservant les métadonnées essentielles
@@ -274,7 +271,7 @@ def evaluate_run(
     run: str,
     data_dir: Path,
     artifacts_dir: Path,
-    raw_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
 ) -> dict:
     """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
 
