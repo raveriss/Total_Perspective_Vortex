@@ -455,7 +455,15 @@ def main(argv: list[str] | None = None) -> int:
         raw_dir=args.raw_dir,
     )
     # Exécute l'entraînement et la sauvegarde des artefacts
-    run_training(request)
+    # Sécurise l'exécution pour afficher une erreur lisible sans trace
+    try:
+        # Lance l'entraînement et laisse remonter les succès
+        run_training(request)
+    except FileNotFoundError as error:
+        # Remonte l'erreur utilisateur de manière concise pour la CLI
+        print(f"ERREUR: {error}")
+        # Expose un code de sortie explicite pour signaler l'échec
+        return 1
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
 
