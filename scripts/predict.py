@@ -20,6 +20,11 @@ import numpy as np
 # Calcule les métriques de classification pour le rapport
 from sklearn.metrics import confusion_matrix
 
+# Centralise le parsing et le contrôle qualité des fichiers EDF
+# Extrait les features fréquentielles depuis des epochs EEG
+from tpv import features as features_extraction
+from tpv import preprocessing
+
 # Permet de restaurer la matrice W pour des usages temps-réel
 from tpv.dimensionality import TPVDimReducer
 
@@ -31,6 +36,9 @@ DEFAULT_DATA_DIR = Path("data")
 
 # Définit le répertoire par défaut pour récupérer les artefacts
 DEFAULT_ARTIFACTS_DIR = Path("artifacts")
+
+# Définit le répertoire par défaut pour les fichiers EDF bruts
+DEFAULT_RAW_DIR = Path("data/raw")
 
 
 # Construit un argument parser aligné sur l'appel mybci
@@ -59,6 +67,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_ARTIFACTS_DIR,
         help="Répertoire racine où lire le modèle",
     )
+    # Ajoute une option pour pointer vers les fichiers EDF bruts
+    parser.add_argument(
+        "--raw-dir",
+        type=Path,
+        default=DEFAULT_RAW_DIR,
+        help="Répertoire racine contenant les fichiers EDF bruts",
+    )
     # Retourne le parser configuré
     return parser
 
@@ -77,10 +92,62 @@ def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, P
     return features_path, labels_path
 
 
-# Charge les matrices numpy attendues pour la prédiction
-def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.ndarray]:
-    """Charge les données et étiquettes depuis des fichiers numpy."""
+# Construit des matrices numpy à partir d'un EDF lorsque nécessaire
+def _build_npy_from_edf(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[Path, Path]:
+    """Génère X et y depuis un fichier EDF brut Physionet."""
 
+    # Calcule les chemins cibles pour les fichiers numpy
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Calcule le chemin attendu du fichier EDF brut
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Arrête l'exécution si l'EDF est introuvable
+    if not raw_path.exists():
+        # Signale explicitement le chemin absent pour guider l'utilisateur
+        raise FileNotFoundError(f"EDF introuvable pour {subject} {run}: {raw_path}")
+    # Crée l'arborescence cible pour déposer les .npy
+    features_path.parent.mkdir(parents=True, exist_ok=True)
+    # Charge l'EDF en conservant les métadonnées essentielles
+    raw, _ = preprocessing.load_physionet_raw(raw_path)
+    # Mappe les annotations en événements moteurs
+    events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(raw)
+    # Découpe le signal en epochs exploitables
+    epochs = preprocessing.create_epochs_from_raw(raw, events, event_id)
+    # Extrait des features fréquentielles par défaut
+    features, _ = features_extraction.extract_features(epochs)
+    # Définit un mapping stable label → entier
+    label_mapping = {label: idx for idx, label in enumerate(sorted(set(motor_labels)))}
+    # Convertit les labels symboliques en entiers
+    numeric_labels = np.array([label_mapping[label] for label in motor_labels])
+    # Persiste les features calculées
+    np.save(features_path, features)
+    # Persiste les labels alignés
+    np.save(labels_path, numeric_labels)
+    # Retourne les chemins nouvellement générés
+    return features_path, labels_path
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def _load_data(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
     # Utilise numpy.load pour récupérer les features en mémoire
     X = np.load(features_path)
     # Utilise numpy.load pour récupérer les labels associés
@@ -204,13 +271,12 @@ def evaluate_run(
     run: str,
     data_dir: Path,
     artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
 ) -> dict:
     """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
 
-    # Résout les chemins des fichiers de données pour le sujet/run
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
-    # Charge les tableaux numpy nécessaires au scoring
-    X, y = _load_data(features_path, labels_path)
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
     # Construit le dossier d'artefacts spécifique au sujet et au run
     target_dir = artifacts_dir / subject / run
     # Assure la présence du dossier pour pouvoir écrire les rapports
@@ -275,7 +341,9 @@ def main(argv: list[str] | None = None) -> int:
     # Parse les arguments fournis par l'utilisateur
     args = parser.parse_args(argv)
     # Évalue le run demandé et récupère la matrice W
-    result = evaluate_run(args.subject, args.run, args.data_dir, args.artifacts_dir)
+    result = evaluate_run(
+        args.subject, args.run, args.data_dir, args.artifacts_dir, args.raw_dir
+    )
     # Construit le rapport structuré attendu par les tests
     _ = build_report(result)
     # Retourne 0 pour signaler un succès CLI à mybci
