@@ -186,8 +186,13 @@ def _build_npy_from_edf(
     raw_path = raw_dir / subject / f"{subject}{run}.edf"
     # Interrompt tôt si l'EDF est absent
     if not raw_path.exists():
-        # Fournit un message explicite sur le chemin manquant
-        raise FileNotFoundError(f"EDF introuvable pour {subject} {run}: {raw_path}")
+        # Oriente vers la préparation des données lorsqu'un EDF manque
+        raise FileNotFoundError(
+            "EDF introuvable pour"
+            f" {subject} {run}: {raw_path}. "
+            "Exécutez scripts/prepare_physionet.py avec --source et --manifest"
+            " pour télécharger ou copier les enregistrements Physionet."
+        )
     # Crée l'arborescence cible pour déposer les .npy
     features_path.parent.mkdir(parents=True, exist_ok=True)
     # Charge l'EDF en conservant les métadonnées essentielles
