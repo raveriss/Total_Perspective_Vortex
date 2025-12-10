@@ -23,6 +23,9 @@ import joblib
 # Centralise l'accès aux tableaux manipulés par scikit-learn
 import numpy as np
 
+# Extrait les features fréquentielles depuis des epochs EEG
+from tpv import features as features_extraction
+
 # Fournit la validation croisée pour évaluer la pipeline complète
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 
@@ -32,11 +35,17 @@ from tpv.dimensionality import TPVDimReducer
 # Assemble la pipeline cohérente pour l'entraînement
 from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
 
+# Centralise le parsing et le contrôle qualité des fichiers EDF
+from tpv import preprocessing
+
 # Définit le répertoire par défaut où chercher les enregistrements
 DEFAULT_DATA_DIR = Path("data")
 
 # Définit le répertoire par défaut pour déposer les artefacts d'entraînement
 DEFAULT_ARTIFACTS_DIR = Path("artifacts")
+
+# Définit le répertoire par défaut où résident les fichiers EDF bruts
+DEFAULT_RAW_DIR = Path("data/raw")
 
 # Fige la fréquence d'échantillonnage par défaut utilisée pour les features
 DEFAULT_SAMPLING_RATE = 50.0
@@ -60,6 +69,8 @@ class TrainingRequest:
     data_dir: Path
     # Spécifie le répertoire racine pour déposer les artefacts
     artifacts_dir: Path
+    # Spécifie le répertoire des enregistrements EDF bruts
+    raw_dir: Path
 
 
 # Construit un argument parser aligné sur la CLI mybci
@@ -129,6 +140,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_ARTIFACTS_DIR,
         help="Répertoire racine où enregistrer le modèle",
     )
+    # Ajoute une option pour pointer vers les fichiers EDF bruts
+    parser.add_argument(
+        "--raw-dir",
+        type=Path,
+        default=DEFAULT_RAW_DIR,
+        help="Répertoire racine contenant les fichiers EDF bruts",
+    )
     # Ajoute une option pour spécifier la fréquence d'échantillonnage
     parser.add_argument(
         "--sfreq",
@@ -154,10 +172,64 @@ def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, P
     return features_path, labels_path
 
 
-# Charge les matrices numpy attendues pour l'entraînement
-def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.ndarray]:
-    """Charge les données et étiquettes depuis des fichiers numpy."""
+# Construit des matrices numpy à partir d'un EDF lorsqu'elles manquent
+def _build_npy_from_edf(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[Path, Path]:
+    """Génère X et y depuis un fichier EDF brut Physionet."""
 
+    # Calcule les chemins cibles pour les fichiers numpy
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Calcule le chemin attendu du fichier EDF brut
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Interrompt tôt si l'EDF est absent
+    if not raw_path.exists():
+        # Fournit un message explicite sur le chemin manquant
+        raise FileNotFoundError(
+            f"EDF introuvable pour {subject} {run}: {raw_path}"
+        )
+    # Crée l'arborescence cible pour déposer les .npy
+    features_path.parent.mkdir(parents=True, exist_ok=True)
+    # Charge l'EDF en conservant les métadonnées essentielles
+    raw, _ = preprocessing.load_physionet_raw(raw_path)
+    # Mappe les annotations en événements moteurs
+    events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(raw)
+    # Découpe le signal en epochs exploitables
+    epochs = preprocessing.create_epochs_from_raw(raw, events, event_id)
+    # Extrait des features fréquentielles par défaut
+    features, _ = features_extraction.extract_features(epochs)
+    # Définit un mapping stable label → entier
+    label_mapping = {label: idx for idx, label in enumerate(sorted(set(motor_labels)))}
+    # Convertit les labels symboliques en entiers
+    numeric_labels = np.array([label_mapping[label] for label in motor_labels])
+    # Persiste les features calculées
+    np.save(features_path, features)
+    # Persiste les labels alignés
+    np.save(labels_path, numeric_labels)
+    # Retourne les chemins nouvellement générés
+    return features_path, labels_path
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def _load_data(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
     # Utilise numpy.load pour récupérer les features en mémoire
     X = np.load(features_path)
     # Utilise numpy.load pour récupérer les labels associés
@@ -279,12 +351,8 @@ def _write_manifest(
 def run_training(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
-    # Résout les chemins des fichiers de données pour le sujet/run
-    features_path, labels_path = _resolve_data_paths(
-        request.subject, request.run, request.data_dir
-    )
-    # Charge les tableaux numpy nécessaires à l'entraînement
-    X, y = _load_data(features_path, labels_path)
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
     # Construit la pipeline complète sans préprocesseur amont
     pipeline = build_pipeline(request.pipeline_config)
     # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
@@ -380,6 +448,7 @@ def main(argv: list[str] | None = None) -> int:
         pipeline_config=config,
         data_dir=args.data_dir,
         artifacts_dir=args.artifacts_dir,
+        raw_dir=args.raw_dir,
     )
     # Exécute l'entraînement et la sauvegarde des artefacts
     run_training(request)
