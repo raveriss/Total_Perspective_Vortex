@@ -512,15 +512,32 @@ def main(argv: list[str] | None = None) -> int:
     # Exécute l'entraînement et la sauvegarde des artefacts
     # Sécurise l'exécution pour afficher une erreur lisible sans trace
     try:
-        # Lance l'entraînement et laisse remonter les succès
-        run_training(request)
+        # Lance l'entraînement et récupère le rapport pour afficher les scores
+        result = run_training(request)
     except FileNotFoundError as error:
         # Remonte l'erreur utilisateur de manière concise pour la CLI
         print(f"ERREUR: {error}")
         # Expose un code de sortie explicite pour signaler l'échec
         return 1
+
+    # Récupère les scores de validation croisée depuis le rapport
+    cv_scores = result["cv_scores"]
+
+    # Si des scores ont été calculés, on les affiche au format attendu
+    if isinstance(cv_scores, np.ndarray) and cv_scores.size > 0:
+        # Affiche le tableau numpy (format [0.6666 0.4444 ...])
+        print(cv_scores)
+        # Calcule la moyenne pour l'affichage "cross_val_score: 0.5333"
+        mean_score = float(cv_scores.mean())
+        print(f"cross_val_score: {mean_score}")
+    else:
+        # Fallback lisible si la CV n'a pas pu être calculée
+        print(np.array([]))
+        print("cross_val_score: 0.0")
+
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
+
 
 
 # Protège l'exécution directe pour exposer un exit code explicite

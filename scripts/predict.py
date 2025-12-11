@@ -53,21 +53,69 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("subject", help="Identifiant du sujet (ex: S001)")
     # Ajoute l'argument positionnel du run pour cibler la session
     parser.add_argument("run", help="Identifiant du run (ex: R01)")
-    # Ajoute une option pour cibler un répertoire de données spécifique
+
+    # ------------------------------------------------------------------
+    # Options de compatibilité avec la CLI mybci (train/predict)
+    # Ces options sont acceptées mais *ignorées* côté prédiction, car
+    # le modèle déjà entraîné porte la vraie configuration.
+    # ------------------------------------------------------------------
+    parser.add_argument(
+        "--classifier",
+        choices=("lda", "logistic", "svm", "centroid"),
+        default="lda",
+        help="Classifieur final (ignoré en prédiction, pour compatibilité CLI)",
+    )
+    parser.add_argument(
+        "--scaler",
+        choices=("standard", "robust", "none"),
+        default="none",
+        help="Scaler appliqué en entraînement (ignoré en prédiction)",
+    )
+    parser.add_argument(
+        "--feature-strategy",
+        choices=("fft", "wavelet"),
+        default="fft",
+        help="Stratégie de features utilisée à l'entraînement (ignorée ici)",
+    )
+    parser.add_argument(
+        "--dim-method",
+        choices=("pca", "csp"),
+        default="pca",
+        help="Méthode de réduction de dimension (ignorée en prédiction)",
+    )
+    parser.add_argument(
+        "--n-components",
+        type=int,
+        default=argparse.SUPPRESS,
+        help="Nombre de composantes (ignoré en prédiction)",
+    )
+    parser.add_argument(
+        "--no-normalize-features",
+        action="store_true",
+        help="Flag de normalisation (ignoré en prédiction)",
+    )
+    parser.add_argument(
+        "--sfreq",
+        type=float,
+        default=50.0,
+        help="Fréquence utilisée en features (ignorée ici)",
+    )
+
+    # ------------------------------------------------------------------
+    # Options réellement utilisées par scripts/predict
+    # ------------------------------------------------------------------
     parser.add_argument(
         "--data-dir",
         type=Path,
         default=DEFAULT_DATA_DIR,
         help="Répertoire racine contenant les fichiers numpy",
     )
-    # Ajoute une option pour configurer le répertoire d'artefacts
     parser.add_argument(
         "--artifacts-dir",
         type=Path,
         default=DEFAULT_ARTIFACTS_DIR,
         help="Répertoire racine où lire le modèle",
     )
-    # Ajoute une option pour pointer vers les fichiers EDF bruts
     parser.add_argument(
         "--raw-dir",
         type=Path,
@@ -305,7 +353,9 @@ def evaluate_run(
         "w_matrix": w_matrix,
         "reports": reports,
         "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
     }
+
 
 
 # Construit un rapport agrégé par run, sujet et global
@@ -346,8 +396,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     # Construit le rapport structuré attendu par les tests
     _ = build_report(result)
+
+    # Récupère les prédictions et la vérité terrain pour l'affichage CLI
+    y_pred = result["predictions"]
+    y_true = result["y_true"]
+
+    # En-tête identique à la version de référence
+    print("epoch nb: [prediction] [truth] equal?")
+
+    # Affiche une ligne par epoch : numéro, prédiction, vérité, égalité
+    for idx, (pred, true) in enumerate(zip(y_pred, y_true, strict=True)):
+        equal = bool(pred == true)
+        print(f"epoch {idx:02d}: [{int(pred)}] [{int(true)}] {equal}")
+
+    # Affiche l'accuracy avec 4 décimales comme dans l'exemple
+    print(f"Accuracy: {result['accuracy']:.4f}")
+
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
+
 
 
 # Protège l'exécution directe pour exposer un exit code explicite

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """Interface CLI pour piloter les workflows d'entraînement et de prédiction."""
 
 # Préserve argparse pour parser les options CLI avec validation
@@ -14,6 +16,9 @@ from dataclasses import dataclass
 
 # Garantit l'accès aux séquences typées pour mypy
 from typing import Sequence
+
+# Facilite la gestion portable des chemins de données et artefacts
+from pathlib import Path
 
 
 # Centralise les options nécessaires pour invoquer le mode realtime
@@ -132,6 +137,33 @@ def _call_realtime(config: RealtimeCallConfig) -> int:
     return completed.returncode
 
 
+# Imprime les prédictions epoch par epoch dans un format compact
+def _print_epoch_predictions(
+    y_true: Sequence[int],
+    y_pred: Sequence[int],
+    accuracy: float,
+) -> None:
+    """Affiche les prédictions détaillées comme dans l'exemple mybci."""
+
+    # Affiche l'en-tête décrivant les colonnes
+    print("epoch nb: [prediction] [truth] equal?")
+    # Calcule la largeur minimale pour l'index d'epoch
+    n_epochs = len(y_true)
+    # Utilise au moins deux chiffres pour mimer l'exemple fourni
+    index_width = max(2, len(str(max(n_epochs - 1, 0))))
+    # Parcourt chaque paire vérité terrain / prédiction
+    for idx, (pred, truth) in enumerate(zip(y_pred, y_true, strict=True)):
+        # Calcule si la prédiction correspond à la vérité terrain
+        is_equal = bool(int(pred) == int(truth))
+        # Affiche la ligne formatée pour l'epoch courante
+        print(
+            f"epoch {idx:0{index_width}d}: "
+            f"[{int(pred)}] [{int(truth)}] {is_equal}"
+        )
+    # Affiche l'accuracy globale formatée sur quatre décimales
+    print(f"Accuracy: {accuracy:.4f}")
+
+
 # Construit le parser CLI avec toutes les options du pipeline
 def build_parser() -> argparse.ArgumentParser:
     """Construit l'argument parser pour mybci."""
@@ -239,6 +271,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="artifacts",
         help="Répertoire racine où récupérer le modèle entraîné",
     )
+    # Ajoute le répertoire racine des fichiers EDF bruts
+    parser.add_argument(
+        "--raw-dir",
+        default="data/raw",
+        help="Répertoire racine contenant les fichiers EDF bruts",
+    )
     # Retourne le parser configuré
     return parser
 
@@ -266,6 +304,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Construit la configuration partagée entre les modules train et predict
     n_components = getattr(args, "n_components", None)
 
+    # Construit la configuration de pipeline commune
     config = ModuleCallConfig(
         subject=args.subject,
         run=args.run,
@@ -276,6 +315,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         n_components=n_components,
         normalize_features=normalize_features,
     )
+
     # Appelle le module train si le mode le demande
     if args.mode == "train":
         # Retourne le code retour du module train avec la configuration
@@ -283,6 +323,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "tpv.train",
             config,
         )
+
     # Bascule vers le module realtime pour le streaming fenêtré
     if args.mode == "realtime":
         # Construit la configuration spécifique au lissage et fenêtrage
@@ -299,11 +340,44 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         # Retourne le code retour du module realtime avec la configuration
         return _call_realtime(realtime_config)
-    # Appelle le module predict pour le mode prédiction
-    return _call_module(
-        "tpv.predict",
-        config,
-    )
+
+    # Traite le mode prédiction avec un appel direct au module tpv.predict
+    # pour pouvoir structurer l'affichage epoch par epoch
+    from tpv import predict as tpv_predict
+
+    # Convertit les répertoires en Path pour l'appel direct
+    data_dir = Path(args.data_dir)
+    artifacts_dir = Path(args.artifacts_dir)
+    raw_dir = Path(args.raw_dir)
+
+    # Évalue le run en récupérant prédictions et vérité terrain
+    try:
+        # Lance l'évaluation en rechargeant la pipeline entraînée
+        result = tpv_predict.evaluate_run(
+            args.subject,
+            args.run,
+            data_dir,
+            artifacts_dir,
+            raw_dir,
+        )
+    except FileNotFoundError as error:
+        # Affiche une erreur compréhensible pour l'utilisateur CLI
+        print(f"ERREUR: {error}")
+        # Retourne un code non nul pour signaler l'échec
+        return 1
+
+    # Construit le rapport agrégé (accuracy globale, confusion, etc.)
+    _ = tpv_predict.build_report(result)
+    # Récupère les prédictions calculées par evaluate_run
+    y_pred = result["predictions"]
+    # Récupère la vérité terrain renvoyée par evaluate_run
+    y_true = result["truth"]
+    # Récupère l'accuracy globale pour l'affichage final
+    accuracy = float(result["accuracy"])
+    # Affiche le détail epoch par epoch dans le format attendu
+    _print_epoch_predictions(y_true, y_pred, accuracy)
+    # Retourne 0 pour signaler un succès CLI à l'utilisateur
+    return 0
 
 
 # Protège l'exécution directe pour déléguer au main
