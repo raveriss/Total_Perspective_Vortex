@@ -64,7 +64,7 @@ def test_build_parser_defaults() -> None:
     # Construit le parseur dédié à la visualisation
     parser = viz.build_parser()
     # Parse uniquement sujet/run pour activer les valeurs par défaut
-    args = parser.parse_args(["S01", "R02"])
+    args = parser.parse_args(["S001", "R02"])
     # Vérifie la racine dataset par défaut
     assert args.data_root == "data/raw"
     # Vérifie le répertoire de sortie par défaut
@@ -239,7 +239,7 @@ def test_visualize_run_smoke(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
         "channel_names": raw.ch_names,
         "montage": "mock",
         "path": "ignored",
-        "subject": "S01",
+        "subject": "S001",
         "run": "R01",
     }
     # Remplace le loader pour éviter toute dépendance au filesystem
@@ -258,7 +258,7 @@ def test_visualize_run_smoke(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     # Exécute la visualisation avec une sélection de canal unique
     output_path = viz.visualize_run(
         data_root=Path("data/raw"),
-        subject="S01",
+        subject="S001",
         run="R01",
         config=config,
     )

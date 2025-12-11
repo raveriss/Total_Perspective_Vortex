@@ -723,13 +723,13 @@ def test_quality_control_and_reporting(tmp_path: Path) -> None:
     generate_epoch_report(
         filtered_epochs,
         event_id,
-        {"subject": "S01", "run": "R01"},
+        {"subject": "S001", "run": "R01"},
         report_path,
     )
     # Load the report to verify the counts reflect the filtered epochs
     report_content = json.loads(report_path.read_text(encoding="utf-8"))
     # Confirm subject and run identifiers are preserved in the report
-    assert report_content["subject"] == "S01"
+    assert report_content["subject"] == "S001"
     # Confirm run identifier matches the provided input
     assert report_content["run"] == "R01"
     # Confirm only two epochs remain after dropping the artifact
@@ -2375,7 +2375,7 @@ def test_summarize_epoch_quality_counts_and_rejects_incomplete() -> None:
     cleaned_epochs, report, cleaned_labels = summarize_epoch_quality(
         epochs,
         motor_labels,
-        session=("S01", "R01"),
+        session=("S001", "R01"),
         max_peak_to_peak=0.5,
     )
     assert len(cleaned_epochs) == expected_valid_epochs

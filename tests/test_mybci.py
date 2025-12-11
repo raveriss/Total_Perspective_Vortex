@@ -46,9 +46,9 @@ REALTIME_LATENCY_DEFAULT = 2.0
 
 
 def test_parse_args_returns_expected_namespace():
-    args = mybci.parse_args(["S01", "R01", "train"])
+    args = mybci.parse_args(["S001", "R01", "train"])
 
-    assert args.subject == "S01"
+    assert args.subject == "S001"
     assert args.run == "R01"
     assert args.mode == "train"
 
@@ -128,7 +128,7 @@ def test_build_parser_defines_expected_arguments():
     run_arg = get_action("run")
     mode_arg = get_action("mode")
 
-    assert subject_arg.help == "Identifiant du sujet (ex: S01)"
+    assert subject_arg.help == "Identifiant du sujet (ex: S001)"
     assert run_arg.help == "Identifiant du run (ex: R01)"
     assert mode_arg.help == "Choix du pipeline à lancer"
     assert tuple(mode_arg.choices) == ("train", "predict", "realtime")
@@ -152,7 +152,7 @@ def test_build_parser_argument_types_and_defaults():
 
 def test_parse_args_rejects_invalid_mode(capsys):
     with pytest.raises(SystemExit) as excinfo:
-        mybci.parse_args(["S01", "R01", "invalid"])
+        mybci.parse_args(["S001", "R01", "invalid"])
 
     assert excinfo.value.code == EXIT_USAGE
     stderr = capsys.readouterr().err
@@ -161,7 +161,7 @@ def test_parse_args_rejects_invalid_mode(capsys):
 
 def test_parse_args_requires_all_positional_arguments(capsys):
     with pytest.raises(SystemExit) as excinfo:
-        mybci.parse_args(["S01", "R01"])
+        mybci.parse_args(["S001", "R01"])
 
     assert excinfo.value.code == EXIT_USAGE
     stderr = capsys.readouterr().err
@@ -177,11 +177,11 @@ def test_main_invokes_train_pipeline(monkeypatch):
 
     monkeypatch.setattr(mybci, "_call_module", fake_call)
 
-    exit_code = mybci.main(["S01", "R02", "train"])
+    exit_code = mybci.main(["S001", "R02", "train"])
 
     assert exit_code == 0
     assert called["args"][0] == "tpv.train"
-    assert called["args"][1].subject == "S01"
+    assert called["args"][1].subject == "S001"
     assert called["args"][1].run == "R02"
 
 
@@ -298,7 +298,7 @@ def test_main_propagates_module_failure(monkeypatch):
     # Force un code retour non nul pour simuler un pipeline échoué
     monkeypatch.setattr(mybci, "_call_module", lambda *_: MODULE_FAILURE_CODE)
     # Capture le code de sortie afin d'observer la propagation d'erreur
-    exit_code = mybci.main(["S01", "R01", "train"])
+    exit_code = mybci.main(["S001", "R01", "train"])
     # Valide que main renvoie exactement le code d'échec du module
     assert exit_code == MODULE_FAILURE_CODE
 
@@ -442,7 +442,7 @@ def test_parse_args_rejects_unknown_optional_choices(capsys):
     with pytest.raises(SystemExit) as excinfo:
         mybci.parse_args(
             [
-                "S01",
+                "S001",
                 "R01",
                 "train",
                 "--classifier",
@@ -457,7 +457,7 @@ def test_parse_args_rejects_unknown_optional_choices(capsys):
     with pytest.raises(SystemExit) as excinfo:
         mybci.parse_args(
             [
-                "S01",
+                "S001",
                 "R01",
                 "train",
                 "--n-components",
@@ -472,7 +472,7 @@ def test_parse_args_rejects_unknown_optional_choices(capsys):
     with pytest.raises(SystemExit) as excinfo:
         mybci.parse_args(
             [
-                "S01",
+                "S001",
                 "R01",
                 "train",
                 "--scaler",

@@ -183,7 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Applique un modèle entraîné sur un flux fenêtré",
     )
     # Ajoute l'argument positionnel du sujet pour cibler les artefacts
-    parser.add_argument("subject", help="Identifiant du sujet (ex: S01)")
+    parser.add_argument("subject", help="Identifiant du sujet (ex: S001)")
     # Ajoute l'argument positionnel du run pour cibler la session
     parser.add_argument("run", help="Identifiant du run (ex: R01)")
     # Ajoute une option pour cibler un répertoire de données spécifique

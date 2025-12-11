@@ -81,7 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Entraîne une pipeline TPV et sauvegarde ses artefacts",
     )
     # Ajoute l'argument positionnel du sujet pour identifier les fichiers
-    parser.add_argument("subject", help="Identifiant du sujet (ex: S01)")
+    parser.add_argument("subject", help="Identifiant du sujet (ex: S001)")
     # Ajoute l'argument positionnel du run pour sélectionner la session
     parser.add_argument("run", help="Identifiant du run (ex: R01)")
     # Ajoute l'option classifieur pour synchroniser avec mybci

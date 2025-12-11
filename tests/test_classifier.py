@@ -65,8 +65,8 @@ def test_training_saves_artifacts(tmp_path, scaler_option):
     sfreq = 120.0
     # Génère des données jouets linéairement séparables
     X, y = _build_toy_dataset(sfreq)
-    # Construit le répertoire des données pour le sujet S01
-    data_dir = tmp_path / "data" / "S01"
+    # Construit le répertoire des données pour le sujet S001
+    data_dir = tmp_path / "data" / "S001"
     # Assure la création du répertoire cible avant sauvegarde
     data_dir.mkdir(parents=True)
     # Sauvegarde les features au format attendu par la CLI
@@ -87,7 +87,7 @@ def test_training_saves_artifacts(tmp_path, scaler_option):
     )
     # Regroupe les paramètres d'entraînement dans une requête dédiée
     request = train_cli.TrainingRequest(
-        subject="S01",
+        subject="S001",
         run="R01",
         pipeline_config=config,
         data_dir=tmp_path / "data",

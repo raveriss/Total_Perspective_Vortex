@@ -109,7 +109,7 @@ def test_retrieve_file_copies_local_source(tmp_path: Path) -> None:
     # Assure l'existence du dossier racine côté source
     source_root.mkdir()
     # Prépare un fichier EDF minimal pour vérifier la copie
-    source_file = source_root / "S01" / "run.edf"
+    source_file = source_root / "S001" / "run.edf"
     # Crée les répertoires imbriqués nécessaires
     source_file.parent.mkdir(parents=True, exist_ok=True)
     # Dépose un contenu repérable dans le fichier à copier
@@ -117,11 +117,11 @@ def test_retrieve_file_copies_local_source(tmp_path: Path) -> None:
     # Définit le dossier de destination où sera copié le fichier
     destination_root = tmp_path / "destination"
     # Spécifie l'entrée de manifeste correspondant au fichier créé
-    entry = {"path": "S01/run.edf"}
+    entry = {"path": "S001/run.edf"}
     # Exécute la récupération en mode copie locale
     retrieved = fetch_physionet.retrieve_file(str(source_root), entry, destination_root)
     # Vérifie que le chemin retourné correspond à la destination attendue
-    assert retrieved == destination_root / "S01" / "run.edf"
+    assert retrieved == destination_root / "S001" / "run.edf"
     # Confirme que le contenu copié reste identique à la source
     assert retrieved.read_text(encoding="utf-8") == "signal"
 
@@ -131,7 +131,7 @@ def test_retrieve_file_propagates_network_failure(monkeypatch, tmp_path: Path) -
     # Paramètre une destination valide pour couvrir la branche distante
     destination_root = tmp_path / "destination"
     # Spécifie une entrée minimale pour déclencher le téléchargement
-    entry = {"path": "S01/run.edf"}
+    entry = {"path": "S001/run.edf"}
 
     # Définit un faux opener qui lève une erreur réseau contrôlée
     class FakeOpener:
@@ -207,7 +207,7 @@ def test_retrieve_file_rejects_unsupported_scheme(monkeypatch, tmp_path: Path) -
     # Définit un dossier de destination pour la copie simulée
     destination_root = tmp_path / "destination"
     # Spécifie l'entrée de manifeste minimale pour reproduire la branche distante
-    entry = {"path": "S01/run.edf"}
+    entry = {"path": "S001/run.edf"}
 
     # Construit un objet minimal imitant le résultat de urlparse
     class Parsed:
@@ -226,7 +226,7 @@ def test_retrieve_file_downloads_remote_success(monkeypatch, tmp_path: Path) -> 
     # Prépare le répertoire cible pour stocker le fichier simulé
     destination_root = tmp_path / "destination"
     # Déclare une entrée de manifeste cohérente avec le chemin attendu
-    entry = {"path": "S01/run.edf"}
+    entry = {"path": "S001/run.edf"}
 
     # Construit un flux binaire imitant la réponse HTTP
     fake_stream = BytesIO(b"payload")
@@ -246,7 +246,7 @@ def test_retrieve_file_downloads_remote_success(monkeypatch, tmp_path: Path) -> 
         "https://example.com", entry, destination_root
     )
     # Contrôle que le chemin retourné correspond à la destination attendue
-    assert retrieved == destination_root / "S01" / "run.edf"
+    assert retrieved == destination_root / "S001" / "run.edf"
     # Confirme que le contenu copié provient bien du flux simulé
     assert retrieved.read_bytes() == b"payload"
 
@@ -256,7 +256,7 @@ def test_retrieve_file_requires_existing_local_source(tmp_path: Path) -> None:
     # Déclare un dossier source inexistant pour simuler un oubli utilisateur
     source_root = tmp_path / "missing_source"
     # Spécifie une entrée de manifeste cohérente avec la hiérarchie attendue
-    entry = {"path": "S01/run.edf"}
+    entry = {"path": "S001/run.edf"}
     # Définit un dossier de destination valide pour l'appel
     destination_root = tmp_path / "destination"
     # Vérifie qu'une FileNotFoundError est levée quand le fichier source manque
@@ -311,7 +311,7 @@ def test_fetch_dataset_processes_local_entries(tmp_path: Path) -> None:
     # Instancie le dossier source pour accueillir les données de test
     source_root.mkdir()
     # Crée un fichier identique à celui déclaré dans le manifeste
-    source_file = source_root / "S01" / "run.edf"
+    source_file = source_root / "S001" / "run.edf"
     # Génère l'arborescence de dossiers attendue
     source_file.parent.mkdir(parents=True, exist_ok=True)
     # Écrit un contenu stable afin de calculer les métadonnées
@@ -322,7 +322,7 @@ def test_fetch_dataset_processes_local_entries(tmp_path: Path) -> None:
     manifest_path = tmp_path / "manifest.json"
     # Fixe les métadonnées attendues pour validation
     manifest_entry = {
-        "path": "S01/run.edf",
+        "path": "S001/run.edf",
         "size": len(payload),
         "sha256": hashlib.sha256(payload).hexdigest(),
     }
@@ -333,7 +333,7 @@ def test_fetch_dataset_processes_local_entries(tmp_path: Path) -> None:
     # Exécute le pipeline complet pour couvrir la boucle principale
     fetch_physionet.fetch_dataset(str(source_root), manifest_path, destination_root)
     # Vérifie que le fichier copié existe dans la destination
-    copied = destination_root / "S01" / "run.edf"
+    copied = destination_root / "S001" / "run.edf"
     # Confirme que le contenu recopié correspond exactement à la source
     assert copied.read_bytes() == payload
 
@@ -484,7 +484,7 @@ def test_main_runs_under_runpy(monkeypatch, tmp_path: Path) -> None:
     # Crée la hiérarchie source pour l'exécution réelle
     source_root.mkdir()
     # Positionne le fichier attendu par le manifeste
-    source_file = source_root / "S01" / "run.edf"
+    source_file = source_root / "S001" / "run.edf"
     # Génère la structure de dossiers attendue
     source_file.parent.mkdir(parents=True, exist_ok=True)
     # Écrit un contenu stable pour la validation
@@ -495,7 +495,7 @@ def test_main_runs_under_runpy(monkeypatch, tmp_path: Path) -> None:
     manifest_path = tmp_path / "manifest.json"
     # Calcule les métadonnées nécessaires au contrôle d'intégrité
     manifest_entry = {
-        "path": "S01/run.edf",
+        "path": "S001/run.edf",
         "size": len(payload),
         "sha256": hashlib.sha256(payload).hexdigest(),
     }
@@ -520,7 +520,7 @@ def test_main_runs_under_runpy(monkeypatch, tmp_path: Path) -> None:
     # Exécute le module avec __name__="__main__" pour franchir le garde final
     runpy.run_path(str(script_path), run_name="__main__")
     # Vérifie que le fichier a bien été copié dans la destination
-    copied = destination_root / "S01" / "run.edf"
+    copied = destination_root / "S001" / "run.edf"
     # Confirme que le contenu recopié correspond exactement aux octets source
     assert copied.read_bytes() == payload
 
@@ -555,7 +555,7 @@ def test_fetch_dataset_invokes_validation(monkeypatch, tmp_path: Path) -> None:
     # Crée un manifeste avec deux entrées à traiter
     manifest_path = tmp_path / "manifest.json"
     # Définit les chemins relatifs attendus dans le manifeste
-    manifest_entries = [{"path": "S01/a.edf"}, {"path": "S02/b.edf"}]
+    manifest_entries = [{"path": "S001/a.edf"}, {"path": "S02/b.edf"}]
     # Enregistre le manifeste sur disque pour l'appel testé
     manifest_path.write_text(json.dumps({"files": manifest_entries}), encoding="utf-8")
     # Déclare un dossier de destination pour la copie simulée
@@ -589,6 +589,6 @@ def test_fetch_dataset_invokes_validation(monkeypatch, tmp_path: Path) -> None:
     # Exécute le pipeline complet avec une source locale symbolique
     fetch_physionet.fetch_dataset("/source", manifest_path, destination_root)
     # Vérifie que les deux entrées ont été validées via validate_file
-    assert [entry["path"] for _, entry in validated] == ["S01/a.edf", "S02/b.edf"]
+    assert [entry["path"] for _, entry in validated] == ["S001/a.edf", "S02/b.edf"]
     # Contrôle que les chemins passés à validate_file existent réellement
     assert all(path.exists() for path, _ in validated)

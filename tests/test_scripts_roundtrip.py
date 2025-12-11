@@ -28,7 +28,7 @@ def test_train_and_predict_produce_manifests_and_reports(tmp_path):
     """Valide l'intégration train/predict sur données jouets."""
 
     # Fixe le sujet et le run utilisés pour le scénario d'intégration
-    subject = "S01"
+    subject = "S001"
     # Fixe l'identifiant du run pour cibler les fichiers numpy
     run = "R01"
     # Prépare le répertoire racine des données jouets

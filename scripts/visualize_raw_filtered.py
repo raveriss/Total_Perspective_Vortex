@@ -62,7 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
         )
     )
     # Ajoute l'argument sujet pour cibler un répertoire data/raw/<subject>
-    parser.add_argument("subject", help="Identifiant du sujet ex: S01")
+    parser.add_argument("subject", help="Identifiant du sujet ex: S001")
     # Ajoute l'argument run pour choisir le fichier EDF au sein du sujet
     parser.add_argument("run", help="Identifiant du run ex: R01")
     # Ajoute la racine dataset pour autoriser les chemins personnalisés

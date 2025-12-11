@@ -320,7 +320,7 @@ mut: cov
 # Commandes liées au modèle (Poetry)
 # ----------------------------------------------------------------------------------------
 
-TRAIN_SUBJECT ?= S01
+TRAIN_SUBJECT ?= S001
 TRAIN_RUN ?= R01
 PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
 PREDICT_RUN ?= $(TRAIN_RUN)
@@ -783,8 +783,8 @@ conclure par :
 ### 4.2 CLI (exemples)
 
 ```bash
-python mybci.py S01 R01 train
-python mybci.py S01 R01 predict
+python mybci.py S001 R01 train
+python mybci.py S001 R01 predict
 ```
 
 ### 4.3 Persistance

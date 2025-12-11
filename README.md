@@ -138,8 +138,8 @@ poetry install --with dev
 Les commandes CLI existantes restent accessibles via Poetry, par exemple :
 
 ```bash
-poetry run python mybci.py S01 R01 train
-poetry run python mybci.py S01 R01 predict
+poetry run python mybci.py S001 R01 train
+poetry run python mybci.py S001 R01 predict
 ```
 
 ### Préparer les données Physionet (indispensable avant l'entraînement)
@@ -238,13 +238,13 @@ L’interface CLI unifiée `mybci.py` lance les modules `tpv.train` et `tpv.pred
 des identifiants explicites :
 
 ```bash
-python mybci.py S01 R01 train
+python mybci.py S001 R01 train
 ```
 
 Raccourci Makefile avec des valeurs par défaut modifiables :
 
 ```bash
-make train TRAIN_SUBJECT=S01 TRAIN_RUN=R01
+make train TRAIN_SUBJECT=S001 TRAIN_RUN=R01
 ```
 
 Affiche :
@@ -260,13 +260,13 @@ Affiche :
 Réutilise la même CLI pour la phase inference :
 
 ```bash
-python mybci.py S01 R01 predict
+python mybci.py S001 R01 predict
 ```
 
 Ou via le Makefile :
 
 ```bash
-make predict PREDICT_SUBJECT=S01 PREDICT_RUN=R01
+make predict PREDICT_SUBJECT=S001 PREDICT_RUN=R01
 ```
 
 Contraintes :
@@ -293,7 +293,7 @@ Contraintes :
 
 | Item checklist TPV | WBS / livrable | Test ou commande reproductible |
 | --- | --- | --- |
-| Visualisation raw vs filtré | 3.3.1–3.3.4 | `poetry run python scripts/visualize_raw_filtered.py data/raw/S01` ; `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
+| Visualisation raw vs filtré | 3.3.1–3.3.4 | `poetry run python scripts/visualize_raw_filtered.py data/raw/S001` ; `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
 | Filtre 8–40 Hz maintenu | 3.1.1–3.1.3 | `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
 | Réduction dimension (PCA/CSP) | 5.2.1–5.2.4 | `poetry run pytest tests/test_dimensionality.py::test_csp_returns_log_variances_and_orthogonality` |
 | Pipeline sklearn (BaseEstimator/TransformerMixin) | 5.3.1–5.3.4 | `poetry run pytest tests/test_pipeline.py::test_pipeline_pickling_roundtrip` |
