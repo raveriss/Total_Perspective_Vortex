@@ -39,6 +39,28 @@ import pandas as pd
 # Typing numpy clarifie les formes et types pour mypy et les tests
 from numpy.typing import NDArray
 
+# Mappe les noms de canaux bruts Physionet vers le montage standard 10-20
+RAW_TO_MONTAGE_CHANNEL_MAP: Dict[str, str] = {
+    # Exemple : adaptes avec la vraie nomenclature de ton EDF / montage
+    "Fc5.": "FC5",
+    "Fc3.": "FC3",
+    "Fc1.": "FC1",
+    "Fcz.": "FCz",
+    "Fc2.": "FC2",
+    "Fc4.": "FC4",
+    "Fc6.": "FC6",
+    "C5..": "C5",
+    "C3..": "C3",
+    "C1..": "C1",
+    "Cz..": "Cz",
+    "C2..": "C2",
+    "C4..": "C4",
+    "C6..": "C6",
+    # ...
+    # Tu complètes une fois pour les 64 canaux listés dans le warning MNE
+}
+
+
 # Provide a default mapping consistent with Physionet motor imagery labels
 PHYSIONET_LABEL_MAP: Dict[str, int] = {"T0": 0, "T1": 1, "T2": 2}
 # Provide an explicit mapping from Physionet events to motor imagery labels
@@ -51,6 +73,25 @@ DEFAULT_FILTER_METHOD = "fir"
 DEFAULT_NORMALIZE_METHOD = "zscore"
 # Fixe l'epsilon de stabilisation pour la normalisation par défaut
 DEFAULT_NORMALIZE_EPSILON = 1e-8
+
+
+def _rename_channels_for_montage(
+    raw: mne.io.BaseRaw,
+    channel_map: Mapping[str, str] = RAW_TO_MONTAGE_CHANNEL_MAP,
+) -> mne.io.BaseRaw:
+    """Renomme les canaux bruts pour les aligner sur le montage choisi."""
+
+    # Construit un sous-mapping ne contenant que les canaux présents
+    present_map = {
+        old: new
+        for old, new in channel_map.items()
+        if old in raw.ch_names
+    }
+    # Applique le renommage uniquement sur les canaux existants
+    if present_map:
+        raw.rename_channels(present_map)
+    # Retourne l'objet Raw avec des noms compatibles montage 10-20
+    return raw
 
 
 def apply_bandpass_filter(
@@ -160,6 +201,8 @@ def load_mne_raw_checked(
         )
     # Load the raw file with preload enabled for immediate validation
     raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    # Renomme les canaux bruts pour les aligner sur le montage standard
+    raw = _rename_channels_for_montage(raw)
     # Apply the montage to ensure spatial layout matches expectations
     raw.set_montage(expected_montage, on_missing="warn")
     # Retrieve the effective montage to confirm it has been attached
@@ -248,6 +291,8 @@ def load_physionet_raw(
     normalized_path = Path(file_path).expanduser().resolve()
     # Load the recording with preload to enable immediate validation steps
     raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    # Renomme les canaux pour les aligner sur le montage 10-20 utilisé
+    raw = _rename_channels_for_montage(raw)
     # Attach the montage so downstream spatial filters assume 10-20 layout
     raw.set_montage(montage, on_missing="warn")
     # Extract sampling rate to guide later filtering and epoch durations
@@ -338,65 +383,78 @@ def map_events_and_validate(
 
 def map_events_to_motor_labels(
     raw: mne.io.BaseRaw,
-    label_map: Mapping[str, int] | None = None,
-    motor_label_map: Mapping[str, str] | None = None,
 ) -> Tuple[np.ndarray, Dict[str, int], List[str]]:
-    """Convert annotations into events and motor labels A/B."""
+    """
+    Map EEGMMI (PhysioNet) annotations (T0, T1, T2, ...) to motor labels.
 
-    # Déduit les événements filtrés et la table d'identifiants mnémoniques
-    events, event_id = map_events_and_validate(raw, label_map, motor_label_map)
-    # Valide la correspondance moteur pour imposer les cibles A/B
-    effective_motor_map = _validate_motor_mapping(
-        raw,
-        event_id,
-        motor_label_map if motor_label_map is not None else MOTOR_EVENT_LABELS,
-    )
-    # Prépare une inversion code → étiquette pour projeter les labels
-    reverse_map = {code: label for label, code in event_id.items()}
-    # Convertit les codes en int pour assurer une sérialisation JSON fiable
-    unknown_event_codes = sorted(
-        {int(event[2]) for event in events if int(event[2]) not in reverse_map}
-    )
-    # Refuse la poursuite quand un code non identifié apparaît dans les événements
-    if unknown_event_codes:
-        # Produit un rapport JSON détaillant les codes non reconnus
+    Returns
+    -------
+    events : np.ndarray
+        Tableau d'événements MNE (n_events, 3), filtré pour ne garder
+        que les essais moteurs (T1, T2, T3, T4 si présents).
+    event_id : dict[str, int]
+        Dictionnaire MNE ne contenant que les codes moteurs présents.
+    motor_labels : list[str]
+        Liste des labels moteurs *par essai* après filtrage, alignée
+        sur `events` (ex: ['A', 'B', 'A', ...]).
+
+        Par convention de ce projet :
+        - T1 -> 'A'
+        - T2 -> 'B'
+        Les autres codes (T3, T4) sont conservés tels quels si présents.
+    """
+
+    # Récupère les événements et le mapping brut depuis les annotations MNE
+    events, event_id = mne.events_from_annotations(raw)
+
+    # Inverse le mapping pour passer du code entier -> label texte (T0, T1, T2, ...)
+    inv_event_id = {v: k for k, v in event_id.items()}
+
+    # Récupère le label texte pour chaque événement
+    labels = [inv_event_id[e[2]] for e in events]
+
+    # Toutes les étiquettes présentes dans les annotations
+    all_labels = sorted(set(labels))
+
+    # Codes moteurs possibles dans EEGMMI
+    motor_codes = ("T1", "T2", "T3", "T4")
+
+    # Codes moteurs effectivement présents dans ce run
+    present_motor_codes = [code for code in motor_codes if code in all_labels]
+
+    # Si vraiment aucun essai moteur dans ce run, alors seulement on lève l'erreur
+    if not present_motor_codes:
         raise ValueError(
-            json.dumps(
-                {
-                    "error": "Unknown event codes",
-                    "unknown_codes": unknown_event_codes,
-                }
-            )
+            {
+                "error": "No motor events present",
+                "available_labels": all_labels,
+            }
         )
-    # Conserve uniquement les événements traduisibles en A/B
-    filtered_events: List[np.ndarray] = []
-    # Construit une liste alignée des étiquettes motrices associées
+
+    # Masque pour ne garder que les événements dont le label est moteur
+    mask = np.isin(labels, present_motor_codes)
+
+    # Filtre le tableau d'événements
+    filtered_events = events[mask]
+
+    # Labels texte alignés sur les événements filtrés (T1, T2, ...)
+    filtered_labels = [lab for lab, keep in zip(labels, mask, strict=True) if keep]
+
+    # Mappe chaque code moteur en label de tâche (A/B) lorsque possible
     motor_labels: List[str] = []
-    # Parcourt chaque événement pour le mapper ou l'ignorer explicitement
-    for event in events:
-        # Récupère l'étiquette d'origine associée au code numérique
-        label_name = reverse_map[event[2]]
-        # Ignore les événements hors mapping moteur (ex. T0 repos)
-        if label_name not in effective_motor_map:
-            # Passe au suivant pour éviter de contaminer les comptages
-            continue
-        # Mémorise l'événement retenu pour l'epoching moteur
-        filtered_events.append(event)
-        # Associe l'étiquette A/B correspondante pour le contrôle qualité
-        motor_labels.append(effective_motor_map[label_name])
-    # Refuse les runs dépourvus d'événements moteurs exploitables
-    if not filtered_events:
-        # Produit un rapport JSON pour faciliter l'analyse d'intégrité
-        raise ValueError(
-            json.dumps(
-                {
-                    "error": "No motor events present",
-                    "available_labels": sorted(set(reverse_map.values())),
-                }
-            )
-        )
-    # Retourne les événements filtrés, la table d'identifiants et les labels A/B
-    return np.asarray(filtered_events), event_id, motor_labels
+    for lab in filtered_labels:
+        # Utilise la convention MOTOR_EVENT_LABELS quand elle est définie
+        if lab in MOTOR_EVENT_LABELS:
+            motor_labels.append(MOTOR_EVENT_LABELS[lab])
+        else:
+            # Conserve le label brut pour les codes non mappés (ex: T3, T4)
+            motor_labels.append(lab)
+
+    # Restreint event_id aux codes moteurs présents seulement
+    motor_event_id = {code: event_id[code] for code in present_motor_codes}
+
+    # Retourne les événements filtrés, le mapping et les labels alignés
+    return filtered_events, motor_event_id, motor_labels
 
 
 def _validate_annotation_labels(
@@ -829,7 +887,8 @@ def _write_csv_report(
     target.parent.mkdir(parents=True, exist_ok=True)
     # Construit l'en-tête en exposant les colonnes critiques pour la QA
     lines = [
-        "subject,run,total_epochs_before,kept_epochs,dropped_artifact,dropped_incomplete,label,count"
+        "subject,run,total_epochs_before,kept_epochs,dropped_artifact,"
+        "dropped_incomplete,label,count"
     ]
     # Génère une ligne par classe pour détailler les indices supprimés
     for label, count in counts.items():
@@ -1092,7 +1151,6 @@ def generate_epoch_report(
         # Interrompt tôt pour éviter d'écrire un rapport avec un format ambigu
         raise ValueError("fmt must be either 'json' or 'csv'")
     # Normalise le chemin pour garantir des écritures cohérentes sur disque
-    # Ensure the parent directory exists to make the report path valid
     output_path = Path(output_path)
     # Create parent directories so the report can be written without errors
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1117,16 +1175,14 @@ def generate_epoch_report(
         # Return the path so callers can locate the generated report
         return output_path
     # Serialize the payload to CSV rows when CSV is requested
-    else:
-        # Build header and rows capturing each class count explicitly
-        lines = ["subject,run,label,count"]
-        # Iterate over label counts to materialize per-class entries
-        for label, count in label_counts.items():
-            # Append a CSV line detailing subject, run, label, and count
-            lines.append(
-                f"{run_metadata['subject']},{run_metadata['run']},{label},{count}"
-            )
-        # Write all lines with newline separation to the output path
-        output_path.write_text("\n".join(lines), encoding="utf-8")
-        # Return the path so downstream processes can load the CSV
-        return output_path
+    lines = ["subject,run,label,count"]
+    # Iterate over label counts to materialize per-class entries
+    for label, count in label_counts.items():
+        # Append a CSV line detailing subject, run, label, and count
+        lines.append(
+            f"{run_metadata['subject']},{run_metadata['run']},{label},{count}"
+        )
+    # Write all lines with newline separation to the output path
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+    # Return the path so downstream processes can load the CSV
+    return output_path

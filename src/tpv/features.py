@@ -196,54 +196,108 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
     NORMALIZATION_EPS = 1e-12
 
     def __init__(
-        self, sfreq: float, feature_strategy: str = "fft", normalize: bool = True
+        self,
+        sfreq: float,
+        feature_strategy: str = "fft",
+        normalize: bool = True,
     ):
-        self.sfreq = sfreq
+        # Stocke la fréquence d'échantillonnage comme float pour la FFT
+        self.sfreq = float(sfreq)
+        # Sélectionne la stratégie d'extraction ("fft" ou "wavelet")
         self.feature_strategy = feature_strategy
+        # Active ou non la normalisation des features
         self.normalize = normalize
 
     def fit(self, X, y=None):
+        # Pas d'apprentissage de paramètres pour l'instant
         return self
 
     def transform(self, X):
+        # Vérifie que X est bien (n_epochs, n_channels, n_times)
         if X.ndim != self.EXPECTED_EEG_NDIM:
             raise ValueError("X must have shape (n_samples, n_channels, n_times)")
+
+        # Calcule les features brutes selon la stratégie choisie
         raw_features = self._compute_features(X)
+
+        # Normalise optionnellement les features bande-par-bande
         if self.normalize:
             mean = raw_features.mean(axis=1, keepdims=True)
             std = raw_features.std(axis=1, keepdims=True) + self.NORMALIZATION_EPS
-            return (raw_features - mean) / std
-        return raw_features
+            features = (raw_features - mean) / std
+        else:
+            features = raw_features
+
+        # Vérifie qu'aucune valeur non finie ne subsiste
+        if not np.all(np.isfinite(features)):
+            raise ValueError(
+                "ExtractFeatures produced non-finite values (NaN/Inf). "
+                "Check band ranges and sampling frequency."
+            )
+
+        return features
 
     @property
-    def band_labels(self):
+    def band_labels(self) -> List[str]:
+        # Retourne les noms de bandes dans l'ordre déclaré
         return list(self.BAND_RANGES.keys())
 
-    def _compute_features(self, X):
+    def _compute_features(self, X: np.ndarray) -> np.ndarray:
+        """Dispatch interne vers la bonne stratégie de features."""
+
+        # Utilise la FFT comme stratégie par défaut
         if self.feature_strategy == "fft":
             return self._compute_fft_features(X)
+        # Permet de basculer vers la stratégie wavelet
         if self.feature_strategy == "wavelet":
             return self._compute_wavelet_features(X)
-        raise ValueError(f"Unsupported feature strategy: {self.feature_strategy}")
+        # Rejette explicitement les stratégies inconnues
+        raise ValueError(
+            f"Unsupported feature_strategy: {self.feature_strategy!r}. "
+            "Use 'fft' or 'wavelet'."
+        )
 
-    def _compute_fft_features(self, X):
+    def _compute_fft_features(self, X: np.ndarray) -> np.ndarray:
+        """Calcule les puissances de bandes à partir de la FFT."""
+
+        # Calcule les fréquences réelles à partir de la sfreq configurée
         freqs = np.fft.rfftfreq(X.shape[2], d=1.0 / self.sfreq)
+        # Calcule la puissance spectrale par canal et échantillon
         power = np.abs(np.fft.rfft(X, axis=2)) ** 2  # pragma: no mutate
-        features = []
+        # Prépare le conteneur pour accumuler les puissances de bandes
+        features: List[np.ndarray] = []
+
+        # Parcourt chaque bande EEG définie dans BAND_RANGES
         for band in self.band_labels:
+            # Récupère les bornes fréquentielles de la bande
             low, high = self.BAND_RANGES[band]
+            # Construit le masque fréquentiel pour cette bande
             band_mask = (freqs >= low) & (freqs <= high)
-            band_power = power[:, :, band_mask].mean(axis=2)
+
+            # Gère le cas où aucune fréquence ne tombe dans la bande
+            if not np.any(band_mask):
+                # Retourne un bloc de zéros pour préserver la forme
+                band_power = np.zeros(power.shape[:2])
+            else:
+                # Moyenne la puissance sur les fréquences de la bande
+                band_power = power[:, :, band_mask].mean(axis=2)
+
+            # Ajoute la matrice (n_samples, n_channels) à la liste
             features.append(band_power)
+
+        # Concatène les bandes le long de l’axe des features
         return np.concatenate(features, axis=1)
 
-    def _compute_wavelet_features(self, X):
+    def _compute_wavelet_features(self, X: np.ndarray) -> np.ndarray:
+        """Calcule des features à partir de la CWT wavelet."""
+
         # Calcule la fréquence centrale pour chaque bande prédéfinie
         central_frequencies = [
             (low + high) / 2.0 for low, high in self.BAND_RANGES.values()
         ]
         # Prépare une matrice vide pour accueillir les features wavelets
         features = np.zeros((X.shape[0], X.shape[1] * len(self.BAND_RANGES)))
+
         # Parcourt chaque essai pour limiter la charge mémoire
         for epoch_index, epoch_data in enumerate(X):
             # Parcourt chaque canal pour calculer les coefficients wavelets
@@ -259,12 +313,13 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
                 band_energy = np.abs(coefficients) ** 2
                 # Aplatit le tenseur pour l'insérer dans la matrice finale
                 start = channel_index * len(self.BAND_RANGES)
-                # Termine l'intervalle correspondant au canal courant
                 end = start + len(self.BAND_RANGES)
                 # Place l'énergie moyenne dans les colonnes associées au canal
                 features[epoch_index, start:end] = band_energy.mean(axis=1)
+
         # Retourne la matrice tabulaire prête pour un classifieur scikit-learn
         return features
+
 
 
 def extract_features(

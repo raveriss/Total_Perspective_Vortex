@@ -28,7 +28,6 @@ from sklearn.model_selection import StratifiedKFold, cross_val_score
 
 # Centralise le parsing et le contrôle qualité des fichiers EDF
 # Extrait les features fréquentielles depuis des epochs EEG
-from tpv import features as features_extraction
 from tpv import preprocessing
 
 # Permet de persister séparément la matrice W apprise
@@ -178,43 +177,58 @@ def _build_npy_from_edf(
     data_dir: Path,
     raw_dir: Path,
 ) -> tuple[Path, Path]:
-    """Génère X et y depuis un fichier EDF brut Physionet."""
+    """Génère X (epochs brutes) et y depuis un fichier EDF Physionet.
+
+    - X est sauvegardé sous forme (n_trials, n_channels, n_times)
+      pour être compatible avec la pipeline (tpv.features).
+    - Les features fréquentielles sont ensuite calculées *dans* la
+      pipeline, pas au moment de la génération des .npy.
+    """
 
     # Calcule les chemins cibles pour les fichiers numpy
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
     # Calcule le chemin attendu du fichier EDF brut
     raw_path = raw_dir / subject / f"{subject}{run}.edf"
+
     # Interrompt tôt si l'EDF est absent
     if not raw_path.exists():
-        # Oriente vers la préparation explicite lorsque les EDF bruts manquent
         raise FileNotFoundError(
             "EDF introuvable pour "
             f"{subject} {run}: {raw_path}. "
-            "Téléchargez les enregistrements Physionet dans data/raw via "
-            "`python scripts/prepare_physionet.py --source <url_ou_chemin> "
-            "--manifest <manifest.json>` (cf. docs/project/physionet_dataset.md) "
-            "ou utilisez --raw-dir pour pointer vers un dossier déjà synchronisé."
+            "Téléchargez les enregistrements Physionet dans data/raw ou "
+            "pointez --raw-dir vers un dossier déjà synchronisé."
         )
+
     # Crée l'arborescence cible pour déposer les .npy
     features_path.parent.mkdir(parents=True, exist_ok=True)
+
     # Charge l'EDF en conservant les métadonnées essentielles
     raw, _ = preprocessing.load_physionet_raw(raw_path)
+
     # Mappe les annotations en événements moteurs
     events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(raw)
+
     # Découpe le signal en epochs exploitables
     epochs = preprocessing.create_epochs_from_raw(raw, events, event_id)
-    # Extrait des features fréquentielles par défaut
-    features, _ = features_extraction.extract_features(epochs)
+
+    # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
+    epochs_data = epochs.get_data(copy=True)
+
     # Définit un mapping stable label → entier
     label_mapping = {label: idx for idx, label in enumerate(sorted(set(motor_labels)))}
+
     # Convertit les labels symboliques en entiers
     numeric_labels = np.array([label_mapping[label] for label in motor_labels])
-    # Persiste les features calculées
-    np.save(features_path, features)
+
+    # Persiste les epochs brutes
+    np.save(features_path, epochs_data)
     # Persiste les labels alignés
     np.save(labels_path, numeric_labels)
+
     # Retourne les chemins nouvellement générés
     return features_path, labels_path
+
+
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
@@ -224,22 +238,63 @@ def _load_data(
     data_dir: Path,
     raw_dir: Path,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Charge ou construit les données et étiquettes pour un run."""
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
 
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
-    # Construit les .npy depuis l'EDF si l'un d'eux manque
+
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
-        # Convertit l'EDF associé en fichiers numpy persistés
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Cas 2 : X n'a pas la bonne dimension → reconstruction
+        if candidate_X.ndim != 3:
+            print(
+                "INFO: X chargé depuis "
+                f"'{features_path}' a ndim={candidate_X.ndim} au lieu de 3, "
+                "régénération depuis l'EDF..."
+            )
+            needs_rebuild = True
+        # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            print(
+                "INFO: Désalignement détecté pour "
+                f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+            )
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
         features_path, labels_path = _build_npy_from_edf(
-            subject, run, data_dir, raw_dir
+            subject,
+            run,
+            data_dir,
+            raw_dir,
         )
-    # Utilise numpy.load pour récupérer les features en mémoire
+
+    # Charge les données validées (3D) et labels réalignés
     X = np.load(features_path)
-    # Utilise numpy.load pour récupérer les labels associés
     y = np.load(labels_path)
-    # Retourne les deux tableaux prêts pour scikit-learn
+
     return X, y
+
+
+
 
 
 # Récupère le hash git courant pour tracer la reproductibilité

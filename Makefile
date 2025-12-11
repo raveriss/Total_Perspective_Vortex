@@ -77,7 +77,7 @@ mut: clean-mutants cov
 # ----------------------------------------------------------------------------------------
 
 TRAIN_SUBJECT ?= S001
-TRAIN_RUN ?= R01
+TRAIN_RUN ?= R03
 PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
 PREDICT_RUN ?= $(TRAIN_RUN)
 

@@ -1,73 +1,137 @@
-# Gère le découpage des arguments en ligne de commande
-# Centralise la collecte des paramètres depuis la CLI
+# Centralise la préparation locale du dataset Physionet
 import argparse
 
-# Manipule les chemins pour uniformiser les conversions de paramètres
+# Normalise les chemins d'entrée / sortie
 from pathlib import Path
 
-# Réutilise les primitives de téléchargement et de validation déjà testées
-from scripts import fetch_physionet
+# Copie les fichiers en préservant les métadonnées
+import shutil
 
 
-# Encapsule l'exécution pour fournir des messages cohérents
-def prepare_physionet(source: str, manifest: str, destination: str) -> None:
-    """Prépare les données Physionet en vérifiant taille et hash."""
-    # Prévient l'utilisateur que la récupération démarre avec les paramètres fournis
-    print(f"INFO: préparation Physionet depuis '{source}' (manifest: '{manifest}')")
-    # Convertit le chemin du manifeste pour sécuriser les accès disque
-    manifest_path = Path(manifest)
-    # Convertit la destination pour créer l'arborescence si besoin
-    destination_path = Path(destination)
-    # Exécute la récupération en s'appuyant sur le module spécialisé
-    try:
-        fetch_physionet.fetch_dataset(source, manifest_path, destination_path)
-    except Exception as error:  # noqa: BLE001
-        # Signale explicitement l'échec en reprenant le préfixe d'erreur commun
-        print(f"{fetch_physionet.ERROR_PREFIX} préparation échouée: {error}")
-        # Assure une terminaison CLI avec code d'erreur non nul
-        raise SystemExit(1) from error
-    # Confirme la disponibilité de l'arborescence cible après validation
-    print(f"INFO: données disponibles dans '{destination_path}'")
+# Regroupe la logique de copie des fichiers EDF / events
+def prepare_physionet(
+    source_root: str,
+    subject: str,
+    runs: list[str],
+    output_dir: str,
+) -> None:
+    """Copie les fichiers EDF/.event d'un sujet vers un dossier de travail.
 
+    Exemple attendu de layout :
 
-# Construit l'interface CLI alignée avec les scripts existants
-def parse_args() -> argparse.Namespace:
-    """Construit les paramètres CLI pour la préparation Physionet."""
-    # Initialise un parseur descriptif pour guider l'utilisateur
-    parser = argparse.ArgumentParser(
-        description="Télécharge ou copie Physionet dans data/raw avec vérification"
+        source_root/
+          S001/
+            S001R01.edf
+            S001R01.edf.event
+            ...
+        output_dir/
+          S001R01.edf
+          S001R01.edf.event
+          ...
+
+    Ce script NE télécharge PAS les données : il suppose que les EDF
+    existent déjà dans source_root.
+    """
+    # Normalise la racine source (ex: data/raw)
+    source_root_path = Path(source_root)
+    # Construit le dossier du sujet (ex: data/raw/S001)
+    subject_dir = source_root_path / subject
+    # Normalise le dossier de sortie (ex: data/S001)
+    output_path = Path(output_dir)
+
+    # Crée le dossier cible si nécessaire
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Log d’info sur la configuration utilisée
+    print(
+        f"INFO: préparation locale de Physionet pour sujet '{subject}' "
+        f"depuis '{subject_dir}' vers '{output_path}'",
     )
-    # Ajoute la source obligatoire (URL ou dossier local)
+
+    # Vérifie que le dossier du sujet existe
+    if not subject_dir.is_dir():
+        msg = f"ERREUR: dossier sujet introuvable: '{subject_dir}'"
+        raise SystemExit(msg)
+
+    # Parcourt chaque run demandé (R01, R02, ...)
+    for run in runs:
+        # Construit le préfixe de fichier (ex: S001R01)
+        stem = f"{subject}{run}"
+
+        # Pour chaque extension attendue (*.edf, *.edf.event)
+        for ext in (".edf", ".edf.event"):
+            # Chemin source attendu (ex: data/raw/S001/S001R01.edf)
+            src = subject_dir / f"{stem}{ext}"
+            # Chemin cible correspondant (ex: data/S001/S001R01.edf)
+            dst = output_path / f"{stem}{ext}"
+
+            # Vérifie l'existence du fichier source
+            if not src.is_file():
+                print(f"ERREUR: fichier manquant: '{src}'")
+                raise SystemExit(1)
+
+            # Copie le fichier en conservant les métadonnées
+            shutil.copy2(src, dst)
+            # Log de confirmation par fichier
+            print(f"INFO: copié '{src}' → '{dst}'")
+
+    # Résumé final une fois tous les fichiers copiés
+    print("INFO: préparation Physionet terminée avec succès.")
+
+
+# Construit l'interface CLI compatible avec tes commandes actuelles
+def parse_args() -> argparse.Namespace:
+    """Construit les paramètres CLI pour prepare_physionet."""
+    # Initialise un parseur avec une description claire
+    parser = argparse.ArgumentParser(
+        description=(
+            "Prépare localement le dataset Physionet en copiant les "
+            "fichiers EDF et .event d'un sujet vers un dossier de travail."
+        ),
+    )
+
+    # Racine des données brutes (ex: data/raw)
     parser.add_argument(
         "--source",
         required=True,
-        help="URL Physionet ou répertoire local contenant les EDF",
+        help="Racine des données brutes (ex: data/raw)",
     )
-    # Ajoute le chemin du manifeste décrivant hashes et tailles attendus
+
+    # Sujet (ex: S001)
     parser.add_argument(
-        "--manifest",
+        "--subject",
         required=True,
-        help="Manifeste JSON listant les fichiers à récupérer",
+        help="Identifiant du sujet (ex: S001)",
     )
-    # Permet de surcharger la destination tout en conservant data/raw par défaut
+
+    # Liste des runs à copier (ex: R01 R02 ... R08)
     parser.add_argument(
-        "--destination",
-        default="data/raw",
-        help="Répertoire cible pour les données brutes",
+        "--runs",
+        nargs="+",
+        required=True,
+        help="Liste des runs à copier (ex: R01 R02 R03 ...)",
     )
-    # Retourne les arguments interprétés pour la fonction de préparation
+
+    # Dossier de sortie (ex: data/S001)
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="Dossier de sortie où copier les fichiers du sujet",
+    )
+
+    # Retourne les arguments parsés
     return parser.parse_args()
 
 
-# Expose le point d'entrée utilisé par le CLI
+# Point d'entrée du script en mode CLI
 def main() -> None:
-    """Point d'entrée principal du script prepare_physionet."""
-    # Récupère les paramètres utilisateur depuis la ligne de commande
+    """Point d'entrée principal pour la préparation Physionet."""
+    # Récupère les paramètres fournis en CLI
     args = parse_args()
     # Délègue la logique métier à la fonction dédiée
-    prepare_physionet(args.source, args.manifest, args.destination)
+    prepare_physionet(args.source, args.subject, args.runs, args.output)
 
 
-# Active l'exécution directe du script
+# Active l'exécution lorsqu'on lance le module en script
 if __name__ == "__main__":
     main()
