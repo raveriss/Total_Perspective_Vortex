@@ -232,6 +232,8 @@ def _run_global_evaluation(
             except FileNotFoundError as error:
                 # Informe l'utilisateur qu'un prérequis manque pour ce run
                 print(f"AVERTISSEMENT: {error}")
+                # Calcule l'identifiant du sujet manquant pour le récapitulatif
+                subject = _subject_identifier(subject_index)
                 # Ajoute l'entrée manquante pour un récapitulatif final
                 missing_entries.append(f"{subject}:{experiment.run}")
                 # Ignore ce sujet pour poursuivre l'exploration globale
@@ -267,10 +269,7 @@ def _run_global_evaluation(
             "Téléchargez les EDF dans data ou regénérez les .npy."
         )
         # Affiche un aperçu des premières références manquantes pour guider
-        print(
-            "Premiers manquants: "
-            + ", ".join(missing_entries[:10])
-        )
+        print("Premiers manquants: " + ", ".join(missing_entries[:10]))
     # Retourne 0 pour signaler le succès global
     return 0
 
