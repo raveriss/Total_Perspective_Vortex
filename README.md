@@ -126,40 +126,55 @@ Total_Perspective_Vortex/
 
 ---
 
-## 🚀 Installation et gestion des dépendances (Poetry + Makefile)
+## 🚀 Mise en route : données, installation, entraînement, prédiction (Poetry + Makefile)
 
-L’environnement est géré exclusivement avec **Poetry** (aucun fichier
-`requirements.txt` n’est utilisé).
+Le projet utilise **Poetry exclusivement** (aucun `requirements.txt`).
+Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 
-### Option 1 — via Makefile (recommandé)
+---
 
-La commande suivante exécute `poetry install --with dev` (installation des
-dépendances **et** des dépendances de développement) :
+## 1) Installer l’environnement et les dépendances
+
+### Recommandé : via Makefile
+
+Cette commande exécute `poetry install --with dev` (dépendances **+ dev**) :
 
 ```bash
 make install
 ```
 
-### Option 2 — via Poetry (équivalent)
+### Équivalent : via Poetry
 
 ```bash
 poetry install --with dev
 ```
 
-Les commandes CLI restent accessibles via Poetry, mais sont aussi exposées via le
-**Makefile** pour simplifier l’usage.
+## 2) Préparer les données Physionet (obligatoire avant `train` / `predict`)
 
-### Option 1 — via Makefile (recommandé)
+Les fichiers EDF bruts ne sont pas versionnés. Avant tout appel à `mybci.py`,
+copiez ou téléchargez-les dans `data` via le script de préparation :
 
-- `make train` exécute : `poetry run python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train`
-- `make predict` exécute : `poetry run python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict`
+```bash
+python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>
+```
+
+Le format attendu du manifeste est détaillé dans `docs/project/physionet_dataset.md`.
+
+---
+
+## 3) Entraîner et prédire
+
+### Recommandé : via Makefile
+
+* `make train` exécute : `poetry run python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train`
+* `make predict` exécute : `poetry run python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict`
 
 ```bash
 make train
 make predict
 ```
 
-### Option 2 — via Poetry (équivalent)
+### Équivalent : via Poetry
 
 ```bash
 poetry run python mybci.py S001 R01 train
