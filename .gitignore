@@ -214,6 +214,5 @@ outputs/
 cache/
 .mne/
 *.fif
-*.edf
 *.set
 *.vmrk
