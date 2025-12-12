@@ -150,37 +150,17 @@ python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifes
 
 Le format attendu du manifeste est détaillé dans `docs/project/physionet_dataset.md`.
 
----
+## 3) Entraîner
 
-## 3) Entraîner et prédire
+| Objectif   | Commande recommandée | Commande équivalente            |
+|-----------|-----------------------|---------------------------------|
+| Entraîner | `make train`         | `poetry run python mybci.py S001 R01 train`     |
 
-### Recommandé : via Makefile
+## 4) prédire
 
-* `make train` exécute : `poetry run python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train`
-* `make predict` exécute : `poetry run python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict`
-
-```bash
-make train
-make predict
-```
-
-### Équivalent : via Poetry
-
-```bash
-poetry run python mybci.py S001 R01 train
-poetry run python mybci.py S001 R01 predict
-```
-
-### Préparer les données Physionet (indispensable avant l'entraînement)
-
-Les fichiers EDF bruts ne sont pas versionnés. Avant tout appel à `mybci.py`,
-copiez ou téléchargez-les dans `data` avec le manifeste Physionet :
-
-```bash
-python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>
-```
-
-Le format attendu du manifeste est détaillé dans `docs/project/physionet_dataset.md`.
+| Objectif   | Commande recommandée | Commande équivalente            |
+|-----------|-----------------------|---------------------------------|
+| prédire | `make predict`         | `poetry run python mybci.py S001 R01 predict`     |
 
 ---
 
