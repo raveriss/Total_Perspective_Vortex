@@ -260,51 +260,6 @@ pipeline = Pipeline([
 
 ---
 
-# 🔍 5. Entraînement
-
-L’interface CLI unifiée `mybci.py` lance les modules `tpv.train` et `tpv.predict` avec
-des identifiants explicites :
-
-```bash
-python mybci.py S001 R01 train
-```
-
-Raccourci Makefile avec des valeurs par défaut modifiables :
-
-```bash
-make train TRAIN_SUBJECT=S001 TRAIN_RUN=R01
-```
-
-Affiche :
-
-* scores cross_val_score
-* statistiques par run
-* moyenne ≥ 60 % requise sur sujets jamais vus
-
----
-
-# ⚡ 6. Prédiction en pseudo temps réel
-
-Réutilise la même CLI pour la phase inference :
-
-```bash
-python mybci.py S001 R01 predict
-```
-
-Ou via le Makefile :
-
-```bash
-make predict PREDICT_SUBJECT=S001 PREDICT_RUN=R01
-```
-
-Contraintes :
-
-* lecture par chunks simulant un flux
-* prédiction < **2 secondes** après réception
-* sortie de classe {1, 2}
-
----
-
 # 🧪 Tests & qualité logicielle
 
 * pytest
