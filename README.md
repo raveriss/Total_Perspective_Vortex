@@ -181,17 +181,6 @@ poetry run python mybci.py S001 R01 train
 poetry run python mybci.py S001 R01 predict
 ```
 
-### Préparer les données Physionet (indispensable avant l'entraînement)
-
-Les fichiers EDF bruts ne sont pas versionnés. Avant tout appel à `mybci.py`,
-copiez ou téléchargez-les dans `data` avec le manifeste Physionet :
-
-```bash
-python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>
-```
-
-Le format attendu du manifeste est détaillé dans `docs/project/physionet_dataset.md`.
-
 ---
 
 # 🔬 1. Préprocessing & parsing EEG (MNE)
