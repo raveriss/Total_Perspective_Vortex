@@ -135,19 +135,9 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 
 ## 1) Installer l’environnement et les dépendances
 
-### Recommandé : via Makefile
-
-Cette commande exécute `poetry install --with dev` (dépendances **+ dev**) :
-
-```bash
-make install
-```
-
-### Équivalent : via Poetry
-
-```bash
-poetry install --with dev
-```
+| Objectif   | Commande recommandée | Commande équivalente            |
+|-----------|-----------------------|---------------------------------|
+| Installer | `make install`         | `poetry install --with dev`     |
 
 ## 2) Préparer les données Physionet (obligatoire avant `train` / `predict`)
 
@@ -180,6 +170,17 @@ make predict
 poetry run python mybci.py S001 R01 train
 poetry run python mybci.py S001 R01 predict
 ```
+
+### Préparer les données Physionet (indispensable avant l'entraînement)
+
+Les fichiers EDF bruts ne sont pas versionnés. Avant tout appel à `mybci.py`,
+copiez ou téléchargez-les dans `data` avec le manifeste Physionet :
+
+```bash
+python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>
+```
+
+Le format attendu du manifeste est détaillé dans `docs/project/physionet_dataset.md`.
 
 ---
 
