@@ -38,7 +38,7 @@ DEFAULT_DATA_DIR = Path("data")
 DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 
 # Définit le répertoire par défaut pour les fichiers EDF bruts
-DEFAULT_RAW_DIR = Path("data/raw")
+DEFAULT_RAW_DIR = Path("data")
 
 
 # Construit un argument parser aligné sur l'appel mybci

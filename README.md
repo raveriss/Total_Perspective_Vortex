@@ -145,7 +145,7 @@ poetry run python mybci.py S001 R01 predict
 ### Préparer les données Physionet (indispensable avant l'entraînement)
 
 Les fichiers EDF bruts ne sont pas versionnés. Avant tout appel à `mybci.py`,
-copiez ou téléchargez-les dans `data/raw` avec le manifeste Physionet :
+copiez ou téléchargez-les dans `data` avec le manifeste Physionet :
 
 ```bash
 python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>
@@ -163,14 +163,14 @@ Le format attendu du manifeste est détaillé dans `docs/project/physionet_datas
 * Découpage des epochs (t0–tn)
 * Extraction des événements motrices (Left Hand / Right Hand / Feet)
 
-**Structure locale attendue** (non versionnée) : `data/raw/<subject>/<run>.edf`.
+**Structure locale attendue** (non versionnée) : `data/<subject>/<run>.edf`.
 Vérifiez l’intégrité et le nombre de runs avant tout parsing :
 
 ```bash
 poetry run python - <<'PY'
 from pathlib import Path
 from tpv.preprocessing import verify_dataset_integrity
-print(verify_dataset_integrity(Path('data/raw')))
+print(verify_dataset_integrity(Path('data')))
 PY
 ```
 
@@ -293,7 +293,7 @@ Contraintes :
 
 | Item checklist TPV | WBS / livrable | Test ou commande reproductible |
 | --- | --- | --- |
-| Visualisation raw vs filtré | 3.3.1–3.3.4 | `poetry run python scripts/visualize_raw_filtered.py data/raw/S001` ; `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
+| Visualisation raw vs filtré | 3.3.1–3.3.4 | `poetry run python scripts/visualize_raw_filtered.py data/S001` ; `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
 | Filtre 8–40 Hz maintenu | 3.1.1–3.1.3 | `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
 | Réduction dimension (PCA/CSP) | 5.2.1–5.2.4 | `poetry run pytest tests/test_dimensionality.py::test_csp_returns_log_variances_and_orthogonality` |
 | Pipeline sklearn (BaseEstimator/TransformerMixin) | 5.3.1–5.3.4 | `poetry run pytest tests/test_pipeline.py::test_pipeline_pickling_roundtrip` |

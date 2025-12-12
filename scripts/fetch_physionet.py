@@ -92,7 +92,7 @@ def retrieve_file(source_root: str, entry: dict, destination_root: Path) -> Path
     """Copie ou télécharge un fichier unique selon la source fournie."""
     # Récupère le chemin relatif attendu depuis le manifeste
     relative_path = Path(entry["path"])
-    # Construit le chemin final de destination dans data/raw
+    # Construit le chemin final de destination dans data
     destination_path = destination_root / relative_path
     # Garantit l'existence de l'arborescence cible
     destination_path.parent.mkdir(parents=True, exist_ok=True)
@@ -170,7 +170,7 @@ def fetch_dataset(source: str, manifest_path: Path, destination_root: Path) -> N
 def parse_args() -> argparse.Namespace:
     """Construit les options CLI attendues pour la récupération Physionet."""
     # Initialise le parseur avec une description explicite
-    parser = argparse.ArgumentParser(description="Récupère Physionet dans data/raw")
+    parser = argparse.ArgumentParser(description="Récupère Physionet dans data")
     # Ajoute la source (URL ou chemin local) comme paramètre requis
     parser.add_argument(
         "--source", required=True, help="URL Physionet ou répertoire local"
@@ -179,8 +179,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--manifest", required=True, help="Manifeste JSON avec hashes et tailles"
     )
-    # Permet de personnaliser la destination tout en conservant data/raw par défaut
-    parser.add_argument("--destination", default="data/raw", help="Répertoire cible")
+    # Permet de personnaliser la destination tout en conservant data par défaut
+    parser.add_argument("--destination", default="data", help="Répertoire cible")
     # Retourne la structure d'arguments interprétée
     return parser.parse_args()
 

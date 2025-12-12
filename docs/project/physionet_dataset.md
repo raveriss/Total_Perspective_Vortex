@@ -9,9 +9,9 @@
 ## Format des fichiers
 - Enregistrements EDF issus de BCI2000 (64 canaux, 160 Hz) structurés en matrices channels × time.
 - Sessions séparées par sujet/run avec fichiers nommés `SXXXRYY.edf`.
-- Les téléchargements s’effectuent sans ré-emballage : la structure Physionet doit être conservée dans `data/raw/`.
+- Les téléchargements s’effectuent sans ré-emballage : la structure Physionet doit être conservée dans `data/`.
 
-## Arborescence locale `data/raw/`
+## Arborescence locale `data/`
 ```
 data/
 └── raw/
@@ -36,7 +36,7 @@ Le fichier `manifest.json` suit la structure :
   ]
 }
 ```
-- Le dossier `data/raw/` est ignoré par Git ; les fichiers doivent être regénérés localement via le script CLI.
+- Le dossier `data/` est ignoré par Git ; les fichiers doivent être regénérés localement via le script CLI.
 
 ## Points de vigilance sur le stockage
 - Les disques formatés FAT limitent la longueur des chemins : privilégier ext4 ou APFS.
@@ -48,7 +48,7 @@ Le fichier `manifest.json` suit la structure :
 - Outils réseau standard (`curl` ou `wget`) opérationnels si vous utilisez les URLs HTTP(S).
 
 ## Script de récupération
-- Le script `scripts/prepare_physionet.py` automatise le téléchargement ou la copie locale vers `data/raw/`.
+- Le script `scripts/prepare_physionet.py` automatise le téléchargement ou la copie locale vers `data/`.
 - Il repose sur un manifeste JSON listant les fichiers attendus avec leurs métadonnées :
   ```json
   {

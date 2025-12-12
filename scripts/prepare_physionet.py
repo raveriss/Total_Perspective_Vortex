@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Manifeste JSON listant chemins, tailles et hashes",
     )
-    # Destination finale (par défaut data/raw via la CI)
+    # Destination finale (par défaut data via la CI)
     parser.add_argument(
         "--destination",
         required=True,

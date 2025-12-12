@@ -39,7 +39,7 @@ _Risque Murphy (section 1.3) : à lier à TPV-XXX… (Phase: Source & Repo / Rob
 ### 2.1 Gestion des datasets Physionet
 
 * **2.1.1** Documenter les datasets EEG requis (lien Physionet, format)
-* **2.1.2** Définir la structure locale `data/raw/` (non versionnée)
+* **2.1.2** Définir la structure locale `data/` (non versionnée)
 * **2.1.3** Créer script de téléchargement / copie des données (si autorisé)
 * **2.1.4** Vérifier l’intégrité (taille, hash, nb de sujets/runs attendus)
 

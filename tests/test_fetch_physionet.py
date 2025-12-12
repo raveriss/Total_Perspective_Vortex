@@ -473,8 +473,8 @@ def test_parse_args_defaults_destination(monkeypatch, tmp_path: Path) -> None:
     )
     # Parse les arguments simulés via l'interface standard
     parsed = fetch_physionet.parse_args()
-    # Vérifie que la destination par défaut pointe vers data/raw
-    assert parsed.destination == "data/raw"
+    # Vérifie que la destination par défaut pointe vers data
+    assert parsed.destination == "data"
 
 
 # Exécute le script comme module principal pour couvrir le garde __main__

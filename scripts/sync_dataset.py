@@ -23,7 +23,7 @@ import urllib.request
 from pathlib import Path
 
 # Normalise le chemin racine de destination pour les données brutes
-DEFAULT_DESTINATION = Path("data/raw")
+DEFAULT_DESTINATION = Path("data")
 
 
 # Regroupe la lecture et la validation du manifeste JSON
@@ -76,7 +76,7 @@ def retrieve_file(source_root: str, entry: dict, destination_root: Path) -> Path
     """Copie ou télécharge un fichier unique selon la source fournie."""
     # Extrait le chemin relatif attendu pour reproduire l'arborescence
     relative_path = Path(entry["path"])
-    # Construit le chemin complet de destination dans data/raw
+    # Construit le chemin complet de destination dans data
     destination_path = destination_root / relative_path
     # Crée les dossiers parents pour éviter les erreurs de copie
     destination_path.parent.mkdir(parents=True, exist_ok=True)
@@ -133,7 +133,7 @@ def validate_file(file_path: Path, entry: dict) -> None:
 
 # Enchaîne la récupération et la validation pour chaque entrée du manifeste
 def sync_dataset(source: str, manifest_path: Path, destination_root: Path) -> None:
-    """Synchronise les fichiers décrits dans le manifeste vers data/raw."""
+    """Synchronise les fichiers décrits dans le manifeste vers data."""
     # Charge la liste des fichiers attendus pour préparer la boucle
     entries = load_manifest(manifest_path)
     # Parcourt chaque fichier attendu pour garantir l'exhaustivité
@@ -153,11 +153,11 @@ def main() -> int:
     parser.add_argument("--source", required=True, help="chemin local ou URL racine")
     # Exige le manifeste pour connaître les fichiers attendus
     parser.add_argument("--manifest", required=True, help="manifeste JSON des fichiers")
-    # Autorise un chemin de destination personnalisé tout en proposant data/raw
+    # Autorise un chemin de destination personnalisé tout en proposant data
     parser.add_argument(
         "--destination",
         default=str(DEFAULT_DESTINATION),
-        help="répertoire cible (par défaut data/raw)",
+        help="répertoire cible (par défaut data)",
     )
     # Analyse les arguments pour obtenir les valeurs fournies
     args = parser.parse_args()

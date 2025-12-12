@@ -46,7 +46,7 @@ EXPECTED_FEATURES_DIMENSIONS = 3
 DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 
 # Définit le répertoire par défaut où résident les fichiers EDF bruts
-DEFAULT_RAW_DIR = Path("data/raw")
+DEFAULT_RAW_DIR = Path("data")
 
 # Fige la fréquence d'échantillonnage par défaut utilisée pour les features
 DEFAULT_SAMPLING_RATE = 50.0
@@ -198,7 +198,7 @@ def _build_npy_from_edf(
         raise FileNotFoundError(
             "EDF introuvable pour "
             f"{subject} {run}: {raw_path}. "
-            "Téléchargez les enregistrements Physionet dans data/raw ou "
+            "Téléchargez les enregistrements Physionet dans data ou "
             "pointez --raw-dir vers un dossier déjà synchronisé."
         )
 

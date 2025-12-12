@@ -2,7 +2,7 @@
 
 | Item checklist TPV | WBS / livrable | Test ou commande reproductible |
 | --- | --- | --- |
-| Visualisation raw vs filtré ("Watch it for the plot") | 3.3.1–3.3.4 (visualisation filtrage) | `poetry run python scripts/visualize_raw_filtered.py data/raw/S001` ; `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
+| Visualisation raw vs filtré ("Watch it for the plot") | 3.3.1–3.3.4 (visualisation filtrage) | `poetry run python scripts/visualize_raw_filtered.py data/S001` ; `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
 | Bande passante 8–40 Hz conservée | 3.1.1–3.1.3 (filtre) | `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
 | Extraction de fréquences pertinentes motor imagery | 4.1.2–4.2.3 (features spectrales) | `poetry run pytest tests/test_pipeline.py::test_pipeline_respects_input_and_output_shapes` |
 | Réduction de dimension implémentée (PCA/CSP) | 5.2.1–5.2.4 (implémentation) | `poetry run pytest tests/test_dimensionality.py::test_csp_returns_log_variances_and_orthogonality` |

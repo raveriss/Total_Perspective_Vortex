@@ -208,7 +208,7 @@ marimo/_lsp/
 __marimo__/
 
 # Project artifacts
-data/raw/
+data/
 datasets/
 outputs/
 cache/

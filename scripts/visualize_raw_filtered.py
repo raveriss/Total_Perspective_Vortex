@@ -61,14 +61,14 @@ def build_parser() -> argparse.ArgumentParser:
             "et enregistre un plot brut vs filtré."
         )
     )
-    # Ajoute l'argument sujet pour cibler un répertoire data/raw/<subject>
+    # Ajoute l'argument sujet pour cibler un répertoire data/<subject>
     parser.add_argument("subject", help="Identifiant du sujet ex: S001")
     # Ajoute l'argument run pour choisir le fichier EDF au sein du sujet
     parser.add_argument("run", help="Identifiant du run ex: R01")
     # Ajoute la racine dataset pour autoriser les chemins personnalisés
     parser.add_argument(
         "--data-root",
-        default="data/raw",
+        default="data",
         help="Racine locale des données Physionet",
     )
     # Ajoute le répertoire de sortie pour ranger les figures générées
@@ -116,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 # Construit le chemin EDF attendu pour un sujet et un run donnés
 def build_recording_path(data_root: Path, subject: str, run: str) -> Path:
-    """Retourne le chemin EDF data/raw/<subject>/<run>.edf."""
+    """Retourne le chemin EDF data/<subject>/<run>.edf."""
 
     # Normalise la racine pour éviter les surprises sur les chemins relatifs
     normalized_root = Path(data_root).expanduser().resolve()
@@ -132,7 +132,7 @@ def load_recording(recording_path: Path) -> Tuple[BaseRaw, dict]:
 
     # Vérifie l'existence du fichier pour fournir un message clair au CLI
     if not recording_path.exists():
-        # Lève une erreur explicite pour guider l'utilisateur sur data/raw
+        # Lève une erreur explicite pour guider l'utilisateur sur data
         raise FileNotFoundError(f"Recording not found: {recording_path}")
     # Appelle le loader validé pour conserver les contraintes 2.2.x
     raw, metadata = load_physionet_raw(recording_path)

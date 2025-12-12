@@ -66,7 +66,7 @@ def test_build_parser_defaults() -> None:
     # Parse uniquement sujet/run pour activer les valeurs par défaut
     args = parser.parse_args(["S001", "R02"])
     # Vérifie la racine dataset par défaut
-    assert args.data_root == "data/raw"
+    assert args.data_root == "data"
     # Vérifie le répertoire de sortie par défaut
     assert args.output_dir == "docs/viz"
     # Vérifie la méthode de filtrage par défaut
@@ -257,7 +257,7 @@ def test_visualize_run_smoke(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     )
     # Exécute la visualisation avec une sélection de canal unique
     output_path = viz.visualize_run(
-        data_root=Path("data/raw"),
+        data_root=Path("data"),
         subject="S001",
         run="R01",
         config=config,
