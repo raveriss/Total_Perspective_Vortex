@@ -24,6 +24,7 @@
 
 - [🌌 Total Perspective Vortex — EEG Brain-Computer Interface (BCI)](#total-perspective-vortex--eeg-brain-computer-interface-bci)
 - [📌 Overview](#overview)
+- [📥 Télécharger le dépôt](#-télécharger-le-dépôt)
 - [🧠 Objectifs pédagogiques (42 / IA / ML)](#objectifs-pédagogiques-42--ia--ml)
 - [🧩 Architecture du projet](#architecture-du-projet)
 - [🔬 1. Préprocessing & parsing EEG (MNE)](#1-préprocessing--parsing-eeg-mne)
@@ -62,6 +63,24 @@ Il implémente un pipeline complet :
 * 🧪 **Accuracy ≥ 60 % sur sujets non vus – métrique obligatoire**
 
 Le travail final ne contient **que le code Python** ; le dataset EEG Physionet n’est pas versionné.
+
+---
+
+## 📥 Télécharger le dépôt
+
+Cloner le projet depuis GitHub :
+
+```bash
+git clone https://github.com/raveriss/Total_Perspective_Vortex.git
+cd Total_Perspective_Vortex
+````
+
+Optionnel : récupérer uniquement la dernière révision (plus rapide) :
+
+```bash
+git clone --depth 1 https://github.com/raveriss/Total_Perspective_Vortex.git
+cd Total_Perspective_Vortex
+```
 
 ---
 
