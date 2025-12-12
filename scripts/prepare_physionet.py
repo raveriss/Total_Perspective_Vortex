@@ -1,124 +1,62 @@
 # Centralise la préparation locale du dataset Physionet
+# Construit le parseur CLI requis pour orchestrer la récupération
 import argparse
 
 # Normalise les chemins d'entrée / sortie
 from pathlib import Path
 
-# Copie les fichiers en préservant les métadonnées
-import shutil
+# Garantit l'accès aux opérations de copie/validation existantes
+from scripts import fetch_physionet
 
 
-# Regroupe la logique de copie des fichiers EDF / events
-def prepare_physionet(
-    source_root: str,
-    subject: str,
-    runs: list[str],
-    output_dir: str,
-) -> None:
-    """Copie les fichiers EDF/.event d'un sujet vers un dossier de travail.
+# Orchestre la récupération complète via fetch_physionet
+def prepare_physionet(source_root: str, manifest: str, output_dir: str) -> None:
+    """Copie ou télécharge Physionet en validant l'intégrité déclarée."""
 
-    Exemple attendu de layout :
-
-        source_root/
-          S001/
-            S001R01.edf
-            S001R01.edf.event
-            ...
-        output_dir/
-          S001R01.edf
-          S001R01.edf.event
-          ...
-
-    Ce script NE télécharge PAS les données : il suppose que les EDF
-    existent déjà dans source_root.
-    """
-    # Normalise la racine source (ex: data/raw)
-    source_root_path = Path(source_root)
-    # Construit le dossier du sujet (ex: data/raw/S001)
-    subject_dir = source_root_path / subject
-    # Normalise le dossier de sortie (ex: data/S001)
-    output_path = Path(output_dir)
-
-    # Crée le dossier cible si nécessaire
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    # Log d’info sur la configuration utilisée
-    print(
-        f"INFO: préparation locale de Physionet pour sujet '{subject}' "
-        f"depuis '{subject_dir}' vers '{output_path}'",
-    )
-
-    # Vérifie que le dossier du sujet existe
-    if not subject_dir.is_dir():
-        msg = f"ERREUR: dossier sujet introuvable: '{subject_dir}'"
-        raise SystemExit(msg)
-
-    # Parcourt chaque run demandé (R01, R02, ...)
-    for run in runs:
-        # Construit le préfixe de fichier (ex: S001R01)
-        stem = f"{subject}{run}"
-
-        # Pour chaque extension attendue (*.edf, *.edf.event)
-        for ext in (".edf", ".edf.event"):
-            # Chemin source attendu (ex: data/raw/S001/S001R01.edf)
-            src = subject_dir / f"{stem}{ext}"
-            # Chemin cible correspondant (ex: data/S001/S001R01.edf)
-            dst = output_path / f"{stem}{ext}"
-
-            # Vérifie l'existence du fichier source
-            if not src.is_file():
-                print(f"ERREUR: fichier manquant: '{src}'")
-                raise SystemExit(1)
-
-            # Copie le fichier en conservant les métadonnées
-            shutil.copy2(src, dst)
-            # Log de confirmation par fichier
-            print(f"INFO: copié '{src}' → '{dst}'")
-
-    # Résumé final une fois tous les fichiers copiés
-    print("INFO: préparation Physionet terminée avec succès.")
+    # Normalise le chemin du manifeste pour activer les validations internes
+    manifest_path = Path(manifest)
+    # Normalise la destination pour préparer l'arborescence cible
+    destination_root = Path(output_dir)
+    # Crée l'arborescence de destination pour éviter les erreurs de copie
+    destination_root.mkdir(parents=True, exist_ok=True)
+    # Délègue la récupération en capturant toute erreur pour un message clair
+    try:
+        fetch_physionet.fetch_dataset(source_root, manifest_path, destination_root)
+    except Exception as error:  # noqa: BLE001
+        # Signale l'échec de préparation avec un préfixe explicite
+        print(f"préparation échouée : {error}")
+        # Termine l'exécution avec un code non nul pour la CI
+        raise SystemExit(1) from error
 
 
-# Construit l'interface CLI compatible avec tes commandes actuelles
+# Construit l'interface CLI compatible avec les tests actuels
 def parse_args() -> argparse.Namespace:
     """Construit les paramètres CLI pour prepare_physionet."""
-    # Initialise un parseur avec une description claire
+
+    # Initialise un parseur aligné sur fetch_physionet
     parser = argparse.ArgumentParser(
         description=(
-            "Prépare localement le dataset Physionet en copiant les "
-            "fichiers EDF et .event d'un sujet vers un dossier de travail."
+            "Prépare localement le dataset Physionet en validant un manifeste"
         ),
     )
-
-    # Racine des données brutes (ex: data/raw)
+    # Racine des données brutes ou URL distante
     parser.add_argument(
         "--source",
         required=True,
-        help="Racine des données brutes (ex: data/raw)",
+        help="Chemin local ou URL HTTP(s) de Physionet",
     )
-
-    # Sujet (ex: S001)
+    # Manifeste JSON décrivant les fichiers attendus
     parser.add_argument(
-        "--subject",
+        "--manifest",
         required=True,
-        help="Identifiant du sujet (ex: S001)",
+        help="Manifeste JSON listant chemins, tailles et hashes",
     )
-
-    # Liste des runs à copier (ex: R01 R02 ... R08)
+    # Destination finale (par défaut data/raw via la CI)
     parser.add_argument(
-        "--runs",
-        nargs="+",
+        "--destination",
         required=True,
-        help="Liste des runs à copier (ex: R01 R02 R03 ...)",
+        help="Répertoire cible pour copier ou télécharger les données",
     )
-
-    # Dossier de sortie (ex: data/S001)
-    parser.add_argument(
-        "--output",
-        required=True,
-        help="Dossier de sortie où copier les fichiers du sujet",
-    )
-
     # Retourne les arguments parsés
     return parser.parse_args()
 
@@ -126,10 +64,11 @@ def parse_args() -> argparse.Namespace:
 # Point d'entrée du script en mode CLI
 def main() -> None:
     """Point d'entrée principal pour la préparation Physionet."""
+
     # Récupère les paramètres fournis en CLI
     args = parse_args()
     # Délègue la logique métier à la fonction dédiée
-    prepare_physionet(args.source, args.subject, args.runs, args.output)
+    prepare_physionet(args.source, args.manifest, args.destination)
 
 
 # Active l'exécution lorsqu'on lance le module en script

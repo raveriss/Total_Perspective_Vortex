@@ -354,8 +354,8 @@ def evaluate_run(
         "reports": reports,
         "predictions": y_pred,
         "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
     }
-
 
 
 # Construit un rapport agrégé par run, sujet et global
@@ -414,7 +414,6 @@ def main(argv: list[str] | None = None) -> int:
 
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
-
 
 
 # Protège l'exécution directe pour exposer un exit code explicite
