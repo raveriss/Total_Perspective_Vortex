@@ -126,13 +126,44 @@ Total_Perspective_Vortex/
 
 ---
 
-## 🚀 Installation et gestion des dépendances (Poetry uniquement)
+## 🚀 Installation et gestion des dépendances (Poetry + Makefile)
 
 L’environnement est géré exclusivement avec **Poetry** (aucun fichier
 `requirements.txt` n’est utilisé).
 
+### Option 1 — via Makefile (recommandé)
+
+La commande suivante exécute `poetry install --with dev` (installation des
+dépendances **et** des dépendances de développement) :
+
+```bash
+make install
+```
+
+### Option 2 — via Poetry (équivalent)
+
 ```bash
 poetry install --with dev
+```
+
+Les commandes CLI restent accessibles via Poetry, mais sont aussi exposées via le
+**Makefile** pour simplifier l’usage.
+
+### Option 1 — via Makefile (recommandé)
+
+- `make train` exécute : `poetry run python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train`
+- `make predict` exécute : `poetry run python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict`
+
+```bash
+make train
+make predict
+```
+
+### Option 2 — via Poetry (équivalent)
+
+```bash
+poetry run python mybci.py S001 R01 train
+poetry run python mybci.py S001 R01 predict
 ```
 
 ### Préparer les données Physionet (indispensable avant l'entraînement)
@@ -142,13 +173,6 @@ copiez ou téléchargez-les dans `data` avec le manifeste Physionet :
 
 ```bash
 python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>
-```
-
-Les commandes CLI existantes restent accessibles via Poetry, par exemple :
-
-```bash
-poetry run python mybci.py S001 R01 train
-poetry run python mybci.py S001 R01 predict
 ```
 
 Le format attendu du manifeste est détaillé dans `docs/project/physionet_dataset.md`.
