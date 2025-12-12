@@ -45,6 +45,28 @@ REALTIME_SFREQ_DEFAULT = 50.0
 REALTIME_LATENCY_DEFAULT = 2.0
 
 
+def test_main_runs_global_evaluation_when_no_arguments(monkeypatch):
+    # Prépare un registre pour vérifier l'appel du runner global
+    called: dict[str, bool] = {}
+
+    # Simule le runner global pour éviter une boucle lourde en test
+    def fake_runner() -> int:
+        # Marque l'activation du runner global
+        called["triggered"] = True
+        # Retourne un succès pour suivre le contrat du runner global
+        return 0
+
+    # Remplace le runner global par le double de test
+    monkeypatch.setattr(mybci, "_run_global_evaluation", fake_runner)
+    # Exécute main sans aucun argument pour couvrir la nouvelle branche
+    exit_code = mybci.main([])
+
+    # Vérifie que le runner global a bien été invoqué
+    assert called.get("triggered") is True
+    # Vérifie que main renvoie le code de succès du runner global
+    assert exit_code == 0
+
+
 def test_parse_args_returns_expected_namespace():
     args = mybci.parse_args(["S001", "R01", "train"])
 

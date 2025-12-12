@@ -5,6 +5,9 @@
 # Préserve argparse pour parser les options CLI avec validation
 import argparse
 
+# Centralise la moyenne arithmétique pour agréger les accuracies
+from statistics import mean
+
 # Préserve subprocess pour lancer les modules en sous-processus isolés
 import subprocess
 
@@ -15,7 +18,7 @@ import sys
 from dataclasses import dataclass
 
 # Garantit l'accès aux séquences typées pour mypy
-from typing import Sequence
+from typing import Iterable, Sequence
 
 # Facilite la gestion portable des chemins de données et artefacts
 from pathlib import Path
@@ -103,6 +106,159 @@ def _call_module(module_name: str, config: ModuleCallConfig) -> int:
     completed = subprocess.run(command, check=False)
     # Retourne le code retour pour propagation à l'appelant principal
     return completed.returncode
+
+
+# Définit la structure décrivant un protocole expérimental
+@dataclass
+class ExperimentDefinition:
+    """Associe un identifiant d'expérience au run correspondant."""
+
+    # Identifie la position de l'expérience dans la séquence requise
+    index: int
+    # Associe l'expérience au run Physionet à évaluer
+    run: str
+
+
+# Construit la liste des six expériences décrites dans le sujet
+def _build_default_experiments() -> list[ExperimentDefinition]:
+    """Expose les six expériences demandées par la consigne."""
+
+    # Mappe chaque expérience à un run Physionet pour l'évaluation
+    return [
+        # Explore le run R03 pour l'expérience 0
+        ExperimentDefinition(index=0, run="R03"),
+        # Explore le run R04 pour l'expérience 1
+        ExperimentDefinition(index=1, run="R04"),
+        # Explore le run R05 pour l'expérience 2
+        ExperimentDefinition(index=2, run="R05"),
+        # Explore le run R06 pour l'expérience 3
+        ExperimentDefinition(index=3, run="R06"),
+        # Explore le run R07 pour l'expérience 4
+        ExperimentDefinition(index=4, run="R07"),
+        # Explore le run R08 pour l'expérience 5
+        ExperimentDefinition(index=5, run="R08"),
+    ]
+
+
+# Convertit un numéro de sujet numérique en identifiant Physionet
+def _subject_identifier(subject_index: int) -> str:
+    """Retourne l'identifiant Sxxx attendu dans les répertoires."""
+
+    # Formate le numéro sur trois chiffres en préfixant le S imposé
+    return f"S{subject_index:03d}"
+
+
+# Calcule l'accuracy pour un couple (expérience, sujet)
+def _evaluate_experiment_subject(
+    experiment: ExperimentDefinition,
+    subject_index: int,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path,
+) -> float:
+    """Évalue un sujet sur le run associé à une expérience donnée."""
+
+    # Construit l'identifiant complet du sujet pour les chemins disque
+    subject = _subject_identifier(subject_index)
+    # Import direct pour aligner avec l'appel CLI existant
+    from tpv import predict as tpv_predict
+
+    # Exécute evaluate_run sur le run associé à l'expérience
+    result = tpv_predict.evaluate_run(
+        subject,
+        experiment.run,
+        data_dir,
+        artifacts_dir,
+        raw_dir,
+    )
+    # Convertit l'accuracy en float natif pour l'agrégation
+    return float(result["accuracy"])
+
+
+# Calcule la moyenne d'accuracies pour une séquence fournie
+def _safe_mean(values: Iterable[float]) -> float:
+    """Retourne 0.0 si la séquence est vide pour sécuriser l'affichage."""
+
+    # Convertit l'itérable en liste pour gérer la longueur et le calcul
+    measurements = list(values)
+    # Retourne 0.0 si aucune valeur n'est disponible
+    if not measurements:
+        # Force une moyenne nulle pour éviter ZeroDivisionError
+        return 0.0
+    # Calcule la moyenne arithmétique standard
+    return mean(measurements)
+
+
+# Parcourt les 6 expériences et les 109 sujets en affichant les accuracies
+def _run_global_evaluation(
+    experiments: Sequence[ExperimentDefinition] | None = None,
+    data_dir: Path | None = None,
+    artifacts_dir: Path | None = None,
+    raw_dir: Path | None = None,
+) -> int:
+    """Exécute la boucle d'évaluation globale décrite dans le sujet."""
+
+    # Utilise les expériences par défaut si aucune liste n'est fournie
+    experiment_definitions = list(experiments or _build_default_experiments())
+    # Normalise les chemins racine de données pour les appels descendants
+    data_root = data_dir or Path("data")
+    # Normalise le répertoire d'artefacts pour les modèles entraînés
+    artifacts_root = artifacts_dir or Path("artifacts")
+    # Normalise le répertoire des EDF bruts nécessaires à evaluate_run
+    raw_root = raw_dir or Path("data/raw")
+    # Prépare le stockage des accuracies par expérience
+    per_experiment_scores: dict[int, list[float]] = {
+        # Initialise la collection d'accuracies pour chaque expérience
+        exp.index: []
+        for exp in experiment_definitions
+    }
+
+    # Parcourt chaque expérience demandée
+    for experiment in experiment_definitions:
+        # Parcourt l'ensemble des 109 sujets numérotés de 1 à 109
+        for subject_index in range(1, 110):
+            # Évalue le sujet courant sur l'expérience en cours
+            try:
+                # Calcule l'accuracy en rechargeant le modèle entraîné
+                accuracy = _evaluate_experiment_subject(
+                    experiment,
+                    subject_index,
+                    data_root,
+                    artifacts_root,
+                    raw_root,
+                )
+            except FileNotFoundError as error:
+                # Informe l'utilisateur qu'un prérequis manque pour ce run
+                print(f"ERREUR: {error}")
+                # Stoppe l'exécution globale pour signaler l'anomalie
+                return 1
+            # Stocke l'accuracy pour le calcul des moyennes
+            per_experiment_scores[experiment.index].append(accuracy)
+            # Affiche l'accuracy du sujet au format imposé
+            print(
+                f"experiment {experiment.index}: "
+                f"subject {subject_index:03d}: accuracy = {accuracy:.4f}"
+            )
+
+    # Affiche l'entête du bloc de moyennes par expérience
+    print("Mean accuracy of the six different experiments for all 109 subjects:")
+    # Calcule et affiche la moyenne de chaque expérience
+    for experiment in experiment_definitions:
+        # Calcule la moyenne de l'expérience courante
+        experiment_mean = _safe_mean(per_experiment_scores[experiment.index])
+        # Affiche la moyenne alignée sur l'exemple fourni
+        print(
+            f"experiment {experiment.index}:\t\taccuracy = "
+            f"{experiment_mean:.4f}"
+        )
+    # Calcule la moyenne globale des six expériences
+    global_mean = _safe_mean(
+        _safe_mean(per_experiment_scores[exp.index]) for exp in experiment_definitions
+    )
+    # Affiche la moyenne globale demandée par la consigne
+    print(f"Mean accuracy of 6 experiments: {global_mean:.4f}")
+    # Retourne 0 pour signaler le succès global
+    return 0
 
 
 # Construit la ligne de commande pour invoquer le mode realtime
@@ -295,8 +451,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     """Point d'entrée exécutable de mybci."""
 
+    # Capture les arguments fournis ou la ligne de commande réelle
+    provided_args = list(argv) if argv is not None else list(sys.argv[1:])
+    # Lance le runner global lorsque la commande ne fournit aucun argument
+    if not provided_args:
+        # Exécute la boucle des six expériences sur les 109 sujets
+        return _run_global_evaluation()
     # Parse les arguments fournis par l'utilisateur
-    args = parse_args(argv)
+    args = parse_args(provided_args)
     # Interprète le choix du scaler pour convertir "none" en None
     scaler = None if args.scaler == "none" else args.scaler
     # Applique la normalisation en inversant le flag d'opt-out
