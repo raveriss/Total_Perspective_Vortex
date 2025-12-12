@@ -135,13 +135,6 @@ L’environnement est géré exclusivement avec **Poetry** (aucun fichier
 poetry install --with dev
 ```
 
-Les commandes CLI existantes restent accessibles via Poetry, par exemple :
-
-```bash
-poetry run python mybci.py S001 R01 train
-poetry run python mybci.py S001 R01 predict
-```
-
 ### Préparer les données Physionet (indispensable avant l'entraînement)
 
 Les fichiers EDF bruts ne sont pas versionnés. Avant tout appel à `mybci.py`,
@@ -149,6 +142,13 @@ copiez ou téléchargez-les dans `data` avec le manifeste Physionet :
 
 ```bash
 python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>
+```
+
+Les commandes CLI existantes restent accessibles via Poetry, par exemple :
+
+```bash
+poetry run python mybci.py S001 R01 train
+poetry run python mybci.py S001 R01 predict
 ```
 
 Le format attendu du manifeste est détaillé dans `docs/project/physionet_dataset.md`.
