@@ -321,7 +321,6 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         return features
 
 
-
 def extract_features(
     epochs: Any,
     config: Mapping[str, Any] | None = None,

@@ -39,6 +39,9 @@ from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
 # Définit le répertoire par défaut où chercher les enregistrements
 DEFAULT_DATA_DIR = Path("data")
 
+# Fixe la dimension attendue pour les matrices de features en mémoire
+EXPECTED_FEATURES_DIMENSIONS = 3
+
 # Définit le répertoire par défaut pour déposer les artefacts d'entraînement
 DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 
@@ -229,8 +232,6 @@ def _build_npy_from_edf(
     return features_path, labels_path
 
 
-
-
 # Charge ou génère les matrices numpy attendues pour l'entraînement
 def _load_data(
     subject: str,
@@ -262,10 +263,11 @@ def _load_data(
         candidate_y = np.load(labels_path, mmap_mode="r")
 
         # Cas 2 : X n'a pas la bonne dimension → reconstruction
-        if candidate_X.ndim != 3:
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
             print(
                 "INFO: X chargé depuis "
-                f"'{features_path}' a ndim={candidate_X.ndim} au lieu de 3, "
+                f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                f"{EXPECTED_FEATURES_DIMENSIONS}, "
                 "régénération depuis l'EDF..."
             )
             needs_rebuild = True
@@ -292,9 +294,6 @@ def _load_data(
     y = np.load(labels_path)
 
     return X, y
-
-
-
 
 
 # Récupère le hash git courant pour tracer la reproductibilité
@@ -537,7 +536,6 @@ def main(argv: list[str] | None = None) -> int:
 
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
-
 
 
 # Protège l'exécution directe pour exposer un exit code explicite

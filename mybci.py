@@ -5,9 +5,6 @@
 # Préserve argparse pour parser les options CLI avec validation
 import argparse
 
-# Centralise la moyenne arithmétique pour agréger les accuracies
-from statistics import mean
-
 # Préserve subprocess pour lancer les modules en sous-processus isolés
 import subprocess
 
@@ -17,11 +14,17 @@ import sys
 # Préserve dataclass pour regrouper les paramètres du pipeline
 from dataclasses import dataclass
 
+# Facilite la gestion portable des chemins de données et artefacts
+from pathlib import Path
+
+# Centralise la moyenne arithmétique pour agréger les accuracies
+from statistics import mean
+
 # Garantit l'accès aux séquences typées pour mypy
 from typing import Iterable, Sequence
 
-# Facilite la gestion portable des chemins de données et artefacts
-from pathlib import Path
+# Fournit les fonctions de prédiction pour l'évaluation globale
+from tpv import predict as tpv_predict
 
 
 # Centralise les options nécessaires pour invoquer le mode realtime
@@ -160,9 +163,6 @@ def _evaluate_experiment_subject(
 
     # Construit l'identifiant complet du sujet pour les chemins disque
     subject = _subject_identifier(subject_index)
-    # Import direct pour aligner avec l'appel CLI existant
-    from tpv import predict as tpv_predict
-
     # Exécute evaluate_run sur le run associé à l'expérience
     result = tpv_predict.evaluate_run(
         subject,
@@ -247,10 +247,7 @@ def _run_global_evaluation(
         # Calcule la moyenne de l'expérience courante
         experiment_mean = _safe_mean(per_experiment_scores[experiment.index])
         # Affiche la moyenne alignée sur l'exemple fourni
-        print(
-            f"experiment {experiment.index}:\t\taccuracy = "
-            f"{experiment_mean:.4f}"
-        )
+        print(f"experiment {experiment.index}:\t\taccuracy = " f"{experiment_mean:.4f}")
     # Calcule la moyenne globale des six expériences
     global_mean = _safe_mean(
         _safe_mean(per_experiment_scores[exp.index]) for exp in experiment_definitions
@@ -313,8 +310,7 @@ def _print_epoch_predictions(
         is_equal = bool(int(pred) == int(truth))
         # Affiche la ligne formatée pour l'epoch courante
         print(
-            f"epoch {idx:0{index_width}d}: "
-            f"[{int(pred)}] [{int(truth)}] {is_equal}"
+            f"epoch {idx:0{index_width}d}: " f"[{int(pred)}] [{int(truth)}] {is_equal}"
         )
     # Affiche l'accuracy globale formatée sur quatre décimales
     print(f"Accuracy: {accuracy:.4f}")
@@ -486,6 +482,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             config,
         )
 
+    # Appelle le module predict pour préserver la sortie CLI attendue
+    if args.mode == "predict":
+        # Retourne le code retour du module predict avec la configuration
+        return _call_module(
+            "tpv.predict",
+            config,
+        )
+
     # Bascule vers le module realtime pour le streaming fenêtré
     if args.mode == "realtime":
         # Construit la configuration spécifique au lissage et fenêtrage
@@ -502,10 +506,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         # Retourne le code retour du module realtime avec la configuration
         return _call_realtime(realtime_config)
-
-    # Traite le mode prédiction avec un appel direct au module tpv.predict
-    # pour pouvoir structurer l'affichage epoch par epoch
-    from tpv import predict as tpv_predict
 
     # Convertit les répertoires en Path pour l'appel direct
     data_dir = Path(args.data_dir)
@@ -532,8 +532,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     _ = tpv_predict.build_report(result)
     # Récupère les prédictions calculées par evaluate_run
     y_pred = result["predictions"]
-    # Récupère la vérité terrain renvoyée par evaluate_run
-    y_true = result["truth"]
+    # Récupère la vérité terrain en privilégiant la clé harmonisée
+    y_true = result.get("y_true", result["truth"])
     # Récupère l'accuracy globale pour l'affichage final
     accuracy = float(result["accuracy"])
     # Affiche le détail epoch par epoch dans le format attendu

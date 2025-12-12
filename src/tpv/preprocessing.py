@@ -82,11 +82,7 @@ def _rename_channels_for_montage(
     """Renomme les canaux bruts pour les aligner sur le montage choisi."""
 
     # Construit un sous-mapping ne contenant que les canaux présents
-    present_map = {
-        old: new
-        for old, new in channel_map.items()
-        if old in raw.ch_names
-    }
+    present_map = {old: new for old, new in channel_map.items() if old in raw.ch_names}
     # Applique le renommage uniquement sur les canaux existants
     if present_map:
         raw.rename_channels(present_map)
@@ -383,6 +379,8 @@ def map_events_and_validate(
 
 def map_events_to_motor_labels(
     raw: mne.io.BaseRaw,
+    label_map: Mapping[str, int] | None = None,
+    motor_label_map: Mapping[str, str] | None = None,
 ) -> Tuple[np.ndarray, Dict[str, int], List[str]]:
     """
     Map EEGMMI (PhysioNet) annotations (T0, T1, T2, ...) to motor labels.
@@ -404,57 +402,62 @@ def map_events_to_motor_labels(
         Les autres codes (T3, T4) sont conservés tels quels si présents.
     """
 
-    # Récupère les événements et le mapping brut depuis les annotations MNE
-    events, event_id = mne.events_from_annotations(raw)
-
-    # Inverse le mapping pour passer du code entier -> label texte (T0, T1, T2, ...)
+    # Construit une cartographie de labels moteurs personnalisable
+    effective_motor_map = (
+        dict(motor_label_map) if motor_label_map is not None else MOTOR_EVENT_LABELS
+    )
+    # Récupère les événements validés pour respecter les filtres existants
+    events, event_id = map_events_and_validate(
+        raw, label_map=label_map, motor_label_map=effective_motor_map
+    )
+    # Inverse le mapping pour résoudre les codes entiers en labels texte
     inv_event_id = {v: k for k, v in event_id.items()}
-
-    # Récupère le label texte pour chaque événement
-    labels = [inv_event_id[e[2]] for e in events]
-
-    # Toutes les étiquettes présentes dans les annotations
-    all_labels = sorted(set(labels))
-
-    # Codes moteurs possibles dans EEGMMI
-    motor_codes = ("T1", "T2", "T3", "T4")
-
-    # Codes moteurs effectivement présents dans ce run
-    present_motor_codes = [code for code in motor_codes if code in all_labels]
-
-    # Si vraiment aucun essai moteur dans ce run, alors seulement on lève l'erreur
-    if not present_motor_codes:
-        raise ValueError(
-            {
-                "error": "No motor events present",
-                "available_labels": all_labels,
-            }
-        )
-
-    # Masque pour ne garder que les événements dont le label est moteur
-    mask = np.isin(labels, present_motor_codes)
-
-    # Filtre le tableau d'événements
-    filtered_events = events[mask]
-
-    # Labels texte alignés sur les événements filtrés (T1, T2, ...)
-    filtered_labels = [lab for lab, keep in zip(labels, mask, strict=True) if keep]
-
-    # Mappe chaque code moteur en label de tâche (A/B) lorsque possible
+    # Construit la liste des labels présents pour reporter les erreurs
+    available_labels = sorted(set(inv_event_id.values()))
+    # Initialise le conteneur pour les événements moteurs conservés
+    filtered_events: List[np.ndarray] = []
+    # Initialise le conteneur pour les labels moteurs alignés sur events
     motor_labels: List[str] = []
-    for lab in filtered_labels:
-        # Utilise la convention MOTOR_EVENT_LABELS quand elle est définie
-        if lab in MOTOR_EVENT_LABELS:
-            motor_labels.append(MOTOR_EVENT_LABELS[lab])
-        else:
-            # Conserve le label brut pour les codes non mappés (ex: T3, T4)
-            motor_labels.append(lab)
-
-    # Restreint event_id aux codes moteurs présents seulement
-    motor_event_id = {code: event_id[code] for code in present_motor_codes}
-
-    # Retourne les événements filtrés, le mapping et les labels alignés
-    return filtered_events, motor_event_id, motor_labels
+    # Initialise le collecteur des codes inconnus pour un message d'erreur clair
+    unknown_codes: List[int] = []
+    # Parcourt chaque événement filtré pour traduire les codes en labels moteurs
+    for event in events:
+        # Identifie le label texte correspondant au code de l'événement
+        label = inv_event_id.get(event[2])
+        # Accumule les codes inconnus pour fournir un diagnostic explicite
+        if label is None:
+            unknown_codes.append(int(event[2]))
+            continue
+        # Ignore les événements non moteurs pour concentrer l'analyse
+        if label not in effective_motor_map:
+            continue
+        # Conserve l'événement aligné sur un essai moteur
+        filtered_events.append(event)
+        # Transforme le label en étiquette moteur selon la convention projet
+        motor_labels.append(effective_motor_map[label])
+    # Lève une erreur explicite si des codes inconnus sont rencontrés
+    if unknown_codes:
+        raise ValueError(
+            json.dumps({"error": "Unknown event codes", "unknown_codes": unknown_codes})
+        )
+    # Lève une erreur si aucun essai moteur n'est disponible après validation
+    if not motor_labels:
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "No motor events present",
+                    "available_labels": available_labels,
+                }
+            )
+        )
+    # Restreint le mapping aux codes moteurs effectivement rencontrés
+    motor_event_id = {
+        label: code for label, code in event_id.items() if label in effective_motor_map
+    }
+    # Convertit la liste d'événements filtrés en tableau NumPy pour MNE
+    filtered_array = np.array(filtered_events)
+    # Retourne les événements filtrés, le mapping réduit et les labels moteurs
+    return filtered_array, motor_event_id, motor_labels
 
 
 def _validate_annotation_labels(
@@ -1179,9 +1182,7 @@ def generate_epoch_report(
     # Iterate over label counts to materialize per-class entries
     for label, count in label_counts.items():
         # Append a CSV line detailing subject, run, label, and count
-        lines.append(
-            f"{run_metadata['subject']},{run_metadata['run']},{label},{count}"
-        )
+        lines.append(f"{run_metadata['subject']},{run_metadata['run']},{label},{count}")
     # Write all lines with newline separation to the output path
     output_path.write_text("\n".join(lines), encoding="utf-8")
     # Return the path so downstream processes can load the CSV
