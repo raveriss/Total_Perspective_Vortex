@@ -204,14 +204,16 @@ def _run_global_evaluation(
     data_root = data_dir or Path("data")
     # Normalise le répertoire d'artefacts pour les modèles entraînés
     artifacts_root = artifacts_dir or Path("artifacts")
-    # Normalise le répertoire des EDF bruts nécessaires à evaluate_run
-    raw_root = raw_dir or Path("data/raw")
+    # Normalise le répertoire des EDF bruts désormais stockés dans data/
+    raw_root = raw_dir or Path("data")
     # Prépare le stockage des accuracies par expérience
     per_experiment_scores: dict[int, list[float]] = {
         # Initialise la collection d'accuracies pour chaque expérience
         exp.index: []
         for exp in experiment_definitions
     }
+    # Prépare la liste des sujets/run introuvables pour informer l'utilisateur
+    missing_entries: list[str] = []
 
     # Parcourt chaque expérience demandée
     for experiment in experiment_definitions:
@@ -229,9 +231,11 @@ def _run_global_evaluation(
                 )
             except FileNotFoundError as error:
                 # Informe l'utilisateur qu'un prérequis manque pour ce run
-                print(f"ERREUR: {error}")
-                # Stoppe l'exécution globale pour signaler l'anomalie
-                return 1
+                print(f"AVERTISSEMENT: {error}")
+                # Ajoute l'entrée manquante pour un récapitulatif final
+                missing_entries.append(f"{subject}:{experiment.run}")
+                # Ignore ce sujet pour poursuivre l'exploration globale
+                continue
             # Stocke l'accuracy pour le calcul des moyennes
             per_experiment_scores[experiment.index].append(accuracy)
             # Affiche l'accuracy du sujet au format imposé
@@ -254,6 +258,19 @@ def _run_global_evaluation(
     )
     # Affiche la moyenne globale demandée par la consigne
     print(f"Mean accuracy of 6 experiments: {global_mean:.4f}")
+    # Vérifie si des données sont manquantes pour informer l'utilisateur
+    if missing_entries:
+        # Résume le volume d'entrées absentes pour déclencher une action
+        print(
+            "AVERTISSEMENT: certaines données EDF ou .npy sont manquantes. "
+            f"Couples sujet/run concernés: {len(missing_entries)}. "
+            "Téléchargez les EDF dans data ou regénérez les .npy."
+        )
+        # Affiche un aperçu des premières références manquantes pour guider
+        print(
+            "Premiers manquants: "
+            + ", ".join(missing_entries[:10])
+        )
     # Retourne 0 pour signaler le succès global
     return 0
 
@@ -426,7 +443,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Ajoute le répertoire racine des fichiers EDF bruts
     parser.add_argument(
         "--raw-dir",
-        default="data/raw",
+        default="data",
         help="Répertoire racine contenant les fichiers EDF bruts",
     )
     # Retourne le parser configuré
