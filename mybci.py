@@ -21,7 +21,7 @@ from pathlib import Path
 from statistics import mean
 
 # Garantit l'accès aux séquences typées pour mypy
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 # Fournit les fonctions de prédiction pour l'évaluation globale
 from tpv import predict as tpv_predict
@@ -217,63 +217,66 @@ def _subjects_with_available_model(run: str, artifacts_root: Path) -> list[int]:
     return subjects
 
 
-# Parcourt les 6 expériences et les 109 sujets en affichant les accuracies
-def _run_global_evaluation(
-    experiments: Sequence[ExperimentDefinition] | None = None,
-    data_dir: Path | None = None,
-    artifacts_dir: Path | None = None,
-    raw_dir: Path | None = None,
-) -> int:
-    """Exécute la boucle d'évaluation globale décrite dans le sujet."""
+# Prépare la disponibilité des modèles par run avant l'évaluation globale
+def _collect_run_availability(
+    experiments: Sequence[ExperimentDefinition],
+    artifacts_root: Path,
+    expected_subjects: Sequence[str],
+) -> tuple[dict[str, list[int]], dict[str, list[str]]]:
+    """Construit les cartes de sujets disponibles et manquants par run."""
 
-    # Utilise les expériences par défaut si aucune liste n'est fournie
-    experiment_definitions = list(experiments or _build_default_experiments())
-    # Normalise les chemins racine de données pour les appels descendants
-    data_root = data_dir or Path("data")
-    # Normalise le répertoire d'artefacts pour les modèles entraînés
-    artifacts_root = artifacts_dir or Path("artifacts")
-    # Normalise le répertoire des EDF bruts désormais stockés dans data/
-    raw_root = raw_dir or Path("data")
-    # Construit la liste des identifiants attendus pour les 109 sujets
-    expected_subjects = [_subject_identifier(idx) for idx in range(1, 110)]
-    # Prépare un cache pour les sujets disposant d'un modèle par run
+    # Prépare un cache pour éviter de recalculer les sujets par run
     available_subjects_by_run: dict[str, list[int]] = {}
-    # Prépare un relevé des modèles manquants par run pour informer l'utilisateur
+    # Prépare le relevé des sujets manquants pour informer l'utilisateur
     missing_models_by_run: dict[str, list[str]] = {}
-    # Prépare le stockage des accuracies par expérience
-    per_experiment_scores: dict[int, list[float]] = {
-        # Initialise la collection d'accuracies pour chaque expérience
-        exp.index: []
-        for exp in experiment_definitions
-    }
-    # Prépare la liste des sujets/run introuvables pour informer l'utilisateur
-    missing_entries: list[str] = []
-
-    # Parcourt chaque expérience pour préparer la liste des sujets évaluables
-    for experiment in experiment_definitions:
-        # Ignore la pré-computation si le run a déjà été traité
+    # Parcourt chaque expérience pour collecter la disponibilité des modèles
+    for experiment in experiments:
+        # Ignore le run déjà traité pour limiter le nombre d'itérations
         if experiment.run in available_subjects_by_run:
-            # Passe au run suivant pour éviter un travail redondant
+            # Passe au run suivant car les données sont déjà en cache
             continue
-        # Recense les sujets disposant d'un modèle pour le run demandé
+        # Recense les sujets disposant d'un modèle pour le run courant
         available_subjects = _subjects_with_available_model(
             experiment.run, artifacts_root
         )
-        # Associe la liste au run courant pour réutilisation dans la boucle
+        # Stocke la liste pour une réutilisation dans les étapes suivantes
         available_subjects_by_run[experiment.run] = available_subjects
-        # Construit la liste des identifiants attendus manquants pour ce run
+        # Calcule les identifiants sujets manquants pour ce run
         missing_models = [
             subject
             for subject in expected_subjects
             if subject not in (_subject_identifier(idx) for idx in available_subjects)
         ]
-        # Stocke les manquants pour un message de synthèse après la boucle
+        # Stocke les manquants pour générer un message consolidé
         missing_models_by_run[experiment.run] = missing_models
+    # Retourne les deux structures pour l'évaluation globale
+    return available_subjects_by_run, missing_models_by_run
 
+
+# Évalue chaque expérience en accumulant les résultats et les absences
+def _evaluate_experiments(
+    experiments: Sequence[ExperimentDefinition],
+    available_subjects_by_run: Mapping[str, Sequence[int]],
+    data_root: Path,
+    artifacts_root: Path,
+    raw_root: Path,
+) -> tuple[dict[int, list[float]], list[str], list[ExperimentDefinition]]:
+    """Exécute les évaluations et retourne les scores et manquants."""
+
+    # Prépare le stockage des accuracies par expérience
+    per_experiment_scores: dict[int, list[float]] = {
+        # Initialise la collection d'accuracies pour chaque expérience
+        exp.index: []
+        for exp in experiments
+    }
+    # Prépare la liste des sujets ou runs introuvables lors des calculs
+    missing_entries: list[str] = []
+    # Prépare la liste des expériences sans modèle pour les ignorer
+    skipped_experiments: list[ExperimentDefinition] = []
     # Parcourt chaque expérience demandée
-    for experiment in experiment_definitions:
+    for experiment in experiments:
         # Récupère la liste des sujets disposant d'un modèle pour ce run
-        available_subjects = available_subjects_by_run.get(experiment.run, [])
+        available_subjects = list(available_subjects_by_run.get(experiment.run, []))
         # Informe l'utilisateur si aucun modèle n'est disponible pour ce run
         if not available_subjects:
             # Signale que l'expérience sera ignorée faute de modèle présent
@@ -281,9 +284,11 @@ def _run_global_evaluation(
                 "AVERTISSEMENT: aucun modèle disponible pour "
                 f"{experiment.run}, expérience {experiment.index} ignorée"
             )
+            # Archive l'expérience ignorée pour le résumé des moyennes
+            skipped_experiments.append(experiment)
             # Passe à l'expérience suivante pour éviter une boucle vide
             continue
-        # Parcourt l'ensemble des 109 sujets numérotés de 1 à 109
+        # Parcourt l'ensemble des sujets disposant d'un modèle
         for subject_index in available_subjects:
             # Évalue le sujet courant sur l'expérience en cours
             try:
@@ -311,21 +316,54 @@ def _run_global_evaluation(
                 f"experiment {experiment.index}: "
                 f"subject {subject_index:03d}: accuracy = {accuracy:.4f}"
             )
+    # Retourne les résultats et les expériences ignorées
+    return per_experiment_scores, missing_entries, skipped_experiments
+
+
+# Affiche les moyennes par expérience et retourne la moyenne globale
+def _print_experiment_means(
+    experiments: Sequence[ExperimentDefinition],
+    per_experiment_scores: Mapping[int, Sequence[float]],
+) -> float:
+    """Calcule et affiche les moyennes d'accuracy par expérience."""
 
     # Affiche l'entête du bloc de moyennes par expérience
     print("Mean accuracy of the six different experiments for all 109 subjects:")
-    # Calcule et affiche la moyenne de chaque expérience
-    for experiment in experiment_definitions:
+    # Parcourt chaque expérience pour calculer sa moyenne
+    for experiment in experiments:
+        # Extrait les scores accumulés pour l'expérience courante
+        experiment_scores = per_experiment_scores[experiment.index]
+        # Contrôle la disponibilité d'artefacts avant de calculer la moyenne
+        if not experiment_scores:
+            # Mentionne explicitement l'absence d'artefacts pour l'expérience
+            print(f"experiment {experiment.index}:\t\taccuracy = N/A (skipped)")
+            # Passe au run suivant pour éviter une moyenne vide
+            continue
         # Calcule la moyenne de l'expérience courante
-        experiment_mean = _safe_mean(per_experiment_scores[experiment.index])
+        experiment_mean = _safe_mean(experiment_scores)
         # Affiche la moyenne alignée sur l'exemple fourni
         print(f"experiment {experiment.index}:\t\taccuracy = " f"{experiment_mean:.4f}")
     # Calcule la moyenne globale des six expériences
     global_mean = _safe_mean(
-        _safe_mean(per_experiment_scores[exp.index]) for exp in experiment_definitions
+        # Agrège uniquement les expériences disposant d'artefacts
+        _safe_mean(per_experiment_scores[exp.index])
+        for exp in experiments
+        if per_experiment_scores[exp.index]
     )
     # Affiche la moyenne globale demandée par la consigne
     print(f"Mean accuracy of 6 experiments: {global_mean:.4f}")
+    # Retourne la moyenne pour réutilisation éventuelle
+    return global_mean
+
+
+# Affiche les messages d'alerte pour guider l'utilisateur
+def _report_missing_artifacts(
+    missing_entries: Sequence[str],
+    missing_models_by_run: Mapping[str, Sequence[str]],
+    skipped_experiments: Sequence[ExperimentDefinition],
+) -> None:
+    """Émet les avertissements sur les données et modèles manquants."""
+
     # Vérifie si des données sont manquantes pour informer l'utilisateur
     if missing_entries:
         # Résume le volume d'entrées absentes pour déclencher une action
@@ -354,6 +392,64 @@ def _run_global_evaluation(
                 f"Run {run}: modèles manquants pour {len(subjects)} sujets "
                 f"(exemples: {', '.join(subjects[:5])})"
             )
+        # Aide l'utilisateur en rappelant la commande de génération d'artefacts
+        print(
+            "Pour générer un modèle manquant, lancez par exemple :\n"
+            "  poetry run python scripts/train.py S001 R04 --feature-strategy fft "
+            "--dim-method pca"
+        )
+    # Vérifie si certaines expériences ont été ignorées pour le calcul global
+    if skipped_experiments:
+        # Résume les expériences ignorées pour clarifier le global_mean affiché
+        skipped_labels = ", ".join(
+            f"{exp.index} ({exp.run})" for exp in skipped_experiments
+        )
+        # Invite l'utilisateur à générer les artefacts avant de relancer
+        print(
+            "AVERTISSEMENT: les expériences suivantes ont été ignorées "
+            f"faute de modèles: {skipped_labels}. "
+            "Générez les artefacts correspondants pour obtenir une moyenne "
+            "complète."
+        )
+
+
+# Parcourt les 6 expériences et les 109 sujets en affichant les accuracies
+def _run_global_evaluation(
+    experiments: Sequence[ExperimentDefinition] | None = None,
+    data_dir: Path | None = None,
+    artifacts_dir: Path | None = None,
+    raw_dir: Path | None = None,
+) -> int:
+    """Exécute la boucle d'évaluation globale décrite dans le sujet."""
+
+    # Utilise les expériences par défaut si aucune liste n'est fournie
+    experiment_definitions = list(experiments or _build_default_experiments())
+    # Normalise les chemins racine de données pour les appels descendants
+    data_root = data_dir or Path("data")
+    # Normalise le répertoire d'artefacts pour les modèles entraînés
+    artifacts_root = artifacts_dir or Path("artifacts")
+    # Normalise le répertoire des EDF bruts désormais stockés dans data/
+    raw_root = raw_dir or Path("data")
+    # Construit la liste des identifiants attendus pour les 109 sujets
+    expected_subjects = [_subject_identifier(idx) for idx in range(1, 110)]
+    # Calcule la disponibilité des modèles pour chaque run
+    available_subjects_by_run, missing_models_by_run = _collect_run_availability(
+        experiment_definitions, artifacts_root, expected_subjects
+    )
+    # Exécute les évaluations et collecte les résultats
+    per_experiment_scores, missing_entries, skipped_experiments = _evaluate_experiments(
+        experiment_definitions,
+        available_subjects_by_run,
+        data_root,
+        artifacts_root,
+        raw_root,
+    )
+    # Calcule et affiche les moyennes par expérience
+    _print_experiment_means(experiment_definitions, per_experiment_scores)
+    # Émet un récapitulatif des artefacts manquants
+    _report_missing_artifacts(
+        missing_entries, missing_models_by_run, skipped_experiments
+    )
     # Retourne 0 pour signaler le succès global
     return 0
 
