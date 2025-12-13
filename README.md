@@ -147,38 +147,17 @@ Total_Perspective_Vortex/
 
 ## 🚀 Mise en route : données, installation, entraînement, prédiction (Poetry + Makefile)
 
-Le projet utilise **Poetry exclusivement** (aucun `requirements.txt`).
+Le projet utilise **Poetry exclusivement** (aucun `requirements.txt`).  
 Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 
 ---
 
-## 1) Installer l’environnement et les dépendances
 
 | Objectif   | Commande recommandée | Commande équivalente            |
 |-----------|-----------------------|---------------------------------|
 | Installer | `make install`         | `poetry install --with dev`     |
-
-## 2) Préparer les données Physionet (obligatoire avant `train` / `predict`)
-
-Les fichiers EDF bruts ne sont pas versionnés. Avant tout appel à `mybci.py`,
-copiez ou téléchargez-les dans `data` via le script de préparation :
-
-```bash
-python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>
-```
-
-Le format attendu du manifeste est détaillé dans `docs/project/physionet_dataset.md`.
-
-## 3) Entraîner
-
-| Objectif   | Commande recommandée | Commande équivalente            |
-|-----------|-----------------------|---------------------------------|
+| Préparer les données | `make data`            | `poetry run python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>`      |
 | Entraîner | `make train`         | `poetry run python mybci.py S001 R01 train`     |
-
-## 4) prédire
-
-| Objectif   | Commande recommandée | Commande équivalente            |
-|-----------|-----------------------|---------------------------------|
 | prédire | `make predict`         | `poetry run python mybci.py S001 R01 predict`     |
 
 ---
@@ -368,10 +347,11 @@ monotrial robuste :
   Article de référence décrivant les stratégies d’optimisation de filtres
   spatiaux pour améliorer la robustesse de l’analyse EEG monotrial.
 
-- EEG Motor Movement/Imagery Dataset v1.0.0 — https://physionet.org/content/eegmmidb/1.0.0/
-- MNE-ICALabel (tutoriel Labeling ICA components) — https://labeling.ucsd.edu/tutorial/labels
-- MNE-Python : tutoriels officiels — https://mne.tools/dev/auto_tutorials/index.html
-- Importing EEG data (blog / guide pratique) — https://cbrnr.github.io/blog/importing-eeg-data/
+- 🗄️ [PhysioNet — EEG Motor Movement/Imagery Dataset v1.0.0](https://physionet.org/content/eegmmidb/1.0.0/)
+- 🏷️ [ICLabel — Tutoriel “EEG Independent Component Labeling”](https://labeling.ucsd.edu/tutorial/labels)
+- 📚 [MNE-Python — Tutoriels officiels](https://mne.tools/dev/auto_tutorials/index.html)
+- 📝 [Importing EEG data — blog / guide pratique](https://cbrnr.github.io/blog/importing-eeg-data/)
+
 
 
 ---
