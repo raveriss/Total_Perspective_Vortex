@@ -248,6 +248,8 @@ def _run_global_evaluation(
     }
     # Prépare la liste des sujets/run introuvables pour informer l'utilisateur
     missing_entries: list[str] = []
+    # Prépare la liste des expériences ignorées faute d'artefacts présents
+    skipped_experiments: list[ExperimentDefinition] = []
 
     # Parcourt chaque expérience pour préparer la liste des sujets évaluables
     for experiment in experiment_definitions:
@@ -281,6 +283,8 @@ def _run_global_evaluation(
                 "AVERTISSEMENT: aucun modèle disponible pour "
                 f"{experiment.run}, expérience {experiment.index} ignorée"
             )
+            # Archive l'expérience ignorée pour le résumé des moyennes
+            skipped_experiments.append(experiment)
             # Passe à l'expérience suivante pour éviter une boucle vide
             continue
         # Parcourt l'ensemble des 109 sujets numérotés de 1 à 109
@@ -316,13 +320,27 @@ def _run_global_evaluation(
     print("Mean accuracy of the six different experiments for all 109 subjects:")
     # Calcule et affiche la moyenne de chaque expérience
     for experiment in experiment_definitions:
+        # Extrait les scores accumulés pour l'expérience courante
+        experiment_scores = per_experiment_scores[experiment.index]
+        # Contrôle la disponibilité d'artefacts avant de calculer la moyenne
+        if not experiment_scores:
+            # Mentionne explicitement l'absence d'artefacts pour l'expérience
+            print(
+                "experiment "
+                f"{experiment.index}:\t\taccuracy = N/A (skipped)"
+            )
+            # Passe au run suivant pour éviter une moyenne vide
+            continue
         # Calcule la moyenne de l'expérience courante
-        experiment_mean = _safe_mean(per_experiment_scores[experiment.index])
+        experiment_mean = _safe_mean(experiment_scores)
         # Affiche la moyenne alignée sur l'exemple fourni
         print(f"experiment {experiment.index}:\t\taccuracy = " f"{experiment_mean:.4f}")
     # Calcule la moyenne globale des six expériences
     global_mean = _safe_mean(
-        _safe_mean(per_experiment_scores[exp.index]) for exp in experiment_definitions
+        # Agrège uniquement les expériences disposant d'artefacts
+        _safe_mean(per_experiment_scores[exp.index])
+        for exp in experiment_definitions
+        if per_experiment_scores[exp.index]
     )
     # Affiche la moyenne globale demandée par la consigne
     print(f"Mean accuracy of 6 experiments: {global_mean:.4f}")
@@ -354,6 +372,25 @@ def _run_global_evaluation(
                 f"Run {run}: modèles manquants pour {len(subjects)} sujets "
                 f"(exemples: {', '.join(subjects[:5])})"
             )
+        # Aide l'utilisateur en rappelant la commande de génération d'artefacts
+        print(
+            "Pour générer un modèle manquant, lancez par exemple :\n"
+            "  poetry run python scripts/train.py S001 R04 --feature-strategy fft "
+            "--dim-method pca"
+        )
+    # Vérifie si certaines expériences ont été ignorées pour le calcul global
+    if skipped_experiments:
+        # Résume les expériences ignorées pour clarifier le global_mean affiché
+        skipped_labels = ", ".join(
+            f"{exp.index} ({exp.run})" for exp in skipped_experiments
+        )
+        # Invite l'utilisateur à générer les artefacts avant de relancer
+        print(
+            "AVERTISSEMENT: les expériences suivantes ont été ignorées "
+            f"faute de modèles: {skipped_labels}. "
+            "Générez les artefacts correspondants pour obtenir une moyenne "
+            "complète."
+        )
     # Retourne 0 pour signaler le succès global
     return 0
 

@@ -162,6 +162,33 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 
 ---
 
+### 📦 Générer les artefacts manquants avant l'évaluation globale
+
+L'exécution de `poetry run python mybci.py` sans arguments déclenche
+l'évaluation des 6 expériences (R03 → R08) sur 109 sujets. Pour éviter
+les avertissements "aucun modèle disponible", assurez-vous que
+`artifacts/<subject>/<run>/model.joblib` existe pour chaque run visé.
+
+*Entraîner un modèle manquant pour un couple sujet/run* :
+
+```bash
+poetry run python scripts/train.py S001 R04 --feature-strategy fft --dim-method pca
+```
+
+*Boucler sur tous les runs avec un sujet donné (exemple S001)* :
+
+```bash
+for run in R03 R04 R05 R06 R07 R08; do
+  poetry run python scripts/train.py S001 "${run}" --feature-strategy fft --dim-method pca
+done
+```
+
+Répétez la commande pour les sujets nécessaires jusqu'à ce que chaque
+run dispose d'un modèle dans `artifacts/`. Les moyennes affichées par
+`mybci.py` excluront automatiquement les expériences sans artefacts.
+
+---
+
 # 🔬 1. Préprocessing & parsing EEG (MNE)
 
 * Lecture des fichiers Physionet
