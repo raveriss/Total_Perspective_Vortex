@@ -147,7 +147,7 @@ Total_Perspective_Vortex/
 
 ## 🚀 Mise en route : données, installation, entraînement, prédiction (Poetry + Makefile)
 
-Le projet utilise **Poetry exclusivement** (aucun `requirements.txt`).  
+Le projet utilise **Poetry exclusivement** (aucun `requirements.txt`).
 Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 
 ---
@@ -364,6 +364,6 @@ MIT License.
 # 👤 Auteur
 
 **Rafael Verissimo**
-Étudiant IA/Data — École 42 Paris  
-GitHub : https://github.com/raveriss  
+Étudiant IA/Data — École 42 Paris
+GitHub : https://github.com/raveriss
 LinkedIn : https://www.linkedin.com/in/verissimo-rafael/

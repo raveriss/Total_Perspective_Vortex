@@ -6,8 +6,11 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: end-of-file-fixer
+        exclude: "(^data/|^artifacts/|\\.(edf|event|npy)$)"
       - id: trailing-whitespace
+        exclude: "(^data/|^artifacts/|\\.(edf|event|npy)$)"
       - id: mixed-line-ending
+        exclude: "(^data/|^artifacts/|\\.(edf|event|npy)$)"
 
   # Formatage
   - repo: https://github.com/psf/black
