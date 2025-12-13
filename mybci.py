@@ -189,6 +189,34 @@ def _safe_mean(values: Iterable[float]) -> float:
     return mean(measurements)
 
 
+# Recense les sujets disposant d'un modèle entraîné pour un run donné
+def _subjects_with_available_model(run: str, artifacts_root: Path) -> list[int]:
+    """Liste les indices de sujets dont le modèle est présent sur disque."""
+
+    # Prépare une collection ordonnée pour les indices extraits
+    subjects: list[int] = []
+    # Parcourt les fichiers model.joblib correspondant au run demandé
+    for model_path in artifacts_root.glob(f"S*/{run}/model.joblib"):
+        # Identifie le dossier sujet à partir du chemin du modèle
+        subject_dir = model_path.parent.parent
+        # Vérifie que le nom de dossier respecte le préfixe attendu
+        if not subject_dir.name.startswith("S"):
+            # Ignore les dossiers inattendus pour éviter des erreurs de parsing
+            continue
+        try:
+            # Convertit la partie numérique du nom en entier pour l'itération
+            subject_index = int(subject_dir.name[1:])
+        except ValueError:
+            # Ignore les dossiers mal nommés pour maintenir la robustesse
+            continue
+        # Ajoute l'indice extrait pour inclure le sujet dans l'évaluation
+        subjects.append(subject_index)
+    # Trie les indices pour respecter l'ordre croissant des sujets
+    subjects.sort()
+    # Retourne la liste triée pour itérer dans un ordre reproductible
+    return subjects
+
+
 # Parcourt les 6 expériences et les 109 sujets en affichant les accuracies
 def _run_global_evaluation(
     experiments: Sequence[ExperimentDefinition] | None = None,
@@ -206,6 +234,12 @@ def _run_global_evaluation(
     artifacts_root = artifacts_dir or Path("artifacts")
     # Normalise le répertoire des EDF bruts désormais stockés dans data/
     raw_root = raw_dir or Path("data")
+    # Construit la liste des identifiants attendus pour les 109 sujets
+    expected_subjects = [_subject_identifier(idx) for idx in range(1, 110)]
+    # Prépare un cache pour les sujets disposant d'un modèle par run
+    available_subjects_by_run: dict[str, list[int]] = {}
+    # Prépare un relevé des modèles manquants par run pour informer l'utilisateur
+    missing_models_by_run: dict[str, list[str]] = {}
     # Prépare le stockage des accuracies par expérience
     per_experiment_scores: dict[int, list[float]] = {
         # Initialise la collection d'accuracies pour chaque expérience
@@ -215,10 +249,42 @@ def _run_global_evaluation(
     # Prépare la liste des sujets/run introuvables pour informer l'utilisateur
     missing_entries: list[str] = []
 
+    # Parcourt chaque expérience pour préparer la liste des sujets évaluables
+    for experiment in experiment_definitions:
+        # Ignore la pré-computation si le run a déjà été traité
+        if experiment.run in available_subjects_by_run:
+            # Passe au run suivant pour éviter un travail redondant
+            continue
+        # Recense les sujets disposant d'un modèle pour le run demandé
+        available_subjects = _subjects_with_available_model(
+            experiment.run, artifacts_root
+        )
+        # Associe la liste au run courant pour réutilisation dans la boucle
+        available_subjects_by_run[experiment.run] = available_subjects
+        # Construit la liste des identifiants attendus manquants pour ce run
+        missing_models = [
+            subject
+            for subject in expected_subjects
+            if subject not in (_subject_identifier(idx) for idx in available_subjects)
+        ]
+        # Stocke les manquants pour un message de synthèse après la boucle
+        missing_models_by_run[experiment.run] = missing_models
+
     # Parcourt chaque expérience demandée
     for experiment in experiment_definitions:
+        # Récupère la liste des sujets disposant d'un modèle pour ce run
+        available_subjects = available_subjects_by_run.get(experiment.run, [])
+        # Informe l'utilisateur si aucun modèle n'est disponible pour ce run
+        if not available_subjects:
+            # Signale que l'expérience sera ignorée faute de modèle présent
+            print(
+                "AVERTISSEMENT: aucun modèle disponible pour "
+                f"{experiment.run}, expérience {experiment.index} ignorée"
+            )
+            # Passe à l'expérience suivante pour éviter une boucle vide
+            continue
         # Parcourt l'ensemble des 109 sujets numérotés de 1 à 109
-        for subject_index in range(1, 110):
+        for subject_index in available_subjects:
             # Évalue le sujet courant sur l'expérience en cours
             try:
                 # Calcule l'accuracy en rechargeant le modèle entraîné
@@ -270,6 +336,24 @@ def _run_global_evaluation(
         )
         # Affiche un aperçu des premières références manquantes pour guider
         print("Premiers manquants: " + ", ".join(missing_entries[:10]))
+    # Vérifie s'il manque des modèles entraînés pour certains runs
+    if any(missing_models_by_run.values()):
+        # Informe l'utilisateur qu'il manque des artefacts pour plusieurs sujets
+        print(
+            "AVERTISSEMENT: certains modèles entraînés sont absents. "
+            "Générez ou copiez les artifacts manquants pour compléter l'évaluation."
+        )
+        # Parcourt les runs pour afficher un extrait des sujets à compléter
+        for run, subjects in sorted(missing_models_by_run.items()):
+            # Ignore l'affichage si aucun modèle ne manque pour ce run
+            if not subjects:
+                # Passe au run suivant lorsqu'il est complet
+                continue
+            # Affiche le nombre total de modèles manquants pour ce run
+            print(
+                f"Run {run}: modèles manquants pour {len(subjects)} sujets "
+                f"(exemples: {', '.join(subjects[:5])})"
+            )
     # Retourne 0 pour signaler le succès global
     return 0
 
