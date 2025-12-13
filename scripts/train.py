@@ -148,6 +148,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_RAW_DIR,
         help="Répertoire racine contenant les fichiers EDF bruts",
     )
+    # Ajoute un mode pour générer tous les .npy sans lancer un fit complet
+    parser.add_argument(
+        "--build-all",
+        action="store_true",
+        help="Génère les fichiers _X.npy/_y.npy pour tous les sujets détectés",
+    )
     # Ajoute une option pour spécifier la fréquence d'échantillonnage
     parser.add_argument(
         "--sfreq",
@@ -230,6 +236,38 @@ def _build_npy_from_edf(
 
     # Retourne les chemins nouvellement générés
     return features_path, labels_path
+
+
+# Construit les .npy pour l'ensemble des sujets disponibles
+def _build_all_npy(raw_dir: Path, data_dir: Path) -> None:
+    """Génère les fichiers numpy pour chaque run moteur disponible."""
+
+    # Parcourt les dossiers de sujets triés pour des logs prédictibles
+    subject_dirs = sorted(path for path in raw_dir.iterdir() if path.is_dir())
+
+    # Explore chaque sujet détecté dans le répertoire brut
+    for subject_dir in subject_dirs:
+        # Extrait l'identifiant du sujet à partir du nom de dossier
+        subject = subject_dir.name
+        # Liste tous les enregistrements EDF associés au sujet courant
+        edf_paths = sorted(subject_dir.glob(f"{subject}R*.edf"))
+
+        # Traite chaque enregistrement pour générer les .npy associés
+        for edf_path in edf_paths:
+            # Déduit le run en retirant le préfixe sujet du nom de fichier
+            run = edf_path.stem.replace(subject, "")
+
+            # Ignore explicitement les runs dépourvus d'événements moteurs
+            try:
+                _build_npy_from_edf(subject, run, data_dir, raw_dir)
+            except ValueError as error:
+                if "No motor events present" in str(error):
+                    print(
+                        "INFO: Événements moteurs absents pour "
+                        f"{subject} {run}, passage."
+                    )
+                    continue
+                raise
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
@@ -483,6 +521,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     # Parse les arguments fournis par l'utilisateur
     args = parser.parse_args(argv)
+    # Exécute la génération massive et s'arrête si le flag est positionné
+    if args.build_all:
+        _build_all_npy(args.raw_dir, args.data_dir)
+        return 0
     # Convertit l'option scaler "none" en None pour la pipeline
     scaler = None if args.scaler == "none" else args.scaler
     # Calcule la valeur de normalisation en inversant le flag d'opt-out
