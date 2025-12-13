@@ -21,8 +21,6 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 
 # Centralise le parsing et le contrôle qualité des fichiers EDF
-# Extrait les features fréquentielles depuis des epochs EEG
-from tpv import features as features_extraction
 from tpv import preprocessing
 
 # Permet de restaurer la matrice W pour des usages temps-réel
@@ -30,6 +28,9 @@ from tpv.dimensionality import TPVDimReducer
 
 # Permet de charger un pipeline entraîné pour la prédiction
 from tpv.pipeline import load_pipeline
+
+# Définit le volume attendu des données EEG brutes (trials, canaux, temps)
+EXPECTED_FEATURES_DIMENSIONS = 3
 
 # Définit le répertoire par défaut où chercher les enregistrements
 DEFAULT_DATA_DIR = Path("data")
@@ -147,7 +148,7 @@ def _build_npy_from_edf(
     data_dir: Path,
     raw_dir: Path,
 ) -> tuple[Path, Path]:
-    """Génère X et y depuis un fichier EDF brut Physionet."""
+    """Génère X (epochs brutes) et y depuis un fichier EDF Physionet."""
 
     # Calcule les chemins cibles pour les fichiers numpy
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
@@ -165,14 +166,14 @@ def _build_npy_from_edf(
     events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(raw)
     # Découpe le signal en epochs exploitables
     epochs = preprocessing.create_epochs_from_raw(raw, events, event_id)
-    # Extrait des features fréquentielles par défaut
-    features, _ = features_extraction.extract_features(epochs)
+    # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
+    epochs_data = epochs.get_data(copy=True)
     # Définit un mapping stable label → entier
     label_mapping = {label: idx for idx, label in enumerate(sorted(set(motor_labels)))}
     # Convertit les labels symboliques en entiers
     numeric_labels = np.array([label_mapping[label] for label in motor_labels])
-    # Persiste les features calculées
-    np.save(features_path, features)
+    # Persiste les epochs brutes pour déléguer l'extraction des features
+    np.save(features_path, epochs_data)
     # Persiste les labels alignés
     np.save(labels_path, numeric_labels)
     # Retourne les chemins nouvellement générés
@@ -190,12 +191,35 @@ def _load_data(
 
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
     # Construit les .npy depuis l'EDF si l'un d'eux manque
     if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
         # Convertit l'EDF associé en fichiers numpy persistés
         features_path, labels_path = _build_npy_from_edf(
             subject, run, data_dir, raw_dir
         )
+
     # Utilise numpy.load pour récupérer les features en mémoire
     X = np.load(features_path)
     # Utilise numpy.load pour récupérer les labels associés
