@@ -20,6 +20,9 @@ import numpy as np
 # Calcule les métriques de classification pour le rapport
 from sklearn.metrics import confusion_matrix
 
+# Expose l'entraînement programmatique pour générer un modèle manquant
+from scripts.train import DEFAULT_SAMPLING_RATE, TrainingRequest, run_training
+
 # Centralise le parsing et le contrôle qualité des fichiers EDF
 from tpv import preprocessing
 
@@ -28,9 +31,6 @@ from tpv.dimensionality import TPVDimReducer
 
 # Expose la configuration de pipeline pour déclencher un auto-train
 from tpv.pipeline import PipelineConfig, load_pipeline
-
-# Expose l'entraînement programmatique pour générer un modèle manquant
-from scripts.train import DEFAULT_SAMPLING_RATE, TrainingRequest, run_training
 
 # Définit le volume attendu des données EEG brutes (trials, canaux, temps)
 EXPECTED_FEATURES_DIMENSIONS = 3
