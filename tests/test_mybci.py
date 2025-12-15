@@ -633,3 +633,26 @@ def test_main_routes_to_realtime(monkeypatch):
         data_dir="custom-data",
         artifacts_dir="custom-artifacts",
     )
+
+
+def test_report_missing_artifacts_prioritizes_empty_runs(capsys):
+    missing_models_by_run = {
+        "R04": ["S01", "S02"],
+        "R05": ["S02"],
+        "R06": ["S01", "S02"],
+    }
+
+    mybci._report_missing_artifacts(
+        missing_entries=[],
+        missing_models_by_run=missing_models_by_run,
+        skipped_experiments=[
+            mybci.ExperimentDefinition(index=1, run="R04"),
+            mybci.ExperimentDefinition(index=3, run="R06"),
+        ],
+        expected_subject_count=2,
+    )
+
+    output = capsys.readouterr().out
+
+    assert "Runs sans aucun modèle disponible: R04, R06" in output
+    assert "Run R05: modèles manquants pour 1 sujets" in output
