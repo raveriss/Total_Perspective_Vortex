@@ -361,6 +361,7 @@ def _report_missing_artifacts(
     missing_entries: Sequence[str],
     missing_models_by_run: Mapping[str, Sequence[str]],
     skipped_experiments: Sequence[ExperimentDefinition],
+    expected_subject_count: int,
 ) -> None:
     """Émet les avertissements sur les données et modèles manquants."""
 
@@ -381,6 +382,15 @@ def _report_missing_artifacts(
             "AVERTISSEMENT: certains modèles entraînés sont absents. "
             "Générez ou copiez les artifacts manquants pour compléter l'évaluation."
         )
+        # Identifie les runs totalement dépourvus de modèles pour prioriser les actions
+        fully_missing_runs = [
+            run
+            for run, subjects in sorted(missing_models_by_run.items())
+            if subjects and len(subjects) == expected_subject_count
+        ]
+        # Met en avant les runs sans modèles pour débloquer la génération
+        if fully_missing_runs:
+            print("Runs sans aucun modèle disponible: " + ", ".join(fully_missing_runs))
         # Parcourt les runs pour afficher un extrait des sujets à compléter
         for run, subjects in sorted(missing_models_by_run.items()):
             # Ignore l'affichage si aucun modèle ne manque pour ce run
@@ -448,7 +458,10 @@ def _run_global_evaluation(
     _print_experiment_means(experiment_definitions, per_experiment_scores)
     # Émet un récapitulatif des artefacts manquants
     _report_missing_artifacts(
-        missing_entries, missing_models_by_run, skipped_experiments
+        missing_entries,
+        missing_models_by_run,
+        skipped_experiments,
+        len(expected_subjects),
     )
     # Retourne 0 pour signaler le succès global
     return 0
