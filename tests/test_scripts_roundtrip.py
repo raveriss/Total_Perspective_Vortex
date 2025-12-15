@@ -227,6 +227,62 @@ def test_run_training_handles_two_splits_without_cv(tmp_path):
     assert manifest["artifacts"]["scaler"] is None
 
 
+# Vérifie que _load_data reconstruit les .npy corrompus via l'EDF
+def test_load_data_rebuilds_after_corruption(tmp_path, monkeypatch):
+    """Forcer la reconstruction quand np.load échoue sur un fichier corrompu."""
+
+    # Prépare le sujet fictif pour isoler les chemins de test
+    subject = "S077"
+    # Prépare le run fictif pour déclencher la branche de reconstruction
+    run = "R09"
+    # Construit le répertoire racine des données simulées
+    data_dir = tmp_path / "data"
+    # Construit un répertoire brut factice pour respecter la signature
+    raw_dir = tmp_path / "raw"
+    # Compose le dossier sujet où seront placés les fichiers corrompus
+    subject_dir = data_dir / subject
+    # Crée l'arborescence pour simuler des fichiers déjà présents
+    subject_dir.mkdir(parents=True)
+    # Crée un fichier X illisible pour provoquer un ValueError lors du chargement
+    (subject_dir / f"{run}_X.npy").write_text("corrupted payload")
+    # Génère un y minimal pour respecter la convention de nommage
+    np.save(subject_dir / f"{run}_y.npy", np.array([0, 1]))
+    # Prépare les features que le stub va écrire lors de la reconstruction
+    rebuilt_X = np.ones((2, 2, 2))
+    # Prépare les labels régénérés pour valider la correspondance
+    rebuilt_y = np.array([1, 0])
+    # Trace les appels pour s'assurer que la reconstruction a été sollicitée
+    calls: list[tuple[str, str]] = []
+
+    # Déclare un stub pour remplacer la reconstruction EDF pendant le test
+    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg):
+        # Archive les arguments pour vérifier la propagation des paramètres
+        calls.append((subject_arg, run_arg))
+        # Construit les chemins de sortie pour les fichiers régénérés
+        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
+        # Construit le chemin des labels pour rester cohérent avec _load_data
+        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+        # Sauvegarde les features reconstruites pour remplacer le fichier corrompu
+        np.save(features_path, rebuilt_X)
+        # Sauvegarde les labels régénérés pour réaligner X et y
+        np.save(labels_path, rebuilt_y)
+        # Retourne les chemins pour respecter l'interface attendue
+        return features_path, labels_path
+
+    # Injecte le stub pour forcer le chemin de reconstruction
+    monkeypatch.setattr(train, "_build_npy_from_edf", fake_build_npy)
+
+    # Charge les données, ce qui doit déclencher la reconstruction simulée
+    X, y = train._load_data(subject, run, data_dir, raw_dir)
+
+    # Vérifie que la reconstruction a bien été invoquée pendant le chargement
+    assert calls == [(subject, run)]
+    # Vérifie que les features proviennent bien des fichiers reconstruits
+    assert np.array_equal(X, rebuilt_X)
+    # Vérifie que les labels proviennent bien des fichiers reconstruits
+    assert np.array_equal(y, rebuilt_y)
+
+
 # Vérifie que _get_git_commit gère l'absence complète du dépôt
 def test_get_git_commit_returns_unknown_without_repo(tmp_path, monkeypatch):
     """Couvre les branches de secours lorsque .git n'existe pas."""

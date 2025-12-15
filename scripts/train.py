@@ -414,33 +414,58 @@ def _load_data(
 
     # Indique si nous devons régénérer les .npy
     needs_rebuild = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
         needs_rebuild = True
     else:
-        # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode="r")
-        # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode="r")
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
 
-        # Cas 2 : X n'a pas la bonne dimension → reconstruction
-        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-            print(
-                "INFO: X chargé depuis "
-                f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                "régénération depuis l'EDF..."
-            )
-            needs_rebuild = True
-        # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-        elif candidate_X.shape[0] != candidate_y.shape[0]:
-            print(
-                "INFO: Désalignement détecté pour "
-                f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-            )
-            needs_rebuild = True
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
