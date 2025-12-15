@@ -77,6 +77,21 @@ class TrainingRequest:
     raw_dir: Path = DEFAULT_RAW_DIR
 
 
+# Centralise les ressources partagées entre plusieurs entraînements
+@dataclass
+class TrainingResources:
+    """Agrège les chemins et la configuration pipeline pour un batch."""
+
+    # Transporte la configuration partagée pour toutes les exécutions
+    pipeline_config: PipelineConfig
+    # Spécifie le répertoire contenant les données numpy
+    data_dir: Path
+    # Spécifie le répertoire racine pour déposer les artefacts
+    artifacts_dir: Path
+    # Spécifie le répertoire des enregistrements EDF bruts
+    raw_dir: Path = DEFAULT_RAW_DIR
+
+
 # Construit un argument parser aligné sur la CLI mybci
 def build_parser() -> argparse.ArgumentParser:
     """Construit le parser CLI pour l'entraînement TPV."""
@@ -295,10 +310,7 @@ def _list_subjects(raw_dir: Path) -> list[str]:
 def _train_single_run(
     subject: str,
     run: str,
-    config: PipelineConfig,
-    data_dir: Path,
-    artifacts_dir: Path,
-    raw_dir: Path,
+    resources: TrainingResources,
 ) -> bool:
     """Lance l'entraînement d'un sujet pour un run donné."""
 
@@ -306,10 +318,10 @@ def _train_single_run(
     request = TrainingRequest(
         subject=subject,
         run=run,
-        pipeline_config=config,
-        data_dir=data_dir,
-        artifacts_dir=artifacts_dir,
-        raw_dir=raw_dir,
+        pipeline_config=resources.pipeline_config,
+        data_dir=resources.data_dir,
+        artifacts_dir=resources.artifacts_dir,
+        raw_dir=resources.raw_dir,
     )
     # Protège l'appel pour signaler les données manquantes sans stopper la boucle
     try:
@@ -335,6 +347,13 @@ def _train_all_runs(
 
     # Récupère la liste des sujets disponibles dans le répertoire brut
     subjects = _list_subjects(raw_dir)
+    # Centralise les ressources immuables pour éviter des répétitions
+    resources = TrainingResources(
+        pipeline_config=config,
+        data_dir=data_dir,
+        artifacts_dir=artifacts_dir,
+        raw_dir=raw_dir,
+    )
     # Prépare un compteur d'échecs pour informer l'utilisateur à la fin
     failures = 0
     # Parcourt chaque sujet détecté
@@ -356,10 +375,7 @@ def _train_all_runs(
             success = _train_single_run(
                 subject,
                 run,
-                config,
-                data_dir,
-                artifacts_dir,
-                raw_dir,
+                resources,
             )
             # Incrémente le compteur d'échecs lorsque l'entraînement échoue
             if not success:
@@ -373,9 +389,7 @@ def _train_all_runs(
         )
     else:
         # Confirme que tous les artefacts ont été générés avec succès
-        print(
-            "INFO: modèles entraînés pour tous les runs moteurs détectés."
-        )
+        print("INFO: modèles entraînés pour tous les runs moteurs détectés.")
     # Retourne 1 si des échecs sont survenus pour refléter l'état global
     return 1 if failures else 0
 
