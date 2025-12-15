@@ -388,12 +388,9 @@ def _report_missing_artifacts(
             for run, subjects in sorted(missing_models_by_run.items())
             if subjects and len(subjects) == expected_subject_count
         ]
-        # Souligne explicitement les runs bloquants pour guider la génération d'artefacts
+        # Met en avant les runs sans modèles pour débloquer la génération
         if fully_missing_runs:
-            print(
-                "Runs sans aucun modèle disponible: "
-                + ", ".join(fully_missing_runs)
-            )
+            print("Runs sans aucun modèle disponible: " + ", ".join(fully_missing_runs))
         # Parcourt les runs pour afficher un extrait des sujets à compléter
         for run, subjects in sorted(missing_models_by_run.items()):
             # Ignore l'affichage si aucun modèle ne manque pour ce run
