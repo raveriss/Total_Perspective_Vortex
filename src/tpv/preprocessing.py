@@ -197,8 +197,35 @@ def load_mne_raw_checked(
         )
     # Load the raw file with preload enabled for immediate validation
     raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    # Extract the sampling frequency reported by the recording
+    sampling_rate = float(raw.info["sfreq"])
+    # Validate the sampling frequency against the expected configuration
+    if not np.isclose(sampling_rate, expected_sampling_rate):
+        # Raise a descriptive error when the sampling rate deviates
+        raise ValueError(
+            f"Expected sampling rate {expected_sampling_rate}Hz "
+            f"but got {sampling_rate}Hz"
+        )
     # Renomme les canaux bruts pour les aligner sur le montage standard
     raw = _rename_channels_for_montage(raw)
+    # Gather channel names from the recording for consistency checks
+    channel_names = list(raw.ch_names)
+    # Identify unexpected channels that would break downstream spatial filters
+    extra_channels = sorted(set(channel_names) - set(expected_channels))
+    # Identify missing channels that would prevent feature extraction
+    missing_channels = sorted(set(expected_channels) - set(channel_names))
+    # Raise early when unexpected channels would trigger montage warnings
+    if extra_channels:
+        # Compose a readable error describing both types of discrepancies
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Channel mismatch",
+                    "extra": extra_channels,
+                    "missing": missing_channels,
+                }
+            )
+        )
     # Apply the montage to ensure spatial layout matches expectations
     raw.set_montage(expected_montage, on_missing="warn")
     # Retrieve the effective montage to confirm it has been attached
@@ -223,33 +250,6 @@ def load_mne_raw_checked(
                     "missing_channels": missing_montage_channels,
                     "extra": extra_montage_channels,
                     "montage": expected_montage,
-                }
-            )
-        )
-    # Extract the sampling frequency reported by the recording
-    sampling_rate = float(raw.info["sfreq"])
-    # Validate the sampling frequency against the expected configuration
-    if not np.isclose(sampling_rate, expected_sampling_rate):
-        # Raise a descriptive error when the sampling rate deviates
-        raise ValueError(
-            f"Expected sampling rate {expected_sampling_rate}Hz "
-            f"but got {sampling_rate}Hz"
-        )
-    # Gather channel names from the recording for consistency checks
-    channel_names = list(raw.ch_names)
-    # Identify unexpected channels that would break downstream spatial filters
-    extra_channels = sorted(set(channel_names) - set(expected_channels))
-    # Identify missing channels that would prevent feature extraction
-    missing_channels = sorted(set(expected_channels) - set(channel_names))
-    # Raise an explicit error when the channel layout is inconsistent
-    if extra_channels or missing_channels:
-        # Compose a readable error describing both types of discrepancies
-        raise ValueError(
-            json.dumps(
-                {
-                    "error": "Channel mismatch",
-                    "extra": extra_channels,
-                    "missing": missing_channels,
                 }
             )
         )
