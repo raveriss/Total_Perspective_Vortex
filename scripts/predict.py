@@ -26,8 +26,11 @@ from tpv import preprocessing
 # Permet de restaurer la matrice W pour des usages temps-réel
 from tpv.dimensionality import TPVDimReducer
 
-# Permet de charger un pipeline entraîné pour la prédiction
-from tpv.pipeline import load_pipeline
+# Expose la configuration de pipeline pour déclencher un auto-train
+from tpv.pipeline import PipelineConfig, load_pipeline
+
+# Expose l'entraînement programmatique pour générer un modèle manquant
+from scripts.train import DEFAULT_SAMPLING_RATE, TrainingRequest, run_training
 
 # Définit le volume attendu des données EEG brutes (trials, canaux, temps)
 EXPECTED_FEATURES_DIMENSIONS = 3
@@ -337,6 +340,39 @@ def _write_reports(
     }
 
 
+# Entraîne un modèle par défaut lorsqu'aucun artefact n'est disponible
+def _train_missing_pipeline(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path,
+) -> None:
+    """Construit un pipeline FFT/PCA/LDA lorsque le modèle manque."""
+
+    # Utilise la fréquence de référence pour aligner extraction et entraînement
+    pipeline_config = PipelineConfig(
+        sfreq=DEFAULT_SAMPLING_RATE,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+        n_components=None,
+        classifier="lda",
+        scaler=None,
+    )
+    # Prépare la requête pour déléguer l'entraînement à scripts.train
+    request = TrainingRequest(
+        subject=subject,
+        run=run,
+        pipeline_config=pipeline_config,
+        data_dir=data_dir,
+        artifacts_dir=artifacts_dir,
+        raw_dir=raw_dir,
+    )
+    # Lance l'entraînement pour matérialiser model.joblib et w_matrix.joblib
+    run_training(request)
+
+
 # Évalue un run donné et produit un rapport structuré
 def evaluate_run(
     subject: str,
@@ -353,14 +389,27 @@ def evaluate_run(
     target_dir = artifacts_dir / subject / run
     # Assure la présence du dossier pour pouvoir écrire les rapports
     target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
     # Charge la pipeline entraînée depuis le joblib sauvegardé
-    pipeline = load_pipeline(str(target_dir / "model.joblib"))
+    pipeline = load_pipeline(str(model_path))
     # Génère les prédictions individuelles pour le rapport
     y_pred = pipeline.predict(X)
     # Calcule l'accuracy du pipeline sur les données fournies
     accuracy = float(pipeline.score(X, y))
     # Recharge la matrice W pour confirmer sa présence
-    w_matrix = _load_w_matrix(target_dir / "w_matrix.joblib")
+    w_matrix = _load_w_matrix(w_matrix_path)
     # Écrit les rapports JSON et CSV dans le dossier d'artefacts
     reports = _write_reports(
         target_dir,
