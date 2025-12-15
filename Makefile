@@ -6,7 +6,7 @@
 #   - Fournir des commandes pratiques pour l’entraînement et la prédiction du modèle
 # ========================================================================================
 
-.PHONY: install lint format type test cov mut train predict activate deactivate clean-mutants
+.PHONY: install lint format type test cov mut train predict bench activate deactivate clean-mutants
 
 VENV = .venv
 VENV_BIN = $(VENV)/bin/activate
@@ -93,6 +93,12 @@ train:
 # Prédiction : exemple minimal réutilisant les identifiants ci-dessus
 predict:
 	$(POETRY) python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict
+
+# Évaluation globale : équivalent à `python mybci.py` du sujet
+bench:
+	@mkdir -p $(BENCH_DIR)
+	$(POETRY) python mybci.py | tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log
+
 
 # Affiche la commande pour activer le venv
 activate:
