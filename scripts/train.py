@@ -36,6 +36,9 @@ from tpv.dimensionality import TPVDimReducer
 # Assemble la pipeline cohérente pour l'entraînement
 from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
 
+# Déclare la liste des runs moteurs à couvrir pour l'entraînement massif
+MOTOR_RUNS = ("R03", "R04", "R05", "R06", "R07", "R08")
+
 # Définit le répertoire par défaut où chercher les enregistrements
 DEFAULT_DATA_DIR = Path("data")
 
@@ -65,6 +68,21 @@ class TrainingRequest:
     # Identifie le run ciblé pour le sujet sélectionné
     run: str
     # Transporte la configuration complète de pipeline
+    pipeline_config: PipelineConfig
+    # Spécifie le répertoire contenant les données numpy
+    data_dir: Path
+    # Spécifie le répertoire racine pour déposer les artefacts
+    artifacts_dir: Path
+    # Spécifie le répertoire des enregistrements EDF bruts
+    raw_dir: Path = DEFAULT_RAW_DIR
+
+
+# Centralise les ressources partagées entre plusieurs entraînements
+@dataclass
+class TrainingResources:
+    """Agrège les chemins et la configuration pipeline pour un batch."""
+
+    # Transporte la configuration partagée pour toutes les exécutions
     pipeline_config: PipelineConfig
     # Spécifie le répertoire contenant les données numpy
     data_dir: Path
@@ -153,6 +171,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--build-all",
         action="store_true",
         help="Génère les fichiers _X.npy/_y.npy pour tous les sujets détectés",
+    )
+    # Ajoute un mode pour entraîner tous les runs moteurs disponibles
+    parser.add_argument(
+        "--train-all",
+        action="store_true",
+        help="Entraîne tous les sujets/runs détectés dans data/",
     )
     # Ajoute une option pour spécifier la fréquence d'échantillonnage
     parser.add_argument(
@@ -268,6 +292,106 @@ def _build_all_npy(raw_dir: Path, data_dir: Path) -> None:
                     )
                     continue
                 raise
+
+
+# Liste les sujets disponibles dans le répertoire brut
+def _list_subjects(raw_dir: Path) -> list[str]:
+    """Retourne les identifiants de sujets triés présents dans raw_dir."""
+
+    # Construit la liste des dossiers de sujets pour préparer l'entraînement
+    subjects = [entry.name for entry in raw_dir.iterdir() if entry.is_dir()]
+    # Trie les identifiants pour obtenir des logs stables et reproductibles
+    subjects.sort()
+    # Retourne la liste triée pour l'appelant
+    return subjects
+
+
+# Entraîne un couple sujet/run en réutilisant la configuration partagée
+def _train_single_run(
+    subject: str,
+    run: str,
+    resources: TrainingResources,
+) -> bool:
+    """Lance l'entraînement d'un sujet pour un run donné."""
+
+    # Prépare la requête complète pour exécuter run_training
+    request = TrainingRequest(
+        subject=subject,
+        run=run,
+        pipeline_config=resources.pipeline_config,
+        data_dir=resources.data_dir,
+        artifacts_dir=resources.artifacts_dir,
+        raw_dir=resources.raw_dir,
+    )
+    # Protège l'appel pour signaler les données manquantes sans stopper la boucle
+    try:
+        # Entraîne la pipeline et persiste les artefacts nécessaires
+        _ = run_training(request)
+    except FileNotFoundError as error:
+        # Alerte l'utilisateur lorsqu'un EDF ou des événements sont absents
+        print(f"AVERTISSEMENT: {error}")
+        # Indique l'échec pour déclencher un récapitulatif final
+        return False
+    # Retourne True pour signaler un entraînement réussi
+    return True
+
+
+# Entraîne tous les runs moteurs pour chaque sujet détecté
+def _train_all_runs(
+    config: PipelineConfig,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path,
+) -> int:
+    """Parcourt les sujets et runs moteurs pour générer tous les modèles."""
+
+    # Récupère la liste des sujets disponibles dans le répertoire brut
+    subjects = _list_subjects(raw_dir)
+    # Centralise les ressources immuables pour éviter des répétitions
+    resources = TrainingResources(
+        pipeline_config=config,
+        data_dir=data_dir,
+        artifacts_dir=artifacts_dir,
+        raw_dir=raw_dir,
+    )
+    # Prépare un compteur d'échecs pour informer l'utilisateur à la fin
+    failures = 0
+    # Parcourt chaque sujet détecté
+    for subject in subjects:
+        # Parcourt chaque run moteur attendu
+        for run in MOTOR_RUNS:
+            # Calcule le chemin EDF attendu pour vérifier l'existence
+            raw_path = raw_dir / subject / f"{subject}{run}.edf"
+            # Ignore le couple lorsque l'EDF est absent du disque
+            if not raw_path.exists():
+                # Informe l'utilisateur de l'absence pour transparence
+                print(
+                    "INFO: EDF introuvable pour "
+                    f"{subject} {run} dans {raw_path.parent}, passage."
+                )
+                # Passe au run suivant sans incrémenter les échecs
+                continue
+            # Entraîne le run courant et capture le statut
+            success = _train_single_run(
+                subject,
+                run,
+                resources,
+            )
+            # Incrémente le compteur d'échecs lorsque l'entraînement échoue
+            if not success:
+                failures += 1
+    # Affiche un résumé pour guider l'utilisateur après la boucle
+    if failures:
+        # Mentionne le nombre total d'entraînements manquants
+        print(
+            "AVERTISSEMENT: certains entraînements ont échoué. "
+            f"Exécutions manquantes: {failures}."
+        )
+    else:
+        # Confirme que tous les artefacts ont été générés avec succès
+        print("INFO: modèles entraînés pour tous les runs moteurs détectés.")
+    # Retourne 1 si des échecs sont survenus pour refléter l'état global
+    return 1 if failures else 0
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
@@ -541,6 +665,15 @@ def main(argv: list[str] | None = None) -> int:
         classifier=args.classifier,
         scaler=scaler,
     )
+    # Déclenche l'entraînement massif si le flag est activé
+    if args.train_all:
+        # Propulse la configuration commune vers l'ensemble des runs moteurs
+        return _train_all_runs(
+            config,
+            args.data_dir,
+            args.artifacts_dir,
+            args.raw_dir,
+        )
     # Regroupe les paramètres d'entraînement dans une structure dédiée
     request = TrainingRequest(
         subject=args.subject,

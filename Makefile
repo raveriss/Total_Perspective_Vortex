@@ -78,12 +78,17 @@ mut: clean-mutants cov
 
 TRAIN_SUBJECT ?= S001
 TRAIN_RUN ?= R03
+TRAIN_ALL ?= true
 PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
 PREDICT_RUN ?= $(TRAIN_RUN)
 
 # Entraînement du modèle : exemple minimal avec sujet et run de démonstration
 train:
-	$(POETRY) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train
+	@if [ "$(TRAIN_ALL)" = "true" ]; then \
+	$(POETRY) python scripts/train.py --train-all --feature-strategy fft --dim-method pca; \
+	else \
+	$(POETRY) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train; \
+	fi
 
 # Prédiction : exemple minimal réutilisant les identifiants ci-dessus
 predict:
