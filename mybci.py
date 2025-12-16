@@ -23,6 +23,9 @@ from statistics import mean
 # Garantit l'accès aux séquences typées pour mypy
 from typing import Iterable, Mapping, Sequence
 
+# Assure l'accès à tpv via src lors d'une exécution locale
+sys.path.append(str(Path(__file__).resolve().parent / "src"))
+
 # Fournit les fonctions de prédiction pour l'évaluation globale
 from tpv import predict as tpv_predict
 
