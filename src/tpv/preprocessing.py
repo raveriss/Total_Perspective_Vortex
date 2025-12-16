@@ -17,6 +17,9 @@ import hashlib
 # Conserve json pour formater les rapports d’erreurs de comptage de runs
 import json
 
+# Capture les avertissements de lecture pour neutraliser les faux positifs
+import warnings
+
 # Utilise pathlib pour assurer la portabilité des interactions fichiers
 # Introduit dataclass pour regrouper la configuration de rapport
 from dataclasses import dataclass
@@ -26,9 +29,6 @@ from pathlib import Path
 
 # Centralise les hints pour clarifier les attentes des appels et des tests
 from typing import Any, Dict, List, Mapping, Tuple
-
-# Capture les avertissements de lecture pour neutraliser les faux positifs
-import warnings
 
 # MNE est obligatoire pour le parsing EDF/BDF et la gestion des epochs
 import mne
