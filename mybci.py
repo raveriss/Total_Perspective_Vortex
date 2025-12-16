@@ -23,6 +23,9 @@ from statistics import mean
 # Garantit l'accès aux séquences typées pour mypy
 from typing import Iterable, Mapping, Sequence
 
+# Fournit une barre de progression compacte pendant l'évaluation globale
+from tqdm import tqdm
+
 # Assure l'accès à tpv via src lors d'une exécution locale
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
 
@@ -76,6 +79,19 @@ class ModuleCallConfig:
     n_components: int | None
     # Indique si les features doivent être normalisées
     normalize_features: bool
+
+
+# Centralise les répertoires nécessaires pendant l'évaluation globale
+@dataclass
+class EvaluationPaths:
+    """Conteneur des chemins racine utilisés pendant l'évaluation."""
+
+    # Stocke le chemin vers les données prétraitées pour les runs
+    data_root: Path
+    # Stocke le chemin vers les artefacts entraînés pour les runs
+    artifacts_root: Path
+    # Stocke le chemin vers les fichiers EDF bruts pour les runs
+    raw_root: Path
 
 
 # Construit la ligne de commande pour invoquer un module TPV
@@ -251,9 +267,8 @@ def _collect_run_availability(
 def _evaluate_experiments(
     experiments: Sequence[ExperimentDefinition],
     available_subjects_by_run: Mapping[str, Sequence[int]],
-    data_root: Path,
-    artifacts_root: Path,
-    raw_root: Path,
+    paths: EvaluationPaths,
+    progress: tqdm | None = None,
 ) -> tuple[dict[int, list[float]], list[str], list[ExperimentDefinition]]:
     """Exécute les évaluations et retourne les scores et manquants."""
 
@@ -290,9 +305,9 @@ def _evaluate_experiments(
                 accuracy = _evaluate_experiment_subject(
                     experiment,
                     subject_index,
-                    data_root,
-                    artifacts_root,
-                    raw_root,
+                    paths.data_root,
+                    paths.artifacts_root,
+                    paths.raw_root,
                 )
             except FileNotFoundError as error:
                 # Informe l'utilisateur qu'un prérequis manque pour ce run
@@ -303,6 +318,11 @@ def _evaluate_experiments(
                 missing_entries.append(f"{subject}:{experiment.run}")
                 # Ignore ce sujet pour poursuivre l'exploration globale
                 continue
+            finally:
+                # Actualise la barre de progression lorsqu'elle est activée
+                if progress is not None:
+                    # Incrémente la progression d'un sujet évalué ou tenté
+                    progress.update(1)
             # Stocke l'accuracy pour le calcul des moyennes
             per_experiment_scores[experiment.index].append(accuracy)
             # Affiche l'accuracy du sujet au format imposé
@@ -440,14 +460,42 @@ def _run_global_evaluation(
     available_subjects_by_run, missing_models_by_run = _collect_run_availability(
         experiment_definitions, expected_subjects
     )
+    # Calcule le nombre total de sujets évalués pour calibrer la progression
+    total_subjects = sum(
+        # Calcule le nombre de sujets associés à chaque run
+        len(available_subjects_by_run.get(experiment.run, []))
+        # Parcourt toutes les expériences à traiter
+        for experiment in experiment_definitions
+    )
+    # Instancie une barre de progression pour suivre la boucle exhaustive
+    progress = tqdm(
+        # Fixe le nombre total d'itérations attendues
+        total=total_subjects,
+        # Décrit l'étape pour contextualiser la jauge
+        desc="Évaluation globale",
+        # Spécifie l'unité pour l'affichage lisible
+        unit="sujets",
+        # Colore la jauge pour la rendre visible dans le flux INFO
+        colour="cyan",
+        # Évite de laisser la barre bloquer la sortie finale
+        leave=False,
+    )
     # Exécute les évaluations et collecte les résultats
     per_experiment_scores, missing_entries, skipped_experiments = _evaluate_experiments(
         experiment_definitions,
         available_subjects_by_run,
-        data_root,
-        artifacts_root,
-        raw_root,
+        EvaluationPaths(
+            # Fournit le répertoire racine des données prétraitées
+            data_root=data_root,
+            # Fournit le répertoire racine des artefacts entraînés
+            artifacts_root=artifacts_root,
+            # Fournit le répertoire racine des fichiers EDF bruts
+            raw_root=raw_root,
+        ),
+        progress,
     )
+    # Termine la barre de progression pour libérer la sortie standard
+    progress.close()
     # Calcule et affiche les moyennes par expérience
     _print_experiment_means(experiment_definitions, per_experiment_scores)
     # Émet un récapitulatif des artefacts manquants
