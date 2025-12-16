@@ -81,6 +81,19 @@ class ModuleCallConfig:
     normalize_features: bool
 
 
+# Centralise les répertoires nécessaires pendant l'évaluation globale
+@dataclass
+class EvaluationPaths:
+    """Conteneur des chemins racine utilisés pendant l'évaluation."""
+
+    # Stocke le chemin vers les données prétraitées pour les runs
+    data_root: Path
+    # Stocke le chemin vers les artefacts entraînés pour les runs
+    artifacts_root: Path
+    # Stocke le chemin vers les fichiers EDF bruts pour les runs
+    raw_root: Path
+
+
 # Construit la ligne de commande pour invoquer un module TPV
 def _call_module(module_name: str, config: ModuleCallConfig) -> int:
     """Invoke un module TPV en ajoutant les options du pipeline."""
@@ -254,9 +267,7 @@ def _collect_run_availability(
 def _evaluate_experiments(
     experiments: Sequence[ExperimentDefinition],
     available_subjects_by_run: Mapping[str, Sequence[int]],
-    data_root: Path,
-    artifacts_root: Path,
-    raw_root: Path,
+    paths: EvaluationPaths,
     progress: tqdm | None = None,
 ) -> tuple[dict[int, list[float]], list[str], list[ExperimentDefinition]]:
     """Exécute les évaluations et retourne les scores et manquants."""
@@ -294,9 +305,9 @@ def _evaluate_experiments(
                 accuracy = _evaluate_experiment_subject(
                     experiment,
                     subject_index,
-                    data_root,
-                    artifacts_root,
-                    raw_root,
+                    paths.data_root,
+                    paths.artifacts_root,
+                    paths.raw_root,
                 )
             except FileNotFoundError as error:
                 # Informe l'utilisateur qu'un prérequis manque pour ce run
@@ -473,9 +484,14 @@ def _run_global_evaluation(
     per_experiment_scores, missing_entries, skipped_experiments = _evaluate_experiments(
         experiment_definitions,
         available_subjects_by_run,
-        data_root,
-        artifacts_root,
-        raw_root,
+        EvaluationPaths(
+            # Fournit le répertoire racine des données prétraitées
+            data_root=data_root,
+            # Fournit le répertoire racine des artefacts entraînés
+            artifacts_root=artifacts_root,
+            # Fournit le répertoire racine des fichiers EDF bruts
+            raw_root=raw_root,
+        ),
         progress,
     )
     # Termine la barre de progression pour libérer la sortie standard
