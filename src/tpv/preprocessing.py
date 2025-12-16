@@ -17,6 +17,9 @@ import hashlib
 # Conserve json pour formater les rapports d’erreurs de comptage de runs
 import json
 
+# Capture les avertissements de lecture pour neutraliser les faux positifs
+import warnings
+
 # Utilise pathlib pour assurer la portabilité des interactions fichiers
 # Introduit dataclass pour regrouper la configuration de rapport
 from dataclasses import dataclass
@@ -333,8 +336,17 @@ def load_physionet_raw(
 
     # Resolve the input path to avoid surprises with relative locations
     normalized_path = Path(file_path).expanduser().resolve()
-    # Load the recording with preload to enable immediate validation steps
-    raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    # Encadre la lecture pour ignorer l'avertissement sur les annotations tronquées
+    with warnings.catch_warnings():
+        # Filtre l'avertissement MNE lorsque la durée dépasse la trace
+        warnings.filterwarnings(
+            "ignore",
+            message="Limited .*annotation.*outside the data range",
+            category=RuntimeWarning,
+            module="mne",
+        )
+        # Load the recording with preload to enable immediate validation steps
+        raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
     # Renomme les canaux pour les aligner sur le montage 10-20 utilisé
     raw = _rename_channels_for_montage(raw)
     # Attach the montage so downstream spatial filters assume 10-20 layout
