@@ -220,35 +220,26 @@ def _subjects_with_available_model(run: str, artifacts_root: Path) -> list[int]:
 # Prépare la disponibilité des modèles par run avant l'évaluation globale
 def _collect_run_availability(
     experiments: Sequence[ExperimentDefinition],
-    artifacts_root: Path,
     expected_subjects: Sequence[str],
 ) -> tuple[dict[str, list[int]], dict[str, list[str]]]:
-    """Construit les cartes de sujets disponibles et manquants par run."""
+    """Associe chaque run aux sujets attendus pour déclencher l'auto-train."""
 
-    # Prépare un cache pour éviter de recalculer les sujets par run
+    # Prépare un cache pour associer chaque run aux sujets parcourus
     available_subjects_by_run: dict[str, list[int]] = {}
-    # Prépare le relevé des sujets manquants pour informer l'utilisateur
+    # Prépare un relevé vide car l'auto-train doit combler les absences
     missing_models_by_run: dict[str, list[str]] = {}
-    # Parcourt chaque expérience pour collecter la disponibilité des modèles
+    # Parcourt chaque expérience pour initialiser la liste des sujets
     for experiment in experiments:
-        # Ignore le run déjà traité pour limiter le nombre d'itérations
+        # Ignore le run déjà traité pour éviter les doublons
         if experiment.run in available_subjects_by_run:
-            # Passe au run suivant car les données sont déjà en cache
+            # Passe au run suivant dès que le cache contient le run
             continue
-        # Recense les sujets disposant d'un modèle pour le run courant
-        available_subjects = _subjects_with_available_model(
-            experiment.run, artifacts_root
-        )
-        # Stocke la liste pour une réutilisation dans les étapes suivantes
-        available_subjects_by_run[experiment.run] = available_subjects
-        # Calcule les identifiants sujets manquants pour ce run
-        missing_models = [
-            subject
-            for subject in expected_subjects
-            if subject not in (_subject_identifier(idx) for idx in available_subjects)
-        ]
-        # Stocke les manquants pour générer un message consolidé
-        missing_models_by_run[experiment.run] = missing_models
+        # Convertit les identifiants Sxxx en indices numériques exploitables
+        subject_indices = [int(subject[1:]) for subject in expected_subjects]
+        # Associe tous les sujets au run pour laisser evaluate_run entraîner
+        available_subjects_by_run[experiment.run] = subject_indices
+        # Marque l'absence de modèles manquants grâce à l'auto-train
+        missing_models_by_run[experiment.run] = []
     # Retourne les deux structures pour l'évaluation globale
     return available_subjects_by_run, missing_models_by_run
 
@@ -444,7 +435,7 @@ def _run_global_evaluation(
     expected_subjects = [_subject_identifier(idx) for idx in range(1, 110)]
     # Calcule la disponibilité des modèles pour chaque run
     available_subjects_by_run, missing_models_by_run = _collect_run_availability(
-        experiment_definitions, artifacts_root, expected_subjects
+        experiment_definitions, expected_subjects
     )
     # Exécute les évaluations et collecte les résultats
     per_experiment_scores, missing_entries, skipped_experiments = _evaluate_experiments(
