@@ -73,13 +73,6 @@ Cloner le projet depuis GitHub :
 ```bash
 git clone https://github.com/raveriss/Total_Perspective_Vortex.git
 cd Total_Perspective_Vortex
-````
-
-Optionnel : récupérer uniquement la dernière révision (plus rapide) :
-
-```bash
-git clone --depth 1 https://github.com/raveriss/Total_Perspective_Vortex.git
-cd Total_Perspective_Vortex
 ```
 
 ---
@@ -153,32 +146,39 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 ---
 
 
-| Objectif   | Commande recommandée | Commande équivalente            |
-|-----------|-----------------------|---------------------------------|
-| Installer | `make install`         | `poetry install --with dev`     |
-| Préparer les données | `make data`            | `poetry run python scripts/prepare_physionet.py --source <url_ou_chemin_physionet> --manifest <manifest.json>`      |
-| Entraîner | `make train`         | `poetry run python mybci.py S001 R01 train`     |
-| prédire | `make predict`         | `poetry run python mybci.py S001 R01 predict`     |
+| Objectif | Commande recommandée | Commande équivalente |
+|---|---|---|
+| Installer | `make install` | `poetry install --with dev` |
+| Linter | `make lint` | `poetry run ruff check .` |
+| Formatter | `make format` | `poetry run ruff format . && poetry run ruff check --fix .` |
+| Type-check | `make type` | `poetry run mypy src scripts tests` |
+| Tests | `make test` | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest -vv` |
+| Coverage | `make cov` | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run coverage run -m pytest ...` |
+| Mutation | `make mut` | `MUTMUT_USE_COVERAGE=1 ... poetry run mutmut run` |
+| Entraîner | `make train` | `poetry run python mybci.py S109 R03 train` *(par défaut)* |
+| Prédire | `make predict` | `poetry run python mybci.py S109 R03 predict` *(par défaut)* |
+| Benchmark global | `make bench` | `poetry run python mybci.py` |
+| Nettoyer | `make clean` | supprime `./artifacts` + les `*.npy` (hors `.venv`, `.git`, `artifacts`) |
 
 ---
 
 ### 📦 Générer les artefacts manquants avant l'évaluation globale
 
 L'exécution de `poetry run python mybci.py` sans arguments déclenche
-l'évaluation des 6 expériences (R03 → R08) sur 109 sujets. Pour éviter
+l'évaluation des 6 expériences (R03 → R14) sur 109 sujets. Pour éviter
 les avertissements "aucun modèle disponible", assurez-vous que
 `artifacts/<subject>/<run>/model.joblib` existe pour chaque run visé.
 
 *Entraîner un modèle manquant pour un couple sujet/run* :
 
 ```bash
-poetry run python scripts/train.py S001 R04 --feature-strategy fft --dim-method pca
+poetry run python scripts/train.py S001 R04
 ```
 
 *Boucler sur tous les runs avec un sujet donné (exemple S001)* :
 
 ```bash
-for run in R03 R04 R05 R06 R07 R08; do
+for run in R03 R04 R05 R06 R07 R08 R09 R10 R11 R12 R13 R14; do
   poetry run python scripts/train.py S001 "${run}" --feature-strategy fft --dim-method pca
 done
 ```
