@@ -54,8 +54,8 @@ DEFAULT_RAW_DIR = Path("data")
 # Fige la fréquence d'échantillonnage par défaut utilisée pour les features
 DEFAULT_SAMPLING_RATE = 50.0
 
-# Déclare le seuil minimal de splits exigé pour la validation croisée
-MIN_CV_SPLITS = 3
+# Déclare le nombre cible de splits utilisé pour la validation croisée
+DEFAULT_CV_SPLITS = 10
 
 
 # Regroupe toutes les informations nécessaires à un run d'entraînement
@@ -602,12 +602,12 @@ def run_training(request: TrainingRequest) -> dict:
     pipeline = build_pipeline(request.pipeline_config)
     # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
     min_class_count = int(np.bincount(y).min())
-    # Choisit le nombre de splits en restant compatible avec la taille des classes
-    n_splits = min(MIN_CV_SPLITS, min_class_count) if min_class_count > 0 else 0
+    # Choisit le nombre de splits en respectant la disponibilité par classe
+    n_splits = min(DEFAULT_CV_SPLITS, min_class_count) if min_class_count > 1 else 0
     # Initialise un tableau vide lorsque la validation croisée est impossible
     cv_scores = np.array([])
-    # Lance la validation croisée seulement si chaque classe en dispose de trois
-    if n_splits >= MIN_CV_SPLITS:
+    # Lance la validation croisée seulement si chaque classe dispose de deux points
+    if n_splits >= 2:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
         cv = StratifiedKFold(n_splits=n_splits)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
@@ -724,11 +724,14 @@ def main(argv: list[str] | None = None) -> int:
 
     # Si des scores ont été calculés, on les affiche au format attendu
     if isinstance(cv_scores, np.ndarray) and cv_scores.size > 0:
+        # Formate les scores sur quatre décimales pour refléter la consigne
+        formatted_scores = np.array2string(cv_scores, precision=4, separator=" ")
         # Affiche le tableau numpy (format [0.6666 0.4444 ...])
-        print(cv_scores)
+        print(formatted_scores)
         # Calcule la moyenne pour l'affichage "cross_val_score: 0.5333"
         mean_score = float(cv_scores.mean())
-        print(f"cross_val_score: {mean_score}")
+        # Affiche la moyenne arrondie sur quatre décimales pour homogénéiser
+        print(f"cross_val_score: {mean_score:.4f}")
     else:
         # Fallback lisible si la CV n'a pas pu être calculée
         print(np.array([]))
