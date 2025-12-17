@@ -164,21 +164,20 @@ Total_Perspective_Vortex/
 │       ├── realtime.py
 │       ├── train.py
 │       └── utils.py
-├── tests
-│   ├── test_benchmark.py
-│   ├── test_classifier.py
-│   ├── test_dimensionality.py
-│   ├── test_features.py
-│   ├── test_fetch_physionet.py
-│   ├── test_mybci.py
-│   ├── test_pipeline.py
-│   ├── test_prepare_physionet.py
-│   ├── test_preprocessing.py
-│   ├── test_realtime.py
-│   ├── test_scripts_roundtrip.py
-│   ├── test_sync_dataset.py
-│   └── test_visualize_raw_filtered.py
-└── tree.txt
+└─── tests
+    ├── test_benchmark.py
+    ├── test_classifier.py
+    ├── test_dimensionality.py
+    ├── test_features.py
+    ├── test_fetch_physionet.py
+    ├── test_mybci.py
+    ├── test_pipeline.py
+    ├── test_prepare_physionet.py
+    ├── test_preprocessing.py
+    ├── test_realtime.py
+    ├── test_scripts_roundtrip.py
+    ├── test_sync_dataset.py
+    └── test_visualize_raw_filtered.py
 ```
 
 ---
