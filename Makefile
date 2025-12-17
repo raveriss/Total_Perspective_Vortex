@@ -6,7 +6,24 @@
 #   - Fournir des commandes pratiques pour l’entraînement et la prédiction du modèle
 # ========================================================================================
 
-.PHONY: install lint format type test cov mut train predict bench activate deactivate clean-mutants
+.PHONY: \
+	install \
+	lint \
+	format \
+	type \
+	test \
+	cov \
+	mut \
+	train \
+	predict \
+	bench \
+	activate \
+	deactivate \
+	clean-mutants \
+	clean \
+	clean-artifacts \
+	clean-npy
+
 
 VENV = .venv
 VENV_BIN = $(VENV)/bin/activate
@@ -76,7 +93,7 @@ mut: clean-mutants cov
 # Commandes liées au modèle (Poetry)
 # ----------------------------------------------------------------------------------------
 
-TRAIN_SUBJECT ?= S001
+TRAIN_SUBJECT ?= S109
 TRAIN_RUN ?= R03
 TRAIN_ALL ?= true
 PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
@@ -108,6 +125,19 @@ activate:
 deactivate:
 	@echo "Pour quitter l'environnement :"
 	@echo "  deactivate"
+
+clean: clean-artifacts clean-npy
+
+clean-artifacts:
+	@rm -rf ./artifacts
+
+clean-npy:
+	@find . -type f -name '*.npy' \
+		-not -path './.venv/*' \
+		-not -path './.git/*' \
+		-not -path './artifacts/*' \
+		-delete
+
 
 # ----------------------------------------------------------------------------------------
 # Règle générique pour ignorer les cibles numériques (ex. make predict-nocheck 23000)

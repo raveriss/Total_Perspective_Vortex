@@ -159,6 +159,18 @@ def _build_default_experiments() -> list[ExperimentDefinition]:
         ExperimentDefinition(index=4, run="R07"),
         # Explore le run R08 pour l'expérience 5
         ExperimentDefinition(index=5, run="R08"),
+        # Explore le run R03 pour l'expérience 6
+        ExperimentDefinition(index=0, run="R09"),
+        # Explore le run R04 pour l'expérience 7
+        ExperimentDefinition(index=1, run="R10"),
+        # Explore le run R05 pour l'expérience 8
+        ExperimentDefinition(index=2, run="R11"),
+        # Explore le run R06 pour l'expérience 9
+        ExperimentDefinition(index=3, run="R12"),
+        # Explore le run R07 pour l'expérience 10
+        ExperimentDefinition(index=4, run="R13"),
+        # Explore le run R08 pour l'expérience 11
+        ExperimentDefinition(index=5, run="R14"),
     ]
 
 
@@ -342,7 +354,7 @@ def _print_experiment_means(
     """Calcule et affiche les moyennes d'accuracy par expérience."""
 
     # Affiche l'entête du bloc de moyennes par expérience
-    print("Mean accuracy of the six different experiments for all 109 subjects:")
+    print("\nMean accuracy of the six different experiments for all 109 subjects:")
     # Parcourt chaque expérience pour calculer sa moyenne
     for experiment in experiments:
         # Extrait les scores accumulés pour l'expérience courante
@@ -365,7 +377,7 @@ def _print_experiment_means(
         if per_experiment_scores[exp.index]
     )
     # Affiche la moyenne globale demandée par la consigne
-    print(f"Mean accuracy of 6 experiments: {global_mean:.4f}")
+    print(f"\nMean accuracy of 6 experiments: {global_mean:.4f}")
     # Retourne la moyenne pour réutilisation éventuelle
     return global_mean
 
