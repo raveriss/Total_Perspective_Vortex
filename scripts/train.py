@@ -630,8 +630,17 @@ def run_training(request: TrainingRequest) -> dict:
     pipeline = build_pipeline(request.pipeline_config)
     # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
     min_class_count = int(np.bincount(y).min())
-    # Choisit le nombre de splits en respectant la disponibilité par classe
-    n_splits = min(DEFAULT_CV_SPLITS, min_class_count) if min_class_count > 1 else 0
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    n_splits = DEFAULT_CV_SPLITS
+    # Alerte lorsque la classe la moins représentée limite la validation croisée
+    if min_class_count < DEFAULT_CV_SPLITS:
+        # Informe l'utilisateur du nombre maximal de splits atteignable
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour 10 folds, "
+            f"utilisation de {min_class_count} splits"
+        )
+        # Réduit le nombre de splits à la limite imposée par la classe minoritaire
+        n_splits = min_class_count if min_class_count > 1 else 0
     # Initialise un tableau vide lorsque la validation croisée est impossible
     cv_scores = np.array([])
     # Lance la validation croisée seulement si chaque classe dispose de deux points
