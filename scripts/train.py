@@ -645,8 +645,8 @@ def run_training(request: TrainingRequest) -> dict:
     cv_scores = np.array([])
     # Lance la validation croisée seulement si chaque classe dispose de deux points
     # Évite la validation croisée quand un fold manquerait de diversité
-    # Garantit au moins deux échantillons par classe dans chaque ensemble d'entraînement
-    if n_splits >= MIN_CV_SPLITS and min_class_count > MIN_CV_SPLITS:
+    # Garantit l'utilisation de tous les splits possibles selon l'effectif minimal
+    if n_splits >= MIN_CV_SPLITS:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
         cv = StratifiedKFold(n_splits=n_splits)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
