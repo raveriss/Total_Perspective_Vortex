@@ -94,46 +94,91 @@ cd Total_Perspective_Vortex
 
 ```
 Total_Perspective_Vortex/
+.
+├── AGENTS.md
+├── author
+├── codecov.yml
+├── create_tpv_fields.sh
+├── data
 ├── docs
-│   ├── assets
-│   │   ├── image01.png
-│   │   └── image02.png
-│   ├── project
-│   │   ├── gantt_tpv.png
-│   │   ├── roadmap.md
-│   │   └── wbs_tpv_v1.md
-│   ├── risk
-│   │   └── tpv_murphy_map_v8.csv
-│   ├── total_perspective_vortex.en.checklist.pdf
-│   └── Total_Perspective_Vortex.en.subject.pdf
+│   ├── assets
+│   │   ├── image01.png
+│   │   └── image02.png
+│   ├── index.md
+│   ├── project
+│   │   ├── benchmark_results.json
+│   │   ├── benchmark_results.md
+│   │   ├── checklist_wbs_matrix.md
+│   │   ├── gantt_tpv.png
+│   │   ├── physionet_dataset.md
+│   │   ├── roadmap.md
+│   │   ├── splits_metrics.md
+│   │   ├── split_strategy.md
+│   │   └── wbs_tpv.md
+│   ├── risk
+│   │   └── tpv_murphy_map.csv
+│   ├── total_perspective_vortex.en.checklist.pdf
+│   └── Total_Perspective_Vortex.en.subject.pdf
 ├── LICENSE
 ├── Makefile
+├── mybci.py
 ├── poetry.lock
 ├── poetry.toml
 ├── pyproject.toml
 ├── README.md
 ├── scripts
-│   ├── predict.py
-│   ├── train.py
-│   └── visualize_raw_filtered.py
+│   ├── aggregate_accuracy.py
+│   ├── aggregate_scores.py
+│   ├── benchmark.py
+│   ├── fetch_physionet.py
+│   ├── import_murphy_issues.py
+│   ├── import_murphy_to_project.py
+│   ├── __init__.py
+│   ├── predict.py
+│   ├── prepare_physionet.py
+│   ├── __pycache__
+│   │   ├── __init__.cpython-310.pyc
+│   │   ├── predict.cpython-310.pyc
+│   │   └── train.cpython-310.pyc
+│   ├── sync_dataset.py
+│   ├── train.py
+│   └── visualize_raw_filtered.py
 ├── src
-│   └── tpv
-│       ├── classifier.py
-│       ├── dimensionality.py
-│       ├── features.py
-│       ├── __init__.py
-│       ├── pipeline.py
-│       ├── predict.py
-│       ├── preprocessing.py
-│       ├── realtime.py
-│       ├── train.py
-│       └── utils.py
-└── tests
-    ├── test_classifier.py
-    ├── test_dimensionality.py
-    ├── test_pipeline.py
-    ├── test_preprocessing.py
-    └── test_realtime.py
+│   └── tpv
+│       ├── classifier.py
+│       ├── dimensionality.py
+│       ├── features.py
+│       ├── __init__.py
+│       ├── pipeline.py
+│       ├── predict.py
+│       ├── preprocessing.py
+│       ├── __pycache__
+│       │   ├── classifier.cpython-310.pyc
+│       │   ├── dimensionality.cpython-310.pyc
+│       │   ├── features.cpython-310.pyc
+│       │   ├── __init__.cpython-310.pyc
+│       │   ├── pipeline.cpython-310.pyc
+│       │   ├── predict.cpython-310.pyc
+│       │   ├── preprocessing.cpython-310.pyc
+│       │   └── train.cpython-310.pyc
+│       ├── realtime.py
+│       ├── train.py
+│       └── utils.py
+├── tests
+│   ├── test_benchmark.py
+│   ├── test_classifier.py
+│   ├── test_dimensionality.py
+│   ├── test_features.py
+│   ├── test_fetch_physionet.py
+│   ├── test_mybci.py
+│   ├── test_pipeline.py
+│   ├── test_prepare_physionet.py
+│   ├── test_preprocessing.py
+│   ├── test_realtime.py
+│   ├── test_scripts_roundtrip.py
+│   ├── test_sync_dataset.py
+│   └── test_visualize_raw_filtered.py
+└── tree.txt
 ```
 
 ---
