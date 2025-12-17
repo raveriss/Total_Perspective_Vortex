@@ -83,7 +83,7 @@ DEFAULT_SAMPLING_RATE = 50.0
 DEFAULT_CV_SPLITS = 10
 
 # Fixe le nombre minimal de splits pour déclencher la validation croisée
-MIN_CV_SPLITS = 2
+MIN_CV_SPLITS = 3
 
 
 # Regroupe toutes les informations nécessaires à un run d'entraînement
@@ -631,22 +631,19 @@ def run_training(request: TrainingRequest) -> dict:
     # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
     min_class_count = int(np.bincount(y).min())
     # Déclare le nombre de splits cible imposé par la consigne (10)
-    n_splits = DEFAULT_CV_SPLITS
-    # Alerte lorsque la classe la moins représentée limite la validation croisée
-    if min_class_count < DEFAULT_CV_SPLITS:
-        # Informe l'utilisateur du nombre maximal de splits atteignable
-        print(
-            "AVERTISSEMENT: effectif par classe insuffisant pour 10 folds, "
-            f"utilisation de {min_class_count} splits"
-        )
-        # Réduit le nombre de splits à la limite imposée par la classe minoritaire
-        n_splits = min_class_count if min_class_count > 1 else 0
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
     # Initialise un tableau vide lorsque la validation croisée est impossible
     cv_scores = np.array([])
-    # Lance la validation croisée seulement si chaque classe dispose de deux points
-    # Évite la validation croisée quand un fold manquerait de diversité
-    # Garantit l'utilisation de tous les splits possibles selon l'effectif minimal
-    if n_splits >= MIN_CV_SPLITS:
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
         cv = StratifiedKFold(n_splits=n_splits)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
