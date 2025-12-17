@@ -1,0 +1,20 @@
+{
+  "subject": "S025",
+  "run": "R05",
+  "accuracy": 0.8,
+  "confusion_matrix": [
+    [
+      4,
+      3
+    ],
+    [
+      0,
+      8
+    ]
+  ],
+  "per_class_accuracy": {
+    "0": 0.5714285714285714,
+    "1": 1.0
+  },
+  "samples": 15
+}

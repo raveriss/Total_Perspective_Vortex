@@ -1,0 +1,30 @@
+{
+  "dataset": {
+    "subject": "S054",
+    "run": "R06",
+    "data_dir": "data"
+  },
+  "hyperparams": {
+    "sfreq": 50.0,
+    "feature_strategy": "fft",
+    "normalize_features": true,
+    "dim_method": "pca",
+    "n_components": null,
+    "classifier": "lda",
+    "scaler": null
+  },
+  "scores": {
+    "cv_scores": [
+      0.4,
+      0.8,
+      0.4
+    ],
+    "cv_mean": 0.5333333333333333
+  },
+  "git_commit": "3e5fa80e91d4ee4bd5a0f44ced4feb9e780287fc",
+  "artifacts": {
+    "model": "artifacts/S054/R06/model.joblib",
+    "scaler": null,
+    "w_matrix": "artifacts/S054/R06/w_matrix.joblib"
+  }
+}

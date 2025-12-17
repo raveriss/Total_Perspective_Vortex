@@ -391,6 +391,6 @@ MIT License.
 # 👤 Auteur
 
 **Rafael Verissimo**
-Étudiant IA/Data — École 42 Paris
-GitHub : https://github.com/raveriss
+Étudiant IA/Data — École 42 Paris  
+GitHub : https://github.com/raveriss  
 LinkedIn : https://www.linkedin.com/in/verissimo-rafael/

@@ -84,11 +84,7 @@ PREDICT_RUN ?= $(TRAIN_RUN)
 
 # Entraînement du modèle : exemple minimal avec sujet et run de démonstration
 train:
-	@if [ "$(TRAIN_ALL)" = "true" ]; then \
-	$(POETRY) python scripts/train.py --train-all --feature-strategy fft --dim-method pca; \
-	else \
-	$(POETRY) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train; \
-	fi
+	$(POETRY) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train
 
 # Prédiction : exemple minimal réutilisant les identifiants ci-dessus
 predict:

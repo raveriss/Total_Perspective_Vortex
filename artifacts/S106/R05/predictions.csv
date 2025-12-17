@@ -1,0 +1,5 @@
+subject,run,index,y_true,y_pred
+S106,R05,0,1,1
+S106,R05,1,0,0
+S106,R05,2,0,1
+S106,R05,3,1,1
