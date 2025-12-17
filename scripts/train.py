@@ -37,7 +37,32 @@ from tpv.dimensionality import TPVDimReducer
 from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
 
 # Déclare la liste des runs moteurs à couvrir pour l'entraînement massif
-MOTOR_RUNS = ("R03", "R04", "R05", "R06", "R07", "R08")
+MOTOR_RUNS = (
+    # Couvre le run moteur R03 documenté dans le protocole Physionet
+    "R03",
+    # Couvre le run moteur R04 documenté dans le protocole Physionet
+    "R04",
+    # Couvre le run moteur R05 documenté dans le protocole Physionet
+    "R05",
+    # Couvre le run moteur R06 documenté dans le protocole Physionet
+    "R06",
+    # Couvre le run moteur R07 documenté dans le protocole Physionet
+    "R07",
+    # Couvre le run moteur R08 documenté dans le protocole Physionet
+    "R08",
+    # Couvre le run moteur R09 documenté dans le protocole Physionet
+    "R09",
+    # Couvre le run moteur R10 documenté dans le protocole Physionet
+    "R10",
+    # Couvre le run moteur R11 documenté dans le protocole Physionet
+    "R11",
+    # Couvre le run moteur R12 documenté dans le protocole Physionet
+    "R12",
+    # Couvre le run moteur R13 documenté dans le protocole Physionet
+    "R13",
+    # Couvre le run moteur R14 documenté dans le protocole Physionet
+    "R14",
+)
 
 # Définit le répertoire par défaut où chercher les enregistrements
 DEFAULT_DATA_DIR = Path("data")
@@ -729,8 +754,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # Si des scores ont été calculés, on les affiche au format attendu
     if isinstance(cv_scores, np.ndarray) and cv_scores.size > 0:
-        # Formate les scores sur quatre décimales pour refléter la consigne
-        formatted_scores = np.array2string(cv_scores, precision=4, separator=" ")
+        # Force quatre décimales fixes pour suivre l'exemple du sujet
+        formatted_scores = np.array2string(
+            cv_scores, precision=4, separator=" ", floatmode="fixed"
+        )
         # Affiche le tableau numpy (format [0.6666 0.4444 ...])
         print(formatted_scores)
         # Calcule la moyenne pour l'affichage "cross_val_score: 0.5333"
