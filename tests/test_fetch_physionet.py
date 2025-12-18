@@ -550,6 +550,44 @@ def test_main_exits_on_error(monkeypatch, tmp_path: Path) -> None:
     assert error.value.code == 1
 
 
+# Vérifie que main transmet les arguments bruts à fetch_dataset
+def test_main_passes_parsed_arguments(monkeypatch, tmp_path: Path) -> None:
+    # Crée un manifeste minimal pour exercer la conversion en Path
+    manifest_path = tmp_path / "manifest.json"
+    # Inscrit un manifeste vide pour éviter les accès disque en aval
+    manifest_path.write_text(json.dumps({"files": []}), encoding="utf-8")
+    # Déclare une destination cible pour vérifier la conversion en Path
+    destination_root = tmp_path / "destination"
+    # Construit des arguments simulés pour contourner argparse
+    fake_args = argparse.Namespace(
+        source="http://example.com",
+        manifest=str(manifest_path),
+        destination=str(destination_root),
+    )
+    # Mémorise les paramètres reçus pour vérifier l'appel unique
+    received: list[tuple[str, Path, Path]] = []
+    # Force parse_args à renvoyer l'espace de noms contrôlé
+    monkeypatch.setattr(fetch_physionet, "parse_args", lambda: fake_args)
+
+    # Capture les arguments transmis à fetch_dataset pour tuer les mutants
+    def recording_dataset(source: str, manifest: Path, destination: Path) -> None:
+        # Valide que la source CLI est passée telle quelle
+        assert source == fake_args.source
+        # Valide que le manifeste est converti en Path attendu
+        assert manifest == manifest_path
+        # Valide que la destination est convertie en Path attendu
+        assert destination == destination_root
+        # Archive l'appel pour vérifier l'unicité de l'exécution
+        received.append((source, manifest, destination))
+
+    # Remplace fetch_dataset par la variante instrumentée
+    monkeypatch.setattr(fetch_physionet, "fetch_dataset", recording_dataset)
+    # Exécute main pour déclencher l'appel observé
+    fetch_physionet.main()
+    # Confirme que fetch_dataset a été invoqué une seule fois
+    assert received == [(fake_args.source, manifest_path, destination_root)]
+
+
 # Contrôle que fetch_dataset appelle bien validate_file pour chaque entrée
 def test_fetch_dataset_invokes_validation(monkeypatch, tmp_path: Path) -> None:
     # Crée un manifeste avec deux entrées à traiter
