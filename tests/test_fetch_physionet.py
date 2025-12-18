@@ -570,7 +570,7 @@ def test_main_runs_under_runpy(monkeypatch, tmp_path: Path) -> None:
 
 
 # Propage un code de sortie non nul en cas d'erreur dans le pipeline
-def test_main_exits_on_error(monkeypatch, tmp_path: Path) -> None:
+def test_main_exits_on_error(monkeypatch, tmp_path: Path, capsys) -> None:
     # Prépare un objet Namespace minimal pour éviter argparse
     fake_args = argparse.Namespace(
         source="/absent",
@@ -592,6 +592,10 @@ def test_main_exits_on_error(monkeypatch, tmp_path: Path) -> None:
         fetch_physionet.main()
     # Confirme que le code de sortie correspond à l'échec attendu
     assert error.value.code == 1
+    # Capture la sortie pour vérifier que l'erreur est bien imprimée
+    captured = capsys.readouterr().out
+    # Vérifie que le message d'erreur d'origine est préservé
+    assert "boom" in captured
 
 
 # Vérifie que main transmet les arguments bruts à fetch_dataset

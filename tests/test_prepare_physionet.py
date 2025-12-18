@@ -129,6 +129,66 @@ def test_parse_args_enforces_required_flags(monkeypatch: pytest.MonkeyPatch) -> 
     assert exit_info.value.code == USAGE_ERROR_CODE
 
 
+def test_parse_args_rejects_missing_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Simule une ligne de commande sans chemin source pour tester required=True
+    monkeypatch.setattr(
+        "sys.argv", ["prepare_physionet", "--manifest", "MAN", "--destination", "DEST"]
+    )
+    # Attend un arrêt usage car l'argument source est obligatoire
+    with pytest.raises(SystemExit) as exit_info:
+        prepare_physionet.parse_args()
+    # Vérifie que le code d'erreur correspond à une erreur d'usage
+    assert exit_info.value.code == USAGE_ERROR_CODE
+
+
+def test_parse_args_rejects_missing_destination(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Simule une ligne de commande sans destination pour tester required=True
+    monkeypatch.setattr(
+        "sys.argv", ["prepare_physionet", "--source", "SRC", "--manifest", "MAN"]
+    )
+    # Attend un arrêt usage car la destination est obligatoire
+    with pytest.raises(SystemExit) as exit_info:
+        prepare_physionet.parse_args()
+    # Vérifie que le code d'erreur correspond à une erreur d'usage
+    assert exit_info.value.code == USAGE_ERROR_CODE
+
+
+def test_parse_args_exposes_help_texts(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    # Force argparse à afficher l'aide complète pour vérifier le contenu
+    monkeypatch.setattr("sys.argv", ["prepare_physionet", "--help"])
+    # Attend un SystemExit propre après l'affichage de l'aide
+    with pytest.raises(SystemExit):
+        prepare_physionet.parse_args()
+    # Capture la sortie de l'aide pour inspecter les messages
+    help_text = capsys.readouterr().out
+    # Normalise les lignes pour permettre des comparaisons directes
+    help_lines = [line.strip() for line in help_text.splitlines() if line.strip()]
+    # Fusionne l'aide pour gommer les sauts de ligne imposés par argparse
+    normalized_help_text = " ".join(help_lines)
+    # Vérifie que la description générale reste inchangée
+    assert (
+        "Prépare localement le dataset Physionet en validant un manifeste" in help_lines
+    )
+    # Vérifie que l'option source conserve son aide détaillée
+    assert (
+        "--source" in help_text
+        and "Chemin local ou URL HTTP(s) de Physionet" in help_text
+    )
+    # Vérifie que l'option manifest conserve son aide détaillée
+    assert (
+        "--manifest" in help_text
+        and "Manifeste JSON listant chemins, tailles et hashes" in help_text
+    )
+    # Vérifie que l'option destination conserve son aide détaillée
+    assert (
+        "--destination" in normalized_help_text
+        and "Répertoire cible pour copier ou télécharger les données"
+        in normalized_help_text
+    )
+
+
 # Vérifie que main relaie l'exception quand la préparation échoue
 def test_main_propagates_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     # Prépare un objet d'arguments simulant une invocation CLI complète
@@ -167,18 +227,27 @@ def test_main_calls_prepare_once(monkeypatch: pytest.MonkeyPatch) -> None:
     # Force parse_args à retourner l'objet simulé sans dépendre de sys.argv
     monkeypatch.setattr(prepare_physionet, "parse_args", lambda: args)
     # Compte les appels pour vérifier que la préparation est bien déclenchée
-    calls = {"count": 0}
+    call_count = 0
+    # Mémorise les arguments observés pour valider leur transmission
+    received_args: tuple[str, str, str] | None = None
 
     # Simule une préparation réussie pour mesurer le comptage
     def succeed_prepare(source: str, manifest: str, destination: str) -> None:
-        calls["count"] += 1
+        nonlocal call_count
+        nonlocal received_args
+        # Incrémente le compteur pour suivre les appels attendus
+        call_count += 1
+        # Capture les arguments pour valider leur transmission intacte
+        received_args = (source, manifest, destination)
 
     # Injecte la fonction réussie à la place de la préparation réelle
     monkeypatch.setattr(prepare_physionet, "prepare_physionet", succeed_prepare)
     # Exécute main pour vérifier le routage nominal
     prepare_physionet.main()
     # Vérifie que la préparation a été appelée exactement une fois
-    assert calls["count"] == 1
+    assert call_count == 1
+    # Vérifie que main transmet les trois chemins sans les altérer
+    assert received_args == ("SRC", "MAN", "DEST")
 
 
 # Valide l'exécution nominale de main avec un téléchargement simulé
