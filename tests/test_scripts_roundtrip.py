@@ -227,6 +227,56 @@ def test_run_training_handles_two_splits_without_cv(tmp_path):
     assert manifest["artifacts"]["scaler"] is None
 
 
+def test_run_training_aligns_cv_splits_with_min_class_count(tmp_path):
+    """Valide que la CV suit l'effectif minimal détecté dans les labels."""
+
+    # Fixe le sujet synthétique pour construire l'arborescence attendue
+    subject = "S03"
+    # Fixe le run synthétique pour aligner le nommage des fichiers
+    run = "R03"
+    # Prépare le répertoire racine de données jouets
+    data_dir = tmp_path / "data"
+    # Prépare le répertoire racine des artefacts générés
+    artifacts_dir = tmp_path / "artifacts"
+    # Construit le sous-dossier dédié au sujet synthétique
+    subject_dir = data_dir / subject
+    # Crée l'arborescence des fichiers numpy pour le sujet cible
+    subject_dir.mkdir(parents=True)
+    # Initialise un générateur aléatoire pour des données stables
+    rng = np.random.default_rng(7)
+    # Génère quatorze échantillons pour permettre sept splits stratifiés
+    X = rng.normal(size=(14, 2, 20))
+    # Construit des labels avec une classe minoritaire limitée à sept occurrences
+    y = np.array([0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1])
+    # Sauvegarde les features dans le format attendu par la CLI
+    np.save(subject_dir / f"{run}_X.npy", X)
+    # Sauvegarde les labels alignés pour l'entraînement
+    np.save(subject_dir / f"{run}_y.npy", y)
+    # Construit la configuration de pipeline simplifiée pour accélérer le test
+    config = PipelineConfig(
+        sfreq=64.0,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+    )
+    # Prépare la requête d'entraînement avec les chemins simulés
+    request = TrainingRequest(
+        subject=subject,
+        run=run,
+        pipeline_config=config,
+        data_dir=data_dir,
+        artifacts_dir=artifacts_dir,
+    )
+    # Lance l'entraînement pour générer le modèle et le manifeste
+    result = run_training(request)
+    # Vérifie que le nombre de scores reflète bien les sept occurrences minoritaires
+    assert result["cv_scores"].size == 7
+    # Charge le manifeste pour inspecter les valeurs sérialisées
+    manifest = json.loads(result["manifest_path"].read_text())
+    # Vérifie que la longueur des scores dans le manifeste correspond aux splits
+    assert len(manifest["scores"]["cv_scores"]) == 7
+
+
 # Vérifie que _load_data reconstruit les .npy corrompus via l'EDF
 def test_load_data_rebuilds_after_corruption(tmp_path, monkeypatch):
     """Forcer la reconstruction quand np.load échoue sur un fichier corrompu."""
