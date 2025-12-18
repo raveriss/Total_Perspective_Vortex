@@ -234,6 +234,8 @@ def test_run_training_aligns_cv_splits_with_min_class_count(tmp_path):
     subject = "S03"
     # Fixe le run synthétique pour aligner le nommage des fichiers
     run = "R03"
+    # Définit le nombre attendu d'occurrences minoritaires pour la CV
+    minority_class_count = 7
     # Prépare le répertoire racine de données jouets
     data_dir = tmp_path / "data"
     # Prépare le répertoire racine des artefacts générés
@@ -246,8 +248,8 @@ def test_run_training_aligns_cv_splits_with_min_class_count(tmp_path):
     rng = np.random.default_rng(7)
     # Génère quatorze échantillons pour permettre sept splits stratifiés
     X = rng.normal(size=(14, 2, 20))
-    # Construit des labels avec une classe minoritaire limitée à sept occurrences
-    y = np.array([0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1])
+    # Construit des labels en bornant la classe minoritaire au compteur dédié
+    y = np.array([0] * minority_class_count + [1] * minority_class_count)
     # Sauvegarde les features dans le format attendu par la CLI
     np.save(subject_dir / f"{run}_X.npy", X)
     # Sauvegarde les labels alignés pour l'entraînement
@@ -270,11 +272,11 @@ def test_run_training_aligns_cv_splits_with_min_class_count(tmp_path):
     # Lance l'entraînement pour générer le modèle et le manifeste
     result = run_training(request)
     # Vérifie que le nombre de scores reflète bien les sept occurrences minoritaires
-    assert result["cv_scores"].size == 7
+    assert result["cv_scores"].size == minority_class_count
     # Charge le manifeste pour inspecter les valeurs sérialisées
     manifest = json.loads(result["manifest_path"].read_text())
     # Vérifie que la longueur des scores dans le manifeste correspond aux splits
-    assert len(manifest["scores"]["cv_scores"]) == 7
+    assert len(manifest["scores"]["cv_scores"]) == minority_class_count
 
 
 # Vérifie que _load_data reconstruit les .npy corrompus via l'EDF
