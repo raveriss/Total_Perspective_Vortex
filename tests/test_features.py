@@ -234,9 +234,15 @@ def test_prepare_welch_parameters_caps_segment_and_overlap() -> None:
     # Vérifie que la fenêtre demandée est transmise intacte
     assert window == "flattop"
     # Vérifie que la taille de segment est bornée par la durée réelle
-    assert effective_nperseg == 64
+    # Fixe la borne maximale pour rendre l'assertion lisible
+    expected_nperseg = 64
+    # Garantit que la fenêtre ne dépasse pas la longueur totale
+    assert effective_nperseg == expected_nperseg
     # Vérifie que le recouvrement est borné à une fenêtre strictement positive
-    assert effective_noverlap == 63
+    # Fixe le recouvrement maximal autorisé juste sous la fenêtre
+    expected_noverlap = 63
+    # Garantit que le recouvrement garde une fenêtre strictement positive
+    assert effective_noverlap == expected_noverlap
     # Vérifie que la stratégie d'agrégation personnalisée est préservée
     assert average == "median"
     # Vérifie que l'option de mise à l'échelle personnalisée est préservée
@@ -259,7 +265,10 @@ def test_prepare_welch_parameters_defaults_when_overlap_missing() -> None:
     # Vérifie que la fenêtre par défaut est la fenêtre Hann lissée
     assert window == "hann"
     # Vérifie que la taille de segment par défaut couvre toute la série
-    assert effective_nperseg == 50
+    # Stocke la longueur maximale pour l'utiliser dans l'assertion
+    default_length = 50
+    # Confirme que la fenêtre par défaut couvre toute la série disponible
+    assert effective_nperseg == default_length
     # Vérifie qu'aucun recouvrement n'est défini sans instruction explicite
     assert effective_noverlap is None
     # Vérifie que la moyenne par défaut correspond à l'option SciPy standard

@@ -173,7 +173,7 @@ deactivate:
 clean: clean-artifacts clean-npy
 
 clean-artifacts:
-	@rm -rf ./artifacts ./data/benchmarks 
+	@rm -rf ./artifacts ./data/benchmarks
 
 clean-npy:
 	@find . -type f -name '*.npy' \
