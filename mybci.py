@@ -489,6 +489,8 @@ def _run_global_evaluation(
         unit="sujets",
         # Colore la jauge pour la rendre visible dans le flux INFO
         colour="cyan",
+        # Contient la largeur pour éviter une jauge interminable
+        ncols=120,
         # Évite de laisser la barre bloquer la sortie finale
         leave=False,
     )
