@@ -45,6 +45,72 @@ REALTIME_SFREQ_DEFAULT = 50.0
 REALTIME_LATENCY_DEFAULT = 2.0
 
 
+# Vérifie que le rapport agrège correctement toutes les alertes attendues
+def test_report_missing_artifacts_summarizes_all_alerts(capsys):
+    # Prépare des couples manquants pour déclencher l'alerte de données
+    missing_entries = ["S001/R01", "S002/R02", "S003/R03"]
+    # Prépare des modèles manquants pour couvrir les runs partiels et vides
+    missing_models_by_run = {
+        # Conserve un run partiel pour vérifier le résumé par run
+        "R01": ["S001", "S002"],
+        # Conserve un run complet pour activer la liste des runs vides
+        "R02": ["S001", "S002", "S003"],
+    }
+    # Construit une expérience ignorée pour déclencher l'avertissement final
+    skipped_experiments = [mybci.ExperimentDefinition(index=1, run="R02")]
+    # Exécute le rapport afin de capturer la totalité des messages émis
+    mybci._report_missing_artifacts(
+        missing_entries,
+        missing_models_by_run,
+        skipped_experiments,
+        3,
+    )
+    # Capture la sortie standard pour inspecter les alertes imprimées
+    stdout = capsys.readouterr().out
+    # Vérifie que le volume de couples manquants est correctement résumé
+    assert "Couples sujet/run concernés: 3" in stdout
+    # Vérifie que l'aperçu affiche bien la liste des premières références
+    assert "Premiers manquants: S001/R01, S002/R02, S003/R03" in stdout
+    # Vérifie que l'avertissement sur les modèles absents est présent
+    assert "modèles entraînés sont absents" in stdout
+    # Vérifie que les runs totalement vides sont listés pour prioriser
+    assert "Runs sans aucun modèle disponible: R02" in stdout
+    # Vérifie que le résumé par run mentionne les sujets manquants
+    assert "Run R01: modèles manquants pour 2 sujets" in stdout
+    # Vérifie que le rappel de commande de génération reste affiché
+    assert "poetry run python scripts/train.py" in stdout
+    # Vérifie que les expériences ignorées sont récapitulées
+    assert "expériences suivantes ont été ignorées faute de modèles: 1 (R02)" in stdout
+
+
+# Vérifie que le rapport reste silencieux lorsqu'aucun élément ne manque
+def test_report_missing_artifacts_skips_empty_inputs(capsys):
+    # Appelle le rapport avec des structures entièrement vides
+    mybci._report_missing_artifacts([], {}, [], 0)
+    # Capture la sortie pour vérifier l'absence totale de messages
+    stdout = capsys.readouterr().out
+    # Vérifie qu'aucune ligne n'est produite lorsqu'il n'y a aucun manque
+    assert stdout == ""
+
+
+# Vérifie que seuls les modèles manquants déclenchent un avertissement ciblé
+def test_report_missing_artifacts_only_reports_models(capsys):
+    # Simule un run partiel sans données ni expériences ignorées
+    missing_models_by_run = {"R05": ["S010"]}
+    # Appelle le rapport pour déclencher uniquement l'alerte modèles
+    mybci._report_missing_artifacts([], missing_models_by_run, [], 2)
+    # Capture la sortie pour inspecter les messages émis
+    stdout = capsys.readouterr().out
+    # Vérifie que le message sur les modèles absents est présent
+    assert "modèles entraînés sont absents" in stdout
+    # Vérifie que l'alerte données manquantes n'est pas imprimée
+    assert "Couples sujet/run concernés" not in stdout
+    # Vérifie que l'alerte sur les expériences ignorées reste muette
+    assert "expériences suivantes ont été ignorées" not in stdout
+    # Vérifie que la liste des runs entièrement vides n'est pas affichée
+    assert "Runs sans aucun modèle disponible" not in stdout
+
+
 def test_main_runs_global_evaluation_when_no_arguments(monkeypatch):
     # Prépare un registre pour vérifier l'appel du runner global
     called: dict[str, bool] = {}

@@ -163,6 +163,21 @@ def test_main_invokes_visualize_run(monkeypatch: pytest.MonkeyPatch) -> None:
     assert isinstance(called["config"], viz.VisualizationConfig)
 
 
+# Vérifie que main convertit une erreur en code de sortie explicite
+def test_main_exits_on_visualize_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Force visualize_run à échouer pour tester la conversion en SystemExit
+    monkeypatch.setattr(
+        viz, "visualize_run", lambda **_: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    # Configure argv pour simuler une invocation CLI minimale
+    monkeypatch.setattr(sys, "argv", ["prog", "S10", "R03"])
+    # Vérifie que main termine avec un code de sortie non nul
+    with pytest.raises(SystemExit) as exit_info:
+        viz.main()
+    # Vérifie que le code de sortie reflète l'échec de visualisation
+    assert exit_info.value.code == 1
+
+
 # Vérifie que le guard __main__ s'exécute sans lancer la CLI réelle
 def test_main_guard_covered(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Exécute le module en mode script en isolant les dépendances."""

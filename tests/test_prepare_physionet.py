@@ -13,6 +13,9 @@ import pytest
 # Importe la surface CLI nouvellement exposée
 from scripts import prepare_physionet
 
+# Fige le code de sortie standard pour absence d'arguments obligatoires
+USAGE_ERROR_CODE = 2
+
 
 # Vérifie que l'absence de fichiers source provoque un arrêt propre
 def test_prepare_physionet_stops_on_missing_source(
@@ -111,6 +114,71 @@ def test_parse_args_preserves_explicit_paths(monkeypatch: pytest.MonkeyPatch) ->
     assert args.manifest == "MANIFEST"
     # Garantit que la destination explicite est conservée
     assert args.destination == "DESTINATION"
+
+
+# Vérifie que chaque option obligatoire est réellement exigée par le parseur
+def test_parse_args_enforces_required_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Simule une ligne de commande incomplète sans manifeste fourni
+    monkeypatch.setattr(
+        "sys.argv", ["prepare_physionet", "--source", "SRC", "--destination", "DEST"]
+    )
+    # Attend un arrêt usage avec un code spécifique dû au flag manquant
+    with pytest.raises(SystemExit) as exit_info:
+        prepare_physionet.parse_args()
+    # Vérifie que le parseur retourne le code usage standard lorsqu'il manque un flag
+    assert exit_info.value.code == USAGE_ERROR_CODE
+
+
+# Vérifie que main relaie l'exception quand la préparation échoue
+def test_main_propagates_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Prépare un objet d'arguments simulant une invocation CLI complète
+    args = type(
+        "Args",
+        (),
+        {"source": "SRC", "manifest": "MAN", "destination": "DEST"},
+    )()
+    # Force parse_args à retourner l'objet simulé sans dépendre de sys.argv
+    monkeypatch.setattr(prepare_physionet, "parse_args", lambda: args)
+    # Compte les appels pour vérifier que la préparation est bien déclenchée
+    calls = {"count": 0}
+
+    # Simule une erreur métier pour vérifier sa propagation directe
+    def fail_prepare(source: str, manifest: str, destination: str) -> None:
+        calls["count"] += 1
+        raise RuntimeError("boom")
+
+    # Injecte la fonction défaillante à la place de la préparation réelle
+    monkeypatch.setattr(prepare_physionet, "prepare_physionet", fail_prepare)
+    # Vérifie que l'exception remonte telle quelle lorsque la préparation échoue
+    with pytest.raises(RuntimeError):
+        prepare_physionet.main()
+    # Vérifie que la préparation a été tentée exactement une fois
+    assert calls["count"] == 1
+
+
+# Vérifie que main relaie correctement le succès de la préparation
+def test_main_calls_prepare_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Prépare un objet d'arguments simulant une invocation CLI complète
+    args = type(
+        "Args",
+        (),
+        {"source": "SRC", "manifest": "MAN", "destination": "DEST"},
+    )()
+    # Force parse_args à retourner l'objet simulé sans dépendre de sys.argv
+    monkeypatch.setattr(prepare_physionet, "parse_args", lambda: args)
+    # Compte les appels pour vérifier que la préparation est bien déclenchée
+    calls = {"count": 0}
+
+    # Simule une préparation réussie pour mesurer le comptage
+    def succeed_prepare(source: str, manifest: str, destination: str) -> None:
+        calls["count"] += 1
+
+    # Injecte la fonction réussie à la place de la préparation réelle
+    monkeypatch.setattr(prepare_physionet, "prepare_physionet", succeed_prepare)
+    # Exécute main pour vérifier le routage nominal
+    prepare_physionet.main()
+    # Vérifie que la préparation a été appelée exactement une fois
+    assert calls["count"] == 1
 
 
 # Valide l'exécution nominale de main avec un téléchargement simulé

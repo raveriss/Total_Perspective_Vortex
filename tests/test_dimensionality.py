@@ -56,6 +56,25 @@ def test_csp_returns_log_variances_and_orthogonality() -> None:
     assert np.allclose(identity_candidate, np.eye(channels), atol=1e-2)
 
 
+# Vérifie que la moyenne de covariance reste normalisée et régularisée
+def test_average_covariance_regularizes_diagonal() -> None:
+    # Instancie un réducteur CSP avec régularisation diagonale
+    reducer = TPVDimReducer(method="csp", regularization=0.1)
+    # Construit deux essais orthogonaux pour isoler les contributions
+    trials = np.array(
+        [
+            [[1.0, 0.0], [0.0, 0.0]],
+            [[0.0, 0.0], [0.0, 1.0]],
+        ]
+    )
+    # Calcule la covariance moyenne sur les essais synthétiques
+    averaged = reducer._average_covariance(trials)
+    # Vérifie que la matrice résultante conserve la diagonale attendue
+    assert np.allclose(np.diag(averaged), [0.6, 0.6])
+    # Vérifie que les termes hors diagonale restent nuls après moyenne
+    assert averaged[0, 1] == pytest.approx(0.0)
+
+
 def test_pca_explained_variance_and_projection_shape() -> None:
     """PCA doit ordonner les composantes par variance et rester orthonormé."""
 
