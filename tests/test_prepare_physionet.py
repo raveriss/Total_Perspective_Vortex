@@ -165,6 +165,8 @@ def test_parse_args_exposes_help_texts(monkeypatch: pytest.MonkeyPatch, capsys) 
     help_text = capsys.readouterr().out
     # Normalise les lignes pour permettre des comparaisons directes
     help_lines = [line.strip() for line in help_text.splitlines() if line.strip()]
+    # Fusionne l'aide pour gommer les sauts de ligne imposés par argparse
+    normalized_help_text = " ".join(help_lines)
     # Vérifie que la description générale reste inchangée
     assert (
         "Prépare localement le dataset Physionet en validant un manifeste" in help_lines
@@ -181,8 +183,9 @@ def test_parse_args_exposes_help_texts(monkeypatch: pytest.MonkeyPatch, capsys) 
     )
     # Vérifie que l'option destination conserve son aide détaillée
     assert (
-        "--destination" in help_text
-        and "Répertoire cible pour copier ou télécharger les données" in help_text
+        "--destination" in normalized_help_text
+        and "Répertoire cible pour copier ou télécharger les données"
+        in normalized_help_text
     )
 
 
