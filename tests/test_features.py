@@ -10,8 +10,8 @@ import pytest
 # Importe mne pour créer des epochs synthétiques conformes à l'API
 from mne import EpochsArray, create_info
 
-# Importe l'extracteur procédural et la classe scikit-learn associée
-from tpv.features import ExtractFeatures, extract_features
+# Importe l'extracteur procédural, la classe scikit-learn et les helpers Welch
+from tpv.features import ExtractFeatures, _prepare_welch_parameters, extract_features
 
 # Définit une constante pour le budget temps afin d'éviter les magic numbers
 MAX_EXTRACTION_SECONDS = 0.25
@@ -210,3 +210,64 @@ def test_extract_features_respects_time_budget() -> None:
     assert features.shape[1] == len(labels)
     # Vérifie que l'extraction reste sous un quart de seconde
     assert elapsed < MAX_EXTRACTION_SECONDS
+
+
+def test_prepare_welch_parameters_caps_segment_and_overlap() -> None:
+    """Les bornes doivent limiter la taille de fenêtre et le recouvrement."""
+
+    # Prépare une configuration qui dépasse la longueur disponible
+    config = {
+        "window": "flattop",
+        "nperseg": 128,
+        "noverlap": 127,
+        "average": "median",
+        "scaling": "spectrum",
+    }
+    # Calcule les paramètres effectifs pour une série courte
+    window, effective_nperseg, effective_noverlap, average, scaling = (
+        _prepare_welch_parameters(config, n_times=64)
+    )
+    # Vérifie que la fenêtre demandée est transmise intacte
+    assert window == "flattop"
+    # Vérifie que la taille de segment est bornée par la durée réelle
+    # Fixe la borne maximale pour rendre l'assertion lisible
+    expected_nperseg = 64
+    # Garantit que la fenêtre ne dépasse pas la longueur totale
+    assert effective_nperseg == expected_nperseg
+    # Vérifie que le recouvrement est borné à une fenêtre strictement positive
+    # Fixe le recouvrement maximal autorisé juste sous la fenêtre
+    expected_noverlap = 63
+    # Garantit que le recouvrement garde une fenêtre strictement positive
+    assert effective_noverlap == expected_noverlap
+    # Vérifie que la stratégie d'agrégation personnalisée est préservée
+    assert average == "median"
+    # Vérifie que l'option de mise à l'échelle personnalisée est préservée
+    assert scaling == "spectrum"
+
+
+def test_prepare_welch_parameters_defaults_when_overlap_missing() -> None:
+    """Les valeurs par défaut doivent être utilisées sans recouvrement fourni."""
+
+    # Prépare une configuration minimale pour sonder les valeurs implicites
+    config: dict[str, object] = {}
+    # Calcule les paramètres avec une longueur limitée et aucun recouvrement
+    (
+        window,
+        effective_nperseg,
+        effective_noverlap,
+        average,
+        scaling,
+    ) = _prepare_welch_parameters(config, n_times=50)
+    # Vérifie que la fenêtre par défaut est la fenêtre Hann lissée
+    assert window == "hann"
+    # Vérifie que la taille de segment par défaut couvre toute la série
+    # Stocke la longueur maximale pour l'utiliser dans l'assertion
+    default_length = 50
+    # Confirme que la fenêtre par défaut couvre toute la série disponible
+    assert effective_nperseg == default_length
+    # Vérifie qu'aucun recouvrement n'est défini sans instruction explicite
+    assert effective_noverlap is None
+    # Vérifie que la moyenne par défaut correspond à l'option SciPy standard
+    assert average == "mean"
+    # Vérifie que l'échelle par défaut correspond à la densité spectrale
+    assert scaling == "density"
