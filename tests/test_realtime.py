@@ -31,6 +31,118 @@ MIN_EXPECTED_LATENCY = 0.009
 MAX_ALLOWED_LATENCY = 2.0
 
 
+# Vérifie que le parser realtime expose toutes les options attendues
+def test_realtime_build_parser_defines_cli_contract():
+    # Construit le parser pour inspecter la configuration CLI
+    parser = realtime.build_parser()
+    # Indexe les actions par destination pour simplifier les vérifications
+    actions = {action.dest: action for action in parser._actions}
+    # Vérifie que la description reflète l'usage streaming documenté
+    assert parser.description == "Applique un modèle entraîné sur un flux fenêtré"
+    # Vérifie que l'argument subject reste positionnel et documenté
+    assert actions["subject"].help == "Identifiant du sujet (ex: S001)"
+    # Vérifie que l'argument run reste positionnel et documenté
+    assert actions["run"].help == "Identifiant du run (ex: R01)"
+    # Vérifie que le répertoire de données accepte des chemins Path
+    assert actions["data_dir"].type is Path
+    # Vérifie que le répertoire de données pointe vers data par défaut
+    assert actions["data_dir"].default == Path("data")
+    # Vérifie que l'option --data-dir est bien exposée dans les flags
+    assert actions["data_dir"].option_strings == ["--data-dir"]
+    # Vérifie que le répertoire d'artefacts accepte des chemins Path
+    assert actions["artifacts_dir"].type is Path
+    # Vérifie que le répertoire d'artefacts cible artifacts par défaut
+    assert actions["artifacts_dir"].default == Path("artifacts")
+    # Vérifie que l'option --artifacts-dir est bien exposée dans les flags
+    assert actions["artifacts_dir"].option_strings == ["--artifacts-dir"]
+    # Vérifie que la taille de fenêtre reste un entier avec valeur 50
+    assert actions["window_size"].type is int
+    assert actions["window_size"].default == 50
+    # Vérifie que l'option --window-size est présente dans le parser
+    assert actions["window_size"].option_strings == ["--window-size"]
+    # Vérifie que le pas de glissement reste un entier avec valeur 25
+    assert actions["step_size"].type is int
+    assert actions["step_size"].default == 25
+    # Vérifie que l'option --step-size est présente dans le parser
+    assert actions["step_size"].option_strings == ["--step-size"]
+    # Vérifie que la taille du buffer reste un entier avec valeur 3
+    assert actions["buffer_size"].type is int
+    assert actions["buffer_size"].default == 3
+    # Vérifie que l'option --buffer-size est présente dans le parser
+    assert actions["buffer_size"].option_strings == ["--buffer-size"]
+    # Vérifie que la latence maximale reste un flottant avec valeur 2.0
+    assert actions["max_latency"].type is float
+    assert actions["max_latency"].default == 2.0
+    # Vérifie que l'option --max-latency est présente dans le parser
+    assert actions["max_latency"].option_strings == ["--max-latency"]
+    # Vérifie que la fréquence d'échantillonnage reste un flottant 50.0
+    assert actions["sfreq"].type is float
+    assert actions["sfreq"].default == 50.0
+    # Vérifie que l'option --sfreq est présente dans le parser
+    assert actions["sfreq"].option_strings == ["--sfreq"]
+
+
+# Vérifie que le chargement des données retourne exactement les tableaux écrits
+def test_load_data_reads_numpy_files(tmp_path):
+    # Construit un tableau de features identifiable pour l'appel
+    features = np.array([[1, 2], [3, 4]])
+    # Construit un tableau de labels pour vérifier la seconde sortie
+    labels = np.array([1, 0])
+    # Sauvegarde les features au format numpy dans un fichier temporaire
+    features_path = tmp_path / "features.npy"
+    np.save(features_path, features)
+    # Sauvegarde les labels au format numpy dans un fichier temporaire
+    labels_path = tmp_path / "labels.npy"
+    np.save(labels_path, labels)
+    # Charge les fichiers via la fonction dédiée pour vérifier la lecture
+    loaded_features, loaded_labels = realtime._load_data(features_path, labels_path)
+    # Vérifie que les features rechargées conservent la structure écrite
+    assert np.array_equal(loaded_features, features)
+    # Vérifie que les labels rechargés conservent la structure écrite
+    assert np.array_equal(loaded_labels, labels)
+
+
+# Vérifie que le parser interprète correctement des arguments explicites
+def test_realtime_parser_parses_custom_cli_values():
+    # Construit le parser pour interpréter des valeurs non par défaut
+    parser = realtime.build_parser()
+    # Parse une ligne de commande complète pour inspecter les conversions
+    args = parser.parse_args(
+        [
+            "S42",
+            "R99",
+            "--data-dir",
+            "custom_data",
+            "--artifacts-dir",
+            "custom_artifacts",
+            "--window-size",
+            "128",
+            "--step-size",
+            "32",
+            "--buffer-size",
+            "5",
+            "--max-latency",
+            "1.5",
+            "--sfreq",
+            "250.0",
+        ]
+    )
+    # Vérifie la conversion automatique en Path pour data_dir
+    assert args.data_dir == Path("custom_data")
+    # Vérifie la conversion automatique en Path pour artifacts_dir
+    assert args.artifacts_dir == Path("custom_artifacts")
+    # Vérifie la prise en compte de la fenêtre personnalisée
+    assert args.window_size == 128
+    # Vérifie la prise en compte du pas personnalisé
+    assert args.step_size == 32
+    # Vérifie la prise en compte de la taille de buffer personnalisée
+    assert args.buffer_size == 5
+    # Vérifie la prise en compte de la latence maximale personnalisée
+    assert args.max_latency == 1.5
+    # Vérifie la prise en compte de la fréquence d'échantillonnage personnalisée
+    assert args.sfreq == 250.0
+
+
 # Vérifie que la matrice W sauvegardée est cohérente avec la pipeline
 def test_w_matrix_matches_pipeline(tmp_path):
     # Fige la fréquence d'échantillonnage pour aligner les features FFT

@@ -615,3 +615,46 @@ def test_aggregate_scores_main_writes_requested_outputs(tmp_path, monkeypatch):
     assert csv_path.exists()
     # Vérifie que le fichier JSON a bien été écrit par la CLI
     assert json_path.exists()
+
+
+# Vérifie que la CLI n'écrit rien lorsque aucun chemin de sortie n'est fourni
+def test_aggregate_scores_main_skips_outputs_when_not_requested(tmp_path, monkeypatch):
+    # Prépare un rapport synthétique pour limiter l'exécution en test
+    stub_report = {
+        "runs": [],
+        "subjects": [],
+        "global": {"accuracy": 0.0, "meets_minimum": False, "meets_target": False},
+    }
+    # Capture les appels d'écriture pour vérifier les garde-fous
+    writes = {"csv": 0, "json": 0}
+    # Force l'agrégateur à renvoyer le rapport synthétique préconstruit
+    monkeypatch.setattr(
+        aggregate_scores_cli, "aggregate_scores", lambda *_: stub_report
+    )
+    # Remplace l'écriture CSV pour compter les appels potentiels
+    monkeypatch.setattr(
+        aggregate_scores_cli,
+        "write_csv",
+        lambda report, path: writes.update({"csv": writes["csv"] + 1}),
+    )
+    # Remplace l'écriture JSON pour compter les appels potentiels
+    monkeypatch.setattr(
+        aggregate_scores_cli,
+        "write_json",
+        lambda report, path: writes.update({"json": writes["json"] + 1}),
+    )
+    # Construit les arguments sans options d'export pour tester les garde-fous
+    argv = [
+        "--data-dir",
+        str(tmp_path / "data"),
+        "--artifacts-dir",
+        str(tmp_path / "artifacts"),
+    ]
+    # Exécute la CLI pour vérifier qu'aucun export n'est déclenché
+    exit_code = aggregate_scores_cli.main(argv)
+    # Vérifie que la CLI signale un succès standard
+    assert exit_code == 0
+    # Vérifie que l'écriture CSV n'a pas été appelée
+    assert writes["csv"] == 0
+    # Vérifie que l'écriture JSON n'a pas été appelée
+    assert writes["json"] == 0

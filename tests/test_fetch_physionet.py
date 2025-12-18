@@ -477,6 +477,47 @@ def test_parse_args_defaults_destination(monkeypatch, tmp_path: Path) -> None:
     assert parsed.destination == "data"
 
 
+# Vérifie que main retourne un code d'erreur lorsque la récupération échoue
+def test_main_propagates_fetch_failure(monkeypatch) -> None:
+    # Prépare des arguments simulés pour éviter la lecture de sys.argv
+    args = type(
+        "Args", (), {"source": "SRC", "manifest": "MAN", "destination": "DEST"}
+    )()
+    # Force parse_args à renvoyer les arguments simulés
+    monkeypatch.setattr(fetch_physionet, "parse_args", lambda: args)
+    # Simule un échec de récupération pour déclencher SystemExit
+    monkeypatch.setattr(
+        fetch_physionet, "fetch_dataset", lambda *_: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    # Vérifie que main propage un code de sortie non nul après l'échec
+    with pytest.raises(SystemExit) as exit_info:
+        fetch_physionet.main()
+    # Vérifie que le code de sortie correspond à l'échec attendu
+    assert exit_info.value.code == 1
+
+
+# Vérifie que main invoque fetch_dataset exactement une fois en succès
+def test_main_calls_fetch_once(monkeypatch) -> None:
+    # Prépare des arguments simulés pour éviter la lecture de sys.argv
+    args = type(
+        "Args", (), {"source": "SRC", "manifest": "MAN", "destination": "DEST"}
+    )()
+    # Force parse_args à renvoyer les arguments simulés
+    monkeypatch.setattr(fetch_physionet, "parse_args", lambda: args)
+    # Compte les appels pour vérifier le déclenchement de la récupération
+    calls = {"count": 0}
+    # Simule une récupération réussie en incrémentant le compteur
+    def succeed_fetch(source: str, manifest: Path, destination: Path) -> None:
+        calls["count"] += 1
+
+    # Injecte la fonction réussie à la place de fetch_dataset
+    monkeypatch.setattr(fetch_physionet, "fetch_dataset", succeed_fetch)
+    # Exécute main pour vérifier le routage nominal
+    fetch_physionet.main()
+    # Vérifie que la récupération a été appelée exactement une fois
+    assert calls["count"] == 1
+
+
 # Exécute le script comme module principal pour couvrir le garde __main__
 def test_main_runs_under_runpy(monkeypatch, tmp_path: Path) -> None:
     # Prépare une source locale avec un fichier EDF minimal
