@@ -1,2 +1,0 @@
-subject,run,data_dir,git_commit,cv_scores,cv_mean,sfreq,feature_strategy,normalize_features,dim_method,n_components,classifier,scaler
-S109,R03,data,707cde08d7027676eec4d6971a54cc1ed97cf9af,0.6666666666666666;0.0;0.5;0.5;0.5;0.5;0.5,0.4523809523809524,50.0,"""fft""",true,"""pca""",null,"""lda""",null
