@@ -44,6 +44,7 @@ REALTIME_SFREQ_DEFAULT = 50.0
 # Fixe la latence maximale par défaut pour le streaming realtime
 REALTIME_LATENCY_DEFAULT = 2.0
 
+
 # Vérifie que le rapport agrège correctement toutes les alertes attendues
 def test_report_missing_artifacts_summarizes_all_alerts(capsys):
     # Prépare des couples manquants pour déclencher l'alerte de données
@@ -79,10 +80,7 @@ def test_report_missing_artifacts_summarizes_all_alerts(capsys):
     # Vérifie que le rappel de commande de génération reste affiché
     assert "poetry run python scripts/train.py" in stdout
     # Vérifie que les expériences ignorées sont récapitulées
-    assert (
-        "expériences suivantes ont été ignorées faute de modèles: 1 (R02)"
-        in stdout
-    )
+    assert "expériences suivantes ont été ignorées faute de modèles: 1 (R02)" in stdout
 
 
 # Vérifie que le rapport reste silencieux lorsqu'aucun élément ne manque

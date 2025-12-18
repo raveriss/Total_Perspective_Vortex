@@ -487,7 +487,9 @@ def test_main_propagates_fetch_failure(monkeypatch) -> None:
     monkeypatch.setattr(fetch_physionet, "parse_args", lambda: args)
     # Simule un échec de récupération pour déclencher SystemExit
     monkeypatch.setattr(
-        fetch_physionet, "fetch_dataset", lambda *_: (_ for _ in ()).throw(RuntimeError("boom"))
+        fetch_physionet,
+        "fetch_dataset",
+        lambda *_: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     # Vérifie que main propage un code de sortie non nul après l'échec
     with pytest.raises(SystemExit) as exit_info:
@@ -506,6 +508,7 @@ def test_main_calls_fetch_once(monkeypatch) -> None:
     monkeypatch.setattr(fetch_physionet, "parse_args", lambda: args)
     # Compte les appels pour vérifier le déclenchement de la récupération
     calls = {"count": 0}
+
     # Simule une récupération réussie en incrémentant le compteur
     def succeed_fetch(source: str, manifest: Path, destination: Path) -> None:
         calls["count"] += 1
