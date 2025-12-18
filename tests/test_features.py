@@ -11,11 +11,7 @@ import pytest
 from mne import EpochsArray, create_info
 
 # Importe l'extracteur procédural, la classe scikit-learn et les helpers Welch
-from tpv.features import (
-    ExtractFeatures,
-    _prepare_welch_parameters,
-    extract_features,
-)
+from tpv.features import ExtractFeatures, _prepare_welch_parameters, extract_features
 
 # Définit une constante pour le budget temps afin d'éviter les magic numbers
 MAX_EXTRACTION_SECONDS = 0.25
