@@ -658,3 +658,57 @@ def test_aggregate_scores_main_skips_outputs_when_not_requested(tmp_path, monkey
     assert writes["csv"] == 0
     # Vérifie que l'écriture JSON n'a pas été appelée
     assert writes["json"] == 0
+
+
+def test_aggregate_scores_main_passes_cli_arguments(tmp_path, monkeypatch):
+    # Prépare un rapport synthétique pour les écritures de sortie
+    stub_report: dict[str, object] = {"runs": [], "subjects": [], "global": {}}
+    # Capture les paramètres transmis à aggregate_scores et aux writers
+    calls: dict[str, tuple[object, object] | tuple[object, object, object]] = {}
+
+    # Injecte un agrégateur espion pour vérifier les chemins fournis
+    def recording_aggregate(data_dir, artifacts_dir):
+        calls["aggregate"] = (data_dir, artifacts_dir)
+        return stub_report
+
+    # Remplace l'agrégateur par la version espion
+    monkeypatch.setattr(aggregate_scores_cli, "aggregate_scores", recording_aggregate)
+    # Capture les écritures CSV en enregistrant le rapport et le chemin
+    monkeypatch.setattr(
+        aggregate_scores_cli,
+        "write_csv",
+        lambda report, path: calls.update({"csv": (report, path)}),
+    )
+    # Capture les écritures JSON en enregistrant le rapport et le chemin
+    monkeypatch.setattr(
+        aggregate_scores_cli,
+        "write_json",
+        lambda report, path: calls.update({"json": (report, path)}),
+    )
+    # Construit les chemins de données et d'artefacts attendus
+    data_dir = tmp_path / "data"
+    artifacts_dir = tmp_path / "artifacts"
+    # Prépare les destinations de sortie pour le CSV et le JSON
+    csv_path = tmp_path / "scores.csv"
+    json_path = tmp_path / "scores.json"
+    # Exécute la CLI avec des arguments explicites
+    exit_code = aggregate_scores_cli.main(
+        [
+            "--data-dir",
+            str(data_dir),
+            "--artifacts-dir",
+            str(artifacts_dir),
+            "--csv-output",
+            str(csv_path),
+            "--json-output",
+            str(json_path),
+        ]
+    )
+    # Vérifie que la CLI termine avec succès
+    assert exit_code == 0
+    # Vérifie que aggregate_scores a reçu les deux chemins fournis
+    assert calls["aggregate"] == (data_dir, artifacts_dir)
+    # Vérifie que write_csv reçoit le rapport calculé et le chemin CSV
+    assert calls["csv"] == (stub_report, csv_path)
+    # Vérifie que write_json reçoit le rapport calculé et le chemin JSON
+    assert calls["json"] == (stub_report, json_path)

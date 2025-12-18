@@ -84,8 +84,10 @@ def test_load_recording_missing_file(tmp_path: Path) -> None:
     # Construit un chemin inexistant pour déclencher l'erreur
     missing_path = tmp_path / "absent" / "R01.edf"
     # Vérifie que FileNotFoundError est bien levée
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError) as excinfo:
         viz.load_recording(missing_path)
+    # Vérifie que le message indique clairement le chemin manquant
+    assert str(excinfo.value) == f"Recording not found: {missing_path}"
 
 
 # Vérifie que load_recording enrichit les métadonnées lorsque le fichier existe
@@ -151,8 +153,32 @@ def test_main_invokes_visualize_run(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Injecte le stub à la place de visualize_run
     monkeypatch.setattr(viz, "visualize_run", _spy_visualize_run)
-    # Configure argv pour simuler une invocation CLI minimale
-    monkeypatch.setattr(sys, "argv", ["prog", "S10", "R03"])
+    # Configure argv pour simuler une invocation CLI avec options personnalisées
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "prog",
+            "S10",
+            "R03",
+            "--data-root",
+            "/custom/data",
+            "--output-dir",
+            "/tmp/figures",
+            "--channels",
+            "C3",
+            "C4",
+            "--filter-method",
+            "iir",
+            "--freq-band",
+            "5",
+            "55",
+            "--pad-duration",
+            "1.5",
+            "--title",
+            "Demo",
+        ],
+    )
     # Exécute main pour déclencher la construction de config
     viz.main()
     # Vérifie que visualize_run a bien été invoqué
@@ -161,6 +187,22 @@ def test_main_invokes_visualize_run(monkeypatch: pytest.MonkeyPatch) -> None:
     assert called["run"] == "R03"
     # Vérifie que la configuration passée est une VisualizationConfig
     assert isinstance(called["config"], viz.VisualizationConfig)
+    # Vérifie que la racine data est transmise à visualize_run
+    assert called["data_root"] == Path("/custom/data")
+    # Vérifie que les canaux fournis sont conservés dans la configuration
+    assert called["config"].channels == ["C3", "C4"]
+    # Vérifie que la destination des figures correspond à l'argument CLI
+    assert called["config"].output_dir == Path("/tmp/figures")
+    # Vérifie que la méthode de filtrage respecte l'argument fourni
+    assert called["config"].filter_method == "iir"
+    # Vérifie que la bande de fréquences est convertie depuis la CLI
+    assert called["config"].freq_band == (5.0, 55.0)
+    # Vérifie que la durée de padding CLI est transmise en float
+    custom_pad_duration = 1.5
+    # Vérifie que la durée de padding CLI est transmise en float
+    assert called["config"].pad_duration == custom_pad_duration
+    # Vérifie que le titre de la figure reprend la valeur fournie
+    assert called["config"].title == "Demo"
 
 
 # Vérifie que main convertit une erreur en code de sortie explicite

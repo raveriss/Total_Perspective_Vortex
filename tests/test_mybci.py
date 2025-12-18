@@ -47,14 +47,16 @@ REALTIME_LATENCY_DEFAULT = 2.0
 
 # Vérifie que le rapport agrège correctement toutes les alertes attendues
 def test_report_missing_artifacts_summarizes_all_alerts(capsys):
-    # Prépare des couples manquants pour déclencher l'alerte de données
-    missing_entries = ["S001/R01", "S002/R02", "S003/R03"]
+    # Rassemble douze couples manquants pour tester le découpage à dix éléments
+    missing_entries = [f"S{idx:03d}/R{idx:02d}" for idx in range(1, 13)]
     # Prépare des modèles manquants pour couvrir les runs partiels et vides
     missing_models_by_run = {
         # Conserve un run partiel pour vérifier le résumé par run
         "R01": ["S001", "S002"],
         # Conserve un run complet pour activer la liste des runs vides
         "R02": ["S001", "S002", "S003"],
+        # Ajoute un run volumineux pour valider la limitation des exemples affichés
+        "R03": [f"S{idx:03d}" for idx in range(1, 8)],
     }
     # Construit une expérience ignorée pour déclencher l'avertissement final
     skipped_experiments = [mybci.ExperimentDefinition(index=1, run="R02")]
@@ -67,18 +69,53 @@ def test_report_missing_artifacts_summarizes_all_alerts(capsys):
     )
     # Capture la sortie standard pour inspecter les alertes imprimées
     stdout = capsys.readouterr().out
+    # Vérifie que l'avertissement de données conserve sa casse officielle
+    assert any(
+        line.startswith("AVERTISSEMENT: certaines données EDF ou .npy sont manquantes.")
+        for line in stdout.splitlines()
+    )
     # Vérifie que le volume de couples manquants est correctement résumé
-    assert "Couples sujet/run concernés: 3" in stdout
-    # Vérifie que l'aperçu affiche bien la liste des premières références
-    assert "Premiers manquants: S001/R01, S002/R02, S003/R03" in stdout
+    assert "Couples sujet/run concernés: 12" in stdout
+    # Vérifie que seuls les dix premiers couples apparaissent dans l'aperçu
+    assert (
+        "Premiers manquants: "
+        "S001/R01, S002/R02, S003/R03, S004/R04, S005/R05, "
+        "S006/R06, S007/R07, S008/R08, S009/R09, S010/R10"
+    ) in stdout
+    # Vérifie que les références au-delà de la dixième sont exclues
+    assert "S011/R11" not in stdout
+    # Vérifie que l'alerte sur les modèles absents reste inchangée
+    assert any(
+        line.startswith("AVERTISSEMENT: certains modèles entraînés sont absents.")
+        for line in stdout.splitlines()
+    )
     # Vérifie que l'avertissement sur les modèles absents est présent
     assert "modèles entraînés sont absents" in stdout
     # Vérifie que les runs totalement vides sont listés pour prioriser
     assert "Runs sans aucun modèle disponible: R02" in stdout
-    # Vérifie que le résumé par run mentionne les sujets manquants
-    assert "Run R01: modèles manquants pour 2 sujets" in stdout
+    # Vérifie que le résumé par run mentionne les sujets manquants avec exemples
+    assert "Run R01: modèles manquants pour 2 sujets (exemples: S001, S002)" in stdout
+    # Vérifie que les exemples sont limités à cinq sujets lorsqu'ils sont nombreux
+    expected_r03 = (
+        "Run R03: modèles manquants pour 7 sujets "
+        "(exemples: S001, S002, S003, S004, S005)"
+    )
+    # Vérifie que l'aperçu du run volumineux reste borné à cinq sujets
+    assert expected_r03 in stdout
+    # Vérifie que la ligne dédiée au run volumineux n'affiche pas les sujets suivants
+    run_r03_line = next(
+        line for line in stdout.splitlines() if line.startswith("Run R03")
+    )
+    # Vérifie que les sujets au-delà du cinquième sont absents de l'aperçu ciblé
+    assert "S006" not in run_r03_line
     # Vérifie que le rappel de commande de génération reste affiché
-    assert "poetry run python scripts/train.py" in stdout
+    # sans préfixe parasite
+    assert any(
+        line.startswith("Pour générer un modèle manquant, lancez par exemple :")
+        for line in stdout.splitlines()
+    )
+    # Vérifie que les expériences ignorées conservent le préfixe d'avertissement
+    assert "AVERTISSEMENT: les expériences suivantes ont été ignorées" in stdout
     # Vérifie que les expériences ignorées sont récapitulées
     assert "expériences suivantes ont été ignorées faute de modèles: 1 (R02)" in stdout
 
@@ -720,5 +757,12 @@ def test_report_missing_artifacts_prioritizes_empty_runs(capsys):
 
     output = capsys.readouterr().out
 
+    # Vérifie que les runs sans modèles sont listés en premier
     assert "Runs sans aucun modèle disponible: R04, R06" in output
+    # Vérifie que les runs partiels conservent le comptage des sujets
     assert "Run R05: modèles manquants pour 1 sujets" in output
+    # Vérifie que les expériences ignorées sont présentées avec la séparation attendue
+    assert (
+        "AVERTISSEMENT: les expériences suivantes ont été ignorées "
+        "faute de modèles: 1 (R04), 3 (R06)"
+    ) in output
