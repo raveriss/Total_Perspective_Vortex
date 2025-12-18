@@ -29,6 +29,26 @@ from tpv.realtime import RealtimeConfig, run_realtime_inference
 MIN_EXPECTED_LATENCY = 0.009
 # Définit la latence maximale autorisée pour les fenêtres streaming
 MAX_ALLOWED_LATENCY = 2.0
+# Fige la fenêtre par défaut pour empêcher les valeurs magiques
+DEFAULT_WINDOW_SIZE = 50
+# Fige le pas par défaut pour empêcher les valeurs magiques
+DEFAULT_STEP_SIZE = 25
+# Fige la taille de buffer par défaut pour empêcher les valeurs magiques
+DEFAULT_BUFFER_SIZE = 3
+# Fige la latence par défaut pour empêcher les valeurs magiques
+DEFAULT_MAX_LATENCY = 2.0
+# Fige la fréquence par défaut pour empêcher les valeurs magiques
+DEFAULT_SFREQ = 50.0
+# Fige la fenêtre personnalisée pour documenter les attentes CLI
+CUSTOM_WINDOW_SIZE = 128
+# Fige le pas personnalisé pour documenter les attentes CLI
+CUSTOM_STEP_SIZE = 32
+# Fige la taille de buffer personnalisée pour documenter les attentes CLI
+CUSTOM_BUFFER_SIZE = 5
+# Fige la latence personnalisée pour documenter les attentes CLI
+CUSTOM_MAX_LATENCY = 1.5
+# Fige la fréquence personnalisée pour documenter les attentes CLI
+CUSTOM_SFREQ = 250.0
 
 
 # Vérifie que le parser realtime expose toutes les options attendues
@@ -57,27 +77,27 @@ def test_realtime_build_parser_defines_cli_contract():
     assert actions["artifacts_dir"].option_strings == ["--artifacts-dir"]
     # Vérifie que la taille de fenêtre reste un entier avec valeur 50
     assert actions["window_size"].type is int
-    assert actions["window_size"].default == 50
+    assert actions["window_size"].default == DEFAULT_WINDOW_SIZE
     # Vérifie que l'option --window-size est présente dans le parser
     assert actions["window_size"].option_strings == ["--window-size"]
     # Vérifie que le pas de glissement reste un entier avec valeur 25
     assert actions["step_size"].type is int
-    assert actions["step_size"].default == 25
+    assert actions["step_size"].default == DEFAULT_STEP_SIZE
     # Vérifie que l'option --step-size est présente dans le parser
     assert actions["step_size"].option_strings == ["--step-size"]
     # Vérifie que la taille du buffer reste un entier avec valeur 3
     assert actions["buffer_size"].type is int
-    assert actions["buffer_size"].default == 3
+    assert actions["buffer_size"].default == DEFAULT_BUFFER_SIZE
     # Vérifie que l'option --buffer-size est présente dans le parser
     assert actions["buffer_size"].option_strings == ["--buffer-size"]
     # Vérifie que la latence maximale reste un flottant avec valeur 2.0
     assert actions["max_latency"].type is float
-    assert actions["max_latency"].default == 2.0
+    assert actions["max_latency"].default == DEFAULT_MAX_LATENCY
     # Vérifie que l'option --max-latency est présente dans le parser
     assert actions["max_latency"].option_strings == ["--max-latency"]
     # Vérifie que la fréquence d'échantillonnage reste un flottant 50.0
     assert actions["sfreq"].type is float
-    assert actions["sfreq"].default == 50.0
+    assert actions["sfreq"].default == DEFAULT_SFREQ
     # Vérifie que l'option --sfreq est présente dans le parser
     assert actions["sfreq"].option_strings == ["--sfreq"]
 
@@ -132,15 +152,15 @@ def test_realtime_parser_parses_custom_cli_values():
     # Vérifie la conversion automatique en Path pour artifacts_dir
     assert args.artifacts_dir == Path("custom_artifacts")
     # Vérifie la prise en compte de la fenêtre personnalisée
-    assert args.window_size == 128
+    assert args.window_size == CUSTOM_WINDOW_SIZE
     # Vérifie la prise en compte du pas personnalisé
-    assert args.step_size == 32
+    assert args.step_size == CUSTOM_STEP_SIZE
     # Vérifie la prise en compte de la taille de buffer personnalisée
-    assert args.buffer_size == 5
+    assert args.buffer_size == CUSTOM_BUFFER_SIZE
     # Vérifie la prise en compte de la latence maximale personnalisée
-    assert args.max_latency == 1.5
+    assert args.max_latency == CUSTOM_MAX_LATENCY
     # Vérifie la prise en compte de la fréquence d'échantillonnage personnalisée
-    assert args.sfreq == 250.0
+    assert args.sfreq == CUSTOM_SFREQ
 
 
 # Vérifie que la matrice W sauvegardée est cohérente avec la pipeline

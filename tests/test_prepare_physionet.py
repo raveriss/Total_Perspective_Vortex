@@ -13,6 +13,9 @@ import pytest
 # Importe la surface CLI nouvellement exposée
 from scripts import prepare_physionet
 
+# Fige le code de sortie standard pour absence d'arguments obligatoires
+USAGE_ERROR_CODE = 2
+
 
 # Vérifie que l'absence de fichiers source provoque un arrêt propre
 def test_prepare_physionet_stops_on_missing_source(
@@ -123,7 +126,7 @@ def test_parse_args_enforces_required_flags(monkeypatch: pytest.MonkeyPatch) -> 
     with pytest.raises(SystemExit) as exit_info:
         prepare_physionet.parse_args()
     # Vérifie que le parseur retourne le code usage standard lorsqu'il manque un flag
-    assert exit_info.value.code == 2
+    assert exit_info.value.code == USAGE_ERROR_CODE
 
 
 # Vérifie que main relaie l'exception quand la préparation échoue
@@ -138,6 +141,7 @@ def test_main_propagates_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(prepare_physionet, "parse_args", lambda: args)
     # Compte les appels pour vérifier que la préparation est bien déclenchée
     calls = {"count": 0}
+
     # Simule une erreur métier pour vérifier sa propagation directe
     def fail_prepare(source: str, manifest: str, destination: str) -> None:
         calls["count"] += 1
@@ -164,6 +168,7 @@ def test_main_calls_prepare_once(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(prepare_physionet, "parse_args", lambda: args)
     # Compte les appels pour vérifier que la préparation est bien déclenchée
     calls = {"count": 0}
+
     # Simule une préparation réussie pour mesurer le comptage
     def succeed_prepare(source: str, manifest: str, destination: str) -> None:
         calls["count"] += 1
