@@ -136,6 +136,66 @@ def test_extract_features_wavelet_emphasizes_alpha_band() -> None:
     )
 
 
+def test_extract_features_wavelet_rejects_empty_bands() -> None:
+    """La configuration wavelet doit refuser explicitement l'absence de bandes."""
+
+    # Prépare des epochs synthétiques minimaux
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=64, sfreq=64.0)
+    # Vérifie que l'absence de bandes entraîne une erreur explicite
+    with pytest.raises(
+        ValueError, match="At least one frequency band must be provided"
+    ):
+        extract_features(epochs, config={"method": "wavelet", "bands": []})
+
+
+def test_extract_features_wavelet_handles_overlapping_bands() -> None:
+    """Les bandes wavelet peuvent se chevaucher tout en préservant la forme."""
+
+    # Prépare un signal centré sur 10 Hz pour favoriser les bandes alpha
+    sfreq = 128.0
+    times = np.arange(0.0, 1.0, 1.0 / sfreq)
+    alpha_signal = np.sin(2 * np.pi * 10.0 * times)
+    epochs = EpochsArray(
+        np.expand_dims(np.stack([alpha_signal, alpha_signal]), axis=0),
+        create_info(ch_names=["C0", "C1"], sfreq=sfreq, ch_types="eeg"),
+    )
+    # Définit deux bandes qui se chevauchent autour de 10 Hz et une bande distante
+    custom_bands = [
+        ("alpha_wide", (8.0, 12.0)),
+        ("alpha_narrow", (9.0, 11.0)),
+        ("beta", (20.0, 30.0)),
+    ]
+    features, labels = extract_features(
+        epochs, config={"method": "wavelet", "bands": custom_bands}
+    )
+    # Vérifie que la forme reflète les bandes personnalisées et les canaux
+    assert features.shape == (1, 6)
+    assert labels == [
+        "C0_alpha_wide",
+        "C0_alpha_narrow",
+        "C0_beta",
+        "C1_alpha_wide",
+        "C1_alpha_narrow",
+        "C1_beta",
+    ]
+    # Les deux bandes alpha devraient dominer la bande beta sur chaque canal
+    reshaped = features.reshape(1, 2, 3)
+    assert reshaped[0, 0, 0] > reshaped[0, 0, 2]
+    assert reshaped[0, 0, 1] > reshaped[0, 0, 2]
+    assert reshaped[0, 1, 0] > reshaped[0, 1, 2]
+    assert reshaped[0, 1, 1] > reshaped[0, 1, 2]
+
+
+def test_extract_features_wavelet_rejects_unknown_wavelet_name() -> None:
+    """La configuration doit remonter une erreur pour les wavelets non supportées."""
+
+    # Prépare des epochs synthétiques pour alimenter la fonction
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=64, sfreq=64.0)
+    # Vérifie qu'une wavelet inconnue est explicitement rejetée
+    with pytest.raises(ValueError, match="Unsupported wavelet"):
+        extract_features(epochs, config={"method": "wavelet", "wavelet": "mexican_hat"})
+
+
 def test_extract_features_returns_zeros_when_band_mask_empty() -> None:
     """Une bande hors spectre doit produire des puissances nulles."""
 
