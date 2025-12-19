@@ -95,30 +95,63 @@ def _compute_welch_band_powers(
     return np.stack(band_powers, axis=2)
 
 
-def _compute_wavelet_coefficients(
+def _compute_wavelet_coefficients(  # noqa: PLR0913
     channel_values: np.ndarray,
     central_frequencies: Sequence[float],
     sfreq: float,
     wavelet_cycles: float,
+    wavelet_name: str = "morlet",
+    max_levels: int | None = None,
 ) -> np.ndarray:
     """Calcule les coefficients wavelets en convoluant une gaussienne modulée."""
+
+    def _ricker_wavelet(points: int, width: float) -> np.ndarray:
+        """Implémente une version locale de l'ondelette Ricker."""
+
+        safe_width = max(width, 1e-9)
+        positions = np.linspace(-(points - 1) / 2.0, (points - 1) / 2.0, points)
+        normalized = positions / safe_width
+        return (
+            2
+            / (np.sqrt(3 * safe_width) * np.pi**0.25)
+            * (1 - normalized**2)
+            * np.exp(-(normalized**2) / 2)
+        )
+
+    # Restreint le nombre de niveaux si une limite est fournie
+    if max_levels is not None:
+        if max_levels <= 0:
+            raise ValueError("wavelet_max_level must be positive.")
+        effective_frequencies = list(central_frequencies)[:max_levels]
+    else:
+        effective_frequencies = list(central_frequencies)
+    # Vérifie qu'au moins une fréquence a été fournie
+    if not effective_frequencies:
+        raise ValueError("At least one wavelet frequency is required.")
 
     # Prépare un conteneur pour stocker les coefficients par échelle
     coefficients: List[np.ndarray] = []
     # Prépare un axe temporel centré pour construire la gaussienne
     centered_times = np.arange(channel_values.size) - (channel_values.size - 1) / 2
     # Parcourt les fréquences centrales pour projeter le signal
-    for central_frequency in central_frequencies:
+    for central_frequency in effective_frequencies:
         # Empêche une fréquence nulle pour éviter des divisions par zéro
         safe_frequency = max(central_frequency, 1e-9)
         # Calcule l'écart-type de la gaussienne en fonction du nombre de cycles
         sigma = wavelet_cycles * sfreq / safe_frequency
-        # Construit la gaussienne centrée pour limiter les fuites temporelles
-        envelope = np.exp(-(centered_times**2) / (2 * sigma**2))
-        # Construit l'oscillation complexe alignée sur la fréquence centrale
-        oscillation = np.exp(2j * np.pi * safe_frequency * centered_times / sfreq)
-        # Combine l'enveloppe et l'oscillation pour former la wavelet
-        wavelet = envelope * oscillation
+        # Sélectionne la forme d'onde mère à utiliser
+        if wavelet_name == "morlet":
+            # Construit la gaussienne centrée pour limiter les fuites temporelles
+            envelope = np.exp(-(centered_times**2) / (2 * sigma**2))
+            # Construit l'oscillation complexe alignée sur la fréquence centrale
+            oscillation = np.exp(2j * np.pi * safe_frequency * centered_times / sfreq)
+            # Combine l'enveloppe et l'oscillation pour former la wavelet
+            wavelet = envelope * oscillation
+        elif wavelet_name in {"ricker", "mexh"}:
+            # Construit une ondelette de type chapeau mexicain (Ricker)
+            wavelet = _ricker_wavelet(centered_times.size, sigma)
+        else:
+            raise ValueError(f"Unsupported wavelet name: {wavelet_name}")
         # Convolue le signal avec la wavelet via FFT pour l'efficacité
         convolved = signal.fftconvolve(channel_values, wavelet, mode="same")
         # Ajoute le résultat à la liste pour assembler la matrice finale
@@ -137,10 +170,20 @@ def _compute_wavelet_band_powers(
 
     # Configure la largeur de la wavelet pour ajuster la résolution temps-fréquence
     wavelet_cycles: float = float(config.get("wavelet_width", 6.0))
+    # Sélectionne la forme d'onde mère à utiliser
+    wavelet_name: str = str(config.get("wavelet", "morlet"))
     # Calcule la fréquence centrale de chaque bande pour cibler la wavelet
     central_frequencies: List[float] = [
         (low + high) / 2.0 for low, high in band_ranges.values()
     ]
+    # Borne le nombre de niveaux à calculer si demandé
+    max_levels_config = config.get("wavelet_max_level")
+    effective_levels = len(central_frequencies)
+    if max_levels_config is not None:
+        max_levels = int(max_levels_config)
+        if max_levels <= 0:
+            raise ValueError("wavelet_max_level must be positive.")
+        effective_levels = min(max_levels, len(central_frequencies))
     # Prépare un tableau pour stocker l'énergie par essai, canal et bande
     band_powers: np.ndarray = np.zeros((data.shape[0], data.shape[1], len(band_ranges)))
     # Parcourt chaque essai pour éviter des allocations massives inutiles
@@ -153,11 +196,15 @@ def _compute_wavelet_band_powers(
                 central_frequencies,
                 sfreq,
                 wavelet_cycles,
+                wavelet_name=wavelet_name,
+                max_levels=effective_levels,
             )
             # Calcule la puissance moyenne par bande en intégrant la magnitude
             band_energy = np.abs(coefficients) ** 2
             # Moyenne temporelle pour stabiliser l'énergie de chaque bande
-            band_powers[epoch_index, channel_index, :] = band_energy.mean(axis=1)
+            band_powers[epoch_index, channel_index, :effective_levels] = (
+                band_energy.mean(axis=1)
+            )
     # Retourne le tenseur énergie pour alignement avec les étiquettes de bandes
     return band_powers
 
@@ -311,6 +358,8 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
                     central_frequencies,
                     self.sfreq,
                     wavelet_cycles=6.0,
+                    wavelet_name="morlet",
+                    max_levels=len(central_frequencies),
                 )
                 # Calcule l'énergie moyenne par bande à partir des coefficients
                 band_energy = np.abs(coefficients) ** 2

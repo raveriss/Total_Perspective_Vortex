@@ -11,7 +11,12 @@ import pytest
 from mne import EpochsArray, create_info
 
 # Importe l'extracteur procédural, la classe scikit-learn et les helpers Welch
-from tpv.features import ExtractFeatures, _prepare_welch_parameters, extract_features
+from tpv.features import (
+    ExtractFeatures,
+    _compute_wavelet_coefficients,
+    _prepare_welch_parameters,
+    extract_features,
+)
 
 # Définit une constante pour le budget temps afin d'éviter les magic numbers
 MAX_EXTRACTION_SECONDS = 0.25
@@ -134,6 +139,77 @@ def test_extract_features_wavelet_emphasizes_alpha_band() -> None:
     assert transformed.reshape(1, 3, 4)[0, 0, 1] == pytest.approx(
         np.max(transformed.reshape(1, 3, 4)[0, 0])
     )
+
+
+def test_compute_wavelet_coefficients_accepts_multiple_mothers_and_levels() -> None:
+    """Les ondelettes mères et la limite de niveaux doivent ajuster la forme."""
+
+    # Prépare un signal simple pour sonder les coefficients générés
+    rng = np.random.default_rng(seed=5)
+    channel_values = rng.standard_normal(32)
+    # Déclare plusieurs fréquences centrales pour varier les niveaux
+    central_frequencies = [4.0, 8.0, 16.0]
+    # Calcule les coefficients en limitant les niveaux pour la Morlet complexe
+    morlet_coeffs = _compute_wavelet_coefficients(
+        channel_values,
+        central_frequencies,
+        sfreq=64.0,
+        wavelet_cycles=6.0,
+        wavelet_name="morlet",
+        max_levels=2,
+    )
+    # Vérifie que seule une partie des bandes est conservée
+    assert morlet_coeffs.shape == (2, channel_values.size)
+    # Calcule les coefficients avec une ondelette Ricker couvrant tous les niveaux
+    ricker_coeffs = _compute_wavelet_coefficients(
+        channel_values,
+        central_frequencies,
+        sfreq=64.0,
+        wavelet_cycles=3.0,
+        wavelet_name="ricker",
+    )
+    # Vérifie que tous les niveaux sont présents et alignés sur la série temporelle
+    assert ricker_coeffs.shape == (len(central_frequencies), channel_values.size)
+    # Vérifie que les coefficients contiennent bien de l'énergie
+    assert np.abs(morlet_coeffs).sum() > 0
+    assert np.abs(ricker_coeffs).sum() > 0
+
+
+def test_compute_wavelet_coefficients_rejects_unknown_wavelet() -> None:
+    """Les ondelettes inconnues doivent être explicitement rejetées."""
+
+    with pytest.raises(ValueError):
+        _compute_wavelet_coefficients(
+            np.ones(8),
+            [4.0],
+            sfreq=32.0,
+            wavelet_cycles=2.0,
+            wavelet_name="unknown",
+        )
+
+
+def test_extract_features_wavelet_respects_level_limit() -> None:
+    """La limite de niveaux doit tronquer les bandes supplémentaires à zéro."""
+
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=64, sfreq=64.0)
+    epochs._data[0, 0] = np.random.default_rng(seed=7).standard_normal(64)
+    features, _ = extract_features(
+        epochs,
+        config={
+            "method": "wavelet",
+            "wavelet": "ricker",
+            "wavelet_max_level": 2,
+        },
+    )
+    # La forme reste alignée sur les quatre bandes habituelles
+    assert features.shape == (1, 4)
+    reshaped = features.reshape(1, 1, 4)
+    # Les deux premières bandes doivent comporter de l'énergie
+    assert reshaped[0, 0, 0] > 0
+    assert reshaped[0, 0, 1] > 0
+    # Les bandes tronquées doivent rester nulles
+    assert reshaped[0, 0, 2] == pytest.approx(0.0)
+    assert reshaped[0, 0, 3] == pytest.approx(0.0)
 
 
 def test_extract_features_returns_zeros_when_band_mask_empty() -> None:
