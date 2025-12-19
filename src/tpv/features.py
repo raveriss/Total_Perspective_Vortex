@@ -135,6 +135,10 @@ def _compute_wavelet_band_powers(
 ) -> np.ndarray:
     """Calcule l'énergie de bandes via une CWT Morlet paramétrable."""
 
+    # Valide le nom de wavelet demandé pour éviter les comportements implicites
+    wavelet_name = config.get("wavelet", "morlet")
+    if wavelet_name != "morlet":
+        raise ValueError(f"Unsupported wavelet: {wavelet_name!r}. Use 'morlet'.")
     # Configure la largeur de la wavelet pour ajuster la résolution temps-fréquence
     wavelet_cycles: float = float(config.get("wavelet_width", 6.0))
     # Calcule la fréquence centrale de chaque bande pour cibler la wavelet
