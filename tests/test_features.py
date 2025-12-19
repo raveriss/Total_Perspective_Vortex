@@ -15,6 +15,11 @@ from tpv.features import ExtractFeatures, _prepare_welch_parameters, extract_fea
 
 # Définit une constante pour le budget temps afin d'éviter les magic numbers
 MAX_EXTRACTION_SECONDS = 0.25
+DEFAULT_WELCH_LENGTH = 50
+NPERSEG_WITH_OVERLAP = 20
+EXCESSIVE_OVERLAP = 25
+NEGATIVE_OVERLAP = -5
+EXPECTED_OVERLAP_CAP = NPERSEG_WITH_OVERLAP - 1
 
 
 def _build_epochs(
@@ -262,7 +267,7 @@ def test_prepare_welch_parameters_defaults_when_overlap_missing() -> None:
     assert window == "hann"
     # Vérifie que la taille de segment par défaut couvre toute la série
     # Stocke la longueur maximale pour l'utiliser dans l'assertion
-    default_length = 50
+    default_length = DEFAULT_WELCH_LENGTH
     # Confirme que la fenêtre par défaut couvre toute la série disponible
     assert effective_nperseg == default_length
     # Vérifie qu'aucun recouvrement n'est défini sans instruction explicite
@@ -271,3 +276,38 @@ def test_prepare_welch_parameters_defaults_when_overlap_missing() -> None:
     assert average == "mean"
     # Vérifie que l'échelle par défaut correspond à la densité spectrale
     assert scaling == "density"
+
+
+def test_prepare_welch_parameters_replaces_non_positive_nperseg() -> None:
+    """nperseg non positif doit basculer sur la longueur totale disponible."""
+
+    # Prépare des configurations pathologiques avec nperseg nul ou négatif
+    configs = [{"nperseg": 0}, {"nperseg": -16}]
+    # Calcule les paramètres effectifs pour une longueur fixe
+    for config in configs:
+        _, effective_nperseg, effective_noverlap, _, _ = _prepare_welch_parameters(
+            config, n_times=DEFAULT_WELCH_LENGTH
+        )
+        # Vérifie que la taille de fenêtre est restaurée à la longueur totale
+        assert effective_nperseg == DEFAULT_WELCH_LENGTH
+        # Vérifie qu'en l'absence de recouvrement valide, la valeur reste None
+        assert effective_noverlap is None
+
+
+def test_prepare_welch_parameters_caps_overlap_above_window() -> None:
+    """Le recouvrement doit être borné par la taille effective de fenêtre."""
+
+    # Prépare un cas où le recouvrement dépasse largement la fenêtre
+    config = {"nperseg": NPERSEG_WITH_OVERLAP, "noverlap": EXCESSIVE_OVERLAP}
+    _, effective_nperseg, effective_noverlap, _, _ = _prepare_welch_parameters(
+        config, n_times=40
+    )
+    # Vérifie que nperseg respecte la borne la plus restrictive
+    assert effective_nperseg == NPERSEG_WITH_OVERLAP
+    # Vérifie que le recouvrement est borné juste sous la fenêtre
+    assert effective_noverlap == EXPECTED_OVERLAP_CAP
+    # Vérifie qu'un recouvrement négatif est remis à zéro
+    _, _, non_negative_overlap, _, _ = _prepare_welch_parameters(
+        {"nperseg": NPERSEG_WITH_OVERLAP, "noverlap": NEGATIVE_OVERLAP}, n_times=40
+    )
+    assert non_negative_overlap == 0

@@ -33,7 +33,10 @@ def _prepare_welch_parameters(
     # Permet d'ajuster la taille de segment pour contrôler la résolution
     nperseg: int | None = config.get("nperseg")
     # Borne la taille de segment pour éviter les avertissements SciPy
-    effective_nperseg: int = min(nperseg or n_times, n_times)
+    if nperseg is None or nperseg <= 0:
+        effective_nperseg = n_times
+    else:
+        effective_nperseg = min(nperseg, n_times)
     # Offre un recouvrement configurable pour stabiliser l'estimation
     noverlap: int | None = config.get("noverlap")
     # Borne le recouvrement pour garantir une fenêtre strictement positive
@@ -41,7 +44,7 @@ def _prepare_welch_parameters(
     # Vérifie que l'appelant a fourni un recouvrement explicite
     if noverlap is not None:
         # Coupe le recouvrement juste avant la taille de fenêtre autorisée
-        effective_noverlap = min(noverlap, effective_nperseg - 1)
+        effective_noverlap = max(0, min(noverlap, effective_nperseg - 1))
     # Permet de choisir la stratégie d'agrégation des segments
     average: str = config.get("average", "mean")
     # Permet de choisir la densité ou la puissance intégrée
