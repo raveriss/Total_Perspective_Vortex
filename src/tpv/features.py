@@ -6,6 +6,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
 
 # Importe NumPy pour manipuler les tenseurs spectraux et tabulaires
 import numpy as np
+from numpy.typing import NDArray
 
 # Importe scipy.signal pour accéder à l'estimateur de Welch et à la CWT
 from scipy import signal
@@ -105,17 +106,17 @@ def _compute_wavelet_coefficients(  # noqa: PLR0913
 ) -> np.ndarray:
     """Calcule les coefficients wavelets en convoluant une gaussienne modulée."""
 
-    def _ricker_wavelet(points: int, width: float) -> np.ndarray:
+    def _ricker_wavelet(points: int, width: float) -> NDArray[np.float64]:
         """Implémente une version locale de l'ondelette Ricker."""
 
         safe_width = max(width, 1e-9)
         positions = np.linspace(-(points - 1) / 2.0, (points - 1) / 2.0, points)
         normalized = positions / safe_width
         return (
-            2
-            / (np.sqrt(3 * safe_width) * np.pi**0.25)
-            * (1 - normalized**2)
-            * np.exp(-(normalized**2) / 2)
+            2.0
+            / (np.sqrt(3.0 * safe_width) * np.pi**0.25)
+            * (1.0 - normalized**2)
+            * np.exp(-(normalized**2) / 2.0)
         )
 
     # Restreint le nombre de niveaux si une limite est fournie
