@@ -271,3 +271,38 @@ def test_prepare_welch_parameters_defaults_when_overlap_missing() -> None:
     assert average == "mean"
     # Vérifie que l'échelle par défaut correspond à la densité spectrale
     assert scaling == "density"
+
+
+def test_prepare_welch_parameters_replaces_non_positive_nperseg() -> None:
+    """nperseg non positif doit basculer sur la longueur totale disponible."""
+
+    # Prépare des configurations pathologiques avec nperseg nul ou négatif
+    configs = [{"nperseg": 0}, {"nperseg": -16}]
+    # Calcule les paramètres effectifs pour une longueur fixe
+    for config in configs:
+        _, effective_nperseg, effective_noverlap, _, _ = _prepare_welch_parameters(
+            config, n_times=50
+        )
+        # Vérifie que la taille de fenêtre est restaurée à la longueur totale
+        assert effective_nperseg == 50
+        # Vérifie qu'en l'absence de recouvrement valide, la valeur reste None
+        assert effective_noverlap is None
+
+
+def test_prepare_welch_parameters_caps_overlap_above_window() -> None:
+    """Le recouvrement doit être borné par la taille effective de fenêtre."""
+
+    # Prépare un cas où le recouvrement dépasse largement la fenêtre
+    config = {"nperseg": 20, "noverlap": 25}
+    _, effective_nperseg, effective_noverlap, _, _ = _prepare_welch_parameters(
+        config, n_times=40
+    )
+    # Vérifie que nperseg respecte la borne la plus restrictive
+    assert effective_nperseg == 20
+    # Vérifie que le recouvrement est borné juste sous la fenêtre
+    assert effective_noverlap == 19
+    # Vérifie qu'un recouvrement négatif est remis à zéro
+    _, _, non_negative_overlap, _, _ = _prepare_welch_parameters(
+        {"nperseg": 20, "noverlap": -5}, n_times=40
+    )
+    assert non_negative_overlap == 0
