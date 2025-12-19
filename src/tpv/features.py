@@ -343,6 +343,9 @@ def extract_features(
     band_ranges: Dict[str, Tuple[float, float]] = _resolve_band_ranges(
         effective_config, default_bands
     )
+    # Refuse une configuration vide pour éviter un empilement sans bandes
+    if not band_ranges:
+        raise ValueError("At least one frequency band must be provided.")
     # Récupère la méthode pour aiguiller la stratégie d'extraction
     method: str = effective_config.get("method", "welch")
     # Capture les noms de canaux pour aligner les étiquettes de features
