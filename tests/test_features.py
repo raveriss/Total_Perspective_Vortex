@@ -163,6 +163,36 @@ def test_extract_features_wrapper_rejects_unknown_strategy() -> None:
         extractor.transform(tensor)
 
 
+def test_extract_features_constructor_defaults() -> None:
+    """Le constructeur doit appliquer les valeurs par défaut documentées."""
+
+    # Instancie l'extracteur avec uniquement la fréquence d'échantillonnage
+    extractor = ExtractFeatures(sfreq=128.0)
+    # Vérifie que la fréquence est stockée en flottant pour les calculs
+    assert extractor.sfreq == pytest.approx(128.0)
+    # Vérifie que la stratégie par défaut reste la FFT
+    assert extractor.feature_strategy == "fft"
+    # Vérifie que la normalisation est activée par défaut
+    assert extractor.normalize is True
+    # Vérifie que les bandes par défaut couvrent les quatre intervalles attendus
+    assert extractor.band_labels == ["theta", "alpha", "beta", "gamma"]
+
+
+def test_extract_features_constructor_stores_custom_attributes() -> None:
+    """Le constructeur doit persister les attributs fournis par l'appelant."""
+
+    # Instancie l'extracteur avec une stratégie et une normalisation custom
+    extractor = ExtractFeatures(sfreq=256.0, feature_strategy="wavelet", normalize=False)
+    # Vérifie que la fréquence d'échantillonnage reste fidèle à l'entrée
+    assert extractor.sfreq == pytest.approx(256.0)
+    # Vérifie que la stratégie demandée est bien conservée
+    assert extractor.feature_strategy == "wavelet"
+    # Vérifie que la désactivation de la normalisation est persistée
+    assert extractor.normalize is False
+    # Vérifie que la liste des bandes reste alignée avec la constante
+    assert extractor.band_labels == ["theta", "alpha", "beta", "gamma"]
+
+
 def test_extract_features_wrapper_rejects_incorrect_shape() -> None:
     """La classe scikit-learn doit refuser une dimension d'entrée erronée."""
 
@@ -183,6 +213,16 @@ def test_extract_features_wrapper_rejects_unknown_method() -> None:
     # Vérifie que la fonction signale la méthode inconnue
     with pytest.raises(ValueError):
         extract_features(epochs, config={"method": "invalid"})
+
+
+def test_extract_features_rejects_empty_band_configuration() -> None:
+    """Une configuration sans bandes doit être rejetée explicitement."""
+
+    # Prépare des epochs synthétiques pour déclencher la validation
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=32, sfreq=64.0)
+    # Vérifie que l'absence de bandes lève une erreur explicite
+    with pytest.raises(ValueError):
+        extract_features(epochs, config={"method": "welch", "bands": []})
 
 
 def test_extract_features_numeric_stability() -> None:
