@@ -49,6 +49,8 @@ from tpv.preprocessing import (
     _flag_epoch_quality,
     _is_bad_description,
     _normalize_report_config,
+    _rename_channels_for_montage,
+    _validate_motor_mapping,
     apply_bandpass_filter,
     create_epochs_from_raw,
     detect_artifacts,
@@ -694,6 +696,52 @@ def test_map_events_to_motor_labels_reports_unknown_event_codes(
     payload = json.loads(str(excinfo.value))
     assert payload["error"] == "Unknown event codes"
     assert payload["unknown_codes"] == [999]
+
+
+def test_validate_motor_mapping_rejects_duplicate_targets() -> None:
+    """Ensure motor mappings cannot collapse distinct labels to one target."""
+
+    # Construit un Raw synthétique contenant des annotations moteur
+    raw = _build_dummy_raw()
+    # Définit un mapping qui duplique la cible A et omet la cible B requise
+    motor_map = {"T1": "A", "T2": "A"}
+    # Vérifie que la validation refuse l'absence de cible B dans le mapping
+    with pytest.raises(ValueError, match=r"missing \['B'\]"):
+        _validate_motor_mapping(raw, PHYSIONET_LABEL_MAP, motor_map)
+
+
+def test_rename_channels_for_montage_ignores_missing_entries() -> None:
+    """Ensure absent mapping keys leave channel names untouched."""
+
+    # Construit un Raw avec un canal sans correspondance dans le mapping par défaut
+    info = mne.create_info(
+        ch_names=["C3..", "Unknown", "T9.."], sfreq=100.0, ch_types="eeg"
+    )
+    # Génère des données nulles pour stabiliser le Raw de test
+    data = np.zeros((3, 10))
+    # Assemble le RawArray pour appliquer le renommage partiel
+    raw = mne.io.RawArray(data, info)
+    # Applique le renommage afin de transformer uniquement les canaux connus
+    renamed = _rename_channels_for_montage(raw)
+    # Vérifie que les canaux connus sont renommés tandis que les autres restent intacts
+    assert renamed.ch_names == ["C3", "Unknown", "T9"]
+
+
+def test_rename_channels_for_montage_preserves_channel_order() -> None:
+    """Ensure remapping keeps channel order stable after rename."""
+
+    # Construit un Raw avec des canaux devant être renommés mais ordonnés spécifiquement
+    info = mne.create_info(
+        ch_names=["T9..", "C4..", "C3.."], sfreq=200.0, ch_types="eeg"
+    )
+    # Génère des données nulles pour stabiliser l'instance Raw
+    data = np.zeros((3, 20))
+    # Assemble le RawArray afin de vérifier l'ordre après renommage
+    raw = mne.io.RawArray(data, info)
+    # Applique le mapping de renommage pour aligner les noms sur le montage 10-20
+    renamed = _rename_channels_for_montage(raw)
+    # Contrôle que l'ordre d'origine est respecté malgré le renommage
+    assert renamed.ch_names == ["T9", "C4", "C3"]
 
 
 def test_quality_control_and_reporting(tmp_path: Path) -> None:
