@@ -2483,7 +2483,9 @@ def test_map_events_to_motor_labels_flags_unknown_numeric_codes(
     assert payload["unknown_codes"] == [999]
 
 
-def test_map_events_to_motor_labels_rejects_empty_events(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_map_events_to_motor_labels_rejects_empty_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Assure une erreur explicite lorsque aucun événement n'est disponible."""
 
     # Construit un enregistrement minimal avec montage appliqué
