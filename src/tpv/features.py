@@ -2,7 +2,7 @@
 
 # Importe les annotations pour clarifier la signature des fonctions
 # Importe Any pour typer la configuration dynamique des fonctions
-from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple, cast
 
 # Importe NumPy pour manipuler les tenseurs spectraux et tabulaires
 import numpy as np
@@ -306,7 +306,7 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         # Empile les bandes pour retourner un tenseur cohérent canal x bande
         stacked = np.stack(band_powers, axis=2)
         # Retourne une matrice aplatie (échantillons, canaux * bandes)
-        return stacked.reshape(stacked.shape[0], -1)
+        return cast(np.ndarray, stacked.reshape(stacked.shape[0], -1))
 
     def _compute_wavelet_features(self, X: np.ndarray) -> np.ndarray:
         """Calcule des features à partir de la CWT wavelet."""
