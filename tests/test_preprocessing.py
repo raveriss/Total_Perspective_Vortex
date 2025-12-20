@@ -1204,6 +1204,34 @@ def test_load_mne_raw_checked_rejects_unknown_suffix(
     assert payload["suffix"] == ".txt"
 
 
+def test_load_mne_raw_checked_surfaces_missing_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure missing recordings raise FileNotFoundError with path context."""
+
+    # Construit un chemin vers un enregistrement inexistant pour simuler une absence
+    missing_file = tmp_path / "S404" / "run99.edf"
+    # Capture le chemin résolu pour vérifier sa présence dans le message
+    resolved_missing = missing_file.resolve()
+    # Simule l'échec de lecture en répliquant l'erreur d'absence de fichier
+    monkeypatch.setattr(
+        mne.io,
+        "read_raw_edf",
+        lambda path, *_args, **_kwargs: (
+            (_ for _ in ()).throw(FileNotFoundError(f"No recording at {path}"))
+        ),
+    )
+    # Vérifie que l'erreur inclut bien le chemin normalisé
+    with pytest.raises(FileNotFoundError) as exc:
+        load_mne_raw_checked(
+            missing_file,
+            expected_montage="standard_1020",
+            expected_sampling_rate=128.0,
+            expected_channels=["C3", "C4"],
+        )
+    assert str(resolved_missing) in str(exc.value)
+
+
 def test_load_mne_raw_checked_flags_missing_only_channels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2351,6 +2379,32 @@ def test_load_mne_motor_run_maps_motor_events(
     assert motor_labels == ["A", "B"]
     # S'assure que les événements filtrés excluent l'annotation de repos
     assert np.array_equal(events[:, 2], np.array([event_id["T1"], event_id["T2"]]))
+
+
+def test_load_mne_motor_run_reports_unknown_subject_or_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure an explicit FileNotFoundError is propagated for wrong IDs."""
+
+    # Déclare des identifiants invalides pour simuler un chemin absent
+    missing_subject = "S404"
+    missing_run = "R99"
+    missing_file = tmp_path / missing_subject / f"{missing_run}.edf"
+    # Fixe un message d'erreur clair pour verrouiller la propagation
+    error_message = f"No recording for subject {missing_subject} run {missing_run}"
+
+    # Simule la lecture EDF qui échoue immédiatement
+    def raising_reader(*_args: object, **_kwargs: object) -> mne.io.BaseRaw:
+        raise FileNotFoundError(error_message)
+
+    monkeypatch.setattr("mne.io.read_raw_edf", raising_reader)
+    # Vérifie que le message explicite est conservé jusqu'à l'appelant
+    with pytest.raises(FileNotFoundError, match=error_message):
+        load_mne_motor_run(
+            missing_file,
+            expected_sampling_rate=128.0,
+            expected_channels=["C3", "C4"],
+        )
 
 
 def test_map_events_to_motor_labels_rejects_runs_without_motor_activity() -> None:
