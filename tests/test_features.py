@@ -413,3 +413,72 @@ def test_prepare_welch_parameters_caps_overlap_above_window() -> None:
         {"nperseg": NPERSEG_WITH_OVERLAP, "noverlap": NEGATIVE_OVERLAP}, n_times=40
     )
     assert non_negative_overlap == 0
+
+
+def test_extract_features_delegates_to_sklearn_estimator(monkeypatch: pytest.MonkeyPatch) -> None:
+    """extract_features doit instancier ExtractFeatures et réutiliser son transform."""
+
+    # Prépare des epochs minimaux pour forcer le chemin de délégation
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=8, sfreq=64.0)
+    captured: dict[str, object] = {}
+
+    class DummyExtractor:
+        def __init__(
+            self,
+            *,
+            sfreq: float,
+            feature_strategy: str,
+            normalize: bool,
+            bands: dict[str, tuple[float, float]],
+            strategy_config: dict[str, object],
+        ) -> None:
+            captured["init"] = {
+                "sfreq": sfreq,
+                "feature_strategy": feature_strategy,
+                "normalize": normalize,
+                "bands": bands,
+                "strategy_config": strategy_config,
+            }
+            self._bands = bands
+
+        def transform(self, data: np.ndarray) -> np.ndarray:
+            captured["data"] = data
+            return np.full((data.shape[0], data.shape[1] * len(self._bands)), 2.5)
+
+    monkeypatch.setattr("tpv.features.ExtractFeatures", DummyExtractor)
+
+    features, labels = extract_features(epochs, config={"method": "welch"})
+
+    assert captured["init"] == {
+        "sfreq": pytest.approx(64.0),
+        "feature_strategy": "welch",
+        "normalize": False,
+        "bands": {
+            "theta": (4.0, 7.0),
+            "alpha": (8.0, 12.0),
+            "beta": (13.0, 30.0),
+            "gamma": (31.0, 45.0),
+        },
+        "strategy_config": {},
+    }
+    assert np.array_equal(captured["data"], epochs.get_data())
+    assert np.array_equal(features, np.full((1, 4), 2.5))
+    assert labels == ["C0_theta", "C0_alpha", "C0_beta", "C0_gamma"]
+
+
+def test_extract_features_propagates_transform_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """L'erreur levée par ExtractFeatures.transform doit remonter telle quelle."""
+
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=8, sfreq=64.0)
+
+    class FailingExtractor:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def transform(self, data: np.ndarray) -> np.ndarray:  # noqa: ARG002
+            raise RuntimeError("delegated failure")
+
+    monkeypatch.setattr("tpv.features.ExtractFeatures", FailingExtractor)
+
+    with pytest.raises(RuntimeError, match="delegated failure"):
+        extract_features(epochs, config={"method": "welch"})

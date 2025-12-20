@@ -207,6 +207,8 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         sfreq: float,
         feature_strategy: str = "fft",
         normalize: bool = True,
+        bands: Mapping[str, Tuple[float, float]] | None = None,
+        strategy_config: Mapping[str, Any] | None = None,
     ):
         # Stocke la fréquence d'échantillonnage comme float pour la FFT
         self.sfreq = float(sfreq)
@@ -214,6 +216,17 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         self.feature_strategy = feature_strategy
         # Active ou non la normalisation des features
         self.normalize = normalize
+        # Expose les bandes pour compatibilité scikit-learn (get_params)
+        self.bands = bands
+        # Stocke les bandes utilisées pour la construction des features
+        self.band_ranges: Dict[str, Tuple[float, float]] = dict(
+            bands or self.BAND_RANGES
+        )
+        # Stocke la configuration spécifique à la stratégie (Welch, wavelet, etc.)
+        self.strategy_config = strategy_config
+        self._effective_strategy_config: Dict[str, Any] = dict(
+            strategy_config or {}
+        )
 
     def fit(self, X, y=None):
         # Pas d'apprentissage de paramètres pour l'instant
@@ -247,7 +260,7 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
     @property
     def band_labels(self) -> List[str]:
         # Retourne les noms de bandes dans l'ordre déclaré
-        return list(self.BAND_RANGES.keys())
+        return list(self.band_ranges.keys())
 
     def _compute_features(self, X: np.ndarray) -> np.ndarray:
         """Dispatch interne vers la bonne stratégie de features."""
@@ -258,10 +271,13 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         # Permet de basculer vers la stratégie wavelet
         if self.feature_strategy == "wavelet":
             return self._compute_wavelet_features(X)
+        # Calcule les puissances de bandes via Welch
+        if self.feature_strategy == "welch":
+            return self._compute_welch_features(X)
         # Rejette explicitement les stratégies inconnues
         raise ValueError(
             f"Unsupported feature_strategy: {self.feature_strategy!r}. "
-            "Use 'fft' or 'wavelet'."
+            "Use 'fft', 'welch', or 'wavelet'."
         )
 
     def _compute_fft_features(self, X: np.ndarray) -> np.ndarray:
@@ -271,13 +287,10 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         freqs = np.fft.rfftfreq(X.shape[2], d=1.0 / self.sfreq)
         # Calcule la puissance spectrale par canal et échantillon
         power = np.abs(np.fft.rfft(X, axis=2)) ** 2  # pragma: no mutate
-        # Prépare le conteneur pour accumuler les puissances de bandes
-        features: List[np.ndarray] = []
-
-        # Parcourt chaque bande EEG définie dans BAND_RANGES
-        for band in self.band_labels:
-            # Récupère les bornes fréquentielles de la bande
-            low, high = self.BAND_RANGES[band]
+        # Accumule les puissances par bande pour chaque canal
+        band_powers: List[np.ndarray] = []
+        # Parcourt chaque bande EEG définie dans les paramètres
+        for _, (low, high) in self.band_ranges.items():
             # Construit le masque fréquentiel pour cette bande
             band_mask = (freqs >= low) & (freqs <= high)
 
@@ -290,42 +303,37 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
                 band_power = power[:, :, band_mask].mean(axis=2)
 
             # Ajoute la matrice (n_samples, n_channels) à la liste
-            features.append(band_power)
+            band_powers.append(band_power)
 
-        # Concatène les bandes le long de l’axe des features
-        return np.concatenate(features, axis=1)
+        # Empile les bandes pour retourner un tenseur cohérent canal x bande
+        stacked = np.stack(band_powers, axis=2)
+        # Retourne une matrice aplatie (échantillons, canaux * bandes)
+        return stacked.reshape(stacked.shape[0], -1)
 
     def _compute_wavelet_features(self, X: np.ndarray) -> np.ndarray:
         """Calcule des features à partir de la CWT wavelet."""
 
-        # Calcule la fréquence centrale pour chaque bande prédéfinie
-        central_frequencies = [
-            (low + high) / 2.0 for low, high in self.BAND_RANGES.values()
-        ]
-        # Prépare une matrice vide pour accueillir les features wavelets
-        features = np.zeros((X.shape[0], X.shape[1] * len(self.BAND_RANGES)))
-
-        # Parcourt chaque essai pour limiter la charge mémoire
-        for epoch_index, epoch_data in enumerate(X):
-            # Parcourt chaque canal pour calculer les coefficients wavelets
-            for channel_index, channel_values in enumerate(epoch_data):
-                # Calcule la CWT pour toutes les bandes en une seule fois
-                coefficients = _compute_wavelet_coefficients(
-                    channel_values,
-                    central_frequencies,
-                    self.sfreq,
-                    wavelet_cycles=6.0,
-                )
-                # Calcule l'énergie moyenne par bande à partir des coefficients
-                band_energy = np.abs(coefficients) ** 2
-                # Aplatit le tenseur pour l'insérer dans la matrice finale
-                start = channel_index * len(self.BAND_RANGES)
-                end = start + len(self.BAND_RANGES)
-                # Place l'énergie moyenne dans les colonnes associées au canal
-                features[epoch_index, start:end] = band_energy.mean(axis=1)
+        # Calcule les coefficients puis la puissance de bande via la fonction dédiée
+        stacked = _compute_wavelet_band_powers(
+            X,
+            self.sfreq,
+            self.band_ranges,
+            self._effective_strategy_config,
+        )
 
         # Retourne la matrice tabulaire prête pour un classifieur scikit-learn
-        return features
+        return stacked.reshape(stacked.shape[0], -1)
+
+    def _compute_welch_features(self, X: np.ndarray) -> np.ndarray:
+        """Calcule des features à partir de la méthode de Welch."""
+
+        stacked = _compute_welch_band_powers(
+            X,
+            self.sfreq,
+            self.band_ranges,
+            self._effective_strategy_config,
+        )
+        return stacked.reshape(stacked.shape[0], -1)
 
 
 def extract_features(
@@ -351,30 +359,32 @@ def extract_features(
     if not band_ranges:
         raise ValueError("At least one frequency band must be provided.")
     # Récupère la méthode pour aiguiller la stratégie d'extraction
-    method: str = effective_config.get("method", "welch")
+    method: str = effective_config.pop("method", "welch")
+    # Permet de contrôler l'activation de la normalisation via la configuration
+    normalize = bool(effective_config.pop("normalize", False))
+    # Supprime la configuration des bandes pour ne pas dupliquer l'information
+    effective_config.pop("bands", None)
     # Capture les noms de canaux pour aligner les étiquettes de features
     channel_names: Sequence[str] = getattr(epochs.info, "ch_names", [])
     # Extrait les données temporelles pour calculer les caractéristiques spectrales
     data: np.ndarray = epochs.get_data()
     # Récupère la fréquence d'échantillonnage indispensable au calcul fréquentiel
     sfreq: float = float(epochs.info["sfreq"])
-    # Oriente vers le calcul Welch lorsque la méthode par défaut est demandée
-    if method == "welch":
-        # Calcule les PSD de bandes via Welch avec paramètres bornés
-        stacked = _compute_welch_band_powers(data, sfreq, band_ranges, effective_config)
-    # Oriente vers la transformée en ondelettes pour une résolution temporelle
-    elif method == "wavelet":
-        # Calcule l'énergie de bandes via une CWT configurée
-        stacked = _compute_wavelet_band_powers(
-            data, sfreq, band_ranges, effective_config
-        )
-    # Rejette explicitement les méthodes non reconnues pour éviter des surprises
-    else:
-        # Signale l'erreur avec la méthode fournie par l'appelant
-        raise ValueError(f"Unsupported feature extraction method: {method}")
+    # Construit un extracteur scikit-learn pour déléguer le calcul
+    estimator = ExtractFeatures(
+        sfreq=sfreq,
+        feature_strategy=method,
+        normalize=normalize,
+        bands=band_ranges,
+        strategy_config=effective_config,
+    )
+    # Calcule les features en déléguant à l'extracteur scikit-learn
+    features = estimator.transform(data)
+    # Détermine le nombre de bandes pour reconstruire les étiquettes
+    n_bands = len(band_ranges)
+    # Recompose un tenseur factice pour générer les étiquettes canal/bande
+    stacked = features.reshape(features.shape[0], data.shape[1], n_bands)
     # Construit des étiquettes canal_bande pour interpréter les features
     labels: List[str] = _build_labels(stacked, band_ranges, channel_names)
-    # Aplati les bandes pour fournir une matrice compatible avec scikit-learn
-    flattened = stacked.reshape(stacked.shape[0], -1)
     # Retourne les features tabulaires accompagnés de leurs étiquettes
-    return flattened, labels
+    return features, labels
