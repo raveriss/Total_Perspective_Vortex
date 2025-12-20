@@ -420,7 +420,8 @@ def test_extract_features_delegates_to_sklearn_estimator(monkeypatch: pytest.Mon
 
     # Prépare des epochs minimaux pour forcer le chemin de délégation
     epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=8, sfreq=64.0)
-    captured: dict[str, object] = {}
+    captured_init: dict[str, object] = {}
+    captured_data: dict[str, np.ndarray] = {}
 
     class DummyExtractor:
         def __init__(
@@ -432,7 +433,7 @@ def test_extract_features_delegates_to_sklearn_estimator(monkeypatch: pytest.Mon
             bands: dict[str, tuple[float, float]],
             strategy_config: dict[str, object],
         ) -> None:
-            captured["init"] = {
+            captured_init["init"] = {
                 "sfreq": sfreq,
                 "feature_strategy": feature_strategy,
                 "normalize": normalize,
@@ -442,14 +443,14 @@ def test_extract_features_delegates_to_sklearn_estimator(monkeypatch: pytest.Mon
             self._bands = bands
 
         def transform(self, data: np.ndarray) -> np.ndarray:
-            captured["data"] = data
+            captured_data["data"] = np.asarray(data)
             return np.full((data.shape[0], data.shape[1] * len(self._bands)), 2.5)
 
     monkeypatch.setattr("tpv.features.ExtractFeatures", DummyExtractor)
 
     features, labels = extract_features(epochs, config={"method": "welch"})
 
-    assert captured["init"] == {
+    assert captured_init["init"] == {
         "sfreq": pytest.approx(64.0),
         "feature_strategy": "welch",
         "normalize": False,
@@ -461,7 +462,7 @@ def test_extract_features_delegates_to_sklearn_estimator(monkeypatch: pytest.Mon
         },
         "strategy_config": {},
     }
-    assert np.array_equal(captured["data"], epochs.get_data())
+    assert np.array_equal(captured_data["data"], epochs.get_data())
     assert np.array_equal(features, np.full((1, 4), 2.5))
     assert labels == ["C0_theta", "C0_alpha", "C0_beta", "C0_gamma"]
 
