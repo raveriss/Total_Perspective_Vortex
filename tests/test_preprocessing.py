@@ -2454,6 +2454,76 @@ def test_map_events_to_motor_labels_reports_unknown_codes() -> None:
     assert payload["unknown_labels"] == ["T9"]
 
 
+def test_map_events_to_motor_labels_flags_unknown_numeric_codes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Expose un rapport clair lorsque des codes numériques sont inconnus."""
+
+    # Construit un enregistrement synthétique avec un montage standard
+    raw = _build_dummy_raw(sfreq=256.0, duration=0.25)
+    raw.set_montage("standard_1020")
+    # Forge une séquence d'événements mélangeant codes valides et invalide
+    event_id = dict(PHYSIONET_LABEL_MAP)
+    mapped_events = np.array(
+        [
+            [0, 0, event_id["T1"]],
+            [32, 0, 999],
+        ]
+    )
+    # Force la validation à retourner le tableau artificiel pour isoler la branche
+    monkeypatch.setattr(
+        "tpv.preprocessing.map_events_and_validate",
+        lambda *_args, **_kwargs: (mapped_events, event_id),
+    )
+    # Vérifie que l'erreur JSON répertorie précisément le code inconnu
+    with pytest.raises(ValueError) as excinfo:
+        map_events_to_motor_labels(raw)
+    payload = json.loads(str(excinfo.value))
+    assert payload["error"] == "Unknown event codes"
+    assert payload["unknown_codes"] == [999]
+
+
+def test_map_events_to_motor_labels_rejects_empty_events(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Assure une erreur explicite lorsque aucun événement n'est disponible."""
+
+    # Construit un enregistrement minimal avec montage appliqué
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.1)
+    raw.set_montage("standard_1020")
+    # Simule une extraction d'événements vide après filtrage des segments BAD
+    empty_events = np.empty((0, 3), dtype=int)
+    event_id = dict(PHYSIONET_LABEL_MAP)
+    monkeypatch.setattr(
+        "tpv.preprocessing.map_events_and_validate",
+        lambda *_args, **_kwargs: (empty_events, event_id),
+    )
+    # Vérifie que l'erreur inclut les labels disponibles pour diagnostic
+    with pytest.raises(ValueError) as excinfo:
+        map_events_to_motor_labels(raw)
+    payload = json.loads(str(excinfo.value))
+    assert payload["error"] == "No motor events present"
+    assert payload["available_labels"] == ["T0", "T1", "T2"]
+
+
+def test_map_events_to_motor_labels_maps_left_and_right_cues() -> None:
+    """Vérifie le mapping A/B des essais gauche (T1) et droite (T2)."""
+
+    # Construit un enregistrement alternant les annotations main gauche/droite
+    raw = _build_dummy_raw(sfreq=256.0, duration=0.5)
+    raw.set_annotations(
+        mne.Annotations(
+            onset=[0.05, 0.15, 0.25],
+            duration=[0.05, 0.05, 0.05],
+            description=["T1", "T2", "T1"],
+        )
+    )
+    raw.set_montage("standard_1020")
+    # Mappe les événements pour s'assurer que les labels moteurs suivent la convention
+    events, event_id, motor_labels = map_events_to_motor_labels(raw)
+    assert motor_labels == ["A", "B", "A"]
+    assert event_id == {"T1": 1, "T2": 2}
+    assert list(events[:, 2]) == [event_id["T1"], event_id["T2"], event_id["T1"]]
+
+
 def test_summarize_epoch_quality_counts_and_rejects_incomplete() -> None:
     """Drop incomplete epochs then count A/B labels per run."""
 
