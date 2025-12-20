@@ -415,7 +415,9 @@ def test_prepare_welch_parameters_caps_overlap_above_window() -> None:
     assert non_negative_overlap == 0
 
 
-def test_extract_features_delegates_to_sklearn_estimator(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_extract_features_delegates_to_sklearn_estimator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """extract_features doit instancier ExtractFeatures et réutiliser son transform."""
 
     # Prépare des epochs minimaux pour forcer le chemin de délégation
@@ -467,7 +469,9 @@ def test_extract_features_delegates_to_sklearn_estimator(monkeypatch: pytest.Mon
     assert labels == ["C0_theta", "C0_alpha", "C0_beta", "C0_gamma"]
 
 
-def test_extract_features_propagates_transform_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_extract_features_propagates_transform_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """L'erreur levée par ExtractFeatures.transform doit remonter telle quelle."""
 
     epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=8, sfreq=64.0)

@@ -224,9 +224,7 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         )
         # Stocke la configuration spécifique à la stratégie (Welch, wavelet, etc.)
         self.strategy_config = strategy_config
-        self._effective_strategy_config: Dict[str, Any] = dict(
-            strategy_config or {}
-        )
+        self._effective_strategy_config: Dict[str, Any] = dict(strategy_config or {})
 
     def fit(self, X, y=None):
         # Pas d'apprentissage de paramètres pour l'instant
