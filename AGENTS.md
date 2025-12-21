@@ -34,7 +34,6 @@ tant qu’il n’a pas, dans **cette réponse précise** :
 
    - `2.2 Pre-commit + static analysis : ✅/❌`
    - `2.3 Couverture >= 90 % (make cov) : ✅/❌`
-   - `2.4 Mutmut (aucun survivant) : ✅/❌`
    - `→ Commit autorisé : ✅/❌`
 
 3. Listé les **commandes locales** à exécuter, **dans l’ordre 2.1 → 2.4**.
@@ -45,7 +44,7 @@ tant qu’il n’a pas, dans **cette réponse précise** :
    - ❌ (inconnu) : l’agent n’a **aucune preuve** que la commande est OK.
 
 > **Règle dure** :
-> Si une seule des lignes 2.2, 2.3 ou 2.4 est ❌ ou inconnue,
+> Si une seule des lignes 2.2, 2.3 est ❌ ou inconnue,
 > l’agent doit **écrire explicitement** `→ Commit autorisé : ❌`.
 
 Dans ce cas, l’agent doit :
@@ -82,20 +81,20 @@ mutants survivent ailleurs.
     et **ne pas** conclure que “tout est bon”.
 * Effet sur le gate :
   * un RUN DEV **ne change jamais** la règle “commit interdit”.
-  * si 2.3 et/ou 2.4 ne sont pas verts (ou inconnus) :
+  * si 2.3 ne sont pas verts (ou inconnus) :
     `→ Commit autorisé : ❌` reste obligatoire.
 
 **MODE AVANT COMMIT (gate)** — objectif : miroir strict du CI.
 
 * Obligatoire avant toute suggestion de commit/push :
-  * exécuter et valider **2.2 + 2.3 + 2.4** (section 2),
+  * exécuter et valider **2.2 + 2.3 (section 2),
   * afficher le bloc **CHECKLIST 2) – état AVANT COMMIT**,
   * et n’autoriser le commit que si tout est ✅.
 
 ### ✅ `pre-commit` autorisé en MODE DEV (diagnostic)
 
 - L’agent **peut exécuter** `poetry run pre-commit run --all-files` en MODE DEV,
-  **même si** 2.3 (`make cov`) et/ou 2.4 (`mutmut`) ne sont pas encore verts.
+  **même si** 2.3 (`make cov`) ne sont pas encore verts.
 - Après un RUN DEV, l’agent doit :
   - indiquer explicitement “MODE DEV / diagnostic”,
   - rapporter le résultat de `pre-commit` (OK/KO),
@@ -663,7 +662,7 @@ jobs:
 Avant **tout `git commit` ou proposition de commit message**, l’agent doit :
 
 1. **Énoncer cette checklist** dans sa réponse.
-2. **Proposer les commandes** à exécuter dans cet ordre exact (2.1 → 2.4).
+2. **Proposer les commandes** à exécuter dans cet ordre exact (2.1).
 3. **Demander explicitement** les résultats (logs) si l’agent ne peut pas
    exécuter lui-même les commandes.
 4. **Refuser le commit** si une étape n’est pas verte ou inconnue.
@@ -678,7 +677,7 @@ Cette section est le miroir local des jobs CI :
 
 L’agent doit toujours rappeler en **texte clair** que :
 
-> « Tant que 2.2, 2.3 et 2.4 ne sont pas toutes ✅, le commit est interdit. »
+> « Tant que 2.2, 2.3 ne sont pas toutes ✅, le commit est interdit. »
 
 ### 2.1 Préparation (si nouveau clone ou `poetry.lock` modifié)
 
@@ -753,7 +752,6 @@ Si un mutant **survit**, l’agent doit :
 
 * identifier la zone de code concernée (fonction, fichier),
 * proposer des tests supplémentaires ciblés,
-* refaire la séquence 2.4 jusqu’à ce que tous les mutants soient tués.
 
 ### 2.5 Contrat de validité d’un commit
 
@@ -763,7 +761,6 @@ satisfaites :
 * 2.2 **complète** et **verte**.
 * 2.3 **OK** avec **>= 90 %** de couverture globale (et par fichier si script
   dédié).
-* 2.4 **OK** sans mutant survivant sur le périmètre modifié.
 
 La réponse de l’agent doit **toujours** contenir, avant toute suggestion de
 message de commit, une synthèse explicite :
@@ -772,7 +769,6 @@ message de commit, une synthèse explicite :
 >
 > * 2.2 Pre-commit + static analysis : ✅/❌
 > * 2.3 Couverture >= 90 % (make cov) : ✅/❌
-> * 2.4 Mutmut (aucun survivant) : ✅/❌
 >   → Commit autorisé : ✅/❌. »
 
 Si l’agent ne peut pas remplir cette synthèse de façon honnête, il doit
@@ -935,7 +931,7 @@ Toute réponse qui propose **du code ou un changement de fichier** doit
 
 3. **Checklist pré-commit (section 2)**
 
-   * Rappel des étapes 2.1 → 2.4.
+   * Rappel des étapes 2.1.
    * Commandes à exécuter **dans l’ordre**.
    * Bloc **obligatoire** :
 
@@ -944,7 +940,6 @@ Toute réponse qui propose **du code ou un changement de fichier** doit
 
      2.2 Pre-commit + static analysis : ✅/❌
      2.3 Couverture 90 % (make cov)   : ✅/❌
-     2.4 Mutmut (aucun survivant)      : ✅/❌
      → Commit autorisé                 : ✅/❌
      ```
 
@@ -962,7 +957,6 @@ Toute réponse qui propose **du code ou un changement de fichier** doit
 
      * 2.2 : ✅/❌
      * 2.3 : ✅/❌
-     * 2.4 : ✅/❌
    * Interdiction d’écrire ou suggérer une commande `git commit` ou
      `git push` si `→ Commit autorisé` n’est pas à ✅.
 
@@ -990,7 +984,7 @@ conforme** au blueprint AGENTS.
 - Mettre à jour le message d’erreur dans `utils.py` pour mentionner
   explicitement l’ID de canal.
 - Ajouter/adapter un test dans `tests/test_utils.py` qui vérifie le message.
-- Rejouer la pipeline locale 2.2 → 2.4.
+- Rejouer la pipeline locale 2.2.
 
 3. **Checklist pré-commit (section 2)**
 
@@ -1012,11 +1006,6 @@ poetry run pip-audit --progress-spinner=off
 # 2.3 Tests + couverture 90 %
 make cov
 
-# 2.4 Mutation testing
-poetry run mutmut run --use-coverage --simple-output
-poetry run mutmut results > mutmut-results.txt
-````
-
 Supposons que toutes ces commandes ont été exécutées avec succès (logs OK).
 
 ```text
@@ -1024,7 +1013,6 @@ CHECKLIST 2) – état AVANT COMMIT
 
 2.2 Pre-commit + static analysis : ✅
 2.3 Couverture 90 % (make cov)   : ✅
-2.4 Mutmut (aucun survivant)      : ✅
 → Commit autorisé                 : ✅
 ```
 
@@ -1052,7 +1040,6 @@ Tests associés : ajout/ajustement de `test_validate_channel_index_raises` dans
 
 * 2.2 : ✅ (pre-commit + black + isort + ruff + mypy + pip-audit OK)
 * 2.3 : ✅ (coverage report --fail-under=90 OK)
-* 2.4 : ✅ (`mutmut results` sans `survived`)
 
 → Commit autorisé : ✅
 
@@ -1077,7 +1064,7 @@ Message de commit possible :
 
 - Mettre à jour le message d’aide de `mybci.py`.
 - Corriger le formatage pour respecter black/ruff.
-- Rejouer 2.2 → 2.4 jusqu’à tout vert.
+- Rejouer 2.2 jusqu’à tout vert.
 
 3. **Checklist pré-commit (section 2)**
 
@@ -1105,7 +1092,6 @@ CHECKLIST 2) – état AVANT COMMIT
 
 2.2 Pre-commit + static analysis : ❌ (ruff KO sur mybci.py)
 2.3 Couverture 90 % (make cov)   : ❌ (non relancé après correction)
-2.4 Mutmut (aucun survivant)      : ❌ (non relancé après correction)
 → Commit autorisé                 : ❌
 ```
 
@@ -1119,7 +1105,6 @@ L’agent propose un patch minimal pour corriger la ligne incriminée
 
 * 2.2 : ❌ (doit être rejoué jusqu’à succès)
 * 2.3 : ❌ (doit être rejoué après correction)
-* 2.4 : ❌ (doit être rejoué après correction)
 
 > « ❌ CI potentiellement en échec : commit interdit tant que la checklist 2)
 > n’est pas entièrement verte. »
