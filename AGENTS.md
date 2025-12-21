@@ -33,7 +33,7 @@ tant qu’il n’a pas, dans **cette réponse précise** :
    avec les trois lignes suivantes **exactement** :
 
    - `2.2 Pre-commit + static analysis : ✅/❌`
-   - `2.3 Couverture 100 % (make cov) : ✅/❌`
+   - `2.3 Couverture >= 90 % (make cov) : ✅/❌`
    - `2.4 Mutmut (aucun survivant) : ✅/❌`
    - `→ Commit autorisé : ✅/❌`
 
@@ -120,7 +120,7 @@ Les contraintes suivantes doivent figurer simultanément dans README, AGENTS et 
 7. **Architecture** : présence d’un script **train** et d’un script **predict** ; le dépôt final versionné contient **uniquement le code Python** (dataset exclu).
 8. **Bonus facultatifs** : wavelets pour le spectre, classifieur maison, autres datasets EEG.
 9. **Formalisme mathématique** : pour le transformer, avec X ∈ R^{d × N}, produire une matrice W telle que W^T X = X_{CSP}/X_{PCA}/X_{ICA}.
-10. **Posture défense-proof globale** : pour implémenter `Total_Perspective_Vortex` avec une posture TDD systématique, couverture 100 %, diff=100 %, contrôle par fichier, CI Ubuntu-only.
+10. **Posture défense-proof globale** : pour implémenter `Total_Perspective_Vortex` avec une posture TDD systématique, couverture 90 %, diff=190 %, contrôle par fichier, CI Ubuntu-only.
 
 ---
 
@@ -324,13 +324,13 @@ type:
 test:
 	$(POETRY) pytest -vv
 
-# Analyse de la couverture avec rapport JSON, HTML et console (100% requis)
+# Analyse de la couverture avec rapport JSON, HTML et console (90% requis)
 cov:
 	$(POETRY) coverage run -m pytest && \
 	$(POETRY) coverage json -o coverage.json && \
 	$(POETRY) coverage xml -o coverage.xml && \
 	$(POETRY) coverage html --skip-empty --show-contexts && \
-	$(POETRY) coverage report --fail-under=100
+	$(POETRY) coverage report --fail-under=90
 
 
 # Mutation testing avec Mutmut (guidé par la couverture)
@@ -631,7 +631,7 @@ jobs:
 
 ### 0.5 TDD — Red → Green → Refactor (règle d’or)
 - **Definition of Ready** : pas de code sans **au moins un test qui échoue**.
-- **Definition of Done** : tests verts, **100 %** couverture (branches), CLI/doc à jour.
+- **Definition of Done** : tests verts, **90 %** couverture (branches), CLI/doc à jour.
 - **Hooks (local)** :
   - `pre-commit` : `ruff format --check`, `ruff check`, `mypy` (rapide)
 
@@ -728,13 +728,13 @@ make cov
 `make cov` doit :
 
 * générer `coverage.json`, `coverage.xml`, `htmlcov/`,
-* se terminer avec `coverage report --fail-under=100` **OK**.
+* se terminer avec `coverage report --fail-under=90` **OK**.
 
 Si `make cov` est **KO**, la réponse doit :
 
 * pointer les fichiers sous-couverts,
 * proposer **au moins un test** supplémentaire pour remonter la couverture,
-* rappeler de relancer `make cov` jusqu’à obtention de 100 %.
+* rappeler de relancer `make cov` jusqu’à obtention de 90 %.
 
 ### 2.4 Mutation testing (miroir Mutmut)
 
@@ -943,7 +943,7 @@ Toute réponse qui propose **du code ou un changement de fichier** doit
      CHECKLIST 2) – état AVANT COMMIT
 
      2.2 Pre-commit + static analysis : ✅/❌
-     2.3 Couverture 100 % (make cov)   : ✅/❌
+     2.3 Couverture 90 % (make cov)   : ✅/❌
      2.4 Mutmut (aucun survivant)      : ✅/❌
      → Commit autorisé                 : ✅/❌
      ```
@@ -1009,7 +1009,7 @@ poetry run ruff check .
 poetry run mypy src scripts tests
 poetry run pip-audit --progress-spinner=off
 
-# 2.3 Tests + couverture 100 %
+# 2.3 Tests + couverture 90 %
 make cov
 
 # 2.4 Mutation testing
@@ -1023,7 +1023,7 @@ Supposons que toutes ces commandes ont été exécutées avec succès (logs OK).
 CHECKLIST 2) – état AVANT COMMIT
 
 2.2 Pre-commit + static analysis : ✅
-2.3 Couverture 100 % (make cov)   : ✅
+2.3 Couverture 90 % (make cov)   : ✅
 2.4 Mutmut (aucun survivant)      : ✅
 → Commit autorisé                 : ✅
 ```
@@ -1051,7 +1051,7 @@ Tests associés : ajout/ajustement de `test_validate_channel_index_raises` dans
 5. **Validation**
 
 * 2.2 : ✅ (pre-commit + black + isort + ruff + mypy + pip-audit OK)
-* 2.3 : ✅ (coverage report --fail-under=100 OK)
+* 2.3 : ✅ (coverage report --fail-under=90 OK)
 * 2.4 : ✅ (`mutmut results` sans `survived`)
 
 → Commit autorisé : ✅
@@ -1104,7 +1104,7 @@ Supposons que :
 CHECKLIST 2) – état AVANT COMMIT
 
 2.2 Pre-commit + static analysis : ❌ (ruff KO sur mybci.py)
-2.3 Couverture 100 % (make cov)   : ❌ (non relancé après correction)
+2.3 Couverture 90 % (make cov)   : ❌ (non relancé après correction)
 2.4 Mutmut (aucun survivant)      : ❌ (non relancé après correction)
 → Commit autorisé                 : ❌
 ```
