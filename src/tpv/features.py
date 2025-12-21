@@ -172,14 +172,29 @@ def _compute_wavelet_band_powers(
     wavelet_name = config.get("wavelet", "morlet")
     if wavelet_name != "morlet":
         raise ValueError(f"Unsupported wavelet: {wavelet_name!r}. Use 'morlet'.")
+    if not band_ranges:
+        raise ValueError("At least one wavelet band must be provided.")
     # Configure la largeur de la wavelet pour ajuster la résolution temps-fréquence
     wavelet_cycles: float = float(config.get("wavelet_width", 6.0))
+    validated_bands: List[Tuple[str, Tuple[float, float]]] = []
+    for band_name, (low, high) in band_ranges.items():
+        if high <= low:
+            raise ValueError(
+                f"Wavelet band {band_name!r} must have low < high (got {low}, {high})."
+            )
+        validated_bands.append((band_name, (float(low), float(high))))
     # Calcule la fréquence centrale de chaque bande pour cibler la wavelet
     central_frequencies: List[float] = [
-        (low + high) / 2.0 for low, high in band_ranges.values()
+        (low + high) / 2.0 for _, (low, high) in validated_bands
     ]
+    if not central_frequencies:
+        raise ValueError(
+            "Wavelet central frequencies are empty. Check band configuration."
+        )
     # Prépare un tableau pour stocker l'énergie par essai, canal et bande
-    band_powers: np.ndarray = np.zeros((data.shape[0], data.shape[1], len(band_ranges)))
+    band_powers: np.ndarray = np.zeros(
+        (data.shape[0], data.shape[1], len(validated_bands))
+    )
     # Parcourt chaque essai pour éviter des allocations massives inutiles
     for epoch_index, epoch_data in enumerate(data):
         # Parcourt chaque canal pour projeter le signal sur les échelles ciblées
@@ -191,6 +206,11 @@ def _compute_wavelet_band_powers(
                 sfreq,
                 wavelet_cycles,
             )
+            if coefficients.size == 0:
+                raise ValueError(
+                    "Wavelet coefficients computation returned an empty array. "
+                    "Verify band configuration."
+                )
             # Calcule la puissance moyenne par bande en intégrant la magnitude
             band_energy = np.abs(coefficients) ** 2
             # Moyenne temporelle pour stabiliser l'énergie de chaque bande

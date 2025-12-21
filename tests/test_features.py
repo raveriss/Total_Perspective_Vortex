@@ -1,5 +1,6 @@
 # Importe time pour suivre le budget temporel d'extraction
 from time import perf_counter
+from typing import Sequence
 
 # Importe numpy pour générer des signaux et des tenseurs de test
 import numpy as np
@@ -9,6 +10,9 @@ import pytest
 
 # Importe mne pour créer des epochs synthétiques conformes à l'API
 from mne import EpochsArray, create_info
+
+# Importe le module complet pour monkeypatcher les helpers internes
+import tpv.features as features_module
 
 # Importe l'extracteur procédural, la classe scikit-learn et les helpers Welch
 from tpv.features import ExtractFeatures, _prepare_welch_parameters, extract_features
@@ -187,6 +191,97 @@ def test_extract_features_wavelet_handles_overlapping_bands() -> None:
     assert reshaped[0, 0, 1] > reshaped[0, 0, 2]
     assert reshaped[0, 1, 0] > reshaped[0, 1, 2]
     assert reshaped[0, 1, 1] > reshaped[0, 1, 2]
+
+
+def test_compute_wavelet_band_powers_rejects_misordered_band() -> None:
+    """Les bandes wavelet doivent imposer low < high pour chaque intervalle."""
+
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=64, sfreq=64.0)
+    with pytest.raises(ValueError, match="low < high"):
+        extract_features(
+            epochs,
+            config={
+                "method": "wavelet",
+                "bands": [("alpha", (12.0, 8.0))],
+            },
+        )
+
+
+def test_compute_wavelet_band_powers_handles_zero_energy_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Les signaux nuls doivent produire des puissances nulles sans erreur."""
+
+    epochs = _build_epochs(n_epochs=2, n_channels=2, n_times=32, sfreq=32.0)
+    # Force des données nulles pour obtenir une énergie nulle
+    epochs._data[...] = 0.0
+
+    captured_coeffs: list[np.ndarray] = []
+
+    def _capture_coeffs(
+        channel_values: np.ndarray,
+        central_freqs: Sequence[float],
+        sfreq: float,
+        wavelet_cycles: float,
+    ) -> np.ndarray:
+        coeffs = original_compute_coeffs(
+            channel_values, central_freqs, sfreq, wavelet_cycles
+        )
+        captured_coeffs.append(coeffs)
+        return coeffs
+
+    original_compute_coeffs = features_module._compute_wavelet_coefficients
+    monkeypatch.setattr(
+        features_module, "_compute_wavelet_coefficients", _capture_coeffs
+    )
+
+    features, _ = extract_features(epochs, config={"method": "wavelet"})
+    # Toutes les features doivent rester nulles car l'entrée est nulle
+    assert np.array_equal(features, np.zeros_like(features))
+    # Les coefficients doivent avoir été calculés pour chaque canal
+    assert (
+        len(captured_coeffs) == epochs.get_data().shape[0] * epochs.get_data().shape[1]
+    )
+    assert all(
+        coeff.shape[-1] == epochs.get_data().shape[-1] for coeff in captured_coeffs
+    )
+
+
+def test_compute_wavelet_band_powers_maps_bands_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La CWT doit respecter l'ordre des bandes et la fréquence centrale calculée."""
+
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=64, sfreq=64.0)
+    custom_bands = [("beta", (20.0, 30.0)), ("theta", (4.0, 7.0))]
+
+    captured_frequencies: list[list[float]] = []
+
+    def _capture_coeffs(
+        channel_values: np.ndarray,
+        central_freqs: Sequence[float],
+        sfreq: float,
+        wavelet_cycles: float,
+    ) -> np.ndarray:
+        captured_frequencies.append(list(central_freqs))
+        return original_compute_coeffs(
+            channel_values, central_freqs, sfreq, wavelet_cycles
+        )
+
+    original_compute_coeffs = features_module._compute_wavelet_coefficients
+    monkeypatch.setattr(
+        features_module, "_compute_wavelet_coefficients", _capture_coeffs
+    )
+
+    features, labels = extract_features(
+        epochs, config={"method": "wavelet", "bands": custom_bands}
+    )
+
+    assert labels == ["C0_beta", "C0_theta"]
+    assert captured_frequencies == [[25.0, 5.5]]
+    # Vérifie que les puissances sont produites dans le même ordre que les bandes
+    reshaped = features.reshape(1, 1, 2)
+    assert reshaped.shape == (1, 1, 2)
 
 
 def test_extract_features_wavelet_rejects_unknown_wavelet_name() -> None:
