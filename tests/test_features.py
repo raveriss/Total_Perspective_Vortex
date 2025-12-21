@@ -1,4 +1,5 @@
 # Importe time pour suivre le budget temporel d'extraction
+from collections import OrderedDict
 from time import perf_counter
 from typing import Sequence
 
@@ -353,6 +354,20 @@ def test_extract_features_constructor_stores_custom_attributes() -> None:
     assert extractor.band_labels == ["theta", "alpha", "beta", "gamma"]
 
 
+def test_extract_features_fit_behaves_like_transformer() -> None:
+    """fit doit suivre le contrat scikit-learn et laisser l'état cohérent."""
+
+    extractor = ExtractFeatures(sfreq=128.0, normalize=False)
+    data = np.zeros((1, 2, 8))
+
+    fitted = extractor.fit(data)
+
+    assert fitted is extractor
+    transformed = extractor.transform(data)
+    assert transformed.shape == (1, 8)
+    assert extractor.band_labels == ["theta", "alpha", "beta", "gamma"]
+
+
 def test_extract_features_wrapper_rejects_incorrect_shape() -> None:
     """La classe scikit-learn doit refuser une dimension d'entrée erronée."""
 
@@ -365,6 +380,26 @@ def test_extract_features_wrapper_rejects_incorrect_shape() -> None:
         extractor.transform(bad_shape)
 
 
+def test_extract_features_transform_rejects_extra_dimensions() -> None:
+    """La méthode transform doit refuser les tenseurs de rang supérieur."""
+
+    extractor = ExtractFeatures(sfreq=128.0)
+    too_many_dims = np.zeros((1, 2, 3, 4))
+
+    with pytest.raises(ValueError, match="X must have shape"):
+        extractor.transform(too_many_dims)
+
+
+def test_extract_features_transform_rejects_empty_epochs() -> None:
+    """Une extraction sans epoch doit remonter une erreur explicite."""
+
+    extractor = ExtractFeatures(sfreq=128.0)
+    empty_epochs = np.zeros((0, 2, 4))
+
+    with pytest.raises(ValueError, match="at least one epoch"):
+        extractor.transform(empty_epochs)
+
+
 def test_extract_features_wrapper_rejects_unknown_method() -> None:
     """La fonction procédurale doit refuser une méthode non supportée."""
 
@@ -373,6 +408,31 @@ def test_extract_features_wrapper_rejects_unknown_method() -> None:
     # Vérifie que la fonction signale la méthode inconnue
     with pytest.raises(ValueError):
         extract_features(epochs, config={"method": "invalid"})
+
+
+def test_extract_features_transform_preserves_band_order_deterministically() -> None:
+    """L'ordre des bandes doit rester déterministe dans transform."""
+
+    sfreq = 64.0
+    times = np.arange(0.0, 1.0, 1.0 / sfreq)
+    theta_signal = np.sin(2 * np.pi * 6.0 * times)
+    data = theta_signal.reshape(1, 1, -1)
+    ordered_bands = OrderedDict(
+        [
+            ("gamma", (31.0, 45.0)),
+            ("theta", (4.0, 7.0)),
+        ]
+    )
+    extractor = ExtractFeatures(
+        sfreq=sfreq, feature_strategy="fft", normalize=False, bands=ordered_bands
+    )
+
+    transformed_first = extractor.transform(data)
+    transformed_second = extractor.transform(data.copy())
+
+    assert np.array_equal(transformed_first, transformed_second)
+    reshaped = transformed_first.reshape(1, 1, 2)
+    assert reshaped[0, 0, 1] == pytest.approx(np.max(reshaped[0, 0]))
 
 
 def test_extract_features_rejects_empty_band_configuration() -> None:
