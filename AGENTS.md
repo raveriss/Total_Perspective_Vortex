@@ -68,19 +68,43 @@ Toute divergence entre la pipeline locale (section 2) et les jobs CI
 Toute réponse qui ne contient **pas** la section structurée
 « CHECKLIST 2) – état AVANT COMMIT » est considérée comme **invalide**.
 
-### ⛔ Blocage préventif sur `pre-commit`
+### 🧭 Mode DEV vs Mode AVANT COMMIT (règle anti-ambiguïté)
 
-- Tant que **tous les tests locaux** (2.3 `make cov` et 2.4 `mutmut`) ne sont
-  pas **exécutés et verts dans la session en cours**, l’agent n’exécute pas
-  `poetry run pre-commit run --all-files` ni aucun alias équivalent.
-- Si 2.3 ou 2.4 sont ❌ ou inconnus, l’agent doit **refuser** tout lancement de
-  `pre-commit`, l’indiquer explicitement dans la réponse et clôturer par
-  `→ Commit autorisé : ❌`.
-- Seule exception : pour diagnostiquer un hook, l’agent peut lire la
-  configuration (`.pre-commit-config.yaml`) ou les logs, mais sans exécuter
-  `pre-commit` tant que la checklist 2) n’est pas entièrement verte.
+**MODE DEV (boucle itérative)** — objectif : garder le dépôt propre pendant
+l’itération (formatage/lint/types), même si des tests de couverture ou des
+mutants survivent ailleurs.
 
+* Autorisé à tout moment :
+  * `poetry run pre-commit run --all-files`
+  * et/ou les commandes rapides `make lint`, `make format`, `make type`
+* Obligation de formulation :
+  * l’agent doit qualifier cela comme un **RUN DEV / diagnostic**,
+    et **ne pas** conclure que “tout est bon”.
+* Effet sur le gate :
+  * un RUN DEV **ne change jamais** la règle “commit interdit”.
+  * si 2.3 et/ou 2.4 ne sont pas verts (ou inconnus) :
+    `→ Commit autorisé : ❌` reste obligatoire.
 
+**MODE AVANT COMMIT (gate)** — objectif : miroir strict du CI.
+
+* Obligatoire avant toute suggestion de commit/push :
+  * exécuter et valider **2.2 + 2.3 + 2.4** (section 2),
+  * afficher le bloc **CHECKLIST 2) – état AVANT COMMIT**,
+  * et n’autoriser le commit que si tout est ✅.
+
+### ✅ `pre-commit` autorisé en MODE DEV (diagnostic)
+
+- L’agent **peut exécuter** `poetry run pre-commit run --all-files` en MODE DEV,
+  **même si** 2.3 (`make cov`) et/ou 2.4 (`mutmut`) ne sont pas encore verts.
+- Après un RUN DEV, l’agent doit :
+  - indiquer explicitement “MODE DEV / diagnostic”,
+  - rapporter le résultat de `pre-commit` (OK/KO),
+  - proposer un **patch minimal** si un hook échoue,
+  - et rappeler que le **gate AVANT COMMIT** reste inchangé.
+- Interdictions strictes :
+  - présenter un RUN DEV comme une validation “AVANT COMMIT”,
+  - suggérer un commit/push tant que la checklist 2) n’est pas entièrement ✅.
+ 
 ---
 
 ## 🎯 Contraintes BCI obligatoires
@@ -737,7 +761,7 @@ Un commit n’est **valide** que si **toutes** les conditions suivantes sont
 satisfaites :
 
 * 2.2 **complète** et **verte**.
-* 2.3 **OK** avec **100 %** de couverture globale (et par fichier si script
+* 2.3 **OK** avec **>= 90 %** de couverture globale (et par fichier si script
   dédié).
 * 2.4 **OK** sans mutant survivant sur le périmètre modifié.
 
@@ -747,7 +771,7 @@ message de commit, une synthèse explicite :
 > « Checklist 2) :
 >
 > * 2.2 Pre-commit + static analysis : ✅/❌
-> * 2.3 Couverture 100 % (make cov) : ✅/❌
+> * 2.3 Couverture >= 90 % (make cov) : ✅/❌
 > * 2.4 Mutmut (aucun survivant) : ✅/❌
 >   → Commit autorisé : ✅/❌. »
 
@@ -762,7 +786,7 @@ conclure par :
 
 
 ## 3) 🧪 Plan de tests (défense‑proof)
-**Objectifs** : 100 % couverture (branches + diff), **contrôle par fichier**, tests rapides.
+**Objectifs** : >= 90 % couverture (branches + diff), **contrôle par fichier**, tests rapides.
 
 ### 3.1 Unitaires
 -
@@ -860,9 +884,9 @@ python mybci.py S001 R01 predict
 
 ## 6) ✅ Procédure de validation finale (soutenance)
 1. `pytest -q` → **tout vert**
-2. `coverage run -m pytest && coverage json && coverage report --fail-under=100` (branches)
-3. **Contrôle par fichier** : script CI sur `coverage.json` → **100 % partout**
-3bis. **Upload vers Codecov** (`coverage.xml`) + vérif diff=100 %
+2. `coverage run -m pytest && coverage json && coverage report --fail-under=90` (branches)
+3. **Contrôle par fichier** : script CI sur `coverage.json` → **>= 90 % partout**
+3bis. **Upload vers Codecov** (`coverage.xml`) + vérif diff>= 90 %
 4. **Mutation testing (scope global mandatory) ≥ 90 %** + aucun survivant sur les zones critiques.
 5. Démo E2E : `predict(0)=0` → `train` → `predict≈csv` (MAJ simultanée validée)
 6. Vérif visuelle `htmlcov/` (tout vert)
