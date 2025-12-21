@@ -258,7 +258,7 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
     def __init__(
         self,
         sfreq: float,
-        feature_strategy: str = "fft",
+        feature_strategy: str | Sequence[str] = "fft",
         normalize: bool = True,
         bands: Mapping[str, Tuple[float, float]] | None = None,
         strategy_config: Mapping[str, Any] | None = None,
@@ -317,23 +317,70 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         # Retourne les noms de bandes dans l'ordre déclaré
         return [band_name for band_name, _ in self._band_items]
 
-    def _compute_features(self, X: np.ndarray) -> np.ndarray:
-        """Dispatch interne vers la bonne stratégie de features."""
+    def _normalize_feature_families(self) -> List[Tuple[str, str]]:
+        """Valide et normalise la sélection de familles de features."""
 
-        # Utilise la FFT comme stratégie par défaut
-        if self.feature_strategy == "fft":
-            return self._compute_fft_features(X)
-        # Permet de basculer vers la stratégie wavelet
-        if self.feature_strategy == "wavelet":
-            return self._compute_wavelet_features(X)
-        # Calcule les puissances de bandes via Welch
-        if self.feature_strategy == "welch":
-            return self._compute_welch_features(X)
-        # Rejette explicitement les stratégies inconnues
-        raise ValueError(
-            f"Unsupported feature_strategy: {self.feature_strategy!r}. "
-            "Use 'fft', 'welch', or 'wavelet'."
-        )
+        if isinstance(self.feature_strategy, str):
+            feature_families: List[str] = [self.feature_strategy]
+        else:
+            try:
+                feature_families = list(self.feature_strategy)
+            except TypeError as exc:  # pragma: no cover - defensive
+                raise ValueError(
+                    "feature_strategy must be a string or sequence of strings."
+                ) from exc
+
+        if not feature_families:
+            raise ValueError(
+                "feature_strategy must include at least one feature family."
+            )
+
+        normalized: List[Tuple[str, str]] = []
+        for feature_family in feature_families:
+            if not isinstance(feature_family, str):
+                raise ValueError(
+                    "Each feature family must be provided as a non-empty string."
+                )
+            cleaned = feature_family.strip().lower()
+            if not cleaned:
+                raise ValueError(
+                    "Each feature family must be provided as a non-empty string."
+                )
+            normalized.append((feature_family, cleaned))
+
+        return normalized
+
+    def _compute_features(self, X: np.ndarray) -> np.ndarray:
+        """Dispatch interne vers la ou les stratégies de features demandées."""
+
+        strategy_handlers = {
+            "fft": self._compute_fft_features,
+            "wavelet": self._compute_wavelet_features,
+            "welch": self._compute_welch_features,
+        }
+
+        feature_blocks: List[np.ndarray] = []
+        for original_family, normalized_family in self._normalize_feature_families():
+            handler = strategy_handlers.get(normalized_family)
+            if handler is None:
+                raise ValueError(
+                    f"Unsupported feature_strategy: {original_family!r}. "
+                    "Use 'fft', 'welch', or 'wavelet'."
+                )
+            feature_blocks.append(handler(X))
+
+        if len(feature_blocks) == 1:
+            return feature_blocks[0]
+
+        # Concatène les blocs en conservant l'alignement des échantillons
+        n_samples = feature_blocks[0].shape[0]
+        for block in feature_blocks[1:]:
+            if block.shape[0] != n_samples:  # pragma: no cover - cohérence interne
+                raise ValueError(
+                    "All feature families must yield the same sample count."
+                )
+
+        return np.concatenate(feature_blocks, axis=1)
 
     def _compute_fft_features(self, X: np.ndarray) -> np.ndarray:
         """Calcule les puissances de bandes à partir de la FFT."""

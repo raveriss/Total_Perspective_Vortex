@@ -667,3 +667,66 @@ def test_extract_features_propagates_transform_errors(
 
     with pytest.raises(RuntimeError, match="delegated failure"):
         extract_features(epochs, config={"method": "welch"})
+
+
+def test_compute_features_accepts_family_selection_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_compute_features doit chaîner les familles dans l'ordre demandé."""
+
+    # Prépare des tenseurs de sortie distincts pour tracer l'ordre de concaténation
+    X = np.ones((2, 1, 4))
+    call_order: list[str] = []
+
+    def fake_fft(self: ExtractFeatures, data: np.ndarray) -> np.ndarray:  # noqa: ARG001
+        call_order.append("fft")
+        return np.full((data.shape[0], 1), 1.0)
+
+    def fake_welch(
+        self: ExtractFeatures, data: np.ndarray
+    ) -> np.ndarray:  # noqa: ARG001
+        call_order.append("welch")
+        return np.full((data.shape[0], 1), 2.0)
+
+    def fake_wavelet(
+        self: ExtractFeatures, data: np.ndarray
+    ) -> np.ndarray:  # noqa: ARG001
+        call_order.append("wavelet")
+        return np.full((data.shape[0], 1), 3.0)
+
+    monkeypatch.setattr(ExtractFeatures, "_compute_fft_features", fake_fft)
+    monkeypatch.setattr(ExtractFeatures, "_compute_welch_features", fake_welch)
+    monkeypatch.setattr(ExtractFeatures, "_compute_wavelet_features", fake_wavelet)
+
+    extractor = ExtractFeatures(
+        sfreq=64.0,
+        feature_strategy=["fft", "welch", "wavelet"],
+        normalize=False,
+    )
+
+    features = extractor._compute_features(X)
+
+    assert call_order == ["fft", "welch", "wavelet"]
+    expected_row = np.array([1.0, 2.0, 3.0])
+    expected = np.vstack([expected_row, expected_row])
+    assert np.array_equal(features, expected)
+
+
+def test_compute_features_rejects_empty_family_selection() -> None:
+    """Une sélection vide doit être refusée explicitement."""
+
+    extractor = ExtractFeatures(sfreq=64.0, feature_strategy=[], normalize=False)
+
+    with pytest.raises(ValueError, match="at least one feature family"):
+        extractor._compute_features(np.ones((1, 1, 4)))
+
+
+def test_compute_features_rejects_unknown_family() -> None:
+    """Une famille inconnue doit lever une erreur explicite avant concaténation."""
+
+    extractor = ExtractFeatures(
+        sfreq=64.0, feature_strategy=["fft", "unknown"], normalize=False
+    )
+
+    with pytest.raises(ValueError, match="Unsupported feature_strategy"):
+        extractor._compute_features(np.ones((1, 1, 4)))
