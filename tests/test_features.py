@@ -20,6 +20,9 @@ NPERSEG_WITH_OVERLAP = 20
 EXCESSIVE_OVERLAP = 25
 NEGATIVE_OVERLAP = -5
 EXPECTED_OVERLAP_CAP = NPERSEG_WITH_OVERLAP - 1
+EMPTY_WINDOW = ""
+NON_INTEGER_OVERLAP = 1.5
+NON_INTEGER_NPERSEG = 16.2
 
 
 def _build_epochs(
@@ -380,6 +383,15 @@ def test_prepare_welch_parameters_defaults_when_overlap_missing() -> None:
     assert scaling == "density"
 
 
+def test_prepare_welch_parameters_rejects_invalid_window_and_lengths() -> None:
+    """Les paramètres Welch doivent valider fenêtres et tailles fournies."""
+
+    with pytest.raises(ValueError, match="non-empty string"):
+        _prepare_welch_parameters({"window": EMPTY_WINDOW}, n_times=32)
+    with pytest.raises(ValueError, match="integer or None"):
+        _prepare_welch_parameters({"nperseg": NON_INTEGER_NPERSEG}, n_times=64)
+
+
 def test_prepare_welch_parameters_replaces_non_positive_nperseg() -> None:
     """nperseg non positif doit basculer sur la longueur totale disponible."""
 
@@ -413,6 +425,19 @@ def test_prepare_welch_parameters_caps_overlap_above_window() -> None:
         {"nperseg": NPERSEG_WITH_OVERLAP, "noverlap": NEGATIVE_OVERLAP}, n_times=40
     )
     assert non_negative_overlap == 0
+    # Vérifie qu'un recouvrement non entier est explicitement rejeté
+    with pytest.raises(ValueError, match="non-negative integer"):
+        _prepare_welch_parameters(
+            {"nperseg": NPERSEG_WITH_OVERLAP, "noverlap": NON_INTEGER_OVERLAP},
+            n_times=40,
+        )
+    # Vérifie qu'un recouvrement égal à la fenêtre
+    # laisse une fenêtre strictement positive
+    _, _, overlap_equal_window, _, _ = _prepare_welch_parameters(
+        {"nperseg": NPERSEG_WITH_OVERLAP, "noverlap": NPERSEG_WITH_OVERLAP},
+        n_times=NPERSEG_WITH_OVERLAP,
+    )
+    assert overlap_equal_window == EXPECTED_OVERLAP_CAP
 
 
 def test_extract_features_delegates_to_sklearn_estimator(

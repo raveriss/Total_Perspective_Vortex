@@ -104,7 +104,7 @@ mutants survivent ailleurs.
 - Interdictions strictes :
   - présenter un RUN DEV comme une validation “AVANT COMMIT”,
   - suggérer un commit/push tant que la checklist 2) n’est pas entièrement ✅.
- 
+
 ---
 
 ## 🎯 Contraintes BCI obligatoires

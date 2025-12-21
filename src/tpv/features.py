@@ -29,28 +29,61 @@ def _prepare_welch_parameters(
     """Calcule des paramètres Welch bornés pour éviter les avertissements."""
 
     # Applique une fenêtre lisse pour limiter les fuites fréquentielles
-    window: str | Iterable[float] = config.get("window", "hann")
+    window: str | Iterable[float] = _validate_welch_window(config.get("window", "hann"))
     # Permet d'ajuster la taille de segment pour contrôler la résolution
-    nperseg: int | None = config.get("nperseg")
-    # Borne la taille de segment pour éviter les avertissements SciPy
-    if nperseg is None or nperseg <= 0:
-        effective_nperseg = n_times
-    else:
-        effective_nperseg = min(nperseg, n_times)
+    effective_nperseg = _sanitize_nperseg(config.get("nperseg"), n_times)
     # Offre un recouvrement configurable pour stabiliser l'estimation
-    noverlap: int | None = config.get("noverlap")
-    # Borne le recouvrement pour garantir une fenêtre strictement positive
-    effective_noverlap: int | None = None
-    # Vérifie que l'appelant a fourni un recouvrement explicite
-    if noverlap is not None:
-        # Coupe le recouvrement juste avant la taille de fenêtre autorisée
-        effective_noverlap = max(0, min(noverlap, effective_nperseg - 1))
+    effective_noverlap = _sanitize_noverlap(
+        config.get("noverlap"), effective_nperseg=effective_nperseg
+    )
     # Permet de choisir la stratégie d'agrégation des segments
     average: str = config.get("average", "mean")
     # Permet de choisir la densité ou la puissance intégrée
     scaling: str = config.get("scaling", "density")
     # Regroupe les paramètres bornés pour l'appel Welch
     return window, effective_nperseg, effective_noverlap, average, scaling
+
+
+def _validate_welch_window(window: str | Iterable[float]) -> str | Iterable[float]:
+    """Valide la fenêtre Welch pour éviter des appels non déterministes."""
+
+    if isinstance(window, str):
+        if not window.strip():
+            raise ValueError("Welch window name must be a non-empty string.")
+        return window
+    if isinstance(window, Iterable):
+        try:
+            window_tuple: Tuple[float, ...] = tuple(float(value) for value in window)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "Welch window iterable must contain numeric values."
+            ) from exc
+        if len(window_tuple) == 0:
+            raise ValueError("Welch window iterable cannot be empty.")
+        return window_tuple
+    raise ValueError("Welch window must be a string or an iterable.")
+
+
+def _sanitize_nperseg(nperseg: Any, n_times: int) -> int:
+    """Valide et borne nperseg pour conserver une fenêtre positive."""
+
+    if nperseg is None:
+        return n_times
+    if not isinstance(nperseg, int):
+        raise ValueError("Welch nperseg must be an integer or None.")
+    if nperseg <= 0:
+        return n_times
+    return min(nperseg, n_times)
+
+
+def _sanitize_noverlap(noverlap: Any, *, effective_nperseg: int) -> int | None:
+    """Valide le recouvrement en conservant une fenêtre strictement positive."""
+
+    if noverlap is None:
+        return None
+    if not isinstance(noverlap, int):
+        raise ValueError("Welch noverlap must be a non-negative integer or None.")
+    return max(0, min(noverlap, effective_nperseg - 1))
 
 
 def _compute_welch_band_powers(
