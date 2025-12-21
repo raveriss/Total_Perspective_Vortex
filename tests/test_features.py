@@ -99,6 +99,58 @@ def test_extract_features_alpha_sine_dominates_alpha_band() -> None:
     assert reshaped[0, 0, 1] == pytest.approx(np.max(reshaped[0, 0]))
 
 
+def test_compute_fft_features_removes_dc_component() -> None:
+    """La FFT doit retirer la composante DC pour un signal constant."""
+
+    extractor = ExtractFeatures(
+        sfreq=32.0,
+        feature_strategy="fft",
+        normalize=False,
+        bands={"dc": (0.0, 1.0)},
+    )
+    constant_offset = np.full((1, 1, 64), 3.5)
+
+    transformed = extractor.transform(constant_offset)
+
+    assert np.array_equal(transformed, np.zeros_like(transformed))
+
+
+def test_compute_fft_features_preserves_two_sided_energy() -> None:
+    """Le repliement symétrique doit conserver l'énergie d'un sinus pur."""
+
+    sfreq = 64.0
+    n_times = 64
+    times = np.arange(n_times) / sfreq
+    sine = np.sin(2 * np.pi * 8.0 * times)
+    extractor = ExtractFeatures(
+        sfreq=sfreq,
+        feature_strategy="fft",
+        normalize=False,
+        bands={"alpha": (7.5, 8.5)},
+    )
+
+    transformed = extractor.transform(sine.reshape(1, 1, -1))
+
+    assert transformed.shape == (1, 1)
+    assert transformed[0, 0] == pytest.approx(0.5, rel=1e-3)
+
+
+def test_compute_fft_features_handles_zero_signal_with_normalization() -> None:
+    """Un signal nul doit rester nul même avec normalisation active."""
+
+    extractor = ExtractFeatures(
+        sfreq=128.0,
+        feature_strategy="fft",
+        normalize=True,
+        bands={"beta": (13.0, 30.0)},
+    )
+    zeros = np.zeros((2, 3, 32))
+
+    transformed = extractor.transform(zeros)
+
+    assert np.array_equal(transformed, np.zeros_like(transformed))
+
+
 def test_extract_features_wavelet_emphasizes_alpha_band() -> None:
     """La voie wavelet doit concentrer l'énergie sur la bande centrale alpha."""
 
