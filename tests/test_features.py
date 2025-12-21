@@ -1,3 +1,6 @@
+# Importe copy pour vérifier les copies défensives
+import copy
+
 # Importe time pour suivre le budget temporel d'extraction
 from time import perf_counter
 
@@ -199,6 +202,21 @@ def test_extract_features_wavelet_rejects_unknown_wavelet_name() -> None:
         extract_features(epochs, config={"method": "wavelet", "wavelet": "mexican_hat"})
 
 
+def test_extract_features_wavelet_rejects_non_positive_width() -> None:
+    """La configuration wavelet doit valider la largeur strictement positive."""
+
+    # Prépare un extracteur wavelet avec une largeur invalide
+    extractor = ExtractFeatures(
+        sfreq=64.0,
+        feature_strategy="wavelet",
+        normalize=False,
+        strategy_config={"wavelet_width": 0.0},
+    )
+    # Vérifie que la largeur nulle déclenche une erreur explicite
+    with pytest.raises(ValueError, match="wavelet_width must be a positive float"):
+        extractor.transform(np.zeros((1, 1, 16)))
+
+
 def test_extract_features_returns_zeros_when_band_mask_empty() -> None:
     """Une bande hors spectre doit produire des puissances nulles."""
 
@@ -258,6 +276,28 @@ def test_extract_features_constructor_stores_custom_attributes() -> None:
     assert extractor.band_labels == ["theta", "alpha", "beta", "gamma"]
 
 
+def test_extract_features_constructor_makes_defensive_copies() -> None:
+    """Le constructeur doit isoler les objets de configuration fournis."""
+
+    # Prépare des dictionnaires mutables pour vérifier l'absence de fuite
+    bands = {"alpha": (8.0, 12.0)}
+    expected_nperseg = 24
+    strategy = {"nperseg": expected_nperseg}
+    extractor = ExtractFeatures(
+        sfreq=128.0,
+        feature_strategy="welch",
+        normalize=True,
+        bands=bands,
+        strategy_config=strategy,
+    )
+    # Altère les dictionnaires d'entrée après l'instanciation
+    bands["alpha"] = (1.0, 2.0)
+    strategy["nperseg"] = 8
+    # Vérifie que l'extracteur conserve les valeurs originales
+    assert extractor.band_ranges["alpha"] == pytest.approx((8.0, 12.0))
+    assert extractor._effective_strategy_config["nperseg"] == expected_nperseg
+
+
 def test_extract_features_wrapper_rejects_incorrect_shape() -> None:
     """La classe scikit-learn doit refuser une dimension d'entrée erronée."""
 
@@ -288,6 +328,14 @@ def test_extract_features_rejects_empty_band_configuration() -> None:
     # Vérifie que l'absence de bandes lève une erreur explicite
     with pytest.raises(ValueError):
         extract_features(epochs, config={"method": "welch", "bands": []})
+
+
+def test_extract_features_rejects_invalid_band_edges() -> None:
+    """Les bornes de bande doivent respecter un ordre strictement croissant."""
+
+    # Vérifie que la validation échoue lorsque la borne supérieure est trop basse
+    with pytest.raises(ValueError, match="0 <= low < high"):
+        ExtractFeatures(sfreq=128.0, bands={"beta": (30.0, 20.0)})
 
 
 def test_extract_features_numeric_stability() -> None:
@@ -492,6 +540,56 @@ def test_extract_features_delegates_to_sklearn_estimator(
     assert np.array_equal(captured_data["data"], epochs.get_data())
     assert np.array_equal(features, np.full((1, 4), 2.5))
     assert labels == ["C0_theta", "C0_alpha", "C0_beta", "C0_gamma"]
+
+
+def test_extract_features_merges_config_without_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La configuration utilisateur doit être fusionnée sans mutation externe."""
+
+    # Prépare des epochs minimaux pour déclencher le flux de délégation
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=8, sfreq=64.0)
+    incoming_config = {
+        "method": "welch",
+        "bands": [("delta", (1.0, 3.0)), ("alpha", (8.0, 12.0))],
+        "normalize": True,
+        "nperseg": 16,
+        "average": "median",
+    }
+    original_snapshot = copy.deepcopy(incoming_config)
+    captured_init: dict[str, object] = {}
+
+    class DummyExtractor:
+        def __init__(
+            self,
+            *,
+            sfreq: float,
+            feature_strategy: str,
+            normalize: bool,
+            bands: dict[str, tuple[float, float]],
+            strategy_config: dict[str, object],
+        ) -> None:
+            captured_init["bands"] = bands
+            captured_init["strategy_config"] = strategy_config
+            captured_init["normalize"] = normalize
+            self._bands = bands
+
+        def transform(self, data: np.ndarray) -> np.ndarray:
+            return np.ones((data.shape[0], data.shape[1] * len(self._bands)))
+
+    monkeypatch.setattr("tpv.features.ExtractFeatures", DummyExtractor)
+
+    features, labels = extract_features(epochs, config=incoming_config)
+
+    assert incoming_config == original_snapshot
+    assert captured_init["bands"] == {
+        "delta": (1.0, 3.0),
+        "alpha": (8.0, 12.0),
+    }
+    assert captured_init["strategy_config"] == {"nperseg": 16, "average": "median"}
+    assert captured_init["normalize"] is True
+    assert features.shape == (1, 2)
+    assert labels == ["C0_delta", "C0_alpha"]
 
 
 def test_extract_features_propagates_transform_errors(

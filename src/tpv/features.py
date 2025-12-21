@@ -13,6 +13,9 @@ from scipy import signal
 # Importe BaseEstimator et TransformerMixin pour conserver la compatibilité scikit-learn
 from sklearn.base import BaseEstimator, TransformerMixin
 
+# Nombre attendu de bornes (basse, haute) pour chaque bande de fréquence
+BAND_BOUND_COUNT = 2
+
 
 def _resolve_band_ranges(
     config: Mapping[str, Any], default_bands: Mapping[str, Tuple[float, float]]
@@ -20,7 +23,60 @@ def _resolve_band_ranges(
     """Retourne les bandes explicites en préservant l'ordre demandé."""
 
     # Fusionne les bandes personnalisées pour respecter l'ordre d'entrée
-    return dict(config.get("bands", default_bands))
+    configured_bands = config.get("bands", None)
+    if configured_bands is None:
+        return _validate_band_mapping(default_bands)
+    return _validate_band_mapping(configured_bands)
+
+
+def _coerce_band_bounds(bounds: Sequence[float]) -> Tuple[float, float]:
+    """Convertit et valide les bornes numériques d'une bande."""
+
+    if not isinstance(bounds, Sequence) or len(bounds) != BAND_BOUND_COUNT:
+        raise ValueError("Band ranges must be (low, high) pairs.")
+    try:
+        low, high = (float(bounds[0]), float(bounds[1]))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Band edges must be numeric.") from exc
+    return low, high
+
+
+def _validate_band_edges(low: float, high: float) -> None:
+    """Valide la cohérence des bornes de fréquence."""
+
+    if not np.isfinite(low) or not np.isfinite(high):
+        raise ValueError("Band edges must be finite.")
+    if low < 0 or high <= low:
+        raise ValueError("Band edges must satisfy 0 <= low < high.")
+
+
+def _validate_single_band(
+    name: str, bounds: Sequence[float]
+) -> Tuple[str, Tuple[float, float]]:
+    """Valide un couple (nom, bornes) et retourne une version normalisée."""
+
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("Band names must be non-empty strings.")
+    low, high = _coerce_band_bounds(bounds)
+    _validate_band_edges(low, high)
+    return name.strip(), (low, high)
+
+
+def _validate_band_mapping(
+    bands: (
+        Mapping[str, Tuple[float, float]] | Iterable[Tuple[str, Tuple[float, float]]]
+    ),
+) -> Dict[str, Tuple[float, float]]:
+    """Valide les bandes fréquence et garantit une copie défensive."""
+
+    resolved = dict(bands)
+    if not resolved:
+        raise ValueError("At least one frequency band must be provided.")
+    validated: Dict[str, Tuple[float, float]] = {}
+    for name, bounds in resolved.items():
+        validated_name, validated_bounds = _validate_single_band(name, bounds)
+        validated[validated_name] = validated_bounds
+    return validated
 
 
 def _prepare_welch_parameters(
@@ -42,6 +98,18 @@ def _prepare_welch_parameters(
     scaling: str = config.get("scaling", "density")
     # Regroupe les paramètres bornés pour l'appel Welch
     return window, effective_nperseg, effective_noverlap, average, scaling
+
+
+def _validate_wavelet_width(wavelet_width: Any) -> float:
+    """Valide la largeur de wavelet pour éviter une énergie dégénérée."""
+
+    try:
+        width = float(wavelet_width)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("wavelet_width must be a positive float.") from exc
+    if not np.isfinite(width) or width <= 0:
+        raise ValueError("wavelet_width must be a positive float.")
+    return width
 
 
 def _validate_welch_window(window: str | Iterable[float]) -> str | Iterable[float]:
@@ -173,7 +241,7 @@ def _compute_wavelet_band_powers(
     if wavelet_name != "morlet":
         raise ValueError(f"Unsupported wavelet: {wavelet_name!r}. Use 'morlet'.")
     # Configure la largeur de la wavelet pour ajuster la résolution temps-fréquence
-    wavelet_cycles: float = float(config.get("wavelet_width", 6.0))
+    wavelet_cycles: float = _validate_wavelet_width(config.get("wavelet_width", 6.0))
     # Calcule la fréquence centrale de chaque bande pour cibler la wavelet
     central_frequencies: List[float] = [
         (low + high) / 2.0 for low, high in band_ranges.values()
@@ -252,12 +320,13 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         # Expose les bandes pour compatibilité scikit-learn (get_params)
         self.bands = bands
         # Stocke les bandes utilisées pour la construction des features
-        self.band_ranges: Dict[str, Tuple[float, float]] = dict(
-            bands or self.BAND_RANGES
+        self.band_ranges: Dict[str, Tuple[float, float]] = _validate_band_mapping(
+            bands if bands is not None else self.BAND_RANGES
         )
         # Stocke la configuration spécifique à la stratégie (Welch, wavelet, etc.)
         self.strategy_config = strategy_config
-        self._effective_strategy_config: Dict[str, Any] = dict(strategy_config or {})
+        strategy_payload: Dict[str, Any] = dict(strategy_config or {})
+        self._effective_strategy_config: Dict[str, Any] = dict(strategy_payload)
 
     def fit(self, X, y=None):
         # Pas d'apprentissage de paramètres pour l'instant
