@@ -272,9 +272,11 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         # Expose les bandes pour compatibilité scikit-learn (get_params)
         self.bands = bands
         # Stocke les bandes utilisées pour la construction des features
-        self.band_ranges: Dict[str, Tuple[float, float]] = dict(
-            bands or self.BAND_RANGES
+        ordered_band_items: List[Tuple[str, Tuple[float, float]]] = list(
+            (bands or self.BAND_RANGES).items()
         )
+        self._band_items: List[Tuple[str, Tuple[float, float]]] = ordered_band_items
+        self.band_ranges: Dict[str, Tuple[float, float]] = dict(ordered_band_items)
         # Stocke la configuration spécifique à la stratégie (Welch, wavelet, etc.)
         self.strategy_config = strategy_config
         self._effective_strategy_config: Dict[str, Any] = dict(strategy_config or {})
@@ -287,6 +289,8 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         # Vérifie que X est bien (n_epochs, n_channels, n_times)
         if X.ndim != self.EXPECTED_EEG_NDIM:
             raise ValueError("X must have shape (n_samples, n_channels, n_times)")
+        if X.shape[0] == 0:
+            raise ValueError("X must contain at least one epoch.")
 
         # Calcule les features brutes selon la stratégie choisie
         raw_features = self._compute_features(X)
@@ -311,7 +315,7 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
     @property
     def band_labels(self) -> List[str]:
         # Retourne les noms de bandes dans l'ordre déclaré
-        return list(self.band_ranges.keys())
+        return [band_name for band_name, _ in self._band_items]
 
     def _compute_features(self, X: np.ndarray) -> np.ndarray:
         """Dispatch interne vers la bonne stratégie de features."""
@@ -341,7 +345,7 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         # Accumule les puissances par bande pour chaque canal
         band_powers: List[np.ndarray] = []
         # Parcourt chaque bande EEG définie dans les paramètres
-        for _, (low, high) in self.band_ranges.items():
+        for _, (low, high) in self._band_items:
             # Construit le masque fréquentiel pour cette bande
             band_mask = (freqs >= low) & (freqs <= high)
 
