@@ -385,10 +385,23 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
     def _compute_fft_features(self, X: np.ndarray) -> np.ndarray:
         """Calcule les puissances de bandes à partir de la FFT."""
 
+        n_times = X.shape[-1]
+        # Centre le signal pour supprimer la composante DC avant la FFT
+        centered = X - X.mean(axis=-1, keepdims=True)
         # Calcule les fréquences réelles à partir de la sfreq configurée
-        freqs = np.fft.rfftfreq(X.shape[2], d=1.0 / self.sfreq)
+        freqs = np.fft.rfftfreq(n_times, d=1.0 / self.sfreq)
         # Calcule la puissance spectrale par canal et échantillon
-        power = np.abs(np.fft.rfft(X, axis=2)) ** 2  # pragma: no mutate
+        power = np.asarray(
+            np.abs(np.fft.rfft(centered, axis=-1)) ** 2, dtype=float
+        )  # pragma: no mutate
+        # Restaure l'énergie des composantes symétriques manquantes pour un signal réel
+        if power.shape[-1] > 1:
+            power[..., 1:-1] *= 2
+            # Lorsque n_times est impair, la dernière fréquence possède un symétrique
+            if n_times % 2 != 0:
+                power[..., -1] *= 2
+        # Normalise par la longueur temporelle pour obtenir une puissance moyenne
+        power = power / float(n_times**2)
         # Accumule les puissances par bande pour chaque canal
         band_powers: List[np.ndarray] = []
         # Parcourt chaque bande EEG définie dans les paramètres
