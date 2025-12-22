@@ -1,7 +1,7 @@
 # Importe time pour suivre le budget temporel d'extraction
 from collections import OrderedDict
 from time import perf_counter
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 # Importe numpy pour générer des signaux et des tenseurs de test
 import numpy as np
@@ -246,6 +246,23 @@ def test_extract_features_wavelet_handles_overlapping_bands() -> None:
     assert reshaped[0, 1, 1] > reshaped[0, 1, 2]
 
 
+def test_compute_wavelet_features_validates_wavelet_name_type() -> None:
+    """_compute_wavelet_features doit rejeter un nom de wavelet non textuel."""
+
+    extractor = ExtractFeatures(
+        sfreq=64.0,
+        feature_strategy="wavelet",
+        normalize=False,
+        strategy_config={"wavelet": ["morlet"]},
+    )
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=32, sfreq=64.0)
+
+    with pytest.raises(
+        ValueError, match="Wavelet selection must be a non-empty string"
+    ):
+        extractor.transform(epochs.get_data())
+
+
 def test_compute_wavelet_band_powers_rejects_misordered_band() -> None:
     """Les bandes wavelet doivent imposer low < high pour chaque intervalle."""
 
@@ -345,6 +362,59 @@ def test_extract_features_wavelet_rejects_unknown_wavelet_name() -> None:
     # Vérifie qu'une wavelet inconnue est explicitement rejetée
     with pytest.raises(ValueError, match="Unsupported wavelet"):
         extract_features(epochs, config={"method": "wavelet", "wavelet": "mexican_hat"})
+
+
+def test_compute_wavelet_features_rejects_mismatched_band_power_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La validation doit refuser une forme incohérente des puissances wavelet."""
+
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=32, sfreq=64.0)
+    extractor = ExtractFeatures(
+        sfreq=64.0,
+        feature_strategy="wavelet",
+        normalize=False,
+        bands={"alpha": (8.0, 12.0), "beta": (13.0, 30.0)},
+    )
+
+    def fake_band_powers(
+        data: np.ndarray,
+        sfreq: float,
+        band_ranges: Mapping[str, tuple[float, float]],
+        config: Mapping[str, Any],  # noqa: ARG001,E501
+    ) -> np.ndarray:
+        return np.zeros((data.shape[0], data.shape[1], 1))
+
+    monkeypatch.setattr(
+        features_module, "_compute_wavelet_band_powers", fake_band_powers
+    )
+
+    with pytest.raises(ValueError, match="expected 2 bands but received 1"):
+        extractor.transform(epochs.get_data())
+
+
+def test_compute_wavelet_features_rejects_invalid_band_power_dimensions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La validation doit refuser des coefficients qui perdent des axes nécessaires."""
+
+    epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=32, sfreq=64.0)
+    extractor = ExtractFeatures(sfreq=64.0, feature_strategy="wavelet", normalize=False)
+
+    def fake_band_powers(
+        data: np.ndarray,
+        sfreq: float,
+        band_ranges: Mapping[str, tuple[float, float]],
+        config: Mapping[str, Any],  # noqa: ARG001,E501
+    ) -> np.ndarray:
+        return np.zeros((data.shape[0], data.shape[1]))  # perdu la dimension bande
+
+    monkeypatch.setattr(
+        features_module, "_compute_wavelet_band_powers", fake_band_powers
+    )
+
+    with pytest.raises(ValueError, match="must return a 3D array"):
+        extractor.transform(epochs.get_data())
 
 
 def test_extract_features_returns_zeros_when_band_mask_empty() -> None:

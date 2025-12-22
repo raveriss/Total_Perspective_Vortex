@@ -86,6 +86,23 @@ def _sanitize_noverlap(noverlap: Any, *, effective_nperseg: int) -> int | None:
     return max(0, min(noverlap, effective_nperseg - 1))
 
 
+def _normalize_wavelet_name(wavelet_name: Any) -> str:
+    """Valide le nom de wavelet et applique un nettoyage minimal."""
+
+    if not isinstance(wavelet_name, str):
+        raise ValueError(
+            "Wavelet selection must be a non-empty string (e.g., 'morlet')."
+        )
+    cleaned = wavelet_name.strip().lower()
+    if not cleaned:
+        raise ValueError(
+            "Wavelet selection must be a non-empty string (e.g., 'morlet')."
+        )
+    if cleaned != "morlet":
+        raise ValueError(f"Unsupported wavelet: {wavelet_name!r}. Use 'morlet'.")
+    return cleaned
+
+
 def _compute_welch_band_powers(
     data: np.ndarray,
     sfreq: float,
@@ -169,9 +186,7 @@ def _compute_wavelet_band_powers(
     """Calcule l'énergie de bandes via une CWT Morlet paramétrable."""
 
     # Valide le nom de wavelet demandé pour éviter les comportements implicites
-    wavelet_name = config.get("wavelet", "morlet")
-    if wavelet_name != "morlet":
-        raise ValueError(f"Unsupported wavelet: {wavelet_name!r}. Use 'morlet'.")
+    _normalize_wavelet_name(config.get("wavelet", "morlet"))
     if not band_ranges:
         raise ValueError("At least one wavelet band must be provided.")
     # Configure la largeur de la wavelet pour ajuster la résolution temps-fréquence
@@ -428,13 +443,34 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
     def _compute_wavelet_features(self, X: np.ndarray) -> np.ndarray:
         """Calcule des features à partir de la CWT wavelet."""
 
+        expected_bands = len(self._band_items)
+        if expected_bands == 0:  # pragma: no cover - defensive
+            raise ValueError("Wavelet features require at least one configured band.")
+        config = dict(self._effective_strategy_config)
+        _normalize_wavelet_name(config.get("wavelet", "morlet"))
+        expected_ndim = 3
         # Calcule les coefficients puis la puissance de bande via la fonction dédiée
         stacked = _compute_wavelet_band_powers(
             X,
             self.sfreq,
             self.band_ranges,
-            self._effective_strategy_config,
+            config,
         )
+        if stacked.ndim != expected_ndim:
+            raise ValueError(
+                "Wavelet band powers must return a 3D array "
+                "(epochs, channels, bands) to preserve feature naming."
+            )
+        if stacked.shape[2] != expected_bands:
+            raise ValueError(
+                "Wavelet band powers shape mismatch: "
+                f"expected {expected_bands} bands but received {stacked.shape[2]}. "
+                "Check the number of central frequencies and band definitions."
+            )
+        if stacked.shape[0] != X.shape[0] or stacked.shape[1] != X.shape[1]:
+            raise ValueError(
+                "Wavelet band powers must preserve epoch and channel dimensions."
+            )
 
         # Retourne la matrice tabulaire prête pour un classifieur scikit-learn
         return stacked.reshape(stacked.shape[0], -1)
