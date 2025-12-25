@@ -58,6 +58,9 @@ ignore = []
 [tool.ruff.lint.isort]
 known-first-party = ["mybci", "tpv"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "PLC0415", "B905", "E501", "PLR0913"]
+
 [tool.mutmut]
 paths_to_mutate = [
     "src/tpv",

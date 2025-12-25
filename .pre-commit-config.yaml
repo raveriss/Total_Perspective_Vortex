@@ -6,28 +6,31 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: end-of-file-fixer
-        exclude: "(^data/|^artifacts/|\\.(edf|event|npy)$)"
+        exclude: "(^data/|^artifacts/|^mutants/|\\.(edf|event|npy)$)"
       - id: trailing-whitespace
-        exclude: "(^data/|^artifacts/|\\.(edf|event|npy)$)"
+        exclude: "(^data/|^artifacts/|^mutants/|\\.(edf|event|npy)$)"
       - id: mixed-line-ending
-        exclude: "(^data/|^artifacts/|\\.(edf|event|npy)$)"
+        exclude: "(^data/|^artifacts/|^mutants/|\\.(edf|event|npy)$)"
 
   # Formatage
   - repo: https://github.com/psf/black
     rev: 25.1.0
     hooks:
       - id: black
+        exclude: "^mutants/"
 
   - repo: https://github.com/pycqa/isort
     rev: 6.0.1
     hooks:
       - id: isort
+        exclude: "^mutants/"
 
   # Lint Python (remplace flake8)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.2
     hooks:
       - id: ruff
+        exclude: "^mutants/"
 
   # Typage (configuration dans pyproject.toml)
   - repo: https://github.com/pre-commit/mirrors-mypy

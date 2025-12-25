@@ -362,7 +362,9 @@ def test_aggregate_accuracy_handles_missing_artifacts(tmp_path):
     # Vérifie qu'aucun run n'est détecté lorsque le dossier manque
     assert discovered == []
     # Calcule le rapport complet pour verrouiller le cas sans run
-    report = aggregate_cli.aggregate_accuracies(tmp_path / "data", missing_artifacts_dir)
+    report = aggregate_cli.aggregate_accuracies(
+        tmp_path / "data", missing_artifacts_dir
+    )
     # Vérifie que l'agrégation par run est vide sans artefact
     assert report["by_run"] == {}
     # Vérifie que l'agrégation par sujet est vide sans artefact
@@ -513,7 +515,9 @@ def test_aggregate_accuracy_parser_description_defaults_and_help_contract() -> N
     assert args.artifacts_dir == aggregate_cli.DEFAULT_ARTIFACTS_DIR
 
     # Récupère l'action associée à --data-dir pour vérifier default/help
-    data_action = next(action for action in parser._actions if action.dest == "data_dir")
+    data_action = next(
+        action for action in parser._actions if action.dest == "data_dir"
+    )
     # Verrouille le default de l'option pour tuer les mutations sur default
     assert data_action.default == aggregate_cli.DEFAULT_DATA_DIR
     # Verrouille le help de l'option pour tuer help=None ou help supprimé
