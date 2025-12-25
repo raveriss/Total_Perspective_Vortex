@@ -10,6 +10,9 @@ from pathlib import Path
 # Importe numpy pour générer des données synthétiques
 import numpy as np
 
+# Importe pytest pour orchestrer les scénarios paramétrés
+import pytest
+
 # Importe le module train pour invoquer le main CLI sans ambiguïté
 from scripts import train
 
@@ -333,6 +336,137 @@ def test_load_data_rebuilds_after_corruption(tmp_path, monkeypatch):
     assert np.array_equal(X, rebuilt_X)
     # Vérifie que les labels proviennent bien des fichiers reconstruits
     assert np.array_equal(y, rebuilt_y)
+
+
+# Vérifie que _load_data régénère pour toutes les variantes de fichiers invalides
+@pytest.mark.parametrize(
+    "scenario",
+    (
+        "missing_features",
+        "features_not_3d",
+        "labels_mismatch",
+    ),
+)
+def test_load_data_rebuilds_invalid_numpy_payloads(tmp_path, monkeypatch, scenario):
+    """Déclenche la reconstruction lorsque les .npy sont mal formés."""
+
+    # Prépare le sujet fictif pour isoler les chemins des échantillons
+    subject = "S088"
+    # Prépare le run fictif pour cibler un run moteur documenté
+    run = "R08"
+    # Construit le répertoire racine des données synthétiques
+    data_dir = tmp_path / "data"
+    # Construit le répertoire racine des données brutes attendu par la signature
+    raw_dir = tmp_path / "raw"
+    # Construit le dossier du sujet pour déposer les .npy temporaires
+    subject_dir = data_dir / subject
+    # Crée l'arborescence nécessaire pour simuler les fichiers
+    subject_dir.mkdir(parents=True)
+    # Prépare des features synthétiques pour alimenter la reconstruction
+    rebuilt_X = np.full((3, 2, 2), fill_value=7)
+    # Prépare des labels synthétiques alignés sur les features reconstruites
+    rebuilt_y = np.array([1, 0, 1])
+    # Initialise un traceur d'appels pour vérifier la reconstruction
+    calls: list[tuple[str, str]] = []
+
+    # Déclare un stub de reconstruction pour simuler l'EDF absent du test
+    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg):
+        # Archive les arguments reçus pour vérifier la propagation complète
+        calls.append((subject_arg, run_arg))
+        # Calcule le chemin des features reconstruites pour remplacer l'entrée
+        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
+        # Calcule le chemin des labels reconstruits pour réaligner les échantillons
+        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+        # Sauvegarde les features simulées pour annuler les fichiers invalides
+        np.save(features_path, rebuilt_X)
+        # Sauvegarde les labels simulés pour aligner la longueur avec X
+        np.save(labels_path, rebuilt_y)
+        # Retourne les chemins sauvegardés pour respecter le contrat attendu
+        return features_path, labels_path
+
+    # Injecte le stub pour suivre les reconstructions demandées
+    monkeypatch.setattr(train, "_build_npy_from_edf", fake_build_npy)
+
+    # Injecte des fichiers invalides selon le scénario ciblé
+    if scenario == "missing_features":
+        # Enregistre uniquement y pour simuler un X absent
+        np.save(subject_dir / f"{run}_y.npy", np.array([0, 1]))
+    elif scenario == "features_not_3d":
+        # Crée un X 2D pour déclencher la reconstruction sur la dimension attendue
+        np.save(subject_dir / f"{run}_X.npy", np.ones((2, 4)))
+        # Crée un y aligné sur le nombre d'échantillons de X 2D
+        np.save(subject_dir / f"{run}_y.npy", np.array([0, 1]))
+    elif scenario == "labels_mismatch":
+        # Crée un X 3D valide pour isoler le désalignement des labels
+        np.save(subject_dir / f"{run}_X.npy", np.ones((4, 2, 2)))
+        # Crée un y plus court pour déclencher la régénération
+        np.save(subject_dir / f"{run}_y.npy", np.array([0, 1, 1]))
+
+    # Charge les données, ce qui doit forcer la reconstruction simulée
+    X, y = train._load_data(subject, run, data_dir, raw_dir)
+
+    # Vérifie que la reconstruction a été invoquée exactement une fois
+    assert calls == [(subject, run)]
+    # Vérifie que les features chargées correspondent au fichier reconstruit
+    assert np.array_equal(X, rebuilt_X)
+    # Vérifie que les labels chargés correspondent au fichier reconstruit
+    assert np.array_equal(y, rebuilt_y)
+
+
+# Vérifie que corrupted_reason est journalisé lorsqu'un np.load échoue
+def test_load_data_logs_corrupted_reason(tmp_path, monkeypatch, capsys):
+    """Capture le log de reconstruction quand np.load lève ValueError."""
+
+    # Prépare le sujet factice pour isoler les chemins temporaires
+    subject = "S099"
+    # Prépare le run factice pour déclencher le code de reconstruction
+    run = "R07"
+    # Construit le répertoire racine des données synthétiques
+    data_dir = tmp_path / "data"
+    # Construit le répertoire racine des données brutes attendu par la signature
+    raw_dir = tmp_path / "raw"
+    # Construit le dossier sujet utilisé pour logguer la corruption
+    subject_dir = data_dir / subject
+    # Crée l'arborescence pour écrire les fichiers corrompus
+    subject_dir.mkdir(parents=True)
+    # Injecte une charge illisible pour provoquer un ValueError de np.load
+    (subject_dir / f"{run}_X.npy").write_text("broken payload")
+    # Écrit un y minimal pour permettre l'analyse du couple X/y
+    np.save(subject_dir / f"{run}_y.npy", np.array([0, 1]))
+    # Prépare des features reconstruites pour remplacer l'entrée corrompue
+    rebuilt_X = np.zeros((2, 2, 2))
+    # Prépare des labels reconstruits pour aligner les échantillons
+    rebuilt_y = np.array([1, 1])
+
+    # Déclare un stub pour simuler la reconstruction EDF pendant le test
+    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg):
+        # Construit le chemin des features reconstruites pour remplacer le X corrompu
+        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
+        # Construit le chemin des labels reconstruits pour aligner X et y
+        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+        # Sauvegarde les features reconstruites pour la suite du test
+        np.save(features_path, rebuilt_X)
+        # Sauvegarde les labels reconstruits pour permettre le chargement final
+        np.save(labels_path, rebuilt_y)
+        # Retourne les chemins sauvegardés pour respecter l'interface attendue
+        return features_path, labels_path
+
+    # Injecte le stub pour suivre la reconstruction forcée
+    monkeypatch.setattr(train, "_build_npy_from_edf", fake_build_npy)
+
+    # Charge les données pour déclencher la reconstruction et le log associé
+    X, y = train._load_data(subject, run, data_dir, raw_dir)
+    # Capture les sorties pour inspecter le message de corruption
+    captured = capsys.readouterr().out
+
+    # Vérifie que les features proviennent bien du fichier reconstruit
+    assert np.array_equal(X, rebuilt_X)
+    # Vérifie que les labels proviennent bien du fichier reconstruit
+    assert np.array_equal(y, rebuilt_y)
+    # Vérifie que le log mentionne explicitement la reconstruction forcée
+    assert "Chargement numpy impossible" in captured
+    # Vérifie que le log mentionne la régénération depuis l'EDF
+    assert "Régénération depuis l'EDF" in captured
 
 
 # Vérifie que _get_git_commit gère l'absence complète du dépôt
