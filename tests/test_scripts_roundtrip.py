@@ -517,35 +517,60 @@ def test_get_git_commit_returns_unknown_with_empty_head(tmp_path, monkeypatch):
     assert _get_git_commit() == "unknown"
 
 
-# Vérifie que _get_git_commit retourne bien un hash dans un dépôt valide
-def test_get_git_commit_returns_hash_in_repo(monkeypatch):
-    """Couvre le chemin nominal lorsque HEAD pointe vers une ref valide."""
+# Construit un dépôt git factice pour tester les différentes branches HEAD
+def _setup_fake_git_repo(
+    root_dir: Path,
+    head_content: str,
+    ref_relative_path: str | None = None,
+    ref_hash: str | None = None,
+) -> Path:
+    """Crée un squelette .git minimal avec HEAD et éventuellement une ref."""
 
-    # Identifie la racine du dépôt git pour simuler un appel utilisateur
-    repo_root = Path(__file__).resolve().parent.parent
-    # Force l'exécution dans le dépôt réel pour lire le HEAD courant
+    # Crée l'arborescence .git pour accueillir HEAD et les refs
+    git_dir = root_dir / ".git"
+    git_dir.mkdir(parents=True)
+    # Écrit le contenu demandé dans le fichier HEAD
+    (git_dir / "HEAD").write_text(head_content)
+    # Lorsque la référence symbolique est fournie, écrit également la cible
+    if ref_relative_path and ref_hash:
+        ref_path = git_dir / ref_relative_path
+        ref_path.parent.mkdir(parents=True, exist_ok=True)
+        ref_path.write_text(ref_hash)
+    # Retourne le chemin racine pour faciliter le changement de cwd
+    return root_dir
+
+
+# Vérifie que _get_git_commit retourne bien un hash pour une ref symbolique valide
+def test_get_git_commit_returns_ref_hash_from_fake_repo(tmp_path, monkeypatch):
+    """Couvre le chemin nominal avec HEAD pointant vers une ref symbolique."""
+
+    # Définit un hash stable pour vérifier la résolution de la référence
+    branch_hash = "12345" * 8
+    # Construit un dépôt git minimal avec HEAD référant à refs/heads/main
+    repo_root = _setup_fake_git_repo(
+        tmp_path / "symbolic_repo",
+        "ref: refs/heads/main",
+        ref_relative_path="refs/heads/main",
+        ref_hash=branch_hash,
+    )
+
+    # Force l'exécution dans le dépôt factice pour lire le HEAD courant
     monkeypatch.chdir(repo_root)
     # Appelle la récupération du hash pour exercer la branche nominale
     commit = _get_git_commit()
-    # Vérifie que le hash est inconnu ou bien composé de caractères hexadécimaux
-    assert commit == "unknown" or all(
-        char in "0123456789abcdef" for char in commit.lower()
-    )
+    # Vérifie que le hash correspond exactement à la valeur attendue
+    assert commit == branch_hash
 
 
 # Garantit la couverture lorsque HEAD stocke directement un hash détaché
 def test_get_git_commit_returns_detached_hash(tmp_path, monkeypatch):
     """Couvre le cas HEAD contenant directement un hash détaché."""
 
-    # Prépare une arborescence .git artificielle pour simuler un HEAD isolé
-    git_dir = tmp_path / "detached" / ".git"
-    # Crée les dossiers .git pour écrire un fichier HEAD détaché
-    git_dir.mkdir(parents=True)
     # Construit un hash hexadécimal réaliste pour le scénario de test
     detached_hash = "abcde" * 8
-    # Écrit le hash dans HEAD pour activer la branche sans référence symbolique
-    (git_dir / "HEAD").write_text(detached_hash)
+    # Prépare un dépôt factice avec HEAD pointant directement sur un hash
+    repo_root = _setup_fake_git_repo(tmp_path / "detached", detached_hash)
     # Change le répertoire courant pour cibler le dépôt simulé
-    monkeypatch.chdir(git_dir.parent)
+    monkeypatch.chdir(repo_root)
     # Vérifie que _get_git_commit retourne exactement le hash détaché attendu
     assert _get_git_commit() == detached_hash
