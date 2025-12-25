@@ -36,7 +36,9 @@ tant qu’il n’a pas, dans **cette réponse précise** :
    - `2.3 Couverture >= 90 % (make cov) : ✅/❌`
    - `→ Commit autorisé : ✅/❌`
 
-3. Listé les **commandes locales** à exécuter, **dans l’ordre 2.1 → 2.4**.
+3. Listé les **commandes locales** à exécuter, **dans l’ordre 2.1 → 2.3**.
+   *(2.4 Mutmut est un diagnostic long : il ne doit jamais conditionner
+   l’exécution de `pre-commit` en MODE DEV.)*
 4. Indiqué pour chaque étape si l’état est **réellement connu** :
 
    - ✅ : l’agent a vu un log de succès ou a lui-même exécuté la commande.
@@ -673,7 +675,9 @@ Cette section est le miroir local des jobs CI :
   `trim trailing whitespace`, `mixed line ending`, `black`, `isort`,
   `ruff`, `mypy`, `bandit`, `radon`, `xenon`, etc.),
 * `static-analysis`,
-* `tests` + `mutmut`.
+* `tests` (couverture via `make cov`).
+* `mutmut` (mutation testing — diagnostic long ; ne bloque jamais un RUN
+  `pre-commit` en MODE DEV).
 
 L’agent doit toujours rappeler en **texte clair** que :
 

@@ -1,0 +1,30 @@
+{
+  "dataset": {
+    "subject": "S04",
+    "run": "R04",
+    "data_dir": "/tmp/pytest-of-raveriss/pytest-58379/test_predict_cli_main_covers_p0/data"
+  },
+  "hyperparams": {
+    "sfreq": 50.0,
+    "feature_strategy": "fft",
+    "normalize_features": true,
+    "dim_method": "pca",
+    "n_components": null,
+    "classifier": "lda",
+    "scaler": null
+  },
+  "scores": {
+    "cv_scores": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "cv_mean": 1.0
+  },
+  "git_commit": "unknown",
+  "artifacts": {
+    "model": "data/S04/R04/model.joblib",
+    "scaler": null,
+    "w_matrix": "data/S04/R04/w_matrix.joblib"
+  }
+}
