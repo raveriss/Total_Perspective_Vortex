@@ -1,8 +1,7 @@
 # Importe time pour suivre le budget temporel d'extraction
 from collections import OrderedDict
-from typing import cast
 from time import perf_counter
-from typing import Any, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence, cast
 
 # Importe numpy pour générer des signaux et des tenseurs de test
 import numpy as np
@@ -165,7 +164,7 @@ def test_compute_fft_features_calls_rfft_with_axis_minus_one(
         data: np.ndarray,
         n: int | None = None,
         axis: int | None = None,
-        norm: str | None = None,
+        norm: Literal["backward", "ortho", "forward"] | None = None,
     ) -> np.ndarray:
         """Vérifie que axis est explicitement fourni à -1."""
 
@@ -202,7 +201,7 @@ def test_compute_fft_features_forces_float_dtype_in_power_tensor(
     # Capture l'implémentation réelle afin de déléguer le calcul
     original_asarray = features_module.np.asarray
 
-    def _asarray_spy(array: np.ndarray, *args: object, **kwargs: object) -> np.ndarray:
+    def _asarray_spy(array: np.ndarray, *args: Any, **kwargs: Any) -> np.ndarray:
         """Vérifie que dtype est explicitement forcé à float."""
 
         # Extrait dtype depuis kwargs ou args pour couvrir les appels futurs
@@ -213,7 +212,7 @@ def test_compute_fft_features_forces_float_dtype_in_power_tensor(
         # Verrouille dtype pour détecter les mutations et refactors non désirés
         assert dtype_value is float
         # Délègue à numpy pour conserver le comportement attendu
-        return original_asarray(array, *args, **kwargs)
+        return cast(np.ndarray, original_asarray(array, *args, **kwargs))
 
     # Monkeypatch np.asarray pour vérifier la stabilité du contrat dtype
     monkeypatch.setattr(features_module.np, "asarray", _asarray_spy)
@@ -299,7 +298,7 @@ def test_compute_fft_features_skips_two_sided_restoration_when_single_bin(
             # Retourne l'instance instrumentée
             return obj
 
-        def __getitem__(self, item: object) -> object:
+        def __getitem__(self, item: Any) -> Any:
             """Marque les indexations propres au repliement de spectre réel."""
 
             # Normalise la clé en tuple pour inspecter les axes
@@ -315,11 +314,11 @@ def test_compute_fft_features_skips_two_sided_restoration_when_single_bin(
             # Délègue l'accès à numpy pour conserver le comportement attendu
             return super().__getitem__(item)
 
-    def _asarray_spy(array: np.ndarray, *args: object, **kwargs: object) -> np.ndarray:
+    def _asarray_spy(array: np.ndarray, *args: Any, **kwargs: Any) -> np.ndarray:
         """Retourne un ndarray instrumenté pour détecter le repliement."""
 
         # Construit le tableau de base avec numpy pour respecter les conversions
-        base = original_asarray(array, *args, **kwargs)
+        base = cast(np.ndarray, original_asarray(array, *args, **kwargs))
         # Construit une instance spy afin d'initialiser les attributs de suivi
         spy = _ReconstructionSpyArray(base)
         # Expose l'instance pour l'assertion après transform
@@ -423,7 +422,6 @@ def test_compute_fft_features_returns_flattened_matrix_with_multiple_bands() -> 
 
     # Vérifie la forme aplatie attendue
     assert transformed.shape == (2, 3 * len(bands))
-
 
 
 def test_compute_fft_features_reshapes_with_minus_one_dimension(
@@ -704,7 +702,9 @@ def test_compute_wavelet_features_validates_wavelet_type_before_band_power_call(
     ) -> np.ndarray:
         """Échoue si l'appel passe la validation de wavelet."""
 
-        raise AssertionError("Band powers should not be computed when wavelet is invalid.")
+        raise AssertionError(
+            "Band powers should not be computed when wavelet is invalid."
+        )
 
     # Empêche la couche inférieure de masquer un défaut de validation amont
     monkeypatch.setattr(
@@ -743,7 +743,9 @@ def test_compute_wavelet_features_rejects_unsupported_wavelet_before_band_power_
     ) -> np.ndarray:
         """Échoue si la validation de wavelet n'a pas stoppé l'appel."""
 
-        raise AssertionError("Band powers should not be computed for unsupported wavelet.")
+        raise AssertionError(
+            "Band powers should not be computed for unsupported wavelet."
+        )
 
     # Empêche la couche inférieure de jeter l'erreur à la place de la classe
     monkeypatch.setattr(
@@ -974,6 +976,7 @@ def test_compute_wavelet_band_powers_rejects_misordered_band() -> None:
             },
         )
 
+
 def test_compute_wavelet_band_powers_forwards_wavelet_width_to_coefficients(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -986,7 +989,7 @@ def test_compute_wavelet_band_powers_forwards_wavelet_width_to_coefficients(
     # Définit une bande valide pour déclencher le calcul wavelet
     band_ranges = {"alpha": (8.0, 12.0)}
     # Prépare un conteneur pour capturer la largeur réellement utilisée
-    captured_cycles: List[float] = []
+    captured_cycles: list[float] = []
 
     def _fake_coefficients(
         channel_values: np.ndarray,
@@ -1035,7 +1038,7 @@ def test_compute_wavelet_band_powers_defaults_to_six_cycles(
     # Définit une bande valide pour déclencher le calcul wavelet
     band_ranges = {"alpha": (8.0, 12.0)}
     # Prépare un conteneur pour capturer la largeur réellement utilisée
-    captured_cycles: List[float] = []
+    captured_cycles: list[float] = []
 
     def _fake_coefficients(
         channel_values: np.ndarray,
@@ -1260,8 +1263,6 @@ def test_compute_wavelet_band_powers_uses_magnitude_squared_energy(
     np.testing.assert_allclose(band_powers[0, 0, :], expected)
 
 
-
-
 def test_compute_wavelet_band_powers_handles_zero_energy_signal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1337,8 +1338,6 @@ def test_compute_wavelet_band_powers_maps_bands_in_order(
     # Vérifie que les puissances sont produites dans le même ordre que les bandes
     reshaped = features.reshape(1, 1, 2)
     assert reshaped.shape == (1, 1, 2)
-
-
 
 
 def test_compute_wavelet_coefficients_stacks_band_axis_explicitly(
@@ -1481,7 +1480,6 @@ def test_compute_wavelet_coefficients_builds_expected_morlet_wavelets(
         assert built_wavelet[center_index] == pytest.approx(1.0 + 0.0j)
 
 
-
 def test_extract_features_wavelet_rejects_unknown_wavelet_name() -> None:
     """La configuration doit remonter une erreur pour les wavelets non supportées."""
 
@@ -1559,6 +1557,7 @@ def test_extract_features_returns_zeros_when_band_mask_empty() -> None:
     # Vérifie que l'étiquette reflète la bande personnalisée
     assert labels == ["C0_void"]
 
+
 def test_compute_welch_band_powers_forwards_sanitized_parameters_to_scipy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1579,12 +1578,14 @@ def test_compute_welch_band_powers_forwards_sanitized_parameters_to_scipy(
     # Cible une bande qui inclut 10 Hz dans le fake freqs.
     band_ranges = {"alpha": (8.0, 12.0)}
     # Prépare un conteneur pour vérifier l'appel.
-    captured: dict[str, object] = {}
+    captured_args: tuple[object, ...] = ()
+    captured_kwargs: dict[str, object] = {}
 
     def _fake_welch(x: np.ndarray, *args: object, **kwargs: object):
+        nonlocal captured_args, captured_kwargs
         # Capture args/kwargs pour diagnostiquer les régressions.
-        captured["args"] = args
-        captured["kwargs"] = kwargs
+        captured_args = args
+        captured_kwargs = dict(kwargs)
         # Fournit une grille fréquentielle contrôlée et stable.
         freqs = np.array([0.0, 10.0, 20.0])
         # Fournit une PSD non nulle pour détecter les masques cassés.
@@ -1602,19 +1603,19 @@ def test_compute_welch_band_powers_forwards_sanitized_parameters_to_scipy(
     )
 
     # Vérifie que fs est bien transmis (mutmut_19).
-    assert tuple(captured["args"])[0] == pytest.approx(expected_sfreq)
+    assert captured_args[0] == pytest.approx(expected_sfreq)
     # Vérifie que window est bien transmis (mutmut_20).
-    assert dict(captured["kwargs"])["window"] == "boxcar"
+    assert captured_kwargs["window"] == "boxcar"
     # Vérifie que nperseg provient de n_times (mutmut_2, mutmut_3, mutmut_13, 21).
-    assert dict(captured["kwargs"])["nperseg"] == 64
+    assert captured_kwargs["nperseg"] == 64
     # Vérifie que noverlap est bien transmis (mutmut_14, 22).
-    assert dict(captured["kwargs"])["noverlap"] == 16
+    assert captured_kwargs["noverlap"] == 16
     # Verrouille l’axe temporel explicitement (mutmut_23).
-    assert dict(captured["kwargs"])["axis"] == -1
+    assert captured_kwargs["axis"] == -1
     # Vérifie que average est bien transmis (mutmut_24).
-    assert dict(captured["kwargs"])["average"] == "median"
+    assert captured_kwargs["average"] == "median"
     # Vérifie que scaling est bien transmis (mutmut_25).
-    assert dict(captured["kwargs"])["scaling"] == "spectrum"
+    assert captured_kwargs["scaling"] == "spectrum"
     # Vérifie que le masque de bande produit une énergie non nulle (mutmut_29, 34).
     assert powers.shape == (2, 3, 1)
     assert np.all(powers > 0.0)
@@ -1882,7 +1883,8 @@ def test_extract_features_transform_rejects_empty_epochs() -> None:
     with pytest.raises(
         ValueError,
         match=r"^X must contain at least one epoch\.$",
-    ):        extractor.transform(empty_epochs)
+    ):
+        extractor.transform(empty_epochs)
 
 
 def test_extract_features_transform_normalizes_per_epoch_with_eps(
@@ -1964,7 +1966,9 @@ def test_extract_features_rejects_empty_band_configuration() -> None:
     # Prépare des epochs synthétiques pour déclencher la validation
     epochs = _build_epochs(n_epochs=1, n_channels=1, n_times=32, sfreq=64.0)
     # Vérifie que l'absence de bandes lève une erreur explicite
-    with pytest.raises(ValueError, match=r"^At least one frequency band must be provided\.$"):
+    with pytest.raises(
+        ValueError, match=r"^At least one frequency band must be provided\.$"
+    ):
         extract_features(epochs, config={"method": "welch", "bands": []})
 
 
@@ -2126,7 +2130,8 @@ def test_prepare_welch_parameters_caps_overlap_above_window() -> None:
     with pytest.raises(
         ValueError,
         match=r"^Welch noverlap must be a non-negative integer or None\.$",
-    ):        _prepare_welch_parameters(
+    ):
+        _prepare_welch_parameters(
             {"nperseg": NPERSEG_WITH_OVERLAP, "noverlap": NON_INTEGER_OVERLAP},
             n_times=40,
         )
@@ -2235,7 +2240,6 @@ def test_extract_features_default_method_is_lowercase(
     assert captured_init["feature_strategy"] == "welch"
 
 
-
 def test_extract_features_requests_list_default_for_channel_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2330,7 +2334,9 @@ def test_extract_features_propagates_normalize_and_strips_control_keys(
             """Retourne une matrice conforme pour permettre l'étiquetage."""
 
             # Calcule le nombre de features à partir des canaux et des bandes
-            n_features = data.shape[1] * len(cast(dict[str, tuple[float, float]], captured_init["bands"]))
+            n_features = data.shape[1] * len(
+                cast(dict[str, tuple[float, float]], captured_init["bands"])
+            )
             # Renvoie une sortie non nulle pour valider le passage de données
             return np.full((data.shape[0], n_features), 1.0, dtype=float)
 
@@ -2406,11 +2412,18 @@ def test_extract_features_supports_epochs_without_channel_names_attribute(
     monkeypatch.setattr(features_module, "ExtractFeatures", DummyExtractor)
 
     # Déclenche l'extraction avec un epoch minimal pour exercer le fallback
-    features, labels = extract_features(FakeEpochs(data, sfreq=64.0), config={"method": "welch"})
+    features, labels = extract_features(
+        FakeEpochs(data, sfreq=64.0), config={"method": "welch"}
+    )
     captured_labels["labels"] = labels
 
     assert np.array_equal(features, np.full((1, 4), 3.0))
-    assert captured_labels["labels"] == ["ch0_theta", "ch0_alpha", "ch0_beta", "ch0_gamma"]
+    assert captured_labels["labels"] == [
+        "ch0_theta",
+        "ch0_alpha",
+        "ch0_beta",
+        "ch0_gamma",
+    ]
 
 
 def test_extract_features_uses_explicit_false_default_for_normalize_pop(
@@ -2424,18 +2437,18 @@ def test_extract_features_uses_explicit_false_default_for_normalize_pop(
     # Capture le défaut fourni à pop pour distinguer False de None
     sentinel = object()
 
-    class SpyDict(dict):
+    class SpyDict(dict[str, object]):
         """Dict espion qui enregistre le défaut de pop('normalize', ...)."""
 
         # Stocke le dernier défaut observé pour la clé normalize
         normalize_default: object = sentinel
 
-        def pop(self, key: object, default: object = sentinel):  # type: ignore[override]
+        def pop(self, key: str, default: object = sentinel) -> object:
             if key == "normalize":
                 SpyDict.normalize_default = default
             if default is sentinel:
-                return super().pop(key)  # type: ignore[arg-type]
-            return super().pop(key, default)  # type: ignore[arg-type]
+                return super().pop(key)
+            return super().pop(key, default)
 
     # Injecte le constructeur dict pour préserver l'observabilité des appels
     monkeypatch.setattr(features_module, "dict", SpyDict, raising=False)
@@ -2525,8 +2538,6 @@ def test_compute_features_accepts_family_selection_order(
     expected_row = np.array([1.0, 2.0, 3.0])
     expected = np.vstack([expected_row, expected_row])
     assert np.array_equal(features, expected)
-
-
 
 
 def test_compute_features_rejects_mismatched_sample_count_vs_first_block(
@@ -2650,7 +2661,8 @@ def test_compute_features_rejects_empty_family_selection() -> None:
     with pytest.raises(
         ValueError,
         match=r"^feature_strategy must include at least one feature family\.$",
-    ):        extractor._compute_features(np.ones((1, 1, 4)))
+    ):
+        extractor._compute_features(np.ones((1, 1, 4)))
 
 
 def test_compute_features_rejects_unknown_family() -> None:

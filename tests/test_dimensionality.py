@@ -119,8 +119,9 @@ def test_average_covariance_normalizes_by_trace_and_divides_by_trial_count() -> 
     assert averaged[1, 0] == pytest.approx(0.0)
 
 
-
-def test_regularize_matrix_makes_explicit_copy_and_does_not_share_memory(monkeypatch) -> None:
+def test_regularize_matrix_makes_explicit_copy_and_does_not_share_memory(
+    monkeypatch,
+) -> None:
     """La régularisation doit retourner une copie indépendante de l'entrée."""
 
     # Importe le module pour patcher np.array au bon endroit
@@ -162,7 +163,9 @@ def test_regularize_matrix_makes_explicit_copy_and_does_not_share_memory(monkeyp
     assert matrix[0, 0] == pytest.approx(1.0)
 
 
-def test_regularize_matrix_does_not_inject_identity_when_regularization_is_zero() -> None:
+def test_regularize_matrix_does_not_inject_identity_when_regularization_is_zero() -> (
+    None
+):
     """La branche d'injection doit rester inactive quand la régularisation vaut zéro."""
 
     # Instancie un réducteur avec régularisation exactement nulle
@@ -260,7 +263,9 @@ def test_pca_regularization_stops_nan_on_duplicate_features() -> None:
     assert np.isfinite(transformed).all()
 
 
-def test_regularized_covariance_matches_sample_covariance_without_regularization() -> None:
+def test_regularized_covariance_matches_sample_covariance_without_regularization() -> (
+    None
+):
     """La covariance doit être normalisée par (n_samples - 1) avant régularisation."""
 
     # Instancie un réducteur PCA sans régularisation pour isoler la formule
@@ -346,7 +351,6 @@ def test_pca_fit_records_feature_mean_and_is_translation_invariant() -> None:
     aligned_shifted_scores = shifted_scores * signs
     # Vérifie que la translation ne change pas les scores centrés
     assert np.allclose(aligned_shifted_scores, base_scores, atol=1e-5)
-
 
 
 def test_save_and_load_roundtrip(tmp_path) -> None:
@@ -444,7 +448,9 @@ def test_load_restores_expected_keys_from_payload(monkeypatch, tmp_path) -> None
     assert restored.regularization == pytest.approx(regularization)
 
 
-def test_load_keeps_existing_defaults_when_optional_keys_missing(monkeypatch, tmp_path) -> None:
+def test_load_keeps_existing_defaults_when_optional_keys_missing(
+    monkeypatch, tmp_path
+) -> None:
     """load doit conserver les valeurs courantes si method/n_components/regularization sont absents."""
 
     # Importe le module pour patcher joblib.load au bon endroit
@@ -478,7 +484,9 @@ def test_load_keeps_existing_defaults_when_optional_keys_missing(monkeypatch, tm
     assert reducer.regularization == pytest.approx(0.125)
 
 
-def test_save_serializes_expected_payload_keys_and_values(tmp_path, monkeypatch) -> None:
+def test_save_serializes_expected_payload_keys_and_values(
+    tmp_path, monkeypatch
+) -> None:
     """save doit sérialiser un payload stable pour permettre load."""
 
     # Importe le module pour patcher joblib.dump au bon endroit
@@ -628,7 +636,9 @@ def test_csp_handles_default_component_count_and_empty_trials_guard() -> None:
     # Instancie un nouvel objet pour tester la covariance vide
     empty_guard = TPVDimReducer(method="csp")
     # Vérifie que la moyenne de covariance échoue sur un tableau vide
-    with pytest.raises(ValueError, match=r"^No trials provided for covariance estimation$"):
+    with pytest.raises(
+        ValueError, match=r"^No trials provided for covariance estimation$"
+    ):
         empty_guard._average_covariance(np.empty((0, channels, 4)))
 
 
@@ -654,7 +664,9 @@ def test_csp_truncates_components_and_eigenvalues_when_requested() -> None:
     # Fixe un nombre de composantes inférieur au nombre de canaux
     n_components = 2
     # Instancie un CSP avec une coupe explicite des composantes
-    reducer = TPVDimReducer(method="csp", n_components=n_components, regularization=1e-3)
+    reducer = TPVDimReducer(
+        method="csp", n_components=n_components, regularization=1e-3
+    )
     # Apprend la projection CSP sur les essais synthétiques
     reducer.fit(trials, labels)
     # Vérifie que la matrice de projection est disponible après fit
@@ -690,7 +702,9 @@ def test_transform_applies_mean_centering_by_subtraction() -> None:
     assert np.allclose(transformed, X - reducer.mean_)
 
 
-def test_transform_csp_eps_stabilizes_zero_variance_and_uses_float_finfo(monkeypatch) -> None:
+def test_transform_csp_eps_stabilizes_zero_variance_and_uses_float_finfo(
+    monkeypatch,
+) -> None:
     """CSP doit rester fini sur variance nulle et appeler finfo(float)."""
 
     # Conserve finfo d'origine pour déléguer sans modifier NumPy

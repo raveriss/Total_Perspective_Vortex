@@ -170,9 +170,8 @@ def test_retrieve_file_copies_local_file_path_with_hash(tmp_path: Path) -> None:
     # Vérifie que le fichier copié existe bien à l'emplacement attendu
     assert retrieved.exists()
     # Confirme que la copie conserve exactement le même hash SHA-256 que la source
-    assert (
-        fetch_physionet.compute_sha256(retrieved)
-        == fetch_physionet.compute_sha256(source_file)
+    assert fetch_physionet.compute_sha256(retrieved) == fetch_physionet.compute_sha256(
+        source_file
     )
 
 
@@ -274,7 +273,9 @@ def test_load_manifest_opens_manifest_in_text_mode_with_utf8(
     assert recorded["kwargs"] == {"encoding": "utf-8"}
 
 
-def test_load_manifest_defaults_files_to_empty_list_when_missing(tmp_path: Path) -> None:
+def test_load_manifest_defaults_files_to_empty_list_when_missing(
+    tmp_path: Path,
+) -> None:
     # Crée un manifeste valide sans clé "files" pour exercer le défaut attendu
     manifest_path = tmp_path / "manifest.json"
     # Écrit un dictionnaire JSON vide pour simuler un manifeste minimal
@@ -337,7 +338,9 @@ def test_compute_sha256_matches_expected(monkeypatch, tmp_path: Path) -> None:
             return None
 
     # Redirige l'ouverture de fichier vers le flux instrumenté
-    monkeypatch.setattr(Path, "open", lambda *_: SafeHandle())    # Vérifie que la fonction retourne exactement le hash attendu
+    monkeypatch.setattr(
+        Path, "open", lambda *_: SafeHandle()
+    )  # Vérifie que la fonction retourne exactement le hash attendu
     assert fetch_physionet.compute_sha256(file_path) == expected
 
 
@@ -427,7 +430,7 @@ def test_validate_file_accepts_matching_metadata(monkeypatch, tmp_path: Path) ->
     file_path.write_bytes(payload)
     # Calcule la taille et le hash attendus pour la validation
     entry = {"size": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}
-    
+
     # Définit un flux instrumenté qui échoue si la lecture dépasse EOF
     class SafeHandle:
         # Prépare une séquence finie de blocs suivie du sentinel EOF
