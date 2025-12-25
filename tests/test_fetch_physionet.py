@@ -155,6 +155,27 @@ def test_retrieve_file_copies_local_source(tmp_path: Path) -> None:
     assert retrieved.read_text(encoding="utf-8") == "signal"
 
 
+def test_retrieve_file_copies_local_file_path_with_hash(tmp_path: Path) -> None:
+    # Crée un fichier source unique pour vérifier la copie via un chemin de fichier
+    source_file = tmp_path / "S001_run.edf"
+    # Écrit un contenu distinctif pour vérifier l'intégrité post-copie
+    payload = b"signal-file"
+    source_file.write_bytes(payload)
+    # Prépare une destination explicite pointant vers un fichier et non un dossier
+    destination_root = tmp_path / "destination.edf"
+    # Déclare une entrée sans chemin relatif puisque source_root cible déjà le fichier
+    entry = {"path": ""}
+    # Exécute la récupération en mode copie locale depuis un chemin de fichier direct
+    retrieved = fetch_physionet.retrieve_file(str(source_file), entry, destination_root)
+    # Vérifie que le fichier copié existe bien à l'emplacement attendu
+    assert retrieved.exists()
+    # Confirme que la copie conserve exactement le même hash SHA-256 que la source
+    assert (
+        fetch_physionet.compute_sha256(retrieved)
+        == fetch_physionet.compute_sha256(source_file)
+    )
+
+
 # Vérifie que les erreurs réseau sont remontées comme ConnectionError
 def test_retrieve_file_propagates_network_failure(monkeypatch, tmp_path: Path) -> None:
     # Paramètre une destination valide pour couvrir la branche distante
@@ -321,7 +342,10 @@ def test_compute_sha256_matches_expected(monkeypatch, tmp_path: Path) -> None:
 
 
 # Bloque les schémas non HTTP pour les téléchargements distants
-def test_retrieve_file_rejects_unsupported_scheme(monkeypatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("forbidden_scheme", ["ftp", "file"])
+def test_retrieve_file_rejects_unsupported_scheme(
+    forbidden_scheme: str, monkeypatch, tmp_path: Path
+) -> None:
     # Définit un dossier de destination pour la copie simulée
     destination_root = tmp_path / "destination"
     # Spécifie l'entrée de manifeste minimale pour reproduire la branche distante
@@ -330,7 +354,7 @@ def test_retrieve_file_rejects_unsupported_scheme(monkeypatch, tmp_path: Path) -
     # Construit un objet minimal imitant le résultat de urlparse
     class Parsed:
         # Expose un schéma interdit pour forcer la ValueError
-        scheme = "ftp"
+        scheme = forbidden_scheme
 
     # Substitue urlparse pour renvoyer un schéma non autorisé malgré un préfixe HTTP
     monkeypatch.setattr(fetch_physionet.urllib.parse, "urlparse", lambda _: Parsed())
