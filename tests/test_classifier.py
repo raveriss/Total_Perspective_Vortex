@@ -197,6 +197,30 @@ def test_prediction_report(tmp_path):
     assert pytest.approx(report["global"], rel=0.01) == report["by_run"]["R02"]
 
 
+def test_build_report_tracks_confusion_and_reports_reference():
+    # Prépare un résultat simulé minimal pour l'agrégateur
+    reports = {
+        "confusion": [[5, 1], [2, 6]],
+        "details": {"note": "toy-evaluation"},
+    }
+    # Construit un dictionnaire identique à ce que renvoie evaluate_run
+    result = {
+        "accuracy": 0.625,
+        "run": "R77",
+        "subject": "S77",
+        "reports": reports,
+    }
+    # Construit le rapport structuré pour la CLI
+    report = predict_cli.build_report(result)
+    # Vérifie la propagation des accuracies dans les trois agrégations
+    assert report["by_run"] == {"R77": result["accuracy"]}
+    assert report["by_subject"] == {"S77": result["accuracy"]}
+    assert report["global"] == result["accuracy"]
+    # Vérifie que la confusion est bien exposée et partagée sans copie
+    assert report["confusion_matrix"] is reports["confusion"]
+    assert report["reports"] is reports
+
+
 # Vérifie que la CLI d'entraînement parsée atteint la sauvegarde attendue
 def test_training_cli_main_covers_parser_and_paths(tmp_path):
     # Fige la fréquence d'échantillonnage pour aligner les features FFT
