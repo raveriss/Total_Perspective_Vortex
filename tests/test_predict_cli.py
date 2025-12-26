@@ -70,3 +70,73 @@ def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
     assert args.artifacts_dir == predict.DEFAULT_ARTIFACTS_DIR
     assert isinstance(args.raw_dir, Path)
     assert args.raw_dir == predict.DEFAULT_RAW_DIR
+
+
+def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
+    subject = "S10"
+    run = "R20"
+    data_dir = tmp_path / "data"
+    artifacts_dir = tmp_path / "artifacts"
+    captured_result: dict[str, object] = {}
+
+    def fake_evaluate_run(
+        subject_arg: str,
+        run_arg: str,
+        data_dir_arg: Path,
+        artifacts_dir_arg: Path,
+        raw_dir_arg: Path,
+    ) -> dict[str, object]:
+        captured_result["subject"] = subject_arg
+        captured_result["run"] = run_arg
+        captured_result["data_dir"] = data_dir_arg
+        captured_result["artifacts_dir"] = artifacts_dir_arg
+        captured_result["raw_dir"] = raw_dir_arg
+        return {
+            "subject": subject_arg,
+            "run": run_arg,
+            "predictions": [1, 0],
+            "y_true": [1, 1],
+            "accuracy": 0.5,
+        }
+
+    def fake_build_report(result: dict[str, object]) -> dict[str, object]:
+        captured_result["report_input"] = result
+        return {"global": result["accuracy"]}
+
+    monkeypatch.setattr(predict, "evaluate_run", fake_evaluate_run)
+    monkeypatch.setattr(predict, "build_report", fake_build_report)
+
+    exit_code = predict.main(
+        [
+            subject,
+            run,
+            "--data-dir",
+            str(data_dir),
+            "--artifacts-dir",
+            str(artifacts_dir),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured_result == {
+        "subject": subject,
+        "run": run,
+        "data_dir": data_dir,
+        "artifacts_dir": artifacts_dir,
+        "raw_dir": predict.DEFAULT_RAW_DIR,
+        "report_input": {
+            "subject": subject,
+            "run": run,
+            "predictions": [1, 0],
+            "y_true": [1, 1],
+            "accuracy": 0.5,
+        },
+    }
+
+    stdout = capsys.readouterr().out.splitlines()
+    assert stdout == [
+        "epoch nb: [prediction] [truth] equal?",
+        "epoch 00: [1] [1] True",
+        "epoch 01: [0] [1] False",
+        "Accuracy: 0.5000",
+    ]
