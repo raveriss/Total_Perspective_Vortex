@@ -253,8 +253,8 @@ def _write_reports(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
