@@ -1,4 +1,5 @@
 import argparse
+import json
 
 from scripts import train
 
@@ -54,3 +55,29 @@ def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
     assert args.train_all is False
     assert "n_components" not in vars(args)
     assert args.sfreq == train.DEFAULT_SAMPLING_RATE
+
+
+def test_flatten_hyperparams_stringifies_nested_values() -> None:
+    hyperparams = {
+        "feature_strategy": "fft",
+        "dimensionality": {"method": "pca", "n_components": 3},
+        "bands": ["alpha", "beta"],
+        "notes": "découpage",
+    }
+
+    flattened = train._flatten_hyperparams(hyperparams)
+
+    assert list(flattened.keys()) == list(hyperparams.keys())
+    for key, original_value in hyperparams.items():
+        expected = json.dumps(original_value, ensure_ascii=False)
+        assert flattened[key] == expected
+        assert json.loads(flattened[key]) == original_value
+    assert "découpage" in flattened["notes"]
+
+
+def test_flatten_hyperparams_preserves_string_content_for_nested_dicts() -> None:
+    hyperparams = {"dimensionality": {"method": "pca", "n_components": 2}}
+
+    flattened = train._flatten_hyperparams(hyperparams)
+
+    assert flattened["dimensionality"] == '{"method": "pca", "n_components": 2}'
