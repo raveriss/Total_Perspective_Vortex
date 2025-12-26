@@ -20,7 +20,12 @@ from scripts import train
 from scripts.predict import evaluate_run
 
 # Importe _get_git_commit pour couvrir les branches de repli git
-from scripts.train import TrainingRequest, _get_git_commit, run_training
+from scripts.train import (
+    TrainingRequest,
+    _get_git_commit,
+    _write_manifest,
+    run_training,
+)
 
 # Importe PipelineConfig pour aligner les paramètres du pipeline
 from tpv.pipeline import PipelineConfig
@@ -574,3 +579,86 @@ def test_get_git_commit_returns_detached_hash(tmp_path, monkeypatch):
     monkeypatch.chdir(repo_root)
     # Vérifie que _get_git_commit retourne exactement le hash détaché attendu
     assert _get_git_commit() == detached_hash
+
+
+# Vérifie que _write_manifest exporte correctement JSON et CSV avec hash git connu
+def test_write_manifest_exports_json_and_csv(tmp_path, monkeypatch):
+    """Valide le contenu du manifeste pour des scores et hyperparamètres connus."""
+
+    # Force un hash git stable pour valider la traçabilité
+    expected_commit = "deadbeef1234567890"
+    monkeypatch.setattr(train, "_get_git_commit", lambda: expected_commit)
+
+    # Prépare une configuration de pipeline simple pour l'export
+    config = PipelineConfig(
+        sfreq=100.0,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+        n_components=2,
+        classifier="lda",
+        scaler="standard",
+    )
+    # Construit la requête d'entraînement associée
+    request = TrainingRequest(
+        subject="S123",
+        run="R42",
+        pipeline_config=config,
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+    )
+
+    # Crée le répertoire cible pour héberger les artefacts du manifeste
+    target_dir = tmp_path / "artifacts" / request.subject / request.run
+    target_dir.mkdir(parents=True)
+
+    # Prépare des chemins d'artefacts factices pour alimenter le manifeste
+    artifacts = {
+        "model": target_dir / "model.joblib",
+        "scaler": target_dir / "scaler.joblib",
+        "w_matrix": target_dir / "w_matrix.joblib",
+    }
+    # Définit des scores de validation croisée stables
+    cv_scores = np.array([0.5, 0.5, 0.5])
+
+    # Génère les manifestes JSON et CSV
+    manifest_paths = _write_manifest(request, target_dir, cv_scores, artifacts)
+
+    # Charge le manifeste JSON pour inspecter son contenu
+    manifest = json.loads(manifest_paths["json"].read_text())
+    assert manifest["git_commit"] == expected_commit
+    assert manifest["dataset"]["subject"] == request.subject
+    assert manifest["dataset"]["run"] == request.run
+    assert manifest["dataset"]["data_dir"] == str(request.data_dir)
+    # Vérifie l'export des hyperparamètres sérialisés
+    assert manifest["hyperparams"]["classifier"] == "lda"
+    assert manifest["hyperparams"]["n_components"] == 2
+    assert manifest["hyperparams"]["sfreq"] == config.sfreq
+    # Vérifie la sérialisation des scores et de la moyenne
+    assert manifest["scores"]["cv_scores"] == cv_scores.tolist()
+    assert manifest["scores"]["cv_mean"] == pytest.approx(float(np.mean(cv_scores)))
+    # Vérifie la sérialisation des chemins d'artefacts
+    assert manifest["artifacts"]["model"] == str(artifacts["model"])
+    assert manifest["artifacts"]["scaler"] == str(artifacts["scaler"])
+    assert manifest["artifacts"]["w_matrix"] == str(artifacts["w_matrix"])
+
+    # Charge le manifeste CSV et vérifie l'unique ligne écrite
+    with manifest_paths["csv"].open() as handle:
+        csv_rows = list(csv.DictReader(handle))
+    assert len(csv_rows) == 1
+    csv_line = csv_rows[0]
+    assert csv_line["subject"] == request.subject
+    assert csv_line["run"] == request.run
+    assert csv_line["data_dir"] == str(request.data_dir)
+    assert csv_line["git_commit"] == expected_commit
+    # Vérifie la sérialisation des scores séparés par des points-virgules
+    assert csv_line["cv_scores"] == "0.5;0.5;0.5"
+    assert csv_line["cv_mean"] == str(float(np.mean(cv_scores)))
+    # Vérifie l'aplatissement des hyperparamètres en CSV
+    assert csv_line["sfreq"] == json.dumps(config.sfreq)
+    assert csv_line["feature_strategy"] == json.dumps(config.feature_strategy)
+    assert csv_line["normalize_features"] == json.dumps(config.normalize_features)
+    assert csv_line["dim_method"] == json.dumps(config.dim_method)
+    assert csv_line["n_components"] == json.dumps(config.n_components)
+    assert csv_line["classifier"] == json.dumps(config.classifier)
+    assert csv_line["scaler"] == json.dumps(config.scaler)
