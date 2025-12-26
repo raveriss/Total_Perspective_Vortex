@@ -21,6 +21,7 @@ from scripts.predict import evaluate_run
 
 # Importe _get_git_commit pour couvrir les branches de repli git
 from scripts.train import (
+    MIN_CV_SPLITS,
     TrainingRequest,
     _get_git_commit,
     _write_manifest,
@@ -285,6 +286,103 @@ def test_run_training_aligns_cv_splits_with_min_class_count(tmp_path):
     manifest = json.loads(result["manifest_path"].read_text())
     # Vérifie que la longueur des scores dans le manifeste correspond aux splits
     assert len(manifest["scores"]["cv_scores"]) == minority_class_count
+
+
+def test_run_training_logs_skip_message_when_below_min_splits(
+    tmp_path, monkeypatch, capsys
+):
+    """Force un effectif insuffisant et capture le message de désactivation de la CV."""
+
+    # Prépare des features synthétiques en restant sous le seuil de splits requis
+    rng = np.random.default_rng(202)
+    X = rng.normal(size=((MIN_CV_SPLITS - 1) * 2, 2, 10))
+    # Prépare des labels équilibrés pour conserver la stratification
+    y = np.array([0] * (MIN_CV_SPLITS - 1) + [1] * (MIN_CV_SPLITS - 1))
+    # Injecte le jeu de données synthétique directement dans run_training
+    monkeypatch.setattr(train, "_load_data", lambda *_: (X, y))
+    # Construit la configuration minimaliste pour accélérer l'exécution
+    config = PipelineConfig(
+        sfreq=64.0,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+    )
+    # Construit la requête d'entraînement avec les chemins temporaires
+    request = TrainingRequest(
+        subject="S10",
+        run="R10",
+        pipeline_config=config,
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+    )
+
+    # Exécute l'entraînement et capture la sortie standard
+    result = run_training(request)
+    captured = capsys.readouterr().out
+
+    # Vérifie que la validation croisée est bien ignorée
+    assert result["cv_scores"].size == 0
+    # Vérifie que le message explicite est loggé pour l'utilisateur
+    assert "cross-val ignorée" in captured
+    # Vérifie que les manifestes reflètent l'absence de scores
+    manifest = json.loads(result["manifest_path"].read_text())
+    assert manifest["scores"]["cv_scores"] == []
+    assert manifest["scores"]["cv_mean"] is None
+
+
+def test_run_training_persists_artifacts_and_scores(tmp_path, monkeypatch):
+    """Valide la sauvegarde des artefacts et des scores lorsque la CV est active."""
+
+    # Prépare un jeu de données équilibré autorisant la validation croisée
+    rng = np.random.default_rng(303)
+    X = rng.normal(size=(MIN_CV_SPLITS * 2, 2, 12))
+    # Alterne les labels pour obtenir exactement MIN_CV_SPLITS observations par classe
+    y = np.array([0] * MIN_CV_SPLITS + [1] * MIN_CV_SPLITS)
+    # Injecte les données synthétiques directement dans run_training
+    monkeypatch.setattr(train, "_load_data", lambda *_: (X, y))
+    # Construit une configuration avec scaler pour vérifier la sérialisation dédiée
+    config = PipelineConfig(
+        sfreq=64.0,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+        scaler="standard",
+    )
+    # Construit la requête d'entraînement avec des chemins isolés
+    request = TrainingRequest(
+        subject="S11",
+        run="R11",
+        pipeline_config=config,
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+    )
+
+    # Exécute l'entraînement pour générer scores et artefacts
+    result = run_training(request)
+    # Calcule le répertoire attendu contenant les fichiers sauvegardés
+    target_dir = tmp_path / "artifacts" / request.subject / request.run
+
+    # Vérifie la présence et l'emplacement des artefacts principaux
+    assert result["model_path"] == target_dir / "model.joblib"
+    assert result["w_matrix_path"] == target_dir / "w_matrix.joblib"
+    assert result["scaler_path"] == target_dir / "scaler.joblib"
+    assert result["model_path"].exists()
+    assert result["w_matrix_path"].exists()
+    assert result["scaler_path"] is not None and result["scaler_path"].exists()
+
+    # Vérifie que la validation croisée a produit le nombre de splits attendu
+    assert result["cv_scores"].size == MIN_CV_SPLITS
+    assert all(0.0 <= score <= 1.0 for score in result["cv_scores"])
+
+    # Charge le manifeste pour vérifier la cohérence des chemins et des scores
+    manifest = json.loads(result["manifest_path"].read_text())
+    assert manifest["artifacts"]["model"] == str(result["model_path"])
+    assert manifest["artifacts"]["w_matrix"] == str(result["w_matrix_path"])
+    assert manifest["artifacts"]["scaler"] == str(result["scaler_path"])
+    assert len(manifest["scores"]["cv_scores"]) == MIN_CV_SPLITS
+    assert manifest["scores"]["cv_mean"] == pytest.approx(
+        float(np.mean(result["cv_scores"]))
+    )
 
 
 # Vérifie que _load_data reconstruit les .npy corrompus via l'EDF
