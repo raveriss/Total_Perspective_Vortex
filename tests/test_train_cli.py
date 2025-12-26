@@ -1,5 +1,6 @@
 import argparse
 import json
+from typing import cast
 
 from scripts import train
 
@@ -81,3 +82,93 @@ def test_flatten_hyperparams_preserves_string_content_for_nested_dicts() -> None
     flattened = train._flatten_hyperparams(hyperparams)
 
     assert flattened["dimensionality"] == '{"method": "pca", "n_components": 2}'
+
+
+def test_main_build_all_invokes_builder(monkeypatch, tmp_path):
+    called: dict[str, tuple] = {}
+
+    def fake_build_all(raw_dir, data_dir):
+        called["args"] = (raw_dir, data_dir)
+
+    monkeypatch.setattr(train, "_build_all_npy", fake_build_all)
+    raw_dir = tmp_path / "raw"
+    data_dir = tmp_path / "data"
+
+    exit_code = train.main(
+        [
+            "S001",
+            "R03",
+            "--build-all",
+            "--raw-dir",
+            str(raw_dir),
+            "--data-dir",
+            str(data_dir),
+        ]
+    )
+
+    assert exit_code == 0
+    assert called["args"] == (raw_dir, data_dir)
+
+
+def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
+    captured: dict[str, object] = {}
+
+    def fake_train_all_runs(config, data_dir, artifacts_dir, raw_dir):
+        captured["config"] = config
+        captured["dirs"] = (data_dir, artifacts_dir, raw_dir)
+        return 7
+
+    monkeypatch.setattr(train, "_train_all_runs", fake_train_all_runs)
+    exit_code = train.main(
+        [
+            "S010",
+            "R05",
+            "--train-all",
+            "--classifier",
+            "svm",
+            "--scaler",
+            "standard",
+            "--feature-strategy",
+            "wavelet",
+            "--dim-method",
+            "csp",
+            "--n-components",
+            "5",
+            "--sfreq",
+            "120",
+            "--data-dir",
+            str(tmp_path / "data"),
+            "--artifacts-dir",
+            str(tmp_path / "artifacts"),
+            "--raw-dir",
+            str(tmp_path / "raw"),
+        ]
+    )
+
+    assert exit_code == 7
+    config = cast(train.PipelineConfig, captured["config"])
+    assert config.classifier == "svm"
+    assert config.scaler == "standard"
+    assert config.feature_strategy == "wavelet"
+    assert config.dim_method == "csp"
+    assert config.n_components == 5
+    assert config.sfreq == 120.0
+    assert config.normalize_features is True
+    assert captured["dirs"] == (
+        tmp_path / "data",
+        tmp_path / "artifacts",
+        tmp_path / "raw",
+    )
+
+
+def test_main_returns_error_code_when_training_files_missing(monkeypatch, capsys):
+    def fake_run_training(_):
+        raise FileNotFoundError("données manquantes pour S001 R01")
+
+    monkeypatch.setattr(train, "run_training", fake_run_training)
+
+    exit_code = train.main(["S001", "R01"])
+
+    stdout = capsys.readouterr().out
+    assert exit_code == 1
+    assert "ERREUR: données manquantes pour S001 R01" in stdout
