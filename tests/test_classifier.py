@@ -758,6 +758,82 @@ def test_aggregate_scores_discover_runs_filters_invalid_entries(tmp_path):
     assert discovered_runs == [("S11", "R02")]
 
 
+def test_aggregate_scores_aggregates_stubbed_runs(monkeypatch, tmp_path):
+    # Force la découverte de plusieurs runs répartis sur deux sujets
+    stubbed_runs = [("S10", "R01"), ("S10", "R02"), ("S11", "R01")]
+    monkeypatch.setattr(
+        aggregate_scores_cli, "_discover_runs", lambda artifacts_dir: stubbed_runs
+    )
+    # Prépare des accuracies distinctes pour valider les moyennes
+    accuracies = iter([0.4, 0.8, 0.6])
+
+    # Stub _score_run pour retourner les accuracies contrôlées
+    def fake_score_run(subject, run, data_dir, artifacts_dir):
+        accuracy = next(accuracies)
+        return {
+            "subject": subject,
+            "run": run,
+            "accuracy": accuracy,
+            "meets_minimum": accuracy >= aggregate_scores_cli.MINIMUM_ACCURACY,
+            "meets_target": accuracy >= aggregate_scores_cli.TARGET_ACCURACY,
+        }
+
+    monkeypatch.setattr(aggregate_scores_cli, "_score_run", fake_score_run)
+    # Exécute l'agrégation avec des chemins temporaires neutres
+    data_dir = tmp_path / "data"
+    artifacts_dir = tmp_path / "artifacts"
+    report = aggregate_scores_cli.aggregate_scores(data_dir, artifacts_dir)
+    # Vérifie que tous les runs stubés apparaissent dans le rapport
+    assert [(entry["subject"], entry["run"]) for entry in report["runs"]] == [
+        ("S10", "R01"),
+        ("S10", "R02"),
+        ("S11", "R01"),
+    ]
+    # Vérifie que les accuracies sont conservées dans l'ordre des runs
+    assert [entry["accuracy"] for entry in report["runs"]] == [
+        pytest.approx(0.4),
+        pytest.approx(0.8),
+        pytest.approx(0.6),
+    ]
+    # Vérifie les moyennes par sujet (S10: 0.6, S11: 0.6)
+    subject_means = {
+        entry["subject"]: entry["accuracy"] for entry in report["subjects"]
+    }
+    assert subject_means == {
+        "S10": pytest.approx(0.6),
+        "S11": pytest.approx(0.6),
+    }
+    # Vérifie que les drapeaux reflètent les seuils 0.60 / 0.75
+    assert all(entry["meets_minimum"] for entry in report["subjects"])
+    assert all(entry["meets_target"] is False for entry in report["subjects"])
+    # Vérifie la moyenne globale sur l'ensemble des runs
+    assert report["global"]["accuracy"] == pytest.approx(0.6)
+    assert report["global"]["meets_minimum"] is True
+    assert report["global"]["meets_target"] is False
+
+
+def test_aggregate_scores_returns_zero_when_no_stubbed_runs(monkeypatch, tmp_path):
+    # Force la découverte à renvoyer aucun run
+    monkeypatch.setattr(aggregate_scores_cli, "_discover_runs", lambda _: [])
+    # S'assure que _score_run n'est jamais invoqué dans ce scénario
+    monkeypatch.setattr(
+        aggregate_scores_cli,
+        "_score_run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("_score_run should not be called")
+        ),
+    )
+    # Exécute l'agrégation et vérifie le rapport vide
+    report = aggregate_scores_cli.aggregate_scores(
+        tmp_path / "data", tmp_path / "artifacts"
+    )
+    assert report["runs"] == []
+    assert report["subjects"] == []
+    assert report["global"]["accuracy"] == 0.0
+    assert report["global"]["meets_minimum"] is False
+    assert report["global"]["meets_target"] is False
+
+
 # Vérifie que la CLI principale sérialise les rapports CSV et JSON
 def test_aggregate_scores_main_writes_requested_outputs(tmp_path, monkeypatch):
     # Définit un rapport synthétique pour limiter les calculs en test
