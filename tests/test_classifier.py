@@ -679,6 +679,39 @@ def test_aggregate_scores_parser_and_missing_artifacts(tmp_path):
     assert report["global"]["accuracy"] == 0.0
 
 
+def test_aggregate_scores_discover_runs_filters_invalid_entries(tmp_path):
+    # Construit un chemin inexistant pour simuler l'absence d'artefacts
+    missing_artifacts_dir = tmp_path / "artifacts_missing"
+    # Vérifie que la découverte retourne une liste vide quand rien n'existe
+    assert aggregate_scores_cli._discover_runs(missing_artifacts_dir) == []
+    # Construit le répertoire racine des artefacts temporaires
+    artifacts_dir = tmp_path / "artifacts"
+    # Assure la création du répertoire pour déposer plusieurs cas
+    artifacts_dir.mkdir()
+    # Ajoute un fichier parasite pour vérifier que l'exploration continue
+    stray_file = artifacts_dir / "README.txt"
+    # Écrit un contenu factice pour matérialiser le fichier à ignorer
+    stray_file.write_text("placeholder", encoding="utf-8")
+    # Construit un sujet sans modèle pour vérifier l'exclusion
+    subject_without_model = artifacts_dir / "S10"
+    # Construit un run dépourvu de modèle entraîné
+    run_without_model = subject_without_model / "R01"
+    # Crée l'arborescence du run sans déposer de modèle
+    run_without_model.mkdir(parents=True)
+    # Construit un sujet valide pour vérifier la détection positive
+    subject_with_model = artifacts_dir / "S11"
+    # Construit le run contenant un modèle sérialisé
+    run_with_model = subject_with_model / "R02"
+    # Crée l'arborescence du run qui sera considéré éligible
+    run_with_model.mkdir(parents=True)
+    # Dépose un modèle factice pour activer la sélection du run
+    (run_with_model / "model.joblib").write_text("stub", encoding="utf-8")
+    # Découvre les runs après avoir mélangé fichiers et dossiers
+    discovered_runs = aggregate_scores_cli._discover_runs(artifacts_dir)
+    # Vérifie que seul le run muni d'un modèle est retenu
+    assert discovered_runs == [("S11", "R02")]
+
+
 # Vérifie que la CLI principale sérialise les rapports CSV et JSON
 def test_aggregate_scores_main_writes_requested_outputs(tmp_path, monkeypatch):
     # Définit un rapport synthétique pour limiter les calculs en test
