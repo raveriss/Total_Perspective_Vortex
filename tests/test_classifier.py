@@ -679,6 +679,52 @@ def test_aggregate_scores_parser_and_missing_artifacts(tmp_path):
     assert report["global"]["accuracy"] == 0.0
 
 
+def test_score_run_applies_thresholds(monkeypatch, tmp_path):
+    """Valide les drapeaux meets_minimum/target sur accuracy contrôlée."""
+
+    # Capture les appels evaluate_run pour valider la propagation des chemins
+    calls: list[tuple[str, str, object, object]] = []
+    # Prépare deux accuracies sous seuil et au-dessus de la cible
+    accuracies = [0.5, 0.8]
+
+    # Déclare un stub evaluate_run pour renvoyer des accuracies maîtrisées
+    def fake_evaluate_run(subject: str, run: str, data_dir, artifacts_dir):
+        # Enregistre les paramètres pour vérifier l'ordonnancement
+        calls.append((subject, run, data_dir, artifacts_dir))
+        # Dépile l'accuracy suivante pour contrôler les drapeaux
+        return {"accuracy": accuracies.pop(0)}
+
+    # Remplace evaluate_run par un stub pour isoler _score_run du disque
+    monkeypatch.setattr(
+        aggregate_scores_cli.predict_cli, "evaluate_run", fake_evaluate_run
+    )
+    # Construit un répertoire de données temporaire pour passer à _score_run
+    data_dir = tmp_path / "data"
+    # Construit un répertoire d'artefacts temporaire pour passer à _score_run
+    artifacts_dir = tmp_path / "artifacts"
+    # Évalue un run avec une accuracy sous le seuil minimal attendu
+    below_entry = aggregate_scores_cli._score_run("S10", "R01", data_dir, artifacts_dir)
+    # Vérifie que l'accuracy propagée correspond à la valeur injectée
+    assert below_entry["accuracy"] == 0.5
+    # Vérifie que le drapeau minimum est désactivé sous le seuil requis
+    assert below_entry["meets_minimum"] is False
+    # Vérifie que le drapeau cible est désactivé sous la cible ambitieuse
+    assert below_entry["meets_target"] is False
+    # Évalue un second run avec une accuracy dépassant la cible
+    above_entry = aggregate_scores_cli._score_run("S10", "R02", data_dir, artifacts_dir)
+    # Vérifie que l'accuracy reflète la deuxième valeur injectée
+    assert above_entry["accuracy"] == 0.8
+    # Vérifie que le drapeau minimum se déclenche dès le seuil atteint
+    assert above_entry["meets_minimum"] is True
+    # Vérifie que le drapeau cible se déclenche dès la cible atteinte
+    assert above_entry["meets_target"] is True
+    # Vérifie que evaluate_run reçoit les deux appels avec les bons chemins
+    assert calls == [
+        ("S10", "R01", data_dir, artifacts_dir),
+        ("S10", "R02", data_dir, artifacts_dir),
+    ]
+
+
 def test_aggregate_scores_discover_runs_filters_invalid_entries(tmp_path):
     # Construit un chemin inexistant pour simuler l'absence d'artefacts
     missing_artifacts_dir = tmp_path / "artifacts_missing"
