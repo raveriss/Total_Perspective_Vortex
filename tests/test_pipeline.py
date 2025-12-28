@@ -100,8 +100,10 @@ def test_pipeline_no_label_leakage():
     )
     # Calcule les scores moyens sur quatre plis
     scores = cross_val_score(pipeline, X, y, cv=LEAKAGE_SPLITS)
-    # Vérifie que la moyenne reste sous le seuil de fuite
-    assert np.mean(scores) <= LEAKAGE_THRESHOLD
+    # Ajoute une marge pour éviter un faux positif dû à l'arrondi flottant
+    leakage_margin = 1e-12
+    # Vérifie que la moyenne reste sous le seuil de fuite avec tolérance
+    assert np.mean(scores) <= LEAKAGE_THRESHOLD + leakage_margin
 
 
 # Vérifie que le pipeline produit des formes cohérentes
