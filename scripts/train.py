@@ -86,6 +86,9 @@ DEFAULT_CV_SPLITS = 10
 MIN_CV_SPLITS = 3
 
 
+# Stabilise la reproductibilité des splits de cross-validation
+DEFAULT_RANDOM_STATE = 42
+
 # Regroupe toutes les informations nécessaires à un run d'entraînement
 @dataclass
 class TrainingRequest:
@@ -440,8 +443,8 @@ def _load_data(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -494,6 +497,10 @@ def _load_data(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -645,7 +652,7 @@ def run_training(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
