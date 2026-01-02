@@ -17479,9 +17479,9 @@ def x__load_data__mutmut_28(
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
             # Relance la génération si l'ancien format tabulaire est détecté
-            needs_rebuild = True
+            needs_rebuild = None
         # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[1] != candidate_y.shape[0]:
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
             needs_rebuild = True
 
@@ -17527,9 +17527,9 @@ def x__load_data__mutmut_29(
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
             # Relance la génération si l'ancien format tabulaire est détecté
-            needs_rebuild = True
+            needs_rebuild = False
         # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[0] == candidate_y.shape[0]:
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
             needs_rebuild = True
 
@@ -17577,7 +17577,7 @@ def x__load_data__mutmut_30(
             # Relance la génération si l'ancien format tabulaire est détecté
             needs_rebuild = True
         # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[0] != candidate_y.shape[1]:
+        elif candidate_X.shape[1] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
             needs_rebuild = True
 
@@ -17625,6 +17625,627 @@ def x__load_data__mutmut_31(
             # Relance la génération si l'ancien format tabulaire est détecté
             needs_rebuild = True
         # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] == candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_32(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[1]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_33(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = None
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_34(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_35(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = None
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_36(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            None, run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_37(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, None, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_38(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, None, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_39(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, None
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_40(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_41(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_42(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_43(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_44(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
         elif candidate_X.shape[0] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
             needs_rebuild = True
@@ -17645,7 +18266,7 @@ def x__load_data__mutmut_31(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_32(
+def x__load_data__mutmut_45(
     subject: str,
     run: str,
     data_dir: Path,
@@ -17693,7 +18314,7 @@ def x__load_data__mutmut_32(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_33(
+def x__load_data__mutmut_46(
     subject: str,
     run: str,
     data_dir: Path,
@@ -17741,7 +18362,7 @@ def x__load_data__mutmut_33(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_34(
+def x__load_data__mutmut_47(
     subject: str,
     run: str,
     data_dir: Path,
@@ -17821,7 +18442,20 @@ x__load_data__mutmut_mutants : ClassVar[MutantDict] = {
     'x__load_data__mutmut_31': x__load_data__mutmut_31, 
     'x__load_data__mutmut_32': x__load_data__mutmut_32, 
     'x__load_data__mutmut_33': x__load_data__mutmut_33, 
-    'x__load_data__mutmut_34': x__load_data__mutmut_34
+    'x__load_data__mutmut_34': x__load_data__mutmut_34, 
+    'x__load_data__mutmut_35': x__load_data__mutmut_35, 
+    'x__load_data__mutmut_36': x__load_data__mutmut_36, 
+    'x__load_data__mutmut_37': x__load_data__mutmut_37, 
+    'x__load_data__mutmut_38': x__load_data__mutmut_38, 
+    'x__load_data__mutmut_39': x__load_data__mutmut_39, 
+    'x__load_data__mutmut_40': x__load_data__mutmut_40, 
+    'x__load_data__mutmut_41': x__load_data__mutmut_41, 
+    'x__load_data__mutmut_42': x__load_data__mutmut_42, 
+    'x__load_data__mutmut_43': x__load_data__mutmut_43, 
+    'x__load_data__mutmut_44': x__load_data__mutmut_44, 
+    'x__load_data__mutmut_45': x__load_data__mutmut_45, 
+    'x__load_data__mutmut_46': x__load_data__mutmut_46, 
+    'x__load_data__mutmut_47': x__load_data__mutmut_47
 }
 
 def _load_data(*args, **kwargs):
@@ -17890,8 +18524,8 @@ def x__write_reports__mutmut_orig(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -17987,7 +18621,7 @@ def x__write_reports__mutmut_1(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
+    # Agrège les classes vues et prédites pour éviter les labels manquants
     labels = None
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
@@ -18084,7 +18718,7 @@ def x__write_reports__mutmut_2(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
+    # Agrège les classes vues et prédites pour éviter les labels manquants
     labels = sorted(None)
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
@@ -18181,7 +18815,7 @@ def x__write_reports__mutmut_3(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
+    # Agrège les classes vues et prédites pour éviter les labels manquants
     labels = sorted(np.unique(None).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
@@ -18278,10 +18912,10 @@ def x__write_reports__mutmut_4(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate(None)).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
-    confusion_array = None
+    confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
     confusion = confusion_array.tolist()
     # Prépare la structure d'accuracy par classe pour la CLI
@@ -18375,10 +19009,10 @@ def x__write_reports__mutmut_5(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
-    confusion_array = confusion_matrix(None, y_pred, labels=labels)
+    confusion_array = None
     # Convertit la matrice en liste pour la sérialisation JSON
     confusion = confusion_array.tolist()
     # Prépare la structure d'accuracy par classe pour la CLI
@@ -18472,10 +19106,10 @@ def x__write_reports__mutmut_6(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
-    confusion_array = confusion_matrix(y_true, None, labels=labels)
+    confusion_array = confusion_matrix(None, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
     confusion = confusion_array.tolist()
     # Prépare la structure d'accuracy par classe pour la CLI
@@ -18569,10 +19203,10 @@ def x__write_reports__mutmut_7(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
-    confusion_array = confusion_matrix(y_true, y_pred, labels=None)
+    confusion_array = confusion_matrix(y_true, None, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
     confusion = confusion_array.tolist()
     # Prépare la structure d'accuracy par classe pour la CLI
@@ -18666,10 +19300,10 @@ def x__write_reports__mutmut_8(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
-    confusion_array = confusion_matrix(y_pred, labels=labels)
+    confusion_array = confusion_matrix(y_true, y_pred, labels=None)
     # Convertit la matrice en liste pour la sérialisation JSON
     confusion = confusion_array.tolist()
     # Prépare la structure d'accuracy par classe pour la CLI
@@ -18763,10 +19397,10 @@ def x__write_reports__mutmut_9(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
-    confusion_array = confusion_matrix(y_true, labels=labels)
+    confusion_array = confusion_matrix(y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
     confusion = confusion_array.tolist()
     # Prépare la structure d'accuracy par classe pour la CLI
@@ -18860,10 +19494,10 @@ def x__write_reports__mutmut_10(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
-    confusion_array = confusion_matrix(y_true, y_pred, )
+    confusion_array = confusion_matrix(y_true, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
     confusion = confusion_array.tolist()
     # Prépare la structure d'accuracy par classe pour la CLI
@@ -18957,12 +19591,12 @@ def x__write_reports__mutmut_11(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
-    confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
+    confusion_array = confusion_matrix(y_true, y_pred, )
     # Convertit la matrice en liste pour la sérialisation JSON
-    confusion = None
+    confusion = confusion_array.tolist()
     # Prépare la structure d'accuracy par classe pour la CLI
     per_class_accuracy: dict[str, float] = {}
     # Calcule l'accuracy pour chaque classe en utilisant la diagonale
@@ -19054,14 +19688,14 @@ def x__write_reports__mutmut_12(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
-    confusion = confusion_array.tolist()
+    confusion = None
     # Prépare la structure d'accuracy par classe pour la CLI
-    per_class_accuracy: dict[str, float] = None
+    per_class_accuracy: dict[str, float] = {}
     # Calcule l'accuracy pour chaque classe en utilisant la diagonale
     for index, label in enumerate(labels):
         # Calcule le nombre total d'échantillons pour la classe courante
@@ -19151,16 +19785,16 @@ def x__write_reports__mutmut_13(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
     confusion = confusion_array.tolist()
     # Prépare la structure d'accuracy par classe pour la CLI
-    per_class_accuracy: dict[str, float] = {}
+    per_class_accuracy: dict[str, float] = None
     # Calcule l'accuracy pour chaque classe en utilisant la diagonale
-    for index, label in enumerate(None):
+    for index, label in enumerate(labels):
         # Calcule le nombre total d'échantillons pour la classe courante
         class_total = int(confusion_array[index].sum())
         # Calcule le nombre de prédictions correctes pour la classe courante
@@ -19248,8 +19882,105 @@ def x__write_reports__mutmut_14(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
+    # Calcule la matrice de confusion en préservant l'ordre des labels
+    confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
+    # Convertit la matrice en liste pour la sérialisation JSON
+    confusion = confusion_array.tolist()
+    # Prépare la structure d'accuracy par classe pour la CLI
+    per_class_accuracy: dict[str, float] = {}
+    # Calcule l'accuracy pour chaque classe en utilisant la diagonale
+    for index, label in enumerate(None):
+        # Calcule le nombre total d'échantillons pour la classe courante
+        class_total = int(confusion_array[index].sum())
+        # Calcule le nombre de prédictions correctes pour la classe courante
+        correct = int(confusion_array[index][index])
+        # Enregistre l'accuracy en évitant la division par zéro
+        per_class_accuracy[str(label)] = correct / class_total if class_total else 0.0
+    # Prépare un rapport JSON synthétique pour la CLI et la CI
+    report = {
+        "subject": identifiers["subject"],
+        "run": identifiers["run"],
+        "accuracy": accuracy,
+        "confusion_matrix": confusion,
+        "per_class_accuracy": per_class_accuracy,
+        "samples": len(y_true),
+    }
+    # Définit le chemin du rapport JSON dans les artefacts
+    report_path = target_dir / "report.json"
+    # Écrit le rapport JSON en UTF-8 avec indentation pour inspection
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    # Définit le chemin du rapport CSV par classe pour les diagnostics
+    class_report_path = target_dir / "class_report.csv"
+    # Ouvre le fichier CSV pour enregistrer accuracy et support
+    with class_report_path.open("w", newline="") as handle:
+        # Définit les en-têtes pour l'accuracy par classe
+        fieldnames = ["class", "accuracy", "support"]
+        # Construit le writer CSV prêt à écrire chaque classe
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        # Inscrit les en-têtes pour faciliter la lecture
+        writer.writeheader()
+        # Parcourt chaque classe pour détailler les métriques associées
+        for label in labels:
+            # Récupère l'accuracy calculée pour la classe ciblée
+            class_accuracy = per_class_accuracy[str(label)]
+            # Calcule le support en comptant les occurrences de la classe
+            support = int(confusion_array[labels.index(label)].sum())
+            # Écrit la ligne de métriques dédiée à la classe
+            writer.writerow(
+                {
+                    "class": label,
+                    "accuracy": class_accuracy,
+                    "support": support,
+                }
+            )
+    # Définit le chemin du CSV listant chaque prédiction
+    csv_path = target_dir / "predictions.csv"
+    # Ouvre le fichier CSV en écriture sans lignes superflues
+    with csv_path.open("w", newline="") as handle:
+        # Prépare les en-têtes pour aligner vérité terrain et prédiction
+        fieldnames = ["subject", "run", "index", "y_true", "y_pred"]
+        # Crée un writer dict pour simplifier l'écriture ligne par ligne
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        # Inscrit l'en-tête pour faciliter la lecture
+        writer.writeheader()
+        # Parcourt chaque échantillon pour exposer la prédiction individuelle
+        for idx, (true_label, pred_label) in enumerate(
+            zip(y_true, y_pred, strict=False)
+        ):
+            # Écrit la ligne CSV pour l'index courant
+            writer.writerow(
+                {
+                    "subject": identifiers["subject"],
+                    "run": identifiers["run"],
+                    "index": idx,
+                    "y_true": int(true_label),
+                    "y_pred": int(pred_label),
+                }
+            )
+    # Retourne les chemins créés pour validation amont
+    return {
+        "json_report": report_path,
+        "csv_report": csv_path,
+        "class_report": class_report_path,
+        "confusion": confusion,
+        "per_class_accuracy": per_class_accuracy,
+    }
+
+
+# Sérialise les rapports JSON et CSV pour un run donné
+def x__write_reports__mutmut_15(
+    target_dir: Path,
+    identifiers: dict[str, str],
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    accuracy: float,
+) -> dict:
+    """Écrit les rapports de prédiction et retourne les chemins créés."""
+
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -19336,7 +20067,7 @@ def x__write_reports__mutmut_14(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_15(
+def x__write_reports__mutmut_16(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -19345,8 +20076,8 @@ def x__write_reports__mutmut_15(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -19433,7 +20164,7 @@ def x__write_reports__mutmut_15(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_16(
+def x__write_reports__mutmut_17(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -19442,8 +20173,8 @@ def x__write_reports__mutmut_16(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -19530,7 +20261,7 @@ def x__write_reports__mutmut_16(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_17(
+def x__write_reports__mutmut_18(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -19539,8 +20270,8 @@ def x__write_reports__mutmut_17(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -19627,7 +20358,7 @@ def x__write_reports__mutmut_17(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_18(
+def x__write_reports__mutmut_19(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -19636,8 +20367,8 @@ def x__write_reports__mutmut_18(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -19724,7 +20455,7 @@ def x__write_reports__mutmut_18(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_19(
+def x__write_reports__mutmut_20(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -19733,8 +20464,8 @@ def x__write_reports__mutmut_19(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -19821,7 +20552,7 @@ def x__write_reports__mutmut_19(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_20(
+def x__write_reports__mutmut_21(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -19830,8 +20561,8 @@ def x__write_reports__mutmut_20(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -19918,7 +20649,7 @@ def x__write_reports__mutmut_20(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_21(
+def x__write_reports__mutmut_22(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -19927,8 +20658,8 @@ def x__write_reports__mutmut_21(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20015,7 +20746,7 @@ def x__write_reports__mutmut_21(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_22(
+def x__write_reports__mutmut_23(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20024,8 +20755,8 @@ def x__write_reports__mutmut_22(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20105,7 +20836,7 @@ def x__write_reports__mutmut_22(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_23(
+def x__write_reports__mutmut_24(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20114,8 +20845,8 @@ def x__write_reports__mutmut_23(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20202,7 +20933,7 @@ def x__write_reports__mutmut_23(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_24(
+def x__write_reports__mutmut_25(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20211,8 +20942,8 @@ def x__write_reports__mutmut_24(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20299,7 +21030,7 @@ def x__write_reports__mutmut_24(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_25(
+def x__write_reports__mutmut_26(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20308,8 +21039,8 @@ def x__write_reports__mutmut_25(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20396,7 +21127,7 @@ def x__write_reports__mutmut_25(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_26(
+def x__write_reports__mutmut_27(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20405,8 +21136,8 @@ def x__write_reports__mutmut_26(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20493,7 +21224,7 @@ def x__write_reports__mutmut_26(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_27(
+def x__write_reports__mutmut_28(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20502,8 +21233,8 @@ def x__write_reports__mutmut_27(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20590,7 +21321,7 @@ def x__write_reports__mutmut_27(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_28(
+def x__write_reports__mutmut_29(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20599,8 +21330,8 @@ def x__write_reports__mutmut_28(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20687,7 +21418,7 @@ def x__write_reports__mutmut_28(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_29(
+def x__write_reports__mutmut_30(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20696,8 +21427,8 @@ def x__write_reports__mutmut_29(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20784,7 +21515,7 @@ def x__write_reports__mutmut_29(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_30(
+def x__write_reports__mutmut_31(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20793,8 +21524,8 @@ def x__write_reports__mutmut_30(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20881,7 +21612,7 @@ def x__write_reports__mutmut_30(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_31(
+def x__write_reports__mutmut_32(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20890,8 +21621,8 @@ def x__write_reports__mutmut_31(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -20978,7 +21709,7 @@ def x__write_reports__mutmut_31(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_32(
+def x__write_reports__mutmut_33(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -20987,8 +21718,8 @@ def x__write_reports__mutmut_32(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21075,7 +21806,7 @@ def x__write_reports__mutmut_32(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_33(
+def x__write_reports__mutmut_34(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21084,8 +21815,8 @@ def x__write_reports__mutmut_33(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21172,7 +21903,7 @@ def x__write_reports__mutmut_33(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_34(
+def x__write_reports__mutmut_35(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21181,8 +21912,8 @@ def x__write_reports__mutmut_34(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21269,7 +22000,7 @@ def x__write_reports__mutmut_34(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_35(
+def x__write_reports__mutmut_36(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21278,8 +22009,8 @@ def x__write_reports__mutmut_35(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21366,7 +22097,7 @@ def x__write_reports__mutmut_35(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_36(
+def x__write_reports__mutmut_37(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21375,8 +22106,8 @@ def x__write_reports__mutmut_36(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21463,7 +22194,7 @@ def x__write_reports__mutmut_36(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_37(
+def x__write_reports__mutmut_38(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21472,8 +22203,8 @@ def x__write_reports__mutmut_37(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21560,7 +22291,7 @@ def x__write_reports__mutmut_37(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_38(
+def x__write_reports__mutmut_39(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21569,8 +22300,8 @@ def x__write_reports__mutmut_38(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21657,7 +22388,7 @@ def x__write_reports__mutmut_38(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_39(
+def x__write_reports__mutmut_40(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21666,8 +22397,8 @@ def x__write_reports__mutmut_39(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21754,7 +22485,7 @@ def x__write_reports__mutmut_39(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_40(
+def x__write_reports__mutmut_41(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21763,8 +22494,8 @@ def x__write_reports__mutmut_40(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21851,7 +22582,7 @@ def x__write_reports__mutmut_40(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_41(
+def x__write_reports__mutmut_42(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21860,8 +22591,8 @@ def x__write_reports__mutmut_41(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -21948,7 +22679,7 @@ def x__write_reports__mutmut_41(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_42(
+def x__write_reports__mutmut_43(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -21957,8 +22688,8 @@ def x__write_reports__mutmut_42(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22045,7 +22776,7 @@ def x__write_reports__mutmut_42(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_43(
+def x__write_reports__mutmut_44(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22054,8 +22785,8 @@ def x__write_reports__mutmut_43(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22142,7 +22873,7 @@ def x__write_reports__mutmut_43(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_44(
+def x__write_reports__mutmut_45(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22151,8 +22882,8 @@ def x__write_reports__mutmut_44(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22239,7 +22970,7 @@ def x__write_reports__mutmut_44(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_45(
+def x__write_reports__mutmut_46(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22248,8 +22979,8 @@ def x__write_reports__mutmut_45(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22336,7 +23067,7 @@ def x__write_reports__mutmut_45(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_46(
+def x__write_reports__mutmut_47(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22345,8 +23076,8 @@ def x__write_reports__mutmut_46(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22433,7 +23164,7 @@ def x__write_reports__mutmut_46(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_47(
+def x__write_reports__mutmut_48(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22442,8 +23173,8 @@ def x__write_reports__mutmut_47(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22530,7 +23261,7 @@ def x__write_reports__mutmut_47(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_48(
+def x__write_reports__mutmut_49(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22539,8 +23270,8 @@ def x__write_reports__mutmut_48(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22627,7 +23358,7 @@ def x__write_reports__mutmut_48(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_49(
+def x__write_reports__mutmut_50(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22636,8 +23367,8 @@ def x__write_reports__mutmut_49(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22724,7 +23455,7 @@ def x__write_reports__mutmut_49(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_50(
+def x__write_reports__mutmut_51(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22733,8 +23464,8 @@ def x__write_reports__mutmut_50(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22821,7 +23552,7 @@ def x__write_reports__mutmut_50(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_51(
+def x__write_reports__mutmut_52(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22830,8 +23561,8 @@ def x__write_reports__mutmut_51(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -22918,7 +23649,7 @@ def x__write_reports__mutmut_51(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_52(
+def x__write_reports__mutmut_53(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -22927,8 +23658,8 @@ def x__write_reports__mutmut_52(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23015,7 +23746,7 @@ def x__write_reports__mutmut_52(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_53(
+def x__write_reports__mutmut_54(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23024,8 +23755,8 @@ def x__write_reports__mutmut_53(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23112,7 +23843,7 @@ def x__write_reports__mutmut_53(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_54(
+def x__write_reports__mutmut_55(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23121,8 +23852,8 @@ def x__write_reports__mutmut_54(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23209,7 +23940,7 @@ def x__write_reports__mutmut_54(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_55(
+def x__write_reports__mutmut_56(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23218,8 +23949,8 @@ def x__write_reports__mutmut_55(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23306,7 +24037,7 @@ def x__write_reports__mutmut_55(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_56(
+def x__write_reports__mutmut_57(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23315,8 +24046,8 @@ def x__write_reports__mutmut_56(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23403,7 +24134,7 @@ def x__write_reports__mutmut_56(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_57(
+def x__write_reports__mutmut_58(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23412,8 +24143,8 @@ def x__write_reports__mutmut_57(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23500,7 +24231,7 @@ def x__write_reports__mutmut_57(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_58(
+def x__write_reports__mutmut_59(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23509,8 +24240,8 @@ def x__write_reports__mutmut_58(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23597,7 +24328,7 @@ def x__write_reports__mutmut_58(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_59(
+def x__write_reports__mutmut_60(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23606,8 +24337,8 @@ def x__write_reports__mutmut_59(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23694,7 +24425,7 @@ def x__write_reports__mutmut_59(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_60(
+def x__write_reports__mutmut_61(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23703,8 +24434,8 @@ def x__write_reports__mutmut_60(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23791,7 +24522,7 @@ def x__write_reports__mutmut_60(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_61(
+def x__write_reports__mutmut_62(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23800,8 +24531,8 @@ def x__write_reports__mutmut_61(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23888,7 +24619,7 @@ def x__write_reports__mutmut_61(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_62(
+def x__write_reports__mutmut_63(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23897,8 +24628,8 @@ def x__write_reports__mutmut_62(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -23985,7 +24716,7 @@ def x__write_reports__mutmut_62(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_63(
+def x__write_reports__mutmut_64(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -23994,8 +24725,8 @@ def x__write_reports__mutmut_63(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24082,7 +24813,7 @@ def x__write_reports__mutmut_63(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_64(
+def x__write_reports__mutmut_65(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24091,8 +24822,8 @@ def x__write_reports__mutmut_64(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24179,7 +24910,7 @@ def x__write_reports__mutmut_64(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_65(
+def x__write_reports__mutmut_66(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24188,8 +24919,8 @@ def x__write_reports__mutmut_65(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24276,7 +25007,7 @@ def x__write_reports__mutmut_65(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_66(
+def x__write_reports__mutmut_67(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24285,8 +25016,8 @@ def x__write_reports__mutmut_66(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24373,7 +25104,7 @@ def x__write_reports__mutmut_66(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_67(
+def x__write_reports__mutmut_68(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24382,8 +25113,8 @@ def x__write_reports__mutmut_67(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24470,7 +25201,7 @@ def x__write_reports__mutmut_67(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_68(
+def x__write_reports__mutmut_69(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24479,8 +25210,8 @@ def x__write_reports__mutmut_68(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24567,7 +25298,7 @@ def x__write_reports__mutmut_68(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_69(
+def x__write_reports__mutmut_70(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24576,8 +25307,8 @@ def x__write_reports__mutmut_69(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24664,7 +25395,7 @@ def x__write_reports__mutmut_69(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_70(
+def x__write_reports__mutmut_71(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24673,8 +25404,8 @@ def x__write_reports__mutmut_70(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24761,7 +25492,7 @@ def x__write_reports__mutmut_70(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_71(
+def x__write_reports__mutmut_72(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24770,8 +25501,8 @@ def x__write_reports__mutmut_71(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24858,7 +25589,7 @@ def x__write_reports__mutmut_71(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_72(
+def x__write_reports__mutmut_73(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24867,8 +25598,8 @@ def x__write_reports__mutmut_72(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -24955,7 +25686,7 @@ def x__write_reports__mutmut_72(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_73(
+def x__write_reports__mutmut_74(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -24964,8 +25695,8 @@ def x__write_reports__mutmut_73(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25052,7 +25783,7 @@ def x__write_reports__mutmut_73(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_74(
+def x__write_reports__mutmut_75(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25061,8 +25792,8 @@ def x__write_reports__mutmut_74(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25149,7 +25880,7 @@ def x__write_reports__mutmut_74(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_75(
+def x__write_reports__mutmut_76(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25158,8 +25889,8 @@ def x__write_reports__mutmut_75(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25246,7 +25977,7 @@ def x__write_reports__mutmut_75(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_76(
+def x__write_reports__mutmut_77(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25255,8 +25986,8 @@ def x__write_reports__mutmut_76(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25343,7 +26074,7 @@ def x__write_reports__mutmut_76(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_77(
+def x__write_reports__mutmut_78(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25352,8 +26083,8 @@ def x__write_reports__mutmut_77(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25440,7 +26171,7 @@ def x__write_reports__mutmut_77(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_78(
+def x__write_reports__mutmut_79(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25449,8 +26180,8 @@ def x__write_reports__mutmut_78(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25537,7 +26268,7 @@ def x__write_reports__mutmut_78(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_79(
+def x__write_reports__mutmut_80(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25546,8 +26277,8 @@ def x__write_reports__mutmut_79(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25634,7 +26365,7 @@ def x__write_reports__mutmut_79(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_80(
+def x__write_reports__mutmut_81(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25643,8 +26374,8 @@ def x__write_reports__mutmut_80(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25731,7 +26462,7 @@ def x__write_reports__mutmut_80(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_81(
+def x__write_reports__mutmut_82(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25740,8 +26471,8 @@ def x__write_reports__mutmut_81(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25824,7 +26555,7 @@ def x__write_reports__mutmut_81(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_82(
+def x__write_reports__mutmut_83(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25833,8 +26564,8 @@ def x__write_reports__mutmut_82(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -25921,7 +26652,7 @@ def x__write_reports__mutmut_82(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_83(
+def x__write_reports__mutmut_84(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -25930,8 +26661,8 @@ def x__write_reports__mutmut_83(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26018,7 +26749,7 @@ def x__write_reports__mutmut_83(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_84(
+def x__write_reports__mutmut_85(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26027,8 +26758,8 @@ def x__write_reports__mutmut_84(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26115,7 +26846,7 @@ def x__write_reports__mutmut_84(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_85(
+def x__write_reports__mutmut_86(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26124,8 +26855,8 @@ def x__write_reports__mutmut_85(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26212,7 +26943,7 @@ def x__write_reports__mutmut_85(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_86(
+def x__write_reports__mutmut_87(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26221,8 +26952,8 @@ def x__write_reports__mutmut_86(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26309,7 +27040,7 @@ def x__write_reports__mutmut_86(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_87(
+def x__write_reports__mutmut_88(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26318,8 +27049,8 @@ def x__write_reports__mutmut_87(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26406,7 +27137,7 @@ def x__write_reports__mutmut_87(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_88(
+def x__write_reports__mutmut_89(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26415,8 +27146,8 @@ def x__write_reports__mutmut_88(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26503,7 +27234,7 @@ def x__write_reports__mutmut_88(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_89(
+def x__write_reports__mutmut_90(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26512,8 +27243,8 @@ def x__write_reports__mutmut_89(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26600,7 +27331,7 @@ def x__write_reports__mutmut_89(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_90(
+def x__write_reports__mutmut_91(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26609,8 +27340,8 @@ def x__write_reports__mutmut_90(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26697,7 +27428,7 @@ def x__write_reports__mutmut_90(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_91(
+def x__write_reports__mutmut_92(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26706,8 +27437,8 @@ def x__write_reports__mutmut_91(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26794,7 +27525,7 @@ def x__write_reports__mutmut_91(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_92(
+def x__write_reports__mutmut_93(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26803,8 +27534,8 @@ def x__write_reports__mutmut_92(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26891,7 +27622,7 @@ def x__write_reports__mutmut_92(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_93(
+def x__write_reports__mutmut_94(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26900,8 +27631,8 @@ def x__write_reports__mutmut_93(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -26988,7 +27719,7 @@ def x__write_reports__mutmut_93(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_94(
+def x__write_reports__mutmut_95(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -26997,8 +27728,8 @@ def x__write_reports__mutmut_94(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27085,7 +27816,7 @@ def x__write_reports__mutmut_94(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_95(
+def x__write_reports__mutmut_96(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27094,8 +27825,8 @@ def x__write_reports__mutmut_95(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27182,7 +27913,7 @@ def x__write_reports__mutmut_95(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_96(
+def x__write_reports__mutmut_97(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27191,8 +27922,8 @@ def x__write_reports__mutmut_96(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27279,7 +28010,7 @@ def x__write_reports__mutmut_96(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_97(
+def x__write_reports__mutmut_98(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27288,8 +28019,8 @@ def x__write_reports__mutmut_97(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27376,7 +28107,7 @@ def x__write_reports__mutmut_97(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_98(
+def x__write_reports__mutmut_99(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27385,8 +28116,8 @@ def x__write_reports__mutmut_98(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27473,7 +28204,7 @@ def x__write_reports__mutmut_98(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_99(
+def x__write_reports__mutmut_100(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27482,8 +28213,8 @@ def x__write_reports__mutmut_99(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27570,7 +28301,7 @@ def x__write_reports__mutmut_99(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_100(
+def x__write_reports__mutmut_101(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27579,8 +28310,8 @@ def x__write_reports__mutmut_100(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27667,7 +28398,7 @@ def x__write_reports__mutmut_100(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_101(
+def x__write_reports__mutmut_102(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27676,8 +28407,8 @@ def x__write_reports__mutmut_101(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27764,7 +28495,7 @@ def x__write_reports__mutmut_101(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_102(
+def x__write_reports__mutmut_103(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27773,8 +28504,8 @@ def x__write_reports__mutmut_102(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27861,7 +28592,7 @@ def x__write_reports__mutmut_102(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_103(
+def x__write_reports__mutmut_104(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27870,8 +28601,8 @@ def x__write_reports__mutmut_103(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -27958,7 +28689,7 @@ def x__write_reports__mutmut_103(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_104(
+def x__write_reports__mutmut_105(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -27967,8 +28698,8 @@ def x__write_reports__mutmut_104(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28055,7 +28786,7 @@ def x__write_reports__mutmut_104(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_105(
+def x__write_reports__mutmut_106(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28064,8 +28795,8 @@ def x__write_reports__mutmut_105(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28152,7 +28883,7 @@ def x__write_reports__mutmut_105(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_106(
+def x__write_reports__mutmut_107(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28161,8 +28892,8 @@ def x__write_reports__mutmut_106(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28249,7 +28980,7 @@ def x__write_reports__mutmut_106(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_107(
+def x__write_reports__mutmut_108(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28258,8 +28989,8 @@ def x__write_reports__mutmut_107(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28346,7 +29077,7 @@ def x__write_reports__mutmut_107(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_108(
+def x__write_reports__mutmut_109(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28355,8 +29086,8 @@ def x__write_reports__mutmut_108(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28443,7 +29174,7 @@ def x__write_reports__mutmut_108(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_109(
+def x__write_reports__mutmut_110(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28452,8 +29183,8 @@ def x__write_reports__mutmut_109(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28540,7 +29271,7 @@ def x__write_reports__mutmut_109(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_110(
+def x__write_reports__mutmut_111(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28549,8 +29280,8 @@ def x__write_reports__mutmut_110(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28637,7 +29368,7 @@ def x__write_reports__mutmut_110(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_111(
+def x__write_reports__mutmut_112(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28646,8 +29377,8 @@ def x__write_reports__mutmut_111(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28734,7 +29465,7 @@ def x__write_reports__mutmut_111(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_112(
+def x__write_reports__mutmut_113(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28743,8 +29474,8 @@ def x__write_reports__mutmut_112(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28831,7 +29562,7 @@ def x__write_reports__mutmut_112(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_113(
+def x__write_reports__mutmut_114(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28840,8 +29571,8 @@ def x__write_reports__mutmut_113(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -28928,7 +29659,7 @@ def x__write_reports__mutmut_113(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_114(
+def x__write_reports__mutmut_115(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -28937,8 +29668,8 @@ def x__write_reports__mutmut_114(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29025,7 +29756,7 @@ def x__write_reports__mutmut_114(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_115(
+def x__write_reports__mutmut_116(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29034,8 +29765,8 @@ def x__write_reports__mutmut_115(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29122,7 +29853,7 @@ def x__write_reports__mutmut_115(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_116(
+def x__write_reports__mutmut_117(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29131,8 +29862,8 @@ def x__write_reports__mutmut_116(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29219,7 +29950,7 @@ def x__write_reports__mutmut_116(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_117(
+def x__write_reports__mutmut_118(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29228,8 +29959,8 @@ def x__write_reports__mutmut_117(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29316,7 +30047,7 @@ def x__write_reports__mutmut_117(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_118(
+def x__write_reports__mutmut_119(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29325,8 +30056,8 @@ def x__write_reports__mutmut_118(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29413,7 +30144,7 @@ def x__write_reports__mutmut_118(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_119(
+def x__write_reports__mutmut_120(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29422,8 +30153,8 @@ def x__write_reports__mutmut_119(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29510,7 +30241,7 @@ def x__write_reports__mutmut_119(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_120(
+def x__write_reports__mutmut_121(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29519,8 +30250,8 @@ def x__write_reports__mutmut_120(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29607,7 +30338,7 @@ def x__write_reports__mutmut_120(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_121(
+def x__write_reports__mutmut_122(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29616,8 +30347,8 @@ def x__write_reports__mutmut_121(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29704,7 +30435,7 @@ def x__write_reports__mutmut_121(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_122(
+def x__write_reports__mutmut_123(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29713,8 +30444,8 @@ def x__write_reports__mutmut_122(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29801,7 +30532,7 @@ def x__write_reports__mutmut_122(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_123(
+def x__write_reports__mutmut_124(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29810,8 +30541,8 @@ def x__write_reports__mutmut_123(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29892,7 +30623,7 @@ def x__write_reports__mutmut_123(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_124(
+def x__write_reports__mutmut_125(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29901,8 +30632,8 @@ def x__write_reports__mutmut_124(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -29989,7 +30720,7 @@ def x__write_reports__mutmut_124(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_125(
+def x__write_reports__mutmut_126(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -29998,8 +30729,8 @@ def x__write_reports__mutmut_125(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30086,7 +30817,7 @@ def x__write_reports__mutmut_125(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_126(
+def x__write_reports__mutmut_127(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30095,8 +30826,8 @@ def x__write_reports__mutmut_126(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30183,7 +30914,7 @@ def x__write_reports__mutmut_126(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_127(
+def x__write_reports__mutmut_128(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30192,8 +30923,8 @@ def x__write_reports__mutmut_127(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30280,7 +31011,7 @@ def x__write_reports__mutmut_127(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_128(
+def x__write_reports__mutmut_129(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30289,8 +31020,8 @@ def x__write_reports__mutmut_128(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30377,7 +31108,7 @@ def x__write_reports__mutmut_128(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_129(
+def x__write_reports__mutmut_130(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30386,8 +31117,8 @@ def x__write_reports__mutmut_129(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30474,7 +31205,7 @@ def x__write_reports__mutmut_129(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_130(
+def x__write_reports__mutmut_131(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30483,8 +31214,8 @@ def x__write_reports__mutmut_130(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30571,7 +31302,7 @@ def x__write_reports__mutmut_130(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_131(
+def x__write_reports__mutmut_132(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30580,8 +31311,8 @@ def x__write_reports__mutmut_131(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30668,7 +31399,7 @@ def x__write_reports__mutmut_131(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_132(
+def x__write_reports__mutmut_133(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30677,8 +31408,8 @@ def x__write_reports__mutmut_132(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30765,7 +31496,7 @@ def x__write_reports__mutmut_132(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_133(
+def x__write_reports__mutmut_134(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30774,8 +31505,8 @@ def x__write_reports__mutmut_133(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30862,7 +31593,7 @@ def x__write_reports__mutmut_133(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_134(
+def x__write_reports__mutmut_135(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30871,8 +31602,8 @@ def x__write_reports__mutmut_134(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -30959,7 +31690,7 @@ def x__write_reports__mutmut_134(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_135(
+def x__write_reports__mutmut_136(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -30968,8 +31699,8 @@ def x__write_reports__mutmut_135(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31056,7 +31787,7 @@ def x__write_reports__mutmut_135(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_136(
+def x__write_reports__mutmut_137(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31065,8 +31796,8 @@ def x__write_reports__mutmut_136(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31153,7 +31884,7 @@ def x__write_reports__mutmut_136(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_137(
+def x__write_reports__mutmut_138(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31162,8 +31893,8 @@ def x__write_reports__mutmut_137(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31250,7 +31981,7 @@ def x__write_reports__mutmut_137(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_138(
+def x__write_reports__mutmut_139(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31259,8 +31990,8 @@ def x__write_reports__mutmut_138(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31347,7 +32078,7 @@ def x__write_reports__mutmut_138(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_139(
+def x__write_reports__mutmut_140(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31356,8 +32087,8 @@ def x__write_reports__mutmut_139(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31444,7 +32175,7 @@ def x__write_reports__mutmut_139(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_140(
+def x__write_reports__mutmut_141(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31453,8 +32184,8 @@ def x__write_reports__mutmut_140(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31541,7 +32272,7 @@ def x__write_reports__mutmut_140(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_141(
+def x__write_reports__mutmut_142(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31550,8 +32281,8 @@ def x__write_reports__mutmut_141(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31638,7 +32369,7 @@ def x__write_reports__mutmut_141(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_142(
+def x__write_reports__mutmut_143(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31647,8 +32378,8 @@ def x__write_reports__mutmut_142(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31735,7 +32466,7 @@ def x__write_reports__mutmut_142(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_143(
+def x__write_reports__mutmut_144(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31744,8 +32475,8 @@ def x__write_reports__mutmut_143(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31832,7 +32563,7 @@ def x__write_reports__mutmut_143(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_144(
+def x__write_reports__mutmut_145(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31841,8 +32572,8 @@ def x__write_reports__mutmut_144(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -31929,7 +32660,7 @@ def x__write_reports__mutmut_144(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_145(
+def x__write_reports__mutmut_146(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -31938,8 +32669,8 @@ def x__write_reports__mutmut_145(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -32026,7 +32757,7 @@ def x__write_reports__mutmut_145(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_146(
+def x__write_reports__mutmut_147(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -32035,8 +32766,8 @@ def x__write_reports__mutmut_146(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -32123,7 +32854,7 @@ def x__write_reports__mutmut_146(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_147(
+def x__write_reports__mutmut_148(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -32132,8 +32863,8 @@ def x__write_reports__mutmut_147(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -32220,7 +32951,7 @@ def x__write_reports__mutmut_147(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_148(
+def x__write_reports__mutmut_149(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -32229,8 +32960,8 @@ def x__write_reports__mutmut_148(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -32317,7 +33048,7 @@ def x__write_reports__mutmut_148(
 
 
 # Sérialise les rapports JSON et CSV pour un run donné
-def x__write_reports__mutmut_149(
+def x__write_reports__mutmut_150(
     target_dir: Path,
     identifiers: dict[str, str],
     y_true: np.ndarray,
@@ -32326,8 +33057,8 @@ def x__write_reports__mutmut_149(
 ) -> dict:
     """Écrit les rapports de prédiction et retourne les chemins créés."""
 
-    # Identifie les classes présentes pour stabiliser l'ordre des rapports
-    labels = sorted(np.unique(y_true).tolist())
+    # Agrège les classes vues et prédites pour éviter les labels manquants
+    labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
     # Calcule la matrice de confusion en préservant l'ordre des labels
     confusion_array = confusion_matrix(y_true, y_pred, labels=labels)
     # Convertit la matrice en liste pour la sérialisation JSON
@@ -32561,7 +33292,8 @@ x__write_reports__mutmut_mutants : ClassVar[MutantDict] = {
     'x__write_reports__mutmut_146': x__write_reports__mutmut_146, 
     'x__write_reports__mutmut_147': x__write_reports__mutmut_147, 
     'x__write_reports__mutmut_148': x__write_reports__mutmut_148, 
-    'x__write_reports__mutmut_149': x__write_reports__mutmut_149
+    'x__write_reports__mutmut_149': x__write_reports__mutmut_149, 
+    'x__write_reports__mutmut_150': x__write_reports__mutmut_150
 }
 
 def _write_reports(*args, **kwargs):
@@ -34369,6 +35101,817 @@ def x_evaluate_run__mutmut_30(
     if not model_path.exists() or not w_matrix_path.exists():
         # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
         print(
+            None
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_31(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "XXINFO: modèle absent pour XX"
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_32(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "info: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_33(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: MODÈLE ABSENT POUR "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_34(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(None, run, data_dir, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_35(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, None, data_dir, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_36(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, None, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_37(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, data_dir, None, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_38(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, data_dir, artifacts_dir, None)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_39(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(run, data_dir, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_40(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, data_dir, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_41(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, artifacts_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_42(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, data_dir, raw_dir)
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_43(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
+            "INFO: modèle absent pour "
+            f"{subject} {run}, entraînement automatique en cours..."
+        )
+        # Génère les artefacts de base pour permettre l'évaluation
+        _train_missing_pipeline(subject, run, data_dir, artifacts_dir, )
+    # Charge la pipeline entraînée depuis le joblib sauvegardé
+    pipeline = load_pipeline(str(model_path))
+    # Génère les prédictions individuelles pour le rapport
+    y_pred = pipeline.predict(X)
+    # Calcule l'accuracy du pipeline sur les données fournies
+    accuracy = float(pipeline.score(X, y))
+    # Recharge la matrice W pour confirmer sa présence
+    w_matrix = _load_w_matrix(w_matrix_path)
+    # Écrit les rapports JSON et CSV dans le dossier d'artefacts
+    reports = _write_reports(
+        target_dir,
+        {"subject": subject, "run": run},
+        y,
+        y_pred,
+        accuracy,
+    )
+    # Retourne le rapport local incluant la matrice pour les tests
+    return {
+        "run": run,
+        "subject": subject,
+        "accuracy": accuracy,
+        "w_matrix": w_matrix,
+        "reports": reports,
+        "predictions": y_pred,
+        "truth": y,  # <--- clé attendue par mybci
+        "y_true": y,  # Aligne la clé avec les attentes des tests CLI
+    }
+
+
+# Évalue un run donné et produit un rapport structuré
+def x_evaluate_run__mutmut_44(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    artifacts_dir: Path,
+    raw_dir: Path = DEFAULT_RAW_DIR,
+) -> dict:
+    """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
+
+    # Charge ou génère les tableaux numpy nécessaires au scoring
+    X, y = _load_data(subject, run, data_dir, raw_dir)
+    # Construit le dossier d'artefacts spécifique au sujet et au run
+    target_dir = artifacts_dir / subject / run
+    # Assure la présence du dossier pour pouvoir écrire les rapports
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule les chemins des artefacts attendus pour détecter les absences
+    model_path = target_dir / "model.joblib"
+    # Vérifie la présence de la matrice W utilisée par le temps-réel
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Déclenche un entraînement si le modèle ou la matrice sont manquants
+    if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
+        print(
             "INFO: modèle absent pour "
             f"{subject} {run}, entraînement automatique en cours..."
         )
@@ -34404,7 +35947,7 @@ def x_evaluate_run__mutmut_30(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_31(
+def x_evaluate_run__mutmut_45(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34462,7 +36005,7 @@ def x_evaluate_run__mutmut_31(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_32(
+def x_evaluate_run__mutmut_46(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34520,7 +36063,7 @@ def x_evaluate_run__mutmut_32(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_33(
+def x_evaluate_run__mutmut_47(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34578,7 +36121,7 @@ def x_evaluate_run__mutmut_33(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_34(
+def x_evaluate_run__mutmut_48(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34636,7 +36179,7 @@ def x_evaluate_run__mutmut_34(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_35(
+def x_evaluate_run__mutmut_49(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34694,7 +36237,7 @@ def x_evaluate_run__mutmut_35(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_36(
+def x_evaluate_run__mutmut_50(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34752,7 +36295,7 @@ def x_evaluate_run__mutmut_36(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_37(
+def x_evaluate_run__mutmut_51(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34810,7 +36353,7 @@ def x_evaluate_run__mutmut_37(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_38(
+def x_evaluate_run__mutmut_52(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34868,7 +36411,7 @@ def x_evaluate_run__mutmut_38(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_39(
+def x_evaluate_run__mutmut_53(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34926,7 +36469,7 @@ def x_evaluate_run__mutmut_39(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_40(
+def x_evaluate_run__mutmut_54(
     subject: str,
     run: str,
     data_dir: Path,
@@ -34984,7 +36527,7 @@ def x_evaluate_run__mutmut_40(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_41(
+def x_evaluate_run__mutmut_55(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35042,7 +36585,7 @@ def x_evaluate_run__mutmut_41(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_42(
+def x_evaluate_run__mutmut_56(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35100,7 +36643,7 @@ def x_evaluate_run__mutmut_42(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_43(
+def x_evaluate_run__mutmut_57(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35152,7 +36695,7 @@ def x_evaluate_run__mutmut_43(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_44(
+def x_evaluate_run__mutmut_58(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35210,7 +36753,7 @@ def x_evaluate_run__mutmut_44(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_45(
+def x_evaluate_run__mutmut_59(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35268,7 +36811,7 @@ def x_evaluate_run__mutmut_45(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_46(
+def x_evaluate_run__mutmut_60(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35326,7 +36869,7 @@ def x_evaluate_run__mutmut_46(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_47(
+def x_evaluate_run__mutmut_61(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35384,7 +36927,7 @@ def x_evaluate_run__mutmut_47(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_48(
+def x_evaluate_run__mutmut_62(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35442,7 +36985,7 @@ def x_evaluate_run__mutmut_48(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_49(
+def x_evaluate_run__mutmut_63(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35499,7 +37042,7 @@ def x_evaluate_run__mutmut_49(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_50(
+def x_evaluate_run__mutmut_64(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35556,7 +37099,7 @@ def x_evaluate_run__mutmut_50(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_51(
+def x_evaluate_run__mutmut_65(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35613,7 +37156,7 @@ def x_evaluate_run__mutmut_51(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_52(
+def x_evaluate_run__mutmut_66(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35670,7 +37213,7 @@ def x_evaluate_run__mutmut_52(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_53(
+def x_evaluate_run__mutmut_67(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35727,7 +37270,7 @@ def x_evaluate_run__mutmut_53(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_54(
+def x_evaluate_run__mutmut_68(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35785,7 +37328,7 @@ def x_evaluate_run__mutmut_54(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_55(
+def x_evaluate_run__mutmut_69(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35843,7 +37386,7 @@ def x_evaluate_run__mutmut_55(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_56(
+def x_evaluate_run__mutmut_70(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35901,7 +37444,7 @@ def x_evaluate_run__mutmut_56(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_57(
+def x_evaluate_run__mutmut_71(
     subject: str,
     run: str,
     data_dir: Path,
@@ -35959,7 +37502,7 @@ def x_evaluate_run__mutmut_57(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_58(
+def x_evaluate_run__mutmut_72(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36017,7 +37560,7 @@ def x_evaluate_run__mutmut_58(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_59(
+def x_evaluate_run__mutmut_73(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36075,7 +37618,7 @@ def x_evaluate_run__mutmut_59(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_60(
+def x_evaluate_run__mutmut_74(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36133,7 +37676,7 @@ def x_evaluate_run__mutmut_60(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_61(
+def x_evaluate_run__mutmut_75(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36191,7 +37734,7 @@ def x_evaluate_run__mutmut_61(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_62(
+def x_evaluate_run__mutmut_76(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36249,7 +37792,7 @@ def x_evaluate_run__mutmut_62(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_63(
+def x_evaluate_run__mutmut_77(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36307,7 +37850,7 @@ def x_evaluate_run__mutmut_63(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_64(
+def x_evaluate_run__mutmut_78(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36365,7 +37908,7 @@ def x_evaluate_run__mutmut_64(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_65(
+def x_evaluate_run__mutmut_79(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36423,7 +37966,7 @@ def x_evaluate_run__mutmut_65(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_66(
+def x_evaluate_run__mutmut_80(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36481,7 +38024,7 @@ def x_evaluate_run__mutmut_66(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_67(
+def x_evaluate_run__mutmut_81(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36539,7 +38082,7 @@ def x_evaluate_run__mutmut_67(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_68(
+def x_evaluate_run__mutmut_82(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36597,7 +38140,7 @@ def x_evaluate_run__mutmut_68(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_69(
+def x_evaluate_run__mutmut_83(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36655,7 +38198,7 @@ def x_evaluate_run__mutmut_69(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_70(
+def x_evaluate_run__mutmut_84(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36713,7 +38256,7 @@ def x_evaluate_run__mutmut_70(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_71(
+def x_evaluate_run__mutmut_85(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36771,7 +38314,7 @@ def x_evaluate_run__mutmut_71(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_72(
+def x_evaluate_run__mutmut_86(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36829,7 +38372,7 @@ def x_evaluate_run__mutmut_72(
 
 
 # Évalue un run donné et produit un rapport structuré
-def x_evaluate_run__mutmut_73(
+def x_evaluate_run__mutmut_87(
     subject: str,
     run: str,
     data_dir: Path,
@@ -36958,7 +38501,21 @@ x_evaluate_run__mutmut_mutants : ClassVar[MutantDict] = {
     'x_evaluate_run__mutmut_70': x_evaluate_run__mutmut_70, 
     'x_evaluate_run__mutmut_71': x_evaluate_run__mutmut_71, 
     'x_evaluate_run__mutmut_72': x_evaluate_run__mutmut_72, 
-    'x_evaluate_run__mutmut_73': x_evaluate_run__mutmut_73
+    'x_evaluate_run__mutmut_73': x_evaluate_run__mutmut_73, 
+    'x_evaluate_run__mutmut_74': x_evaluate_run__mutmut_74, 
+    'x_evaluate_run__mutmut_75': x_evaluate_run__mutmut_75, 
+    'x_evaluate_run__mutmut_76': x_evaluate_run__mutmut_76, 
+    'x_evaluate_run__mutmut_77': x_evaluate_run__mutmut_77, 
+    'x_evaluate_run__mutmut_78': x_evaluate_run__mutmut_78, 
+    'x_evaluate_run__mutmut_79': x_evaluate_run__mutmut_79, 
+    'x_evaluate_run__mutmut_80': x_evaluate_run__mutmut_80, 
+    'x_evaluate_run__mutmut_81': x_evaluate_run__mutmut_81, 
+    'x_evaluate_run__mutmut_82': x_evaluate_run__mutmut_82, 
+    'x_evaluate_run__mutmut_83': x_evaluate_run__mutmut_83, 
+    'x_evaluate_run__mutmut_84': x_evaluate_run__mutmut_84, 
+    'x_evaluate_run__mutmut_85': x_evaluate_run__mutmut_85, 
+    'x_evaluate_run__mutmut_86': x_evaluate_run__mutmut_86, 
+    'x_evaluate_run__mutmut_87': x_evaluate_run__mutmut_87
 }
 
 def evaluate_run(*args, **kwargs):

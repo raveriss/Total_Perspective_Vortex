@@ -197,6 +197,30 @@ def test_prediction_report(tmp_path):
     assert pytest.approx(report["global"], rel=0.01) == report["by_run"]["R02"]
 
 
+def test_build_report_tracks_confusion_and_reports_reference():
+    # Prépare un résultat simulé minimal pour l'agrégateur
+    reports = {
+        "confusion": [[5, 1], [2, 6]],
+        "details": {"note": "toy-evaluation"},
+    }
+    # Construit un dictionnaire identique à ce que renvoie evaluate_run
+    result = {
+        "accuracy": 0.625,
+        "run": "R77",
+        "subject": "S77",
+        "reports": reports,
+    }
+    # Construit le rapport structuré pour la CLI
+    report = predict_cli.build_report(result)
+    # Vérifie la propagation des accuracies dans les trois agrégations
+    assert report["by_run"] == {"R77": result["accuracy"]}
+    assert report["by_subject"] == {"S77": result["accuracy"]}
+    assert report["global"] == result["accuracy"]
+    # Vérifie que la confusion est bien exposée et partagée sans copie
+    assert report["confusion_matrix"] is reports["confusion"]
+    assert report["reports"] is reports
+
+
 # Vérifie que la CLI d'entraînement parsée atteint la sauvegarde attendue
 def test_training_cli_main_covers_parser_and_paths(tmp_path):
     # Fige la fréquence d'échantillonnage pour aligner les features FFT
@@ -362,7 +386,9 @@ def test_aggregate_accuracy_handles_missing_artifacts(tmp_path):
     # Vérifie qu'aucun run n'est détecté lorsque le dossier manque
     assert discovered == []
     # Calcule le rapport complet pour verrouiller le cas sans run
-    report = aggregate_cli.aggregate_accuracies(tmp_path / "data", missing_artifacts_dir)
+    report = aggregate_cli.aggregate_accuracies(
+        tmp_path / "data", missing_artifacts_dir
+    )
     # Vérifie que l'agrégation par run est vide sans artefact
     assert report["by_run"] == {}
     # Vérifie que l'agrégation par sujet est vide sans artefact
@@ -513,7 +539,9 @@ def test_aggregate_accuracy_parser_description_defaults_and_help_contract() -> N
     assert args.artifacts_dir == aggregate_cli.DEFAULT_ARTIFACTS_DIR
 
     # Récupère l'action associée à --data-dir pour vérifier default/help
-    data_action = next(action for action in parser._actions if action.dest == "data_dir")
+    data_action = next(
+        action for action in parser._actions if action.dest == "data_dir"
+    )
     # Verrouille le default de l'option pour tuer les mutations sur default
     assert data_action.default == aggregate_cli.DEFAULT_DATA_DIR
     # Verrouille le help de l'option pour tuer help=None ou help supprimé
@@ -649,6 +677,161 @@ def test_aggregate_scores_parser_and_missing_artifacts(tmp_path):
     assert report["subjects"] == []
     # Vérifie que l'accuracy globale retombe à zéro sans artefact
     assert report["global"]["accuracy"] == 0.0
+
+
+def test_score_run_applies_thresholds(monkeypatch, tmp_path):
+    """Valide les drapeaux meets_minimum/target sur accuracy contrôlée."""
+
+    # Capture les appels evaluate_run pour valider la propagation des chemins
+    calls: list[tuple[str, str, object, object]] = []
+    # Prépare deux accuracies sous seuil et au-dessus de la cible
+    accuracies = [0.5, 0.8]
+
+    # Déclare un stub evaluate_run pour renvoyer des accuracies maîtrisées
+    def fake_evaluate_run(subject: str, run: str, data_dir, artifacts_dir):
+        # Enregistre les paramètres pour vérifier l'ordonnancement
+        calls.append((subject, run, data_dir, artifacts_dir))
+        # Dépile l'accuracy suivante pour contrôler les drapeaux
+        return {"accuracy": accuracies.pop(0)}
+
+    # Remplace evaluate_run par un stub pour isoler _score_run du disque
+    monkeypatch.setattr(
+        aggregate_scores_cli.predict_cli, "evaluate_run", fake_evaluate_run
+    )
+    # Construit un répertoire de données temporaire pour passer à _score_run
+    data_dir = tmp_path / "data"
+    # Construit un répertoire d'artefacts temporaire pour passer à _score_run
+    artifacts_dir = tmp_path / "artifacts"
+    # Évalue un run avec une accuracy sous le seuil minimal attendu
+    below_entry = aggregate_scores_cli._score_run("S10", "R01", data_dir, artifacts_dir)
+    # Vérifie que l'accuracy propagée correspond à la valeur injectée
+    assert below_entry["accuracy"] == 0.5
+    # Vérifie que le drapeau minimum est désactivé sous le seuil requis
+    assert below_entry["meets_minimum"] is False
+    # Vérifie que le drapeau cible est désactivé sous la cible ambitieuse
+    assert below_entry["meets_target"] is False
+    # Évalue un second run avec une accuracy dépassant la cible
+    above_entry = aggregate_scores_cli._score_run("S10", "R02", data_dir, artifacts_dir)
+    # Vérifie que l'accuracy reflète la deuxième valeur injectée
+    assert above_entry["accuracy"] == 0.8
+    # Vérifie que le drapeau minimum se déclenche dès le seuil atteint
+    assert above_entry["meets_minimum"] is True
+    # Vérifie que le drapeau cible se déclenche dès la cible atteinte
+    assert above_entry["meets_target"] is True
+    # Vérifie que evaluate_run reçoit les deux appels avec les bons chemins
+    assert calls == [
+        ("S10", "R01", data_dir, artifacts_dir),
+        ("S10", "R02", data_dir, artifacts_dir),
+    ]
+
+
+def test_aggregate_scores_discover_runs_filters_invalid_entries(tmp_path):
+    # Construit un chemin inexistant pour simuler l'absence d'artefacts
+    missing_artifacts_dir = tmp_path / "artifacts_missing"
+    # Vérifie que la découverte retourne une liste vide quand rien n'existe
+    assert aggregate_scores_cli._discover_runs(missing_artifacts_dir) == []
+    # Construit le répertoire racine des artefacts temporaires
+    artifacts_dir = tmp_path / "artifacts"
+    # Assure la création du répertoire pour déposer plusieurs cas
+    artifacts_dir.mkdir()
+    # Ajoute un fichier parasite pour vérifier que l'exploration continue
+    stray_file = artifacts_dir / "README.txt"
+    # Écrit un contenu factice pour matérialiser le fichier à ignorer
+    stray_file.write_text("placeholder", encoding="utf-8")
+    # Construit un sujet sans modèle pour vérifier l'exclusion
+    subject_without_model = artifacts_dir / "S10"
+    # Construit un run dépourvu de modèle entraîné
+    run_without_model = subject_without_model / "R01"
+    # Crée l'arborescence du run sans déposer de modèle
+    run_without_model.mkdir(parents=True)
+    # Construit un sujet valide pour vérifier la détection positive
+    subject_with_model = artifacts_dir / "S11"
+    # Construit le run contenant un modèle sérialisé
+    run_with_model = subject_with_model / "R02"
+    # Crée l'arborescence du run qui sera considéré éligible
+    run_with_model.mkdir(parents=True)
+    # Dépose un modèle factice pour activer la sélection du run
+    (run_with_model / "model.joblib").write_text("stub", encoding="utf-8")
+    # Découvre les runs après avoir mélangé fichiers et dossiers
+    discovered_runs = aggregate_scores_cli._discover_runs(artifacts_dir)
+    # Vérifie que seul le run muni d'un modèle est retenu
+    assert discovered_runs == [("S11", "R02")]
+
+
+def test_aggregate_scores_aggregates_stubbed_runs(monkeypatch, tmp_path):
+    # Force la découverte de plusieurs runs répartis sur deux sujets
+    stubbed_runs = [("S10", "R01"), ("S10", "R02"), ("S11", "R01")]
+    monkeypatch.setattr(
+        aggregate_scores_cli, "_discover_runs", lambda artifacts_dir: stubbed_runs
+    )
+    # Prépare des accuracies distinctes pour valider les moyennes
+    accuracies = iter([0.4, 0.8, 0.6])
+
+    # Stub _score_run pour retourner les accuracies contrôlées
+    def fake_score_run(subject, run, data_dir, artifacts_dir):
+        accuracy = next(accuracies)
+        return {
+            "subject": subject,
+            "run": run,
+            "accuracy": accuracy,
+            "meets_minimum": accuracy >= aggregate_scores_cli.MINIMUM_ACCURACY,
+            "meets_target": accuracy >= aggregate_scores_cli.TARGET_ACCURACY,
+        }
+
+    monkeypatch.setattr(aggregate_scores_cli, "_score_run", fake_score_run)
+    # Exécute l'agrégation avec des chemins temporaires neutres
+    data_dir = tmp_path / "data"
+    artifacts_dir = tmp_path / "artifacts"
+    report = aggregate_scores_cli.aggregate_scores(data_dir, artifacts_dir)
+    # Vérifie que tous les runs stubés apparaissent dans le rapport
+    assert [(entry["subject"], entry["run"]) for entry in report["runs"]] == [
+        ("S10", "R01"),
+        ("S10", "R02"),
+        ("S11", "R01"),
+    ]
+    # Vérifie que les accuracies sont conservées dans l'ordre des runs
+    assert [entry["accuracy"] for entry in report["runs"]] == [
+        pytest.approx(0.4),
+        pytest.approx(0.8),
+        pytest.approx(0.6),
+    ]
+    # Vérifie les moyennes par sujet (S10: 0.6, S11: 0.6)
+    subject_means = {
+        entry["subject"]: entry["accuracy"] for entry in report["subjects"]
+    }
+    assert subject_means == {
+        "S10": pytest.approx(0.6),
+        "S11": pytest.approx(0.6),
+    }
+    # Vérifie que les drapeaux reflètent les seuils 0.60 / 0.75
+    assert all(entry["meets_minimum"] for entry in report["subjects"])
+    assert all(entry["meets_target"] is False for entry in report["subjects"])
+    # Vérifie la moyenne globale sur l'ensemble des runs
+    assert report["global"]["accuracy"] == pytest.approx(0.6)
+    assert report["global"]["meets_minimum"] is True
+    assert report["global"]["meets_target"] is False
+
+
+def test_aggregate_scores_returns_zero_when_no_stubbed_runs(monkeypatch, tmp_path):
+    # Force la découverte à renvoyer aucun run
+    monkeypatch.setattr(aggregate_scores_cli, "_discover_runs", lambda _: [])
+    # S'assure que _score_run n'est jamais invoqué dans ce scénario
+    monkeypatch.setattr(
+        aggregate_scores_cli,
+        "_score_run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("_score_run should not be called")
+        ),
+    )
+    # Exécute l'agrégation et vérifie le rapport vide
+    report = aggregate_scores_cli.aggregate_scores(
+        tmp_path / "data", tmp_path / "artifacts"
+    )
+    assert report["runs"] == []
+    assert report["subjects"] == []
+    assert report["global"]["accuracy"] == 0.0
+    assert report["global"]["meets_minimum"] is False
+    assert report["global"]["meets_target"] is False
 
 
 # Vérifie que la CLI principale sérialise les rapports CSV et JSON

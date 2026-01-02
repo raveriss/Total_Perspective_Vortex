@@ -10,6 +10,9 @@ from pathlib import Path
 # Importe numpy pour générer des données synthétiques
 import numpy as np
 
+# Importe pytest pour orchestrer les scénarios paramétrés
+import pytest
+
 # Importe le module train pour invoquer le main CLI sans ambiguïté
 from scripts import train
 
@@ -17,7 +20,13 @@ from scripts import train
 from scripts.predict import evaluate_run
 
 # Importe _get_git_commit pour couvrir les branches de repli git
-from scripts.train import TrainingRequest, _get_git_commit, run_training
+from scripts.train import (
+    MIN_CV_SPLITS,
+    TrainingRequest,
+    _get_git_commit,
+    _write_manifest,
+    run_training,
+)
 
 # Importe PipelineConfig pour aligner les paramètres du pipeline
 from tpv.pipeline import PipelineConfig
@@ -279,6 +288,103 @@ def test_run_training_aligns_cv_splits_with_min_class_count(tmp_path):
     assert len(manifest["scores"]["cv_scores"]) == minority_class_count
 
 
+def test_run_training_logs_skip_message_when_below_min_splits(
+    tmp_path, monkeypatch, capsys
+):
+    """Force un effectif insuffisant et capture le message de désactivation de la CV."""
+
+    # Prépare des features synthétiques en restant sous le seuil de splits requis
+    rng = np.random.default_rng(202)
+    X = rng.normal(size=((MIN_CV_SPLITS - 1) * 2, 2, 10))
+    # Prépare des labels équilibrés pour conserver la stratification
+    y = np.array([0] * (MIN_CV_SPLITS - 1) + [1] * (MIN_CV_SPLITS - 1))
+    # Injecte le jeu de données synthétique directement dans run_training
+    monkeypatch.setattr(train, "_load_data", lambda *_: (X, y))
+    # Construit la configuration minimaliste pour accélérer l'exécution
+    config = PipelineConfig(
+        sfreq=64.0,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+    )
+    # Construit la requête d'entraînement avec les chemins temporaires
+    request = TrainingRequest(
+        subject="S10",
+        run="R10",
+        pipeline_config=config,
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+    )
+
+    # Exécute l'entraînement et capture la sortie standard
+    result = run_training(request)
+    captured = capsys.readouterr().out
+
+    # Vérifie que la validation croisée est bien ignorée
+    assert result["cv_scores"].size == 0
+    # Vérifie que le message explicite est loggé pour l'utilisateur
+    assert "cross-val ignorée" in captured
+    # Vérifie que les manifestes reflètent l'absence de scores
+    manifest = json.loads(result["manifest_path"].read_text())
+    assert manifest["scores"]["cv_scores"] == []
+    assert manifest["scores"]["cv_mean"] is None
+
+
+def test_run_training_persists_artifacts_and_scores(tmp_path, monkeypatch):
+    """Valide la sauvegarde des artefacts et des scores lorsque la CV est active."""
+
+    # Prépare un jeu de données équilibré autorisant la validation croisée
+    rng = np.random.default_rng(303)
+    X = rng.normal(size=(MIN_CV_SPLITS * 2, 2, 12))
+    # Alterne les labels pour obtenir exactement MIN_CV_SPLITS observations par classe
+    y = np.array([0] * MIN_CV_SPLITS + [1] * MIN_CV_SPLITS)
+    # Injecte les données synthétiques directement dans run_training
+    monkeypatch.setattr(train, "_load_data", lambda *_: (X, y))
+    # Construit une configuration avec scaler pour vérifier la sérialisation dédiée
+    config = PipelineConfig(
+        sfreq=64.0,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+        scaler="standard",
+    )
+    # Construit la requête d'entraînement avec des chemins isolés
+    request = TrainingRequest(
+        subject="S11",
+        run="R11",
+        pipeline_config=config,
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+    )
+
+    # Exécute l'entraînement pour générer scores et artefacts
+    result = run_training(request)
+    # Calcule le répertoire attendu contenant les fichiers sauvegardés
+    target_dir = tmp_path / "artifacts" / request.subject / request.run
+
+    # Vérifie la présence et l'emplacement des artefacts principaux
+    assert result["model_path"] == target_dir / "model.joblib"
+    assert result["w_matrix_path"] == target_dir / "w_matrix.joblib"
+    assert result["scaler_path"] == target_dir / "scaler.joblib"
+    assert result["model_path"].exists()
+    assert result["w_matrix_path"].exists()
+    assert result["scaler_path"] is not None and result["scaler_path"].exists()
+
+    # Vérifie que la validation croisée a produit le nombre de splits attendu
+    assert result["cv_scores"].size == MIN_CV_SPLITS
+    assert all(0.0 <= score <= 1.0 for score in result["cv_scores"])
+
+    # Charge le manifeste pour vérifier la cohérence des chemins et des scores
+    manifest = json.loads(result["manifest_path"].read_text())
+    assert manifest["artifacts"]["model"] == str(result["model_path"])
+    assert manifest["artifacts"]["w_matrix"] == str(result["w_matrix_path"])
+    assert manifest["artifacts"]["scaler"] == str(result["scaler_path"])
+    assert len(manifest["scores"]["cv_scores"]) == MIN_CV_SPLITS
+    assert manifest["scores"]["cv_mean"] == pytest.approx(
+        float(np.mean(result["cv_scores"]))
+    )
+
+
 # Vérifie que _load_data reconstruit les .npy corrompus via l'EDF
 def test_load_data_rebuilds_after_corruption(tmp_path, monkeypatch):
     """Forcer la reconstruction quand np.load échoue sur un fichier corrompu."""
@@ -335,6 +441,137 @@ def test_load_data_rebuilds_after_corruption(tmp_path, monkeypatch):
     assert np.array_equal(y, rebuilt_y)
 
 
+# Vérifie que _load_data régénère pour toutes les variantes de fichiers invalides
+@pytest.mark.parametrize(
+    "scenario",
+    (
+        "missing_features",
+        "features_not_3d",
+        "labels_mismatch",
+    ),
+)
+def test_load_data_rebuilds_invalid_numpy_payloads(tmp_path, monkeypatch, scenario):
+    """Déclenche la reconstruction lorsque les .npy sont mal formés."""
+
+    # Prépare le sujet fictif pour isoler les chemins des échantillons
+    subject = "S088"
+    # Prépare le run fictif pour cibler un run moteur documenté
+    run = "R08"
+    # Construit le répertoire racine des données synthétiques
+    data_dir = tmp_path / "data"
+    # Construit le répertoire racine des données brutes attendu par la signature
+    raw_dir = tmp_path / "raw"
+    # Construit le dossier du sujet pour déposer les .npy temporaires
+    subject_dir = data_dir / subject
+    # Crée l'arborescence nécessaire pour simuler les fichiers
+    subject_dir.mkdir(parents=True)
+    # Prépare des features synthétiques pour alimenter la reconstruction
+    rebuilt_X = np.full((3, 2, 2), fill_value=7)
+    # Prépare des labels synthétiques alignés sur les features reconstruites
+    rebuilt_y = np.array([1, 0, 1])
+    # Initialise un traceur d'appels pour vérifier la reconstruction
+    calls: list[tuple[str, str]] = []
+
+    # Déclare un stub de reconstruction pour simuler l'EDF absent du test
+    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg):
+        # Archive les arguments reçus pour vérifier la propagation complète
+        calls.append((subject_arg, run_arg))
+        # Calcule le chemin des features reconstruites pour remplacer l'entrée
+        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
+        # Calcule le chemin des labels reconstruits pour réaligner les échantillons
+        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+        # Sauvegarde les features simulées pour annuler les fichiers invalides
+        np.save(features_path, rebuilt_X)
+        # Sauvegarde les labels simulés pour aligner la longueur avec X
+        np.save(labels_path, rebuilt_y)
+        # Retourne les chemins sauvegardés pour respecter le contrat attendu
+        return features_path, labels_path
+
+    # Injecte le stub pour suivre les reconstructions demandées
+    monkeypatch.setattr(train, "_build_npy_from_edf", fake_build_npy)
+
+    # Injecte des fichiers invalides selon le scénario ciblé
+    if scenario == "missing_features":
+        # Enregistre uniquement y pour simuler un X absent
+        np.save(subject_dir / f"{run}_y.npy", np.array([0, 1]))
+    elif scenario == "features_not_3d":
+        # Crée un X 2D pour déclencher la reconstruction sur la dimension attendue
+        np.save(subject_dir / f"{run}_X.npy", np.ones((2, 4)))
+        # Crée un y aligné sur le nombre d'échantillons de X 2D
+        np.save(subject_dir / f"{run}_y.npy", np.array([0, 1]))
+    elif scenario == "labels_mismatch":
+        # Crée un X 3D valide pour isoler le désalignement des labels
+        np.save(subject_dir / f"{run}_X.npy", np.ones((4, 2, 2)))
+        # Crée un y plus court pour déclencher la régénération
+        np.save(subject_dir / f"{run}_y.npy", np.array([0, 1, 1]))
+
+    # Charge les données, ce qui doit forcer la reconstruction simulée
+    X, y = train._load_data(subject, run, data_dir, raw_dir)
+
+    # Vérifie que la reconstruction a été invoquée exactement une fois
+    assert calls == [(subject, run)]
+    # Vérifie que les features chargées correspondent au fichier reconstruit
+    assert np.array_equal(X, rebuilt_X)
+    # Vérifie que les labels chargés correspondent au fichier reconstruit
+    assert np.array_equal(y, rebuilt_y)
+
+
+# Vérifie que corrupted_reason est journalisé lorsqu'un np.load échoue
+def test_load_data_logs_corrupted_reason(tmp_path, monkeypatch, capsys):
+    """Capture le log de reconstruction quand np.load lève ValueError."""
+
+    # Prépare le sujet factice pour isoler les chemins temporaires
+    subject = "S099"
+    # Prépare le run factice pour déclencher le code de reconstruction
+    run = "R07"
+    # Construit le répertoire racine des données synthétiques
+    data_dir = tmp_path / "data"
+    # Construit le répertoire racine des données brutes attendu par la signature
+    raw_dir = tmp_path / "raw"
+    # Construit le dossier sujet utilisé pour logguer la corruption
+    subject_dir = data_dir / subject
+    # Crée l'arborescence pour écrire les fichiers corrompus
+    subject_dir.mkdir(parents=True)
+    # Injecte une charge illisible pour provoquer un ValueError de np.load
+    (subject_dir / f"{run}_X.npy").write_text("broken payload")
+    # Écrit un y minimal pour permettre l'analyse du couple X/y
+    np.save(subject_dir / f"{run}_y.npy", np.array([0, 1]))
+    # Prépare des features reconstruites pour remplacer l'entrée corrompue
+    rebuilt_X = np.zeros((2, 2, 2))
+    # Prépare des labels reconstruits pour aligner les échantillons
+    rebuilt_y = np.array([1, 1])
+
+    # Déclare un stub pour simuler la reconstruction EDF pendant le test
+    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg):
+        # Construit le chemin des features reconstruites pour remplacer le X corrompu
+        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
+        # Construit le chemin des labels reconstruits pour aligner X et y
+        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+        # Sauvegarde les features reconstruites pour la suite du test
+        np.save(features_path, rebuilt_X)
+        # Sauvegarde les labels reconstruits pour permettre le chargement final
+        np.save(labels_path, rebuilt_y)
+        # Retourne les chemins sauvegardés pour respecter l'interface attendue
+        return features_path, labels_path
+
+    # Injecte le stub pour suivre la reconstruction forcée
+    monkeypatch.setattr(train, "_build_npy_from_edf", fake_build_npy)
+
+    # Charge les données pour déclencher la reconstruction et le log associé
+    X, y = train._load_data(subject, run, data_dir, raw_dir)
+    # Capture les sorties pour inspecter le message de corruption
+    captured = capsys.readouterr().out
+
+    # Vérifie que les features proviennent bien du fichier reconstruit
+    assert np.array_equal(X, rebuilt_X)
+    # Vérifie que les labels proviennent bien du fichier reconstruit
+    assert np.array_equal(y, rebuilt_y)
+    # Vérifie que le log mentionne explicitement la reconstruction forcée
+    assert "Chargement numpy impossible" in captured
+    # Vérifie que le log mentionne la régénération depuis l'EDF
+    assert "Régénération depuis l'EDF" in captured
+
+
 # Vérifie que _get_git_commit gère l'absence complète du dépôt
 def test_get_git_commit_returns_unknown_without_repo(tmp_path, monkeypatch):
     """Couvre les branches de secours lorsque .git n'existe pas."""
@@ -383,35 +620,143 @@ def test_get_git_commit_returns_unknown_with_empty_head(tmp_path, monkeypatch):
     assert _get_git_commit() == "unknown"
 
 
-# Vérifie que _get_git_commit retourne bien un hash dans un dépôt valide
-def test_get_git_commit_returns_hash_in_repo(monkeypatch):
-    """Couvre le chemin nominal lorsque HEAD pointe vers une ref valide."""
+# Construit un dépôt git factice pour tester les différentes branches HEAD
+def _setup_fake_git_repo(
+    root_dir: Path,
+    head_content: str,
+    ref_relative_path: str | None = None,
+    ref_hash: str | None = None,
+) -> Path:
+    """Crée un squelette .git minimal avec HEAD et éventuellement une ref."""
 
-    # Identifie la racine du dépôt git pour simuler un appel utilisateur
-    repo_root = Path(__file__).resolve().parent.parent
-    # Force l'exécution dans le dépôt réel pour lire le HEAD courant
+    # Crée l'arborescence .git pour accueillir HEAD et les refs
+    git_dir = root_dir / ".git"
+    git_dir.mkdir(parents=True)
+    # Écrit le contenu demandé dans le fichier HEAD
+    (git_dir / "HEAD").write_text(head_content)
+    # Lorsque la référence symbolique est fournie, écrit également la cible
+    if ref_relative_path and ref_hash:
+        ref_path = git_dir / ref_relative_path
+        ref_path.parent.mkdir(parents=True, exist_ok=True)
+        ref_path.write_text(ref_hash)
+    # Retourne le chemin racine pour faciliter le changement de cwd
+    return root_dir
+
+
+# Vérifie que _get_git_commit retourne bien un hash pour une ref symbolique valide
+def test_get_git_commit_returns_ref_hash_from_fake_repo(tmp_path, monkeypatch):
+    """Couvre le chemin nominal avec HEAD pointant vers une ref symbolique."""
+
+    # Définit un hash stable pour vérifier la résolution de la référence
+    branch_hash = "12345" * 8
+    # Construit un dépôt git minimal avec HEAD référant à refs/heads/main
+    repo_root = _setup_fake_git_repo(
+        tmp_path / "symbolic_repo",
+        "ref: refs/heads/main",
+        ref_relative_path="refs/heads/main",
+        ref_hash=branch_hash,
+    )
+
+    # Force l'exécution dans le dépôt factice pour lire le HEAD courant
     monkeypatch.chdir(repo_root)
     # Appelle la récupération du hash pour exercer la branche nominale
     commit = _get_git_commit()
-    # Vérifie que le hash est inconnu ou bien composé de caractères hexadécimaux
-    assert commit == "unknown" or all(
-        char in "0123456789abcdef" for char in commit.lower()
-    )
+    # Vérifie que le hash correspond exactement à la valeur attendue
+    assert commit == branch_hash
 
 
 # Garantit la couverture lorsque HEAD stocke directement un hash détaché
 def test_get_git_commit_returns_detached_hash(tmp_path, monkeypatch):
     """Couvre le cas HEAD contenant directement un hash détaché."""
 
-    # Prépare une arborescence .git artificielle pour simuler un HEAD isolé
-    git_dir = tmp_path / "detached" / ".git"
-    # Crée les dossiers .git pour écrire un fichier HEAD détaché
-    git_dir.mkdir(parents=True)
     # Construit un hash hexadécimal réaliste pour le scénario de test
     detached_hash = "abcde" * 8
-    # Écrit le hash dans HEAD pour activer la branche sans référence symbolique
-    (git_dir / "HEAD").write_text(detached_hash)
+    # Prépare un dépôt factice avec HEAD pointant directement sur un hash
+    repo_root = _setup_fake_git_repo(tmp_path / "detached", detached_hash)
     # Change le répertoire courant pour cibler le dépôt simulé
-    monkeypatch.chdir(git_dir.parent)
+    monkeypatch.chdir(repo_root)
     # Vérifie que _get_git_commit retourne exactement le hash détaché attendu
     assert _get_git_commit() == detached_hash
+
+
+# Vérifie que _write_manifest exporte correctement JSON et CSV avec hash git connu
+def test_write_manifest_exports_json_and_csv(tmp_path, monkeypatch):
+    """Valide le contenu du manifeste pour des scores et hyperparamètres connus."""
+
+    # Force un hash git stable pour valider la traçabilité
+    expected_commit = "deadbeef1234567890"
+    monkeypatch.setattr(train, "_get_git_commit", lambda: expected_commit)
+
+    # Prépare une configuration de pipeline simple pour l'export
+    config = PipelineConfig(
+        sfreq=100.0,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+        n_components=2,
+        classifier="lda",
+        scaler="standard",
+    )
+    # Construit la requête d'entraînement associée
+    request = TrainingRequest(
+        subject="S123",
+        run="R42",
+        pipeline_config=config,
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+    )
+
+    # Crée le répertoire cible pour héberger les artefacts du manifeste
+    target_dir = tmp_path / "artifacts" / request.subject / request.run
+    target_dir.mkdir(parents=True)
+
+    # Prépare des chemins d'artefacts factices pour alimenter le manifeste
+    artifacts = {
+        "model": target_dir / "model.joblib",
+        "scaler": target_dir / "scaler.joblib",
+        "w_matrix": target_dir / "w_matrix.joblib",
+    }
+    # Définit des scores de validation croisée stables
+    cv_scores = np.array([0.5, 0.5, 0.5])
+
+    # Génère les manifestes JSON et CSV
+    manifest_paths = _write_manifest(request, target_dir, cv_scores, artifacts)
+
+    # Charge le manifeste JSON pour inspecter son contenu
+    manifest = json.loads(manifest_paths["json"].read_text())
+    assert manifest["git_commit"] == expected_commit
+    assert manifest["dataset"]["subject"] == request.subject
+    assert manifest["dataset"]["run"] == request.run
+    assert manifest["dataset"]["data_dir"] == str(request.data_dir)
+    # Vérifie l'export des hyperparamètres sérialisés
+    assert manifest["hyperparams"]["classifier"] == "lda"
+    assert manifest["hyperparams"]["n_components"] == 2
+    assert manifest["hyperparams"]["sfreq"] == config.sfreq
+    # Vérifie la sérialisation des scores et de la moyenne
+    assert manifest["scores"]["cv_scores"] == cv_scores.tolist()
+    assert manifest["scores"]["cv_mean"] == pytest.approx(float(np.mean(cv_scores)))
+    # Vérifie la sérialisation des chemins d'artefacts
+    assert manifest["artifacts"]["model"] == str(artifacts["model"])
+    assert manifest["artifacts"]["scaler"] == str(artifacts["scaler"])
+    assert manifest["artifacts"]["w_matrix"] == str(artifacts["w_matrix"])
+
+    # Charge le manifeste CSV et vérifie l'unique ligne écrite
+    with manifest_paths["csv"].open() as handle:
+        csv_rows = list(csv.DictReader(handle))
+    assert len(csv_rows) == 1
+    csv_line = csv_rows[0]
+    assert csv_line["subject"] == request.subject
+    assert csv_line["run"] == request.run
+    assert csv_line["data_dir"] == str(request.data_dir)
+    assert csv_line["git_commit"] == expected_commit
+    # Vérifie la sérialisation des scores séparés par des points-virgules
+    assert csv_line["cv_scores"] == "0.5;0.5;0.5"
+    assert csv_line["cv_mean"] == str(float(np.mean(cv_scores)))
+    # Vérifie l'aplatissement des hyperparamètres en CSV
+    assert csv_line["sfreq"] == json.dumps(config.sfreq)
+    assert csv_line["feature_strategy"] == json.dumps(config.feature_strategy)
+    assert csv_line["normalize_features"] == json.dumps(config.normalize_features)
+    assert csv_line["dim_method"] == json.dumps(config.dim_method)
+    assert csv_line["n_components"] == json.dumps(config.n_components)
+    assert csv_line["classifier"] == json.dumps(config.classifier)
+    assert csv_line["scaler"] == json.dumps(config.scaler)

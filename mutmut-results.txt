@@ -1,252 +1,32 @@
-    scripts.fetch_physionet.x_retrieve_file__mutmut_8: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_10: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_12: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_16: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_17: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_22: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_24: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_37: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_38: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_41: survived
-    scripts.fetch_physionet.x_retrieve_file__mutmut_43: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_3: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_7: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_8: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_10: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_11: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_14: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_15: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_16: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_17: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_19: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_20: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_22: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_23: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_26: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_27: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_28: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_29: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_32: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_35: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_40: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_41: survived
-    scripts.fetch_physionet.x_parse_args__mutmut_42: survived
-    scripts.train.x_build_parser__mutmut_2: survived
-    scripts.train.x_build_parser__mutmut_3: survived
-    scripts.train.x_build_parser__mutmut_4: survived
-    scripts.train.x_build_parser__mutmut_5: survived
-    scripts.train.x_build_parser__mutmut_7: survived
-    scripts.train.x_build_parser__mutmut_9: survived
-    scripts.train.x_build_parser__mutmut_12: survived
-    scripts.train.x_build_parser__mutmut_13: survived
-    scripts.train.x_build_parser__mutmut_14: survived
-    scripts.train.x_build_parser__mutmut_16: survived
-    scripts.train.x_build_parser__mutmut_18: survived
-    scripts.train.x_build_parser__mutmut_21: survived
-    scripts.train.x_build_parser__mutmut_22: survived
-    scripts.train.x_build_parser__mutmut_23: survived
-    scripts.train.x_build_parser__mutmut_25: survived
-    scripts.train.x_build_parser__mutmut_27: survived
-    scripts.train.x_build_parser__mutmut_29: survived
-    scripts.train.x_build_parser__mutmut_31: survived
-    scripts.train.x_build_parser__mutmut_36: survived
-    scripts.train.x_build_parser__mutmut_37: survived
-    scripts.train.x_build_parser__mutmut_38: survived
-    scripts.train.x_build_parser__mutmut_39: survived
-    scripts.train.x_build_parser__mutmut_40: survived
-    scripts.train.x_build_parser__mutmut_41: survived
-    scripts.train.x_build_parser__mutmut_43: survived
-    scripts.train.x_build_parser__mutmut_44: survived
-    scripts.train.x_build_parser__mutmut_45: survived
-    scripts.train.x_build_parser__mutmut_46: survived
-    scripts.train.x_build_parser__mutmut_48: survived
-    scripts.train.x_build_parser__mutmut_49: survived
-    scripts.train.x_build_parser__mutmut_50: survived
-    scripts.train.x_build_parser__mutmut_52: survived
-    scripts.train.x_build_parser__mutmut_53: survived
-    scripts.train.x_build_parser__mutmut_54: survived
-    scripts.train.x_build_parser__mutmut_59: survived
-    scripts.train.x_build_parser__mutmut_60: survived
-    scripts.train.x_build_parser__mutmut_63: survived
-    scripts.train.x_build_parser__mutmut_64: survived
-    scripts.train.x_build_parser__mutmut_65: survived
-    scripts.train.x_build_parser__mutmut_66: survived
-    scripts.train.x_build_parser__mutmut_67: survived
-    scripts.train.x_build_parser__mutmut_69: survived
-    scripts.train.x_build_parser__mutmut_70: survived
-    scripts.train.x_build_parser__mutmut_71: survived
-    scripts.train.x_build_parser__mutmut_73: survived
-    scripts.train.x_build_parser__mutmut_74: survived
-    scripts.train.x_build_parser__mutmut_75: survived
-    scripts.train.x_build_parser__mutmut_80: survived
-    scripts.train.x_build_parser__mutmut_81: survived
-    scripts.train.x_build_parser__mutmut_82: survived
-    scripts.train.x_build_parser__mutmut_83: survived
-    scripts.train.x_build_parser__mutmut_84: survived
-    scripts.train.x_build_parser__mutmut_85: survived
-    scripts.train.x_build_parser__mutmut_86: survived
-    scripts.train.x_build_parser__mutmut_88: survived
-    scripts.train.x_build_parser__mutmut_89: survived
-    scripts.train.x_build_parser__mutmut_90: survived
-    scripts.train.x_build_parser__mutmut_92: survived
-    scripts.train.x_build_parser__mutmut_93: survived
-    scripts.train.x_build_parser__mutmut_94: survived
-    scripts.train.x_build_parser__mutmut_99: survived
-    scripts.train.x_build_parser__mutmut_100: survived
-    scripts.train.x_build_parser__mutmut_101: survived
-    scripts.train.x_build_parser__mutmut_102: survived
-    scripts.train.x_build_parser__mutmut_103: survived
-    scripts.train.x_build_parser__mutmut_104: survived
-    scripts.train.x_build_parser__mutmut_105: survived
-    scripts.train.x_build_parser__mutmut_108: survived
-    scripts.train.x_build_parser__mutmut_109: survived
-    scripts.train.x_build_parser__mutmut_112: survived
-    scripts.train.x_build_parser__mutmut_113: survived
-    scripts.train.x_build_parser__mutmut_116: survived
-    scripts.train.x_build_parser__mutmut_117: survived
-    scripts.train.x_build_parser__mutmut_118: survived
-    scripts.train.x_build_parser__mutmut_120: survived
-    scripts.train.x_build_parser__mutmut_121: survived
-    scripts.train.x_build_parser__mutmut_123: survived
-    scripts.train.x_build_parser__mutmut_124: survived
-    scripts.train.x_build_parser__mutmut_129: survived
-    scripts.train.x_build_parser__mutmut_130: survived
-    scripts.train.x_build_parser__mutmut_131: survived
-    scripts.train.x_build_parser__mutmut_134: survived
-    scripts.train.x_build_parser__mutmut_135: survived
-    scripts.train.x_build_parser__mutmut_138: survived
-    scripts.train.x_build_parser__mutmut_139: survived
-    scripts.train.x_build_parser__mutmut_142: survived
-    scripts.train.x_build_parser__mutmut_143: survived
-    scripts.train.x_build_parser__mutmut_144: survived
-    scripts.train.x_build_parser__mutmut_147: survived
-    scripts.train.x_build_parser__mutmut_148: survived
-    scripts.train.x_build_parser__mutmut_151: survived
-    scripts.train.x_build_parser__mutmut_152: survived
-    scripts.train.x_build_parser__mutmut_155: survived
-    scripts.train.x_build_parser__mutmut_156: survived
-    scripts.train.x_build_parser__mutmut_157: survived
-    scripts.train.x_build_parser__mutmut_159: survived
-    scripts.train.x_build_parser__mutmut_160: survived
-    scripts.train.x_build_parser__mutmut_161: survived
-    scripts.train.x_build_parser__mutmut_163: survived
-    scripts.train.x_build_parser__mutmut_164: survived
-    scripts.train.x_build_parser__mutmut_165: survived
-    scripts.train.x_build_parser__mutmut_168: survived
-    scripts.train.x_build_parser__mutmut_169: survived
-    scripts.train.x_build_parser__mutmut_170: survived
-    scripts.train.x_build_parser__mutmut_172: survived
-    scripts.train.x_build_parser__mutmut_173: survived
-    scripts.train.x_build_parser__mutmut_175: survived
-    scripts.train.x_build_parser__mutmut_176: survived
-    scripts.train.x_build_parser__mutmut_181: survived
-    scripts.train.x_build_parser__mutmut_182: survived
-    scripts.train.x_build_parser__mutmut_183: survived
-    scripts.train.x_build_parser__mutmut_185: survived
-    scripts.train.x_build_parser__mutmut_186: survived
-    scripts.train.x_build_parser__mutmut_188: survived
-    scripts.train.x_build_parser__mutmut_189: survived
-    scripts.train.x_build_parser__mutmut_194: survived
-    scripts.train.x_build_parser__mutmut_195: survived
-    scripts.train.x_build_parser__mutmut_196: survived
-    scripts.train.x_build_parser__mutmut_198: survived
-    scripts.train.x_build_parser__mutmut_199: survived
-    scripts.train.x_build_parser__mutmut_200: survived
-    scripts.train.x_build_parser__mutmut_202: survived
-    scripts.train.x_build_parser__mutmut_203: survived
-    scripts.train.x_build_parser__mutmut_204: survived
-    scripts.train.x_build_parser__mutmut_207: survived
-    scripts.train.x_build_parser__mutmut_208: survived
-    scripts.train.x_build_parser__mutmut_209: survived
     scripts.train.x__load_data__mutmut_8: survived
-    scripts.train.x__load_data__mutmut_10: survived
-    scripts.train.x__load_data__mutmut_11: survived
-    scripts.train.x__load_data__mutmut_16: survived
-    scripts.train.x__load_data__mutmut_18: survived
-    scripts.train.x__load_data__mutmut_23: survived
-    scripts.train.x__load_data__mutmut_25: survived
     scripts.train.x__load_data__mutmut_30: survived
     scripts.train.x__load_data__mutmut_31: survived
-    scripts.train.x__load_data__mutmut_38: survived
-    scripts.train.x__load_data__mutmut_39: survived
-    scripts.train.x__load_data__mutmut_40: survived
-    scripts.train.x__load_data__mutmut_41: survived
-    scripts.train.x__load_data__mutmut_42: survived
-    scripts.train.x__load_data__mutmut_47: survived
-    scripts.train.x__get_git_commit__mutmut_18: survived
-    scripts.train.x__get_git_commit__mutmut_19: survived
     scripts.train.x__get_git_commit__mutmut_20: survived
     scripts.train.x__get_git_commit__mutmut_23: survived
     scripts.train.x__get_git_commit__mutmut_24: survived
     scripts.train.x__get_git_commit__mutmut_26: survived
-    scripts.train.x__flatten_hyperparams__mutmut_2: survived
-    scripts.train.x__flatten_hyperparams__mutmut_3: survived
     scripts.train.x__flatten_hyperparams__mutmut_4: survived
-    scripts.train.x__flatten_hyperparams__mutmut_6: survived
-    scripts.train.x__flatten_hyperparams__mutmut_7: survived
-    scripts.train.x__write_manifest__mutmut_6: survived
-    scripts.train.x__write_manifest__mutmut_7: survived
-    scripts.train.x__write_manifest__mutmut_8: survived
-    scripts.train.x__write_manifest__mutmut_11: survived
-    scripts.train.x__write_manifest__mutmut_21: survived
-    scripts.train.x__write_manifest__mutmut_22: survived
-    scripts.train.x__write_manifest__mutmut_23: survived
-    scripts.train.x__write_manifest__mutmut_33: survived
-    scripts.train.x__write_manifest__mutmut_34: survived
-    scripts.train.x__write_manifest__mutmut_35: survived
-    scripts.train.x__write_manifest__mutmut_41: survived
-    scripts.train.x__write_manifest__mutmut_42: survived
     scripts.train.x__write_manifest__mutmut_55: survived
     scripts.train.x__write_manifest__mutmut_56: survived
     scripts.train.x__write_manifest__mutmut_58: survived
     scripts.train.x__write_manifest__mutmut_59: survived
     scripts.train.x__write_manifest__mutmut_60: survived
     scripts.train.x__write_manifest__mutmut_61: survived
-    scripts.train.x__write_manifest__mutmut_69: survived
-    scripts.train.x__write_manifest__mutmut_70: survived
-    scripts.train.x__write_manifest__mutmut_71: survived
-    scripts.train.x__write_manifest__mutmut_74: survived
-    scripts.train.x__write_manifest__mutmut_75: survived
-    scripts.train.x__write_manifest__mutmut_77: survived
-    scripts.train.x__write_manifest__mutmut_78: survived
-    scripts.train.x__write_manifest__mutmut_79: survived
-    scripts.train.x__write_manifest__mutmut_80: survived
     scripts.train.x__write_manifest__mutmut_81: survived
-    scripts.train.x__write_manifest__mutmut_82: survived
-    scripts.train.x__write_manifest__mutmut_83: survived
     scripts.train.x__write_manifest__mutmut_86: survived
     scripts.train.x__write_manifest__mutmut_87: survived
     scripts.train.x__write_manifest__mutmut_89: survived
     scripts.train.x__write_manifest__mutmut_91: survived
     scripts.train.x_run_training__mutmut_5: survived
-    scripts.train.x_run_training__mutmut_23: survived
-    scripts.train.x_run_training__mutmut_24: survived
     scripts.train.x_run_training__mutmut_25: survived
     scripts.train.x_run_training__mutmut_26: survived
     scripts.train.x_run_training__mutmut_27: survived
     scripts.train.x_run_training__mutmut_47: survived
     scripts.train.x_run_training__mutmut_49: survived
     scripts.train.x_run_training__mutmut_51: survived
-    scripts.train.x_run_training__mutmut_65: survived
     scripts.train.x_run_training__mutmut_66: survived
-    scripts.train.x_run_training__mutmut_71: survived
-    scripts.train.x_run_training__mutmut_72: survived
     scripts.train.x_run_training__mutmut_80: survived
-    scripts.train.x_run_training__mutmut_109: survived
-    scripts.train.x_run_training__mutmut_110: survived
-    scripts.train.x_main__mutmut_8: survived
-    scripts.train.x_main__mutmut_9: survived
-    scripts.train.x_main__mutmut_10: survived
-    scripts.train.x_main__mutmut_11: survived
-    scripts.train.x_main__mutmut_16: survived
-    scripts.train.x_main__mutmut_17: survived
-    scripts.train.x_main__mutmut_21: survived
-    scripts.train.x_main__mutmut_23: survived
-    scripts.train.x_main__mutmut_27: survived
     scripts.train.x_main__mutmut_28: survived
-    scripts.train.x_main__mutmut_29: survived
-    scripts.train.x_main__mutmut_30: survived
-    scripts.train.x_main__mutmut_31: survived
     scripts.train.x_main__mutmut_39: survived
     scripts.train.x_main__mutmut_45: survived
     scripts.train.x_main__mutmut_48: survived
@@ -277,125 +57,52 @@
     scripts.predict.x_build_parser__mutmut_21: survived
     scripts.predict.x_build_parser__mutmut_22: survived
     scripts.predict.x_build_parser__mutmut_23: survived
-    scripts.predict.x_build_parser__mutmut_25: survived
-    scripts.predict.x_build_parser__mutmut_26: survived
     scripts.predict.x_build_parser__mutmut_27: survived
-    scripts.predict.x_build_parser__mutmut_29: survived
-    scripts.predict.x_build_parser__mutmut_30: survived
     scripts.predict.x_build_parser__mutmut_31: survived
-    scripts.predict.x_build_parser__mutmut_33: survived
-    scripts.predict.x_build_parser__mutmut_34: survived
-    scripts.predict.x_build_parser__mutmut_35: survived
-    scripts.predict.x_build_parser__mutmut_36: survived
-    scripts.predict.x_build_parser__mutmut_37: survived
-    scripts.predict.x_build_parser__mutmut_38: survived
-    scripts.predict.x_build_parser__mutmut_39: survived
-    scripts.predict.x_build_parser__mutmut_40: survived
-    scripts.predict.x_build_parser__mutmut_41: survived
-    scripts.predict.x_build_parser__mutmut_42: survived
-    scripts.predict.x_build_parser__mutmut_43: survived
     scripts.predict.x_build_parser__mutmut_44: survived
     scripts.predict.x_build_parser__mutmut_45: survived
     scripts.predict.x_build_parser__mutmut_46: survived
-    scripts.predict.x_build_parser__mutmut_48: survived
-    scripts.predict.x_build_parser__mutmut_49: survived
     scripts.predict.x_build_parser__mutmut_50: survived
-    scripts.predict.x_build_parser__mutmut_52: survived
-    scripts.predict.x_build_parser__mutmut_53: survived
     scripts.predict.x_build_parser__mutmut_54: survived
-    scripts.predict.x_build_parser__mutmut_56: survived
-    scripts.predict.x_build_parser__mutmut_57: survived
-    scripts.predict.x_build_parser__mutmut_58: survived
-    scripts.predict.x_build_parser__mutmut_59: survived
-    scripts.predict.x_build_parser__mutmut_60: survived
-    scripts.predict.x_build_parser__mutmut_61: survived
-    scripts.predict.x_build_parser__mutmut_62: survived
-    scripts.predict.x_build_parser__mutmut_63: survived
-    scripts.predict.x_build_parser__mutmut_64: survived
     scripts.predict.x_build_parser__mutmut_65: survived
     scripts.predict.x_build_parser__mutmut_66: survived
     scripts.predict.x_build_parser__mutmut_67: survived
-    scripts.predict.x_build_parser__mutmut_69: survived
-    scripts.predict.x_build_parser__mutmut_70: survived
     scripts.predict.x_build_parser__mutmut_71: survived
-    scripts.predict.x_build_parser__mutmut_73: survived
-    scripts.predict.x_build_parser__mutmut_74: survived
     scripts.predict.x_build_parser__mutmut_75: survived
-    scripts.predict.x_build_parser__mutmut_77: survived
-    scripts.predict.x_build_parser__mutmut_78: survived
-    scripts.predict.x_build_parser__mutmut_79: survived
-    scripts.predict.x_build_parser__mutmut_80: survived
-    scripts.predict.x_build_parser__mutmut_81: survived
-    scripts.predict.x_build_parser__mutmut_82: survived
-    scripts.predict.x_build_parser__mutmut_83: survived
     scripts.predict.x_build_parser__mutmut_84: survived
     scripts.predict.x_build_parser__mutmut_85: survived
     scripts.predict.x_build_parser__mutmut_86: survived
-    scripts.predict.x_build_parser__mutmut_88: survived
-    scripts.predict.x_build_parser__mutmut_89: survived
     scripts.predict.x_build_parser__mutmut_90: survived
-    scripts.predict.x_build_parser__mutmut_92: survived
-    scripts.predict.x_build_parser__mutmut_93: survived
     scripts.predict.x_build_parser__mutmut_94: survived
-    scripts.predict.x_build_parser__mutmut_96: survived
-    scripts.predict.x_build_parser__mutmut_97: survived
-    scripts.predict.x_build_parser__mutmut_98: survived
-    scripts.predict.x_build_parser__mutmut_99: survived
-    scripts.predict.x_build_parser__mutmut_100: survived
-    scripts.predict.x_build_parser__mutmut_101: survived
-    scripts.predict.x_build_parser__mutmut_102: survived
     scripts.predict.x_build_parser__mutmut_103: survived
     scripts.predict.x_build_parser__mutmut_104: survived
     scripts.predict.x_build_parser__mutmut_105: survived
-    scripts.predict.x_build_parser__mutmut_107: survived
-    scripts.predict.x_build_parser__mutmut_108: survived
     scripts.predict.x_build_parser__mutmut_109: survived
-    scripts.predict.x_build_parser__mutmut_111: survived
-    scripts.predict.x_build_parser__mutmut_112: survived
     scripts.predict.x_build_parser__mutmut_113: survived
-    scripts.predict.x_build_parser__mutmut_115: survived
     scripts.predict.x_build_parser__mutmut_116: survived
     scripts.predict.x_build_parser__mutmut_117: survived
     scripts.predict.x_build_parser__mutmut_118: survived
-    scripts.predict.x_build_parser__mutmut_120: survived
     scripts.predict.x_build_parser__mutmut_121: survived
-    scripts.predict.x_build_parser__mutmut_123: survived
     scripts.predict.x_build_parser__mutmut_124: survived
-    scripts.predict.x_build_parser__mutmut_125: survived
-    scripts.predict.x_build_parser__mutmut_126: survived
     scripts.predict.x_build_parser__mutmut_129: survived
     scripts.predict.x_build_parser__mutmut_130: survived
     scripts.predict.x_build_parser__mutmut_131: survived
-    scripts.predict.x_build_parser__mutmut_133: survived
-    scripts.predict.x_build_parser__mutmut_134: survived
     scripts.predict.x_build_parser__mutmut_135: survived
-    scripts.predict.x_build_parser__mutmut_137: survived
-    scripts.predict.x_build_parser__mutmut_138: survived
     scripts.predict.x_build_parser__mutmut_139: survived
-    scripts.predict.x_build_parser__mutmut_141: survived
-    scripts.predict.x_build_parser__mutmut_142: survived
     scripts.predict.x_build_parser__mutmut_143: survived
     scripts.predict.x_build_parser__mutmut_144: survived
     scripts.predict.x_build_parser__mutmut_145: survived
-    scripts.predict.x_build_parser__mutmut_148: survived
     scripts.predict.x_build_parser__mutmut_149: survived
-    scripts.predict.x_build_parser__mutmut_152: survived
     scripts.predict.x_build_parser__mutmut_153: survived
     scripts.predict.x_build_parser__mutmut_156: survived
     scripts.predict.x_build_parser__mutmut_157: survived
     scripts.predict.x_build_parser__mutmut_158: survived
-    scripts.predict.x_build_parser__mutmut_161: survived
     scripts.predict.x_build_parser__mutmut_162: survived
-    scripts.predict.x_build_parser__mutmut_165: survived
     scripts.predict.x_build_parser__mutmut_166: survived
     scripts.predict.x_build_parser__mutmut_169: survived
     scripts.predict.x_build_parser__mutmut_170: survived
     scripts.predict.x_build_parser__mutmut_171: survived
-    scripts.predict.x_build_parser__mutmut_173: survived
-    scripts.predict.x_build_parser__mutmut_174: survived
     scripts.predict.x_build_parser__mutmut_175: survived
-    scripts.predict.x_build_parser__mutmut_177: survived
-    scripts.predict.x_build_parser__mutmut_178: survived
     scripts.predict.x_build_parser__mutmut_179: survived
     scripts.predict.x_build_parser__mutmut_182: survived
     scripts.predict.x_build_parser__mutmut_183: survived
@@ -406,74 +113,48 @@
     scripts.predict.x__load_data__mutmut_17: survived
     scripts.predict.x__load_data__mutmut_22: survived
     scripts.predict.x__load_data__mutmut_24: survived
-    scripts.predict.x__write_reports__mutmut_7: survived
-    scripts.predict.x__write_reports__mutmut_10: survived
-    scripts.predict.x__write_reports__mutmut_14: survived
-    scripts.predict.x__write_reports__mutmut_18: survived
-    scripts.predict.x__write_reports__mutmut_20: survived
-    scripts.predict.x__write_reports__mutmut_21: survived
-    scripts.predict.x__write_reports__mutmut_23: survived
+    scripts.predict.x__load_data__mutmut_39: survived
+    scripts.predict.x__write_reports__mutmut_8: survived
+    scripts.predict.x__write_reports__mutmut_11: survived
     scripts.predict.x__write_reports__mutmut_24: survived
-    scripts.predict.x__write_reports__mutmut_27: survived
+    scripts.predict.x__write_reports__mutmut_25: survived
     scripts.predict.x__write_reports__mutmut_28: survived
-    scripts.predict.x__write_reports__mutmut_31: survived
-    scripts.predict.x__write_reports__mutmut_32: survived
-    scripts.predict.x__write_reports__mutmut_41: survived
+    scripts.predict.x__write_reports__mutmut_29: survived
     scripts.predict.x__write_reports__mutmut_42: survived
-    scripts.predict.x__write_reports__mutmut_45: survived
+    scripts.predict.x__write_reports__mutmut_43: survived
     scripts.predict.x__write_reports__mutmut_46: survived
-    scripts.predict.x__write_reports__mutmut_48: survived
+    scripts.predict.x__write_reports__mutmut_47: survived
     scripts.predict.x__write_reports__mutmut_49: survived
     scripts.predict.x__write_reports__mutmut_50: survived
     scripts.predict.x__write_reports__mutmut_51: survived
-    scripts.predict.x__write_reports__mutmut_54: survived
+    scripts.predict.x__write_reports__mutmut_52: survived
     scripts.predict.x__write_reports__mutmut_55: survived
-    scripts.predict.x__write_reports__mutmut_57: survived
-    scripts.predict.x__write_reports__mutmut_59: survived
-    scripts.predict.x__write_reports__mutmut_75: survived
-    scripts.predict.x__write_reports__mutmut_77: survived
-    scripts.predict.x__write_reports__mutmut_90: survived
+    scripts.predict.x__write_reports__mutmut_56: survived
+    scripts.predict.x__write_reports__mutmut_58: survived
+    scripts.predict.x__write_reports__mutmut_60: survived
     scripts.predict.x__write_reports__mutmut_91: survived
-    scripts.predict.x__write_reports__mutmut_93: survived
-    scripts.predict.x__write_reports__mutmut_95: survived
-    scripts.predict.x__write_reports__mutmut_118: survived
-    scripts.predict.x__write_reports__mutmut_121: survived
+    scripts.predict.x__write_reports__mutmut_92: survived
+    scripts.predict.x__write_reports__mutmut_94: survived
+    scripts.predict.x__write_reports__mutmut_96: survived
+    scripts.predict.x__write_reports__mutmut_119: survived
     scripts.predict.x__write_reports__mutmut_122: survived
-    scripts.predict.x__write_reports__mutmut_148: survived
+    scripts.predict.x__write_reports__mutmut_123: survived
     scripts.predict.x__write_reports__mutmut_149: survived
+    scripts.predict.x__write_reports__mutmut_150: survived
     scripts.predict.x_evaluate_run__mutmut_5: survived
-    scripts.predict.x_evaluate_run__mutmut_13: survived
-    scripts.predict.x_evaluate_run__mutmut_15: survived
-    scripts.predict.x_evaluate_run__mutmut_17: survived
     scripts.predict.x_evaluate_run__mutmut_27: survived
     scripts.predict.x_evaluate_run__mutmut_28: survived
     scripts.predict.x_evaluate_run__mutmut_29: survived
-    scripts.predict.x_evaluate_run__mutmut_41: survived
-    scripts.predict.x_evaluate_run__mutmut_48: survived
-    scripts.predict.x_evaluate_run__mutmut_64: survived
-    scripts.predict.x_evaluate_run__mutmut_65: survived
-    scripts.predict.x_evaluate_run__mutmut_70: survived
-    scripts.predict.x_evaluate_run__mutmut_71: survived
-    scripts.predict.x_build_report__mutmut_11: survived
-    scripts.predict.x_build_report__mutmut_22: survived
-    scripts.predict.x_build_report__mutmut_23: survived
-    scripts.predict.x_build_report__mutmut_24: survived
-    scripts.predict.x_build_report__mutmut_25: survived
-    scripts.predict.x_main__mutmut_9: survived
-    scripts.predict.x_main__mutmut_13: survived
-    scripts.predict.x_main__mutmut_14: survived
-    scripts.predict.x_main__mutmut_15: survived
-    scripts.predict.x_main__mutmut_23: survived
-    scripts.predict.x_main__mutmut_24: survived
-    scripts.predict.x_main__mutmut_25: survived
+    scripts.predict.x_evaluate_run__mutmut_30: survived
+    scripts.predict.x_evaluate_run__mutmut_31: survived
+    scripts.predict.x_evaluate_run__mutmut_32: survived
+    scripts.predict.x_evaluate_run__mutmut_33: survived
+    scripts.predict.x_evaluate_run__mutmut_62: survived
+    scripts.predict.x_evaluate_run__mutmut_84: survived
+    scripts.predict.x_evaluate_run__mutmut_85: survived
     scripts.predict.x_main__mutmut_29: survived
     scripts.predict.x_main__mutmut_32: survived
     scripts.predict.x_main__mutmut_33: survived
-    scripts.predict.x_main__mutmut_34: survived
-    scripts.predict.x_main__mutmut_35: survived
-    scripts.predict.x_main__mutmut_36: survived
-    scripts.predict.x_main__mutmut_37: survived
-    scripts.predict.x_main__mutmut_40: survived
     scripts.benchmark.x_run_synthetic_benchmark__mutmut_1: no tests
     scripts.benchmark.x_run_synthetic_benchmark__mutmut_2: no tests
     scripts.aggregate_scores.x_build_parser__mutmut_2: survived
@@ -502,10 +183,8 @@
     scripts.aggregate_scores.x_build_parser__mutmut_53: survived
     scripts.aggregate_scores.x_build_parser__mutmut_54: survived
     scripts.aggregate_scores.x_build_parser__mutmut_55: survived
-    scripts.aggregate_scores.x__discover_runs__mutmut_5: survived
     scripts.aggregate_scores.x__score_run__mutmut_22: survived
     scripts.aggregate_scores.x__score_run__mutmut_27: survived
-    scripts.aggregate_scores.x_aggregate_scores__mutmut_31: survived
     scripts.aggregate_scores.x_aggregate_scores__mutmut_36: survived
     scripts.aggregate_scores.x_aggregate_scores__mutmut_49: survived
     scripts.aggregate_scores.x_aggregate_scores__mutmut_52: survived
@@ -536,151 +215,3 @@
     scripts.aggregate_scores.x_write_json__mutmut_17: survived
     scripts.aggregate_scores.x_write_json__mutmut_20: survived
     scripts.aggregate_scores.x_write_json__mutmut_21: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_2: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_3: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_4: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_5: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_7: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_9: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_12: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_13: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_14: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_16: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_18: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_21: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_22: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_23: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_26: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_29: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_34: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_35: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_36: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_39: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_42: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_47: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_48: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_49: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_52: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_55: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_59: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_60: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_61: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_63: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_65: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_67: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_69: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_72: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_73: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_78: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_79: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_80: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_83: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_85: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_86: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_89: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_91: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_92: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_98: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_99: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_100: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_101: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_102: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_103: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_104: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_106: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_108: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_110: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_112: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_116: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_117: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_118: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_120: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_122: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_123: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_126: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_127: survived
-    scripts.visualize_raw_filtered.x_build_parser__mutmut_128: survived
-    scripts.visualize_raw_filtered.x_build_recording_path__mutmut_3: survived
-    scripts.visualize_raw_filtered.x_load_recording__mutmut_4: survived
-    scripts.visualize_raw_filtered.x_pick_channels__mutmut_2: survived
-    scripts.visualize_raw_filtered.x_pick_channels__mutmut_4: survived
-    scripts.visualize_raw_filtered.x_pick_channels__mutmut_6: survived
-    scripts.visualize_raw_filtered.x_pick_channels__mutmut_8: survived
-    scripts.visualize_raw_filtered.x_filter_recording__mutmut_3: survived
-    scripts.visualize_raw_filtered.x_filter_recording__mutmut_4: survived
-    scripts.visualize_raw_filtered.x_filter_recording__mutmut_5: survived
-    scripts.visualize_raw_filtered.x_filter_recording__mutmut_7: survived
-    scripts.visualize_raw_filtered.x_filter_recording__mutmut_8: survived
-    scripts.visualize_raw_filtered.x_filter_recording__mutmut_9: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_1: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_3: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_5: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_13: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_14: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_16: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_17: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_18: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_19: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_21: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_22: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_23: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_24: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_25: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_26: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_27: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_28: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_29: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_33: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_34: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_35: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_36: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_37: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_38: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_39: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_42: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_43: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_44: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_45: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_46: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_47: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_48: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_49: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_50: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_51: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_55: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_56: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_57: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_58: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_60: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_64: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_66: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_67: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_68: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_69: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_71: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_72: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_73: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_74: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_76: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_77: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_78: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_80: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_82: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_84: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_88: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_89: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_91: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_92: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_93: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_94: survived
-    scripts.visualize_raw_filtered.x_plot_raw_vs_filtered__mutmut_96: survived
-    scripts.visualize_raw_filtered.x_visualize_run__mutmut_1: survived
-    scripts.visualize_raw_filtered.x_visualize_run__mutmut_4: survived
-    scripts.visualize_raw_filtered.x_visualize_run__mutmut_9: survived
-    scripts.visualize_raw_filtered.x_visualize_run__mutmut_12: survived
-    scripts.visualize_raw_filtered.x_visualize_run__mutmut_17: survived
-    scripts.visualize_raw_filtered.x_visualize_run__mutmut_18: survived
-    scripts.visualize_raw_filtered.x_visualize_run__mutmut_19: survived
-    scripts.visualize_raw_filtered.x_visualize_run__mutmut_30: survived
-    scripts.visualize_raw_filtered.x_visualize_run__mutmut_31: survived
-    scripts.visualize_raw_filtered.x_main__mutmut_31: survived

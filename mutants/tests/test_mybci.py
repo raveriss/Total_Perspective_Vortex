@@ -221,7 +221,6 @@ def test_main_defaults_to_sys_argv_and_routes_train(monkeypatch):
     assert called["args"][1].run == "R02"
 
 
-
 def test_parse_args_returns_expected_namespace():
     args = mybci.parse_args(["S001", "R01", "train"])
 
@@ -577,6 +576,7 @@ def test_build_parser_defines_realtime_defaults_and_help():
     # Vérifie que l'option string raw-dir conserve sa casse et sa forme
     assert raw_dir_action.option_strings == ["--raw-dir"]
 
+
 def test_build_parser_help_messages():
     parser = mybci.build_parser()
 
@@ -590,6 +590,7 @@ def test_build_parser_help_messages():
     assert "Désactive la normalisation des features" in help_text
     assert "--raw-dir" in help_text
     assert "Répertoire racine contenant les fichiers EDF bruts" in help_text
+
 
 def test_build_parser_help_fields_are_exact():
     parser = mybci.build_parser()
@@ -622,6 +623,7 @@ def test_parse_args_defaults_match_parser_configuration():
     assert "n_components" not in vars(args)
     assert args.no_normalize_features is False
     assert args.raw_dir == "data"
+
 
 def test_parse_args_rejects_unknown_optional_choices(capsys):
     with pytest.raises(SystemExit) as excinfo:

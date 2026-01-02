@@ -1,11 +1,17 @@
 # Construit des espaces de noms similaires à argparse pour main()
 import argparse
 
+# Expose Final pour typer les constantes de test
+from typing import Final
+
 # Stabilise les valeurs de hash pour les vérifications d'intégrité
 import hashlib
 
 # Produit rapidement un manifeste JSON pour le test
 import json
+
+# Gère les expressions régulières pour verrouiller les sorties CLI
+import re
 
 # Exécute un module comme si le script était lancé depuis le CLI
 import runpy
@@ -25,6 +31,7 @@ import pytest
 # Importe le module utilitaire pour l'accès direct aux primitives de téléchargement
 from scripts import fetch_physionet
 
+REMOTE_PAYLOAD: Final[bytes] = b"payload"
 
 # Vérifie que le script échoue clairement quand les fichiers sont absents
 def test_fetch_physionet_fails_without_files(tmp_path: Path) -> None:
@@ -155,9 +162,31 @@ def test_retrieve_file_copies_local_source(tmp_path: Path) -> None:
     assert retrieved.read_text(encoding="utf-8") == "signal"
 
 
+def test_retrieve_file_copies_local_file_path_with_hash(tmp_path: Path) -> None:
+    # Crée un fichier source unique pour vérifier la copie via un chemin de fichier
+    source_file = tmp_path / "S001_run.edf"
+    # Écrit un contenu distinctif pour vérifier l'intégrité post-copie
+    payload = b"signal-file"
+    source_file.write_bytes(payload)
+    # Prépare une destination explicite pointant vers un fichier et non un dossier
+    destination_root = tmp_path / "destination.edf"
+    # Déclare une entrée sans chemin relatif puisque source_root cible déjà le fichier
+    entry = {"path": ""}
+    # Exécute la récupération en mode copie locale depuis un chemin de fichier direct
+    retrieved = fetch_physionet.retrieve_file(str(source_file), entry, destination_root)
+    # Vérifie que le fichier copié existe bien à l'emplacement attendu
+    assert retrieved.exists()
+    # Confirme que la copie conserve exactement le même hash SHA-256 que la source
+    assert fetch_physionet.compute_sha256(retrieved) == fetch_physionet.compute_sha256(
+        source_file
+    )
+
+
 # Vérifie que les erreurs réseau sont remontées comme ConnectionError
-def test_retrieve_file_propagates_network_failure(monkeypatch, tmp_path: Path) -> None:
-    # Paramètre une destination valide pour couvrir la branche distante
+@pytest.mark.parametrize("source_root", ["http://example.com", "https://example.com"])
+def test_retrieve_file_propagates_network_failure(
+    source_root: str, monkeypatch, tmp_path: Path
+) -> None:    # Paramètre une destination valide pour couvrir la branche distante
     destination_root = tmp_path / "destination"
     # Spécifie une entrée minimale pour déclencher le téléchargement
     entry = {"path": "S001/run.edf"}
@@ -175,7 +204,7 @@ def test_retrieve_file_propagates_network_failure(monkeypatch, tmp_path: Path) -
     )
     # Vérifie que l'erreur réseau se traduit en ConnectionError explicite
     with pytest.raises(ConnectionError) as error:
-        fetch_physionet.retrieve_file("https://example.com", entry, destination_root)
+        fetch_physionet.retrieve_file(source_root, entry, destination_root)
     # Vérifie que le message conserve le préfixe d'erreur attendu
     assert "téléchargement impossible" in str(error.value)
 
@@ -253,7 +282,9 @@ def test_load_manifest_opens_manifest_in_text_mode_with_utf8(
     assert recorded["kwargs"] == {"encoding": "utf-8"}
 
 
-def test_load_manifest_defaults_files_to_empty_list_when_missing(tmp_path: Path) -> None:
+def test_load_manifest_defaults_files_to_empty_list_when_missing(
+    tmp_path: Path,
+) -> None:
     # Crée un manifeste valide sans clé "files" pour exercer le défaut attendu
     manifest_path = tmp_path / "manifest.json"
     # Écrit un dictionnaire JSON vide pour simuler un manifeste minimal
@@ -316,12 +347,17 @@ def test_compute_sha256_matches_expected(monkeypatch, tmp_path: Path) -> None:
             return None
 
     # Redirige l'ouverture de fichier vers le flux instrumenté
-    monkeypatch.setattr(Path, "open", lambda *_: SafeHandle())    # Vérifie que la fonction retourne exactement le hash attendu
+    monkeypatch.setattr(
+        Path, "open", lambda *_: SafeHandle()
+    )  # Vérifie que la fonction retourne exactement le hash attendu
     assert fetch_physionet.compute_sha256(file_path) == expected
 
 
 # Bloque les schémas non HTTP pour les téléchargements distants
-def test_retrieve_file_rejects_unsupported_scheme(monkeypatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("forbidden_scheme", ["ftp", "file"])
+def test_retrieve_file_rejects_unsupported_scheme(
+    forbidden_scheme: str, monkeypatch, tmp_path: Path
+) -> None:
     # Définit un dossier de destination pour la copie simulée
     destination_root = tmp_path / "destination"
     # Spécifie l'entrée de manifeste minimale pour reproduire la branche distante
@@ -330,30 +366,45 @@ def test_retrieve_file_rejects_unsupported_scheme(monkeypatch, tmp_path: Path) -
     # Construit un objet minimal imitant le résultat de urlparse
     class Parsed:
         # Expose un schéma interdit pour forcer la ValueError
-        scheme = "ftp"
+        scheme = forbidden_scheme
 
     # Substitue urlparse pour renvoyer un schéma non autorisé malgré un préfixe HTTP
     monkeypatch.setattr(fetch_physionet.urllib.parse, "urlparse", lambda _: Parsed())
     # Vérifie que les schémas non pris en charge déclenchent une ValueError
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as error:
         fetch_physionet.retrieve_file("https://example.com", entry, destination_root)
+    # Verrouille le message pour tuer ValueError(None)
+    assert (
+        str(error.value)
+        == f"{fetch_physionet.ERROR_PREFIX} schéma URL interdit: {forbidden_scheme}"
+    )
 
 
 # Télécharge un fichier distant via un flux mémoire contrôlé
-def test_retrieve_file_downloads_remote_success(monkeypatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("source_root", "expected_url"),
+    [
+        ("https://example.com", "https://example.com/S001/run.edf"),
+        ("https://example.com/", "https://example.com/S001/run.edf"),
+    ],
+)
+def test_retrieve_file_downloads_remote_success(
+    source_root: str, expected_url: str, monkeypatch, tmp_path: Path
+) -> None:
     # Prépare le répertoire cible pour stocker le fichier simulé
     destination_root = tmp_path / "destination"
     # Déclare une entrée de manifeste cohérente avec le chemin attendu
     entry = {"path": "S001/run.edf"}
 
-    # Construit un flux binaire imitant la réponse HTTP
-    fake_stream = BytesIO(b"payload")
+    # Archive l'URL réellement ouverte pour tuer opener.open(None)
+    opened: list[object] = []
 
     # Définit un faux opener qui renvoie le flux préparé
     class FakeOpener:
         # Retourne le flux mémoire pour simuler urlopen
-        def open(self, *_: object, **__: object) -> BytesIO:
-            return fake_stream
+        def open(self, url: object, *_: object, **__: object) -> BytesIO:
+            opened.append(url)
+            return BytesIO(REMOTE_PAYLOAD)
 
     # Injecte le faux opener pour contrôler la branche de téléchargement
     monkeypatch.setattr(
@@ -361,12 +412,47 @@ def test_retrieve_file_downloads_remote_success(monkeypatch, tmp_path: Path) -> 
     )
     # Vérifie que le téléchargement écrit correctement le contenu sur disque
     retrieved = fetch_physionet.retrieve_file(
-        "https://example.com", entry, destination_root
+        source_root, entry, destination_root
     )
+    # Verrouille l'URL exacte pour tuer rstrip(None) et open(None)
+    assert opened == [expected_url]
     # Contrôle que le chemin retourné correspond à la destination attendue
     assert retrieved == destination_root / "S001" / "run.edf"
     # Confirme que le contenu copié provient bien du flux simulé
-    assert retrieved.read_bytes() == b"payload"
+    assert retrieved.read_bytes() == REMOTE_PAYLOAD
+
+
+def test_retrieve_file_preserves_non_slash_suffix_in_source_root(
+    monkeypatch, tmp_path: Path
+) -> None:
+    # Force une URL avec suffixe non '/' pour tuer rstrip('XX/XX')
+    source_root = "https://example.com/X"
+    # Verrouille l'URL attendue avec le suffixe conservé
+    expected_url = "https://example.com/X/S001/run.edf"
+    # Prépare le répertoire cible pour stocker le fichier simulé
+    destination_root = tmp_path / "destination"
+    # Déclare une entrée de manifeste cohérente avec le chemin attendu
+    entry = {"path": "S001/run.edf"}
+    # Archive l'URL réellement ouverte
+    opened: list[object] = []
+
+    # Définit un faux opener qui renvoie un flux déterministe
+    class FakeOpener:
+        # Enregistre l'URL appelée pour une assertion stricte
+        def open(self, url: object, *_: object, **__: object) -> BytesIO:
+            opened.append(url)
+            return BytesIO(REMOTE_PAYLOAD)
+
+    # Injecte le faux opener pour isoler le test de tout réseau
+    monkeypatch.setattr(
+        fetch_physionet.urllib.request, "build_opener", lambda: FakeOpener()
+    )
+    # Exécute la récupération distante
+    retrieved = fetch_physionet.retrieve_file(source_root, entry, destination_root)
+    # Verrouille l'URL exacte pour tuer la mutation qui strippe 'X'
+    assert opened == [expected_url]
+    # Confirme que le fichier écrit correspond au flux simulé
+    assert retrieved.read_bytes() == REMOTE_PAYLOAD
 
 
 # Remonte une erreur explicite lorsque la source locale est absente
@@ -403,7 +489,7 @@ def test_validate_file_accepts_matching_metadata(monkeypatch, tmp_path: Path) ->
     file_path.write_bytes(payload)
     # Calcule la taille et le hash attendus pour la validation
     entry = {"size": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}
-    
+
     # Définit un flux instrumenté qui échoue si la lecture dépasse EOF
     class SafeHandle:
         # Prépare une séquence finie de blocs suivie du sentinel EOF
@@ -542,11 +628,34 @@ def test_parse_args_displays_help(monkeypatch, capsys) -> None:
         fetch_physionet.parse_args()
     # Récupère la sortie standard formatée par argparse
     output = capsys.readouterr().out
-    # Vérifie que la description personnalisée est bien présente
-    assert "Récupère Physionet" in output
-    # Confirme que les paramètres source et manifeste sont documentés
-    assert "--source" in output
-    assert "--manifest" in output
+    # Nettoie les retours ligne pour comparer des phrases wrapées
+    help_lines = [line.strip() for line in output.splitlines() if line.strip()]
+    # Fusionne l'aide pour éviter les écarts de mise en forme argparse
+    normalized_help_text = " ".join(help_lines)
+     # Normalise les espaces pour stabiliser les comparaisons argparse
+    normalized = " ".join(output.split())
+    # Verrouille la description complète sans tolérer d'ajouts
+    assert "Récupère Physionet dans data" in normalized
+    # Refuse toute altération du texte de description
+    assert "XXRécupère Physionet dans dataXX" not in normalized
+    # Verrouille la présence des options attendues dans l'aide
+    assert "--source" in normalized
+    assert "--manifest" in normalized
+    assert "--destination" in normalized
+    # Verrouille que --source reste obligatoire dans la ligne usage
+    assert "[--source SOURCE]" not in normalized
+    # Verrouille que --manifest reste obligatoire dans la ligne usage
+    assert "[--manifest MANIFEST]" not in normalized
+    # Verrouille l'aide exacte de --source pour tuer help altéré
+    assert "--source SOURCE URL Physionet ou répertoire local" in normalized
+    # Verrouille l'aide exacte de --manifest pour tuer help altéré
+    assert "--manifest MANIFEST Manifeste JSON avec hashes et tailles" in normalized
+    # Verrouille l'aide exacte de --destination pour tuer help altéré
+    assert "--destination DESTINATION Répertoire cible" in normalized
+    # Verrouille l'aide exacte du manifeste pour tuer les mutants help=...
+    assert "Manifeste JSON avec hashes et tailles" in normalized_help_text
+    # Verrouille l'aide exacte de la destination pour tuer help=None / help absent
+    assert "Répertoire cible" in normalized_help_text
 
 
 # Vérifie que les options obligatoires sont réellement requises
@@ -556,6 +665,72 @@ def test_parse_args_requires_mandatory(monkeypatch) -> None:
     # Vérifie qu'un SystemExit est levé faute d'arguments requis
     with pytest.raises(SystemExit):
         fetch_physionet.parse_args()
+
+
+# Verrouille le contrat CLI argparse pour tuer les mutants de configuration
+def test_parse_args_builds_parser_with_stable_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Stocke les paramètres capturés pour inspecter la description
+    init_kwargs: dict[str, object] = {}
+    # Stocke les signatures d'arguments pour verrouiller required/help/default
+    declared: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+    # Espionne ArgumentParser pour valider description, required et help
+    class SpyArgumentParser:
+        # Capture les kwargs d'initialisation pour stabiliser la description
+        def __init__(self, *args, **kwargs):
+            # Conserve les kwargs afin de vérifier le texte de description
+            init_kwargs.update(kwargs)
+
+        # Capture les appels add_argument pour vérifier le contrat des flags
+        def add_argument(self, *args, **kwargs):
+            # Normalise les flags pour une recherche robuste
+            flags = tuple(str(value) for value in args)
+            # Enregistre les kwargs pour des assertions ciblées
+            declared.append((flags, dict(kwargs)))
+
+        # Retourne un Namespace minimal pour permettre l'exécution de parse_args
+        def parse_args(self, *args, **kwargs):
+            # Retourne un résultat stable sans dépendre de sys.argv
+            return argparse.Namespace(source="SRC", manifest="MAN", destination="data")
+
+    # Remplace ArgumentParser pour observer les appels effectués par parse_args
+    monkeypatch.setattr(fetch_physionet.argparse, "ArgumentParser", SpyArgumentParser)
+
+    # Exécute la construction du parseur via l'API publique
+    parsed = fetch_physionet.parse_args()
+    # Valide que la fonction retourne bien un Namespace
+    assert isinstance(parsed, argparse.Namespace)
+
+    # Verrouille le texte de description pour éviter les dérives de doc CLI
+    assert init_kwargs["description"] == "Récupère Physionet dans data"
+
+    # Helper pour retrouver les kwargs d'un flag donné
+    def _kwargs_for(flag: str) -> dict[str, object]:
+        # Parcourt les arguments déclarés pour localiser le flag demandé
+        for flags, kwargs in declared:
+            # Cible les options longues pour un contrat CLI explicite
+            if flag in flags:
+                # Retourne la configuration d'argument pour assertions
+                return kwargs
+        # Signale un contrat incomplet si l'argument n'existe pas
+        raise AssertionError(f"Argument manquant: {flag}")
+
+    # Verrouille --source comme option obligatoire avec un help stable
+    source_kwargs = _kwargs_for("--source")
+    assert source_kwargs.get("required") is True
+    assert source_kwargs.get("help") == "URL Physionet ou répertoire local"
+
+    # Verrouille --manifest comme option obligatoire avec un help stable
+    manifest_kwargs = _kwargs_for("--manifest")
+    assert manifest_kwargs.get("required") is True
+    assert manifest_kwargs.get("help") == "Manifeste JSON avec hashes et tailles"
+
+    # Verrouille --destination avec un défaut explicite et un help stable
+    destination_kwargs = _kwargs_for("--destination")
+    assert destination_kwargs.get("default") == "data"
+    assert destination_kwargs.get("help") == "Répertoire cible"
 
 
 # Garantit que le hachage lit les blocs avec la taille attendue
@@ -623,6 +798,70 @@ def test_parse_args_defaults_destination(monkeypatch, tmp_path: Path) -> None:
     assert parsed.destination == "data"
 
 
+# Verrouille la configuration argparse pour éviter les dérives du contrat CLI
+def test_parse_args_builds_parser_with_stable_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Stocke les paramètres capturés pour inspecter la configuration générée
+    init_kwargs: dict[str, object] = {}
+    # Stocke les signatures d'arguments pour verrouiller required/help/default
+    declared: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+    # Espionne ArgumentParser pour valider description, required et help
+    class SpyArgumentParser:
+        # Capture les kwargs d'initialisation pour stabiliser la description
+        def __init__(self, *args, **kwargs):
+            # Conserve les kwargs afin de vérifier le texte de description
+            init_kwargs.update(kwargs)
+
+        # Capture les appels add_argument pour vérifier le contrat des flags
+        def add_argument(self, *args, **kwargs):
+            # Normalise les flags pour une recherche robuste
+            flags = tuple(str(value) for value in args)
+            # Enregistre les kwargs pour des assertions ciblées
+            declared.append((flags, dict(kwargs)))
+
+        # Retourne un Namespace minimal pour permettre l'exécution de parse_args
+        def parse_args(self, *args, **kwargs):
+            # Retourne un résultat stable sans dépendre de sys.argv
+            return argparse.Namespace(source="SRC", manifest="MAN", destination="data")
+
+    # Remplace ArgumentParser pour observer les appels effectués par parse_args
+    monkeypatch.setattr(fetch_physionet.argparse, "ArgumentParser", SpyArgumentParser)
+
+    # Exécute la construction du parseur via l'API publique
+    parsed = fetch_physionet.parse_args()
+    # Valide que la fonction retourne bien un Namespace
+    assert isinstance(parsed, argparse.Namespace)
+
+    # Verrouille le texte de description pour éviter les dérives de doc CLI
+    assert init_kwargs["description"] == "Récupère Physionet dans data"
+
+    # Helper pour retrouver les kwargs d'un flag donné
+    def _kwargs_for(flag: str) -> dict[str, object]:
+        # Parcourt les arguments déclarés pour localiser le flag demandé
+        for flags, kwargs in declared:
+            # Cible les options longues pour un contrat CLI explicite
+            if flag in flags:
+                # Retourne la configuration d'argument pour assertions
+                return kwargs
+        # Signale un contrat incomplet si l'argument n'existe pas
+        raise AssertionError(f"Argument manquant: {flag}")
+
+    # Verrouille --source comme option obligatoire avec un help stable
+    source_kwargs = _kwargs_for("--source")
+    assert source_kwargs.get("required") is True
+    assert source_kwargs.get("help") == "URL Physionet ou répertoire local"
+
+    # Verrouille --manifest comme option obligatoire avec un help stable
+    manifest_kwargs = _kwargs_for("--manifest")
+    assert manifest_kwargs.get("required") is True
+    assert manifest_kwargs.get("help") == "Manifeste JSON avec hashes et tailles"
+
+    # Verrouille --destination avec un défaut explicite et un help stable
+    destination_kwargs = _kwargs_for("--destination")
+    assert destination_kwargs.get("default") == "data"
+    assert destination_kwargs.get("help") == "Répertoire cible"
+
+
 # Vérifie que main retourne un code d'erreur lorsque la récupération échoue
 def test_main_propagates_fetch_failure(monkeypatch) -> None:
     # Prépare des arguments simulés pour éviter la lecture de sys.argv
@@ -631,12 +870,14 @@ def test_main_propagates_fetch_failure(monkeypatch) -> None:
     )()
     # Force parse_args à renvoyer les arguments simulés
     monkeypatch.setattr(fetch_physionet, "parse_args", lambda: args)
+    
     # Simule un échec de récupération pour déclencher SystemExit
-    monkeypatch.setattr(
-        fetch_physionet,
-        "fetch_dataset",
-        lambda *_: (_ for _ in ()).throw(RuntimeError("boom")),
-    )
+    # CORRECTION : Définition d'une fonction explicite au lieu du hack '(_ for _ in ()).throw'
+    def fail_fetch(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(fetch_physionet, "fetch_dataset", fail_fetch)
+    
     # Vérifie que main propage un code de sortie non nul après l'échec
     with pytest.raises(SystemExit) as exit_info:
         fetch_physionet.main()

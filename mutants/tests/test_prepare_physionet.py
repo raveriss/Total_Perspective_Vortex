@@ -360,8 +360,6 @@ def test_prepare_physionet_creates_nested_destination_with_parents(
     assert calls["count"] == 1
 
 
-
-
 # Couvre l'exécution du garde main lorsque le module est lancé directement
 def test_module_guard_invokes_main(monkeypatch: pytest.MonkeyPatch) -> None:
     # Rejoue les paramètres CLI attendus pour l'exécution module

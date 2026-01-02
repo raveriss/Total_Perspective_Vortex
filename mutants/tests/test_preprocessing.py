@@ -7,9 +7,9 @@
 import inspect
 import json
 import time
+
 # Imports warnings to verify the warning filters applied by loaders
 import warnings
-
 from pathlib import Path
 
 # Import SimpleNamespace to build lightweight annotation holders
@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 # Import Mapping to annotate captured motor mapping structures
 # Import cast to préciser le type des dictionnaires capturés
-from typing import Any, Callable, Mapping, cast
+from typing import Any, Callable, Dict, List, Literal, Mapping, Tuple, cast
 
 # Import mne to build synthetic Raw objects and annotations
 import mne
@@ -236,8 +236,8 @@ def test_apply_bandpass_filter_invalid_method_message() -> None:
 
 
 def test_report_epoch_anomalies_reports_clean_run(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch) -> None:
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Ensure reports stay empty of anomalies for clean epochs."""
 
     # Construit des epochs synthétiques sans artefacts pour le rapport
@@ -248,7 +248,6 @@ def test_report_epoch_anomalies_reports_clean_run(
     output_path = tmp_path / "reports" / "nested" / "report.json"
     # Construit la configuration de rapport en imposant le format JSON
     report_config = preprocessing.ReportConfig(path=output_path, fmt="json")
-
 
     # Trace l'encodage et le contenu pour verrouiller l'écriture JSON
     write_calls: list[tuple[str | None, str]] = []
@@ -541,7 +540,6 @@ def test_write_csv_report_uses_semicolon_delimiter_for_indices(tmp_path: Path) -
     assert columns[5] == "1;3"
 
 
-
 def test_apply_quality_control_passes_reject_mode_to_quality_control(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -571,7 +569,9 @@ def test_apply_quality_control_passes_reject_mode_to_quality_control(
         return cast(Any, original_quality_control_epochs)(*args, **kwargs)
 
     # Remplace la fonction pour observer précisément les arguments fournis
-    monkeypatch.setattr(preprocessing, "quality_control_epochs", spy_quality_control_epochs)
+    monkeypatch.setattr(
+        preprocessing, "quality_control_epochs", spy_quality_control_epochs
+    )
     # Lance le contrôle qualité via la fonction interne ciblée par le mutant
     cleaned_epochs, flagged, cleaned_labels = preprocessing._apply_quality_control(
         epochs,
@@ -647,8 +647,8 @@ def test_summarize_epoch_quality_forwards_reject_mode_and_builds_report(
     assert report["counts"] == {"A": 2, "B": 2}
 
 
-def test_build_epoch_report_exposes_total_epochs_before_key() -> None:
-    """Ensure build report exposes stable keys for downstream serializers."""
+def test_build_epoch_report_exposes_total_epochs_before_key_when_clean() -> None:
+    """Ensure build report exposes stable keys when no epochs are dropped."""
 
     # Prépare des métadonnées minimales pour exercer la construction du rapport
     run_metadata = {"subject": TEST_SUBJECT, "run": TEST_RUN}
@@ -672,7 +672,6 @@ def test_build_epoch_report_exposes_total_epochs_before_key() -> None:
     assert report["total_epochs_before"] == 4
     # Verrouille la structure des anomalies pour éviter les régressions de clé
     assert report["anomalies"] == {"artifact": [0], "incomplete": [1]}
-
 
 
 def test_ensure_label_alignment_reports_mismatch() -> None:
@@ -864,17 +863,52 @@ def test_load_physionet_raw_reads_metadata(
     monkeypatch.setattr(mne.io, "read_raw_edf", lambda *args, **kwargs: raw)
     # Load the placeholder file using the preprocessing helper
     # Stores warning filter calls to ensure the loader silences known MNE noise
-    filter_calls: List[Tuple[Tuple[object, ...], Dict[str, object]]] = []
+    filter_calls: List[Tuple[Tuple[str, ...], Dict[str, object]]] = []
     # Keeps a reference to the original filterwarnings for safe delegation
     original_filterwarnings = warnings.filterwarnings
+
     # Captures and forwards filterwarnings calls for strict signature validation
-    def filterwarnings_spy(*args: object, **kwargs: object) -> None:
+    def filterwarnings_spy(
+        action: Literal[
+            "default",
+            "error",
+            "ignore",
+            "always",
+            "all",
+            "module",
+            "once",
+        ],
+        message: str = "",
+        category: type[Warning] = Warning,
+        module: str = "",
+        lineno: int = 0,
+        append: bool = False,
+    ) -> None:
         # Records calls so mutants changing arguments are detected by tests
-        filter_calls.append((args, kwargs))
+        filter_calls.append(
+            (
+                (action,),
+                {
+                    "message": message,
+                    "category": category,
+                    "module": module,
+                    "lineno": lineno,
+                    "append": append,
+                },
+            )
+        )
         # Delegates to preserve the underlying warnings machinery
-        original_filterwarnings(*args, **kwargs)
+        original_filterwarnings(
+            action,
+            message=message,
+            category=category,
+            module=module,
+            lineno=lineno,
+            append=append,
+        )
+
     # Monkeypatches warnings.filterwarnings to observe the configured filter
-    monkeypatch.setattr(warnings, "filterwarnings", filterwarnings_spy)    
+    monkeypatch.setattr(warnings, "filterwarnings", filterwarnings_spy)
     loaded_raw, metadata = load_physionet_raw(edf_path)
     # Ensures exactly one warning filter is installed for this known MNE warning
     assert len(filter_calls) == 1
@@ -887,6 +921,8 @@ def test_load_physionet_raw_reads_metadata(
         "message": "Limited .*annotation.*outside the data range",
         "category": RuntimeWarning,
         "module": "mne",
+        "lineno": 0,
+        "append": False,
     }
     # Assert sampling rate is preserved during loader execution
     assert metadata["sampling_rate"] == pytest.approx(128.0)
@@ -1625,7 +1661,7 @@ def test_load_mne_raw_checked_flags_missing_only_channels(
     # Stub the EDF reader to return the prepared recording
     monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: raw)
     # Reuse the montage name across call + assertions to lock the payload key
-    expected_montage = "standard_1020"    
+    expected_montage = "standard_1020"
     # Expect a ValueError because one expected channel is absent
     with pytest.raises(ValueError) as exc:
         load_mne_raw_checked(
@@ -2972,8 +3008,6 @@ def test_map_events_to_motor_labels_reports_all_unknown_numeric_codes(
     assert payload["unknown_codes"] == [first_unknown, second_unknown]
 
 
-
-
 def test_map_events_to_motor_labels_rejects_empty_events(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3037,7 +3071,9 @@ def test_summarize_epoch_quality_passes_reject_mode_and_reports_session_keys(
         return epochs, {"artifact": [], "incomplete": []}
 
     # Patch la fonction de contrôle qualité pour observer les arguments transmis
-    monkeypatch.setattr(preprocessing, "quality_control_epochs", spy_quality_control_epochs)
+    monkeypatch.setattr(
+        preprocessing, "quality_control_epochs", spy_quality_control_epochs
+    )
     # Lance le résumé pour déclencher l'appel surveillé à quality_control_epochs
     cleaned_epochs, report, cleaned_labels = summarize_epoch_quality(
         epochs,
@@ -3078,7 +3114,9 @@ def test_summarize_epoch_quality_counts_and_rejects_incomplete(
         return delegate(*args, **kwargs)
 
     # Patch la fonction pour observer le mode sans changer la production
-    monkeypatch.setattr(preprocessing, "quality_control_epochs", spy_quality_control_epochs)
+    monkeypatch.setattr(
+        preprocessing, "quality_control_epochs", spy_quality_control_epochs
+    )
     # Construit un enregistrement synthétique avec trois essais moteurs
     info = mne.create_info(["C3", "C4"], sfreq=64.0, ch_types="eeg")
     data = np.ones((2, 64))

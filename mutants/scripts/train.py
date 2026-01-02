@@ -84,6 +84,10 @@ DEFAULT_CV_SPLITS = 10
 
 # Fixe le nombre minimal de splits pour déclencher la validation croisée
 MIN_CV_SPLITS = 3
+
+
+# Stabilise la reproductibilité des splits de cross-validation
+DEFAULT_RANDOM_STATE = 42
 from inspect import signature as _mutmut_signature
 from typing import Annotated
 from typing import Callable
@@ -116,7 +120,6 @@ def _mutmut_trampoline(orig, mutants, call_args, call_kwargs, self_arg = None):
     else:
         result = mutants[mutant_name](*call_args, **call_kwargs)
     return result
-
 
 # Regroupe toutes les informations nécessaires à un run d'entraînement
 @dataclass
@@ -21017,8 +21020,8 @@ def x__load_data__mutmut_orig(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21071,6 +21074,10 @@ def x__load_data__mutmut_orig(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21106,8 +21113,8 @@ def x__load_data__mutmut_1(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = None
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21160,6 +21167,10 @@ def x__load_data__mutmut_1(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21195,8 +21206,8 @@ def x__load_data__mutmut_2(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(None, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21249,6 +21260,10 @@ def x__load_data__mutmut_2(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21284,8 +21299,8 @@ def x__load_data__mutmut_3(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, None, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21338,6 +21353,10 @@ def x__load_data__mutmut_3(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21373,8 +21392,8 @@ def x__load_data__mutmut_4(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, None)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21427,6 +21446,10 @@ def x__load_data__mutmut_4(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21462,8 +21485,8 @@ def x__load_data__mutmut_5(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21516,6 +21539,10 @@ def x__load_data__mutmut_5(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21551,8 +21578,8 @@ def x__load_data__mutmut_6(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21605,6 +21632,10 @@ def x__load_data__mutmut_6(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21640,8 +21671,8 @@ def x__load_data__mutmut_7(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, )
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21694,6 +21725,10 @@ def x__load_data__mutmut_7(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21729,8 +21764,8 @@ def x__load_data__mutmut_8(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = None
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = None
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21783,6 +21818,10 @@ def x__load_data__mutmut_8(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21818,8 +21857,8 @@ def x__load_data__mutmut_9(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = True
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = True
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -21872,6 +21911,10 @@ def x__load_data__mutmut_9(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21907,8 +21950,8 @@ def x__load_data__mutmut_10(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = ""
 
@@ -21961,6 +22004,10 @@ def x__load_data__mutmut_10(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -21996,8 +22043,8 @@ def x__load_data__mutmut_11(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22050,6 +22097,10 @@ def x__load_data__mutmut_11(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22085,8 +22136,8 @@ def x__load_data__mutmut_12(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22139,6 +22190,10 @@ def x__load_data__mutmut_12(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22174,8 +22229,8 @@ def x__load_data__mutmut_13(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22228,6 +22283,10 @@ def x__load_data__mutmut_13(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22263,8 +22322,194 @@ def x__load_data__mutmut_14(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = None
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_15(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = False
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_16(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22317,6 +22562,10 @@ def x__load_data__mutmut_14(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22335,7 +22584,7 @@ def x__load_data__mutmut_14(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_15(
+def x__load_data__mutmut_17(
     subject: str,
     run: str,
     data_dir: Path,
@@ -22352,8 +22601,8 @@ def x__load_data__mutmut_15(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22406,6 +22655,10 @@ def x__load_data__mutmut_15(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22424,7 +22677,7 @@ def x__load_data__mutmut_15(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_16(
+def x__load_data__mutmut_18(
     subject: str,
     run: str,
     data_dir: Path,
@@ -22441,8 +22694,8 @@ def x__load_data__mutmut_16(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22495,6 +22748,10 @@ def x__load_data__mutmut_16(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22513,7 +22770,7 @@ def x__load_data__mutmut_16(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_17(
+def x__load_data__mutmut_19(
     subject: str,
     run: str,
     data_dir: Path,
@@ -22530,8 +22787,8 @@ def x__load_data__mutmut_17(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22584,6 +22841,10 @@ def x__load_data__mutmut_17(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22602,7 +22863,7 @@ def x__load_data__mutmut_17(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_18(
+def x__load_data__mutmut_20(
     subject: str,
     run: str,
     data_dir: Path,
@@ -22619,8 +22880,8 @@ def x__load_data__mutmut_18(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22673,6 +22934,10 @@ def x__load_data__mutmut_18(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22691,7 +22956,7 @@ def x__load_data__mutmut_18(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_19(
+def x__load_data__mutmut_21(
     subject: str,
     run: str,
     data_dir: Path,
@@ -22708,8 +22973,8 @@ def x__load_data__mutmut_19(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22762,6 +23027,10 @@ def x__load_data__mutmut_19(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22780,7 +23049,7 @@ def x__load_data__mutmut_19(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_20(
+def x__load_data__mutmut_22(
     subject: str,
     run: str,
     data_dir: Path,
@@ -22797,8 +23066,8 @@ def x__load_data__mutmut_20(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22851,6 +23120,10 @@ def x__load_data__mutmut_20(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22869,7 +23142,7 @@ def x__load_data__mutmut_20(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_21(
+def x__load_data__mutmut_23(
     subject: str,
     run: str,
     data_dir: Path,
@@ -22886,8 +23159,8 @@ def x__load_data__mutmut_21(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -22940,6 +23213,10 @@ def x__load_data__mutmut_21(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -22958,7 +23235,7 @@ def x__load_data__mutmut_21(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_22(
+def x__load_data__mutmut_24(
     subject: str,
     run: str,
     data_dir: Path,
@@ -22975,8 +23252,8 @@ def x__load_data__mutmut_22(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23029,6 +23306,10 @@ def x__load_data__mutmut_22(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23047,7 +23328,7 @@ def x__load_data__mutmut_22(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_23(
+def x__load_data__mutmut_25(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23064,8 +23345,8 @@ def x__load_data__mutmut_23(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23118,6 +23399,10 @@ def x__load_data__mutmut_23(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23136,7 +23421,7 @@ def x__load_data__mutmut_23(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_24(
+def x__load_data__mutmut_26(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23153,8 +23438,8 @@ def x__load_data__mutmut_24(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23207,6 +23492,10 @@ def x__load_data__mutmut_24(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23225,7 +23514,7 @@ def x__load_data__mutmut_24(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_25(
+def x__load_data__mutmut_27(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23242,8 +23531,8 @@ def x__load_data__mutmut_25(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23296,6 +23585,10 @@ def x__load_data__mutmut_25(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23314,7 +23607,7 @@ def x__load_data__mutmut_25(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_26(
+def x__load_data__mutmut_28(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23331,8 +23624,8 @@ def x__load_data__mutmut_26(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23385,6 +23678,10 @@ def x__load_data__mutmut_26(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23403,7 +23700,7 @@ def x__load_data__mutmut_26(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_27(
+def x__load_data__mutmut_29(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23420,8 +23717,8 @@ def x__load_data__mutmut_27(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23474,6 +23771,10 @@ def x__load_data__mutmut_27(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23492,7 +23793,7 @@ def x__load_data__mutmut_27(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_28(
+def x__load_data__mutmut_30(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23509,8 +23810,8 @@ def x__load_data__mutmut_28(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23563,6 +23864,10 @@ def x__load_data__mutmut_28(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23581,7 +23886,7 @@ def x__load_data__mutmut_28(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_29(
+def x__load_data__mutmut_31(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23598,8 +23903,8 @@ def x__load_data__mutmut_29(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23652,6 +23957,10 @@ def x__load_data__mutmut_29(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23670,7 +23979,7 @@ def x__load_data__mutmut_29(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_30(
+def x__load_data__mutmut_32(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23687,8 +23996,8 @@ def x__load_data__mutmut_30(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23741,6 +24050,10 @@ def x__load_data__mutmut_30(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23759,7 +24072,7 @@ def x__load_data__mutmut_30(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_31(
+def x__load_data__mutmut_33(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23776,8 +24089,8 @@ def x__load_data__mutmut_31(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23830,6 +24143,10 @@ def x__load_data__mutmut_31(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23848,7 +24165,7 @@ def x__load_data__mutmut_31(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_32(
+def x__load_data__mutmut_34(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23865,8 +24182,8 @@ def x__load_data__mutmut_32(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -23919,6 +24236,10 @@ def x__load_data__mutmut_32(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -23937,7 +24258,7 @@ def x__load_data__mutmut_32(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_33(
+def x__load_data__mutmut_35(
     subject: str,
     run: str,
     data_dir: Path,
@@ -23954,8 +24275,563 @@ def x__load_data__mutmut_33(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    None
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_36(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "XXINFO: X chargé depuis XX"
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_37(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "info: x chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_38(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X CHARGÉ DEPUIS "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_39(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = None
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_40(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = False
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_41(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24008,6 +24884,10 @@ def x__load_data__mutmut_33(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24026,7 +24906,7 @@ def x__load_data__mutmut_33(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_34(
+def x__load_data__mutmut_42(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24043,8 +24923,8 @@ def x__load_data__mutmut_34(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24097,6 +24977,10 @@ def x__load_data__mutmut_34(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24115,7 +24999,7 @@ def x__load_data__mutmut_34(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_35(
+def x__load_data__mutmut_43(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24132,8 +25016,8 @@ def x__load_data__mutmut_35(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24186,6 +25070,10 @@ def x__load_data__mutmut_35(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24204,7 +25092,7 @@ def x__load_data__mutmut_35(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_36(
+def x__load_data__mutmut_44(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24221,8 +25109,750 @@ def x__load_data__mutmut_36(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    None
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_45(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "XXINFO: Désalignement détecté pour XX"
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_46(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "info: désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_47(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: DÉSALIGNEMENT DÉTECTÉ POUR "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_48(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[1]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_49(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[1]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_50(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = None
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_51(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = False
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_52(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24275,6 +25905,10 @@ def x__load_data__mutmut_36(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24293,7 +25927,7 @@ def x__load_data__mutmut_36(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_37(
+def x__load_data__mutmut_53(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24310,8 +25944,8 @@ def x__load_data__mutmut_37(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24364,6 +25998,10 @@ def x__load_data__mutmut_37(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24382,7 +26020,7 @@ def x__load_data__mutmut_37(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_38(
+def x__load_data__mutmut_54(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24399,8 +26037,8 @@ def x__load_data__mutmut_38(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24453,6 +26091,10 @@ def x__load_data__mutmut_38(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24471,7 +26113,7 @@ def x__load_data__mutmut_38(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_39(
+def x__load_data__mutmut_55(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24488,8 +26130,8 @@ def x__load_data__mutmut_39(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24540,6 +26182,10 @@ def x__load_data__mutmut_39(
         print(
             None
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24558,7 +26204,7 @@ def x__load_data__mutmut_39(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_40(
+def x__load_data__mutmut_56(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24575,8 +26221,8 @@ def x__load_data__mutmut_40(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24629,6 +26275,10 @@ def x__load_data__mutmut_40(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24647,7 +26297,7 @@ def x__load_data__mutmut_40(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_41(
+def x__load_data__mutmut_57(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24664,8 +26314,8 @@ def x__load_data__mutmut_41(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24718,6 +26368,10 @@ def x__load_data__mutmut_41(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24736,7 +26390,7 @@ def x__load_data__mutmut_41(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_42(
+def x__load_data__mutmut_58(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24753,8 +26407,8 @@ def x__load_data__mutmut_42(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24807,6 +26461,10 @@ def x__load_data__mutmut_42(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24825,7 +26483,7 @@ def x__load_data__mutmut_42(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_43(
+def x__load_data__mutmut_59(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24842,8 +26500,8 @@ def x__load_data__mutmut_43(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24896,6 +26554,475 @@ def x__load_data__mutmut_43(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = None
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_60(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = False
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_61(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = None
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_62(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = False if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_63(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_64(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+        else:
+            # Cas 2 : X n'a pas la bonne dimension → reconstruction
+            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+                print(
+                    "INFO: X chargé depuis "
+                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+            elif candidate_X.shape[0] != candidate_y.shape[0]:
+                print(
+                    "INFO: Désalignement détecté pour "
+                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
+                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+            # Cas 4 : labels mal dimensionnés → reconstruction
+            elif candidate_y.ndim != 1:
+                print(
+                    "INFO: y chargé depuis "
+                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+                    "régénération depuis l'EDF..."
+                )
+                needs_rebuild = True
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24909,7 +27036,7 @@ def x__load_data__mutmut_43(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_44(
+def x__load_data__mutmut_65(
     subject: str,
     run: str,
     data_dir: Path,
@@ -24926,8 +27053,8 @@ def x__load_data__mutmut_44(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -24980,6 +27107,10 @@ def x__load_data__mutmut_44(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -24998,7 +27129,7 @@ def x__load_data__mutmut_44(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_45(
+def x__load_data__mutmut_66(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25015,8 +27146,8 @@ def x__load_data__mutmut_45(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25069,6 +27200,10 @@ def x__load_data__mutmut_45(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25087,7 +27222,7 @@ def x__load_data__mutmut_45(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_46(
+def x__load_data__mutmut_67(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25104,8 +27239,8 @@ def x__load_data__mutmut_46(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25158,6 +27293,10 @@ def x__load_data__mutmut_46(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25176,7 +27315,7 @@ def x__load_data__mutmut_46(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_47(
+def x__load_data__mutmut_68(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25193,8 +27332,8 @@ def x__load_data__mutmut_47(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25247,6 +27386,10 @@ def x__load_data__mutmut_47(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25265,7 +27408,7 @@ def x__load_data__mutmut_47(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_48(
+def x__load_data__mutmut_69(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25282,8 +27425,8 @@ def x__load_data__mutmut_48(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25336,6 +27479,10 @@ def x__load_data__mutmut_48(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25353,7 +27500,7 @@ def x__load_data__mutmut_48(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_49(
+def x__load_data__mutmut_70(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25370,8 +27517,8 @@ def x__load_data__mutmut_49(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25424,6 +27571,10 @@ def x__load_data__mutmut_49(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25441,7 +27592,7 @@ def x__load_data__mutmut_49(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_50(
+def x__load_data__mutmut_71(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25458,8 +27609,8 @@ def x__load_data__mutmut_50(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25512,6 +27663,10 @@ def x__load_data__mutmut_50(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25529,7 +27684,7 @@ def x__load_data__mutmut_50(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_51(
+def x__load_data__mutmut_72(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25546,8 +27701,8 @@ def x__load_data__mutmut_51(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25600,6 +27755,10 @@ def x__load_data__mutmut_51(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25617,7 +27776,7 @@ def x__load_data__mutmut_51(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_52(
+def x__load_data__mutmut_73(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25634,8 +27793,8 @@ def x__load_data__mutmut_52(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25688,6 +27847,10 @@ def x__load_data__mutmut_52(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25706,7 +27869,7 @@ def x__load_data__mutmut_52(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_53(
+def x__load_data__mutmut_74(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25723,8 +27886,8 @@ def x__load_data__mutmut_53(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25777,6 +27940,10 @@ def x__load_data__mutmut_53(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25795,7 +27962,7 @@ def x__load_data__mutmut_53(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_54(
+def x__load_data__mutmut_75(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25812,8 +27979,8 @@ def x__load_data__mutmut_54(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25866,6 +28033,10 @@ def x__load_data__mutmut_54(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -25884,7 +28055,7 @@ def x__load_data__mutmut_54(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_55(
+def x__load_data__mutmut_76(
     subject: str,
     run: str,
     data_dir: Path,
@@ -25901,8 +28072,8 @@ def x__load_data__mutmut_55(
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
 
@@ -25955,6 +28126,10 @@ def x__load_data__mutmut_55(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -26026,7 +28201,28 @@ x__load_data__mutmut_mutants : ClassVar[MutantDict] = {
     'x__load_data__mutmut_52': x__load_data__mutmut_52, 
     'x__load_data__mutmut_53': x__load_data__mutmut_53, 
     'x__load_data__mutmut_54': x__load_data__mutmut_54, 
-    'x__load_data__mutmut_55': x__load_data__mutmut_55
+    'x__load_data__mutmut_55': x__load_data__mutmut_55, 
+    'x__load_data__mutmut_56': x__load_data__mutmut_56, 
+    'x__load_data__mutmut_57': x__load_data__mutmut_57, 
+    'x__load_data__mutmut_58': x__load_data__mutmut_58, 
+    'x__load_data__mutmut_59': x__load_data__mutmut_59, 
+    'x__load_data__mutmut_60': x__load_data__mutmut_60, 
+    'x__load_data__mutmut_61': x__load_data__mutmut_61, 
+    'x__load_data__mutmut_62': x__load_data__mutmut_62, 
+    'x__load_data__mutmut_63': x__load_data__mutmut_63, 
+    'x__load_data__mutmut_64': x__load_data__mutmut_64, 
+    'x__load_data__mutmut_65': x__load_data__mutmut_65, 
+    'x__load_data__mutmut_66': x__load_data__mutmut_66, 
+    'x__load_data__mutmut_67': x__load_data__mutmut_67, 
+    'x__load_data__mutmut_68': x__load_data__mutmut_68, 
+    'x__load_data__mutmut_69': x__load_data__mutmut_69, 
+    'x__load_data__mutmut_70': x__load_data__mutmut_70, 
+    'x__load_data__mutmut_71': x__load_data__mutmut_71, 
+    'x__load_data__mutmut_72': x__load_data__mutmut_72, 
+    'x__load_data__mutmut_73': x__load_data__mutmut_73, 
+    'x__load_data__mutmut_74': x__load_data__mutmut_74, 
+    'x__load_data__mutmut_75': x__load_data__mutmut_75, 
+    'x__load_data__mutmut_76': x__load_data__mutmut_76
 }
 
 def _load_data(*args, **kwargs):
@@ -34522,7 +36718,7 @@ def x_run_training__mutmut_orig(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -34600,7 +36796,7 @@ def x_run_training__mutmut_1(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -34678,7 +36874,7 @@ def x_run_training__mutmut_2(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -34756,7 +36952,7 @@ def x_run_training__mutmut_3(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -34834,7 +37030,7 @@ def x_run_training__mutmut_4(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -34912,7 +37108,7 @@ def x_run_training__mutmut_5(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -34990,7 +37186,7 @@ def x_run_training__mutmut_6(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35068,7 +37264,7 @@ def x_run_training__mutmut_7(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35146,7 +37342,7 @@ def x_run_training__mutmut_8(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35224,7 +37420,7 @@ def x_run_training__mutmut_9(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35302,7 +37498,7 @@ def x_run_training__mutmut_10(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35380,7 +37576,7 @@ def x_run_training__mutmut_11(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35458,7 +37654,7 @@ def x_run_training__mutmut_12(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35536,7 +37732,7 @@ def x_run_training__mutmut_13(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35614,7 +37810,7 @@ def x_run_training__mutmut_14(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35692,7 +37888,7 @@ def x_run_training__mutmut_15(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35770,7 +37966,7 @@ def x_run_training__mutmut_16(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35848,7 +38044,7 @@ def x_run_training__mutmut_17(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -35926,7 +38122,7 @@ def x_run_training__mutmut_18(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36004,7 +38200,7 @@ def x_run_training__mutmut_19(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36082,7 +38278,7 @@ def x_run_training__mutmut_20(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36160,7 +38356,7 @@ def x_run_training__mutmut_21(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36238,7 +38434,7 @@ def x_run_training__mutmut_22(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36316,7 +38512,7 @@ def x_run_training__mutmut_23(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36393,7 +38589,7 @@ def x_run_training__mutmut_24(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36471,7 +38667,7 @@ def x_run_training__mutmut_25(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36549,7 +38745,7 @@ def x_run_training__mutmut_26(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36627,7 +38823,7 @@ def x_run_training__mutmut_27(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36783,7 +38979,7 @@ def x_run_training__mutmut_29(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=None)
+        cv = StratifiedKFold(n_splits=None, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36861,9 +39057,9 @@ def x_run_training__mutmut_30(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=None, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = None
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
@@ -36939,9 +39135,9 @@ def x_run_training__mutmut_31(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=None)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(None, X, y, cv=cv)
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
@@ -37017,9 +39213,9 @@ def x_run_training__mutmut_32(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, None, y, cv=cv)
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
@@ -37095,9 +39291,9 @@ def x_run_training__mutmut_33(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, None, cv=cv)
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
@@ -37173,9 +39369,9 @@ def x_run_training__mutmut_34(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=None)
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
@@ -37251,9 +39447,9 @@ def x_run_training__mutmut_35(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=False, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(X, y, cv=cv)
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
@@ -37329,9 +39525,9 @@ def x_run_training__mutmut_36(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, y, cv=cv)
+        cv_scores = None
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
@@ -37407,9 +39603,9 @@ def x_run_training__mutmut_37(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, cv=cv)
+        cv_scores = cross_val_score(None, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
@@ -37485,9 +39681,9 @@ def x_run_training__mutmut_38(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, )
+        cv_scores = cross_val_score(pipeline, None, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
@@ -37563,11 +39759,11 @@ def x_run_training__mutmut_39(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+        cv_scores = cross_val_score(pipeline, X, None, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(None, y)
+    pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
@@ -37641,11 +39837,11 @@ def x_run_training__mutmut_40(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+        cv_scores = cross_val_score(pipeline, X, y, cv=None)
     # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, None)
+    pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
@@ -37719,11 +39915,11 @@ def x_run_training__mutmut_41(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+        cv_scores = cross_val_score(X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(y)
+    pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
@@ -37797,11 +39993,11 @@ def x_run_training__mutmut_42(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+        cv_scores = cross_val_score(pipeline, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, )
+    pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
@@ -37875,13 +40071,13 @@ def x_run_training__mutmut_43(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+        cv_scores = cross_val_score(pipeline, X, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = None
+    target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
@@ -37953,13 +40149,13 @@ def x_run_training__mutmut_44(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+        cv_scores = cross_val_score(pipeline, X, y, )
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject * request.run
+    target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
@@ -38031,13 +40227,13 @@ def x_run_training__mutmut_45(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
+    pipeline.fit(None, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir * request.subject / request.run
+    target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
@@ -38109,15 +40305,15 @@ def x_run_training__mutmut_46(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
+    pipeline.fit(X, None)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=None, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -38187,15 +40383,15 @@ def x_run_training__mutmut_47(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
+    pipeline.fit(y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=None)
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -38265,15 +40461,15 @@ def x_run_training__mutmut_48(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
+    pipeline.fit(X, )
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -38343,15 +40539,15 @@ def x_run_training__mutmut_49(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
+    target_dir = None
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, )
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -38421,15 +40617,15 @@ def x_run_training__mutmut_50(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
+    target_dir = request.artifacts_dir / request.subject * request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=False, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -38499,15 +40695,15 @@ def x_run_training__mutmut_51(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
+    target_dir = request.artifacts_dir * request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=False)
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -38577,7 +40773,7 @@ def x_run_training__mutmut_52(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38585,9 +40781,9 @@ def x_run_training__mutmut_52(request: TrainingRequest) -> dict:
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(parents=None, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = None
+    model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
@@ -38655,7 +40851,7 @@ def x_run_training__mutmut_53(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38663,9 +40859,9 @@ def x_run_training__mutmut_53(request: TrainingRequest) -> dict:
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=None)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir * "model.joblib"
+    model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
@@ -38733,7 +40929,7 @@ def x_run_training__mutmut_54(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38741,9 +40937,9 @@ def x_run_training__mutmut_54(request: TrainingRequest) -> dict:
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "XXmodel.joblibXX"
+    model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
@@ -38811,7 +41007,7 @@ def x_run_training__mutmut_55(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38819,9 +41015,9 @@ def x_run_training__mutmut_55(request: TrainingRequest) -> dict:
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(parents=True, )
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "MODEL.JOBLIB"
+    model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
@@ -38889,7 +41085,7 @@ def x_run_training__mutmut_56(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38897,11 +41093,11 @@ def x_run_training__mutmut_56(request: TrainingRequest) -> dict:
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(parents=False, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(None, str(model_path))
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -38967,7 +41163,7 @@ def x_run_training__mutmut_57(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38975,11 +41171,11 @@ def x_run_training__mutmut_57(request: TrainingRequest) -> dict:
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=False)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, None)
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -39045,7 +41241,7 @@ def x_run_training__mutmut_58(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39055,9 +41251,9 @@ def x_run_training__mutmut_58(request: TrainingRequest) -> dict:
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
+    model_path = None
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(str(model_path))
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -39123,7 +41319,7 @@ def x_run_training__mutmut_59(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39133,9 +41329,9 @@ def x_run_training__mutmut_59(request: TrainingRequest) -> dict:
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
+    model_path = target_dir * "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, )
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -39201,7 +41397,7 @@ def x_run_training__mutmut_60(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39211,9 +41407,9 @@ def x_run_training__mutmut_60(request: TrainingRequest) -> dict:
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
+    model_path = target_dir / "XXmodel.joblibXX"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(None))
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -39279,7 +41475,7 @@ def x_run_training__mutmut_61(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39289,11 +41485,11 @@ def x_run_training__mutmut_61(request: TrainingRequest) -> dict:
     # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
+    model_path = target_dir / "MODEL.JOBLIB"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = None
+    scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
@@ -39357,7 +41553,7 @@ def x_run_training__mutmut_62(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39369,9 +41565,9 @@ def x_run_training__mutmut_62(request: TrainingRequest) -> dict:
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(None, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get(None)
+    scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
@@ -39435,7 +41631,7 @@ def x_run_training__mutmut_63(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39447,9 +41643,9 @@ def x_run_training__mutmut_63(request: TrainingRequest) -> dict:
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(pipeline, None)
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("XXscalerXX")
+    scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
@@ -39513,7 +41709,7 @@ def x_run_training__mutmut_64(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39525,9 +41721,9 @@ def x_run_training__mutmut_64(request: TrainingRequest) -> dict:
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("SCALER")
+    scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
@@ -39591,7 +41787,7 @@ def x_run_training__mutmut_65(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39603,11 +41799,11 @@ def x_run_training__mutmut_65(request: TrainingRequest) -> dict:
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(pipeline, )
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is None:
+    if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
@@ -39669,7 +41865,7 @@ def x_run_training__mutmut_66(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39681,13 +41877,13 @@ def x_run_training__mutmut_66(request: TrainingRequest) -> dict:
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(pipeline, str(None))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(None, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -39747,7 +41943,7 @@ def x_run_training__mutmut_67(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39761,11 +41957,11 @@ def x_run_training__mutmut_67(request: TrainingRequest) -> dict:
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
+    scaler_step = None
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, None)
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -39825,7 +42021,7 @@ def x_run_training__mutmut_68(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39839,11 +42035,11 @@ def x_run_training__mutmut_68(request: TrainingRequest) -> dict:
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
+    scaler_step = pipeline.named_steps.get(None)
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -39903,7 +42099,7 @@ def x_run_training__mutmut_69(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39917,11 +42113,11 @@ def x_run_training__mutmut_69(request: TrainingRequest) -> dict:
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
+    scaler_step = pipeline.named_steps.get("XXscalerXX")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, )
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -39981,7 +42177,7 @@ def x_run_training__mutmut_70(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39995,11 +42191,11 @@ def x_run_training__mutmut_70(request: TrainingRequest) -> dict:
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
+    scaler_step = pipeline.named_steps.get("SCALER")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir * "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -40059,7 +42255,7 @@ def x_run_training__mutmut_71(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40075,9 +42271,9 @@ def x_run_training__mutmut_71(request: TrainingRequest) -> dict:
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is not None:
+    if scaler_step is None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "XXscaler.joblibXX")
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -40137,7 +42333,7 @@ def x_run_training__mutmut_72(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40155,7 +42351,7 @@ def x_run_training__mutmut_72(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "SCALER.JOBLIB")
+        joblib.dump(None, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -40215,7 +42411,7 @@ def x_run_training__mutmut_73(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40233,9 +42429,9 @@ def x_run_training__mutmut_73(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, None)
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = None
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
@@ -40293,7 +42489,7 @@ def x_run_training__mutmut_74(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40311,9 +42507,9 @@ def x_run_training__mutmut_74(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["XXdimensionalityXX"]
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
@@ -40371,7 +42567,7 @@ def x_run_training__mutmut_75(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40389,9 +42585,9 @@ def x_run_training__mutmut_75(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, )
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["DIMENSIONALITY"]
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
@@ -40449,7 +42645,7 @@ def x_run_training__mutmut_76(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40467,11 +42663,11 @@ def x_run_training__mutmut_76(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir * "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(None)
+    dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
@@ -40527,7 +42723,7 @@ def x_run_training__mutmut_77(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40545,11 +42741,11 @@ def x_run_training__mutmut_77(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "XXscaler.joblibXX")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir * "w_matrix.joblib")
+    dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
@@ -40605,7 +42801,7 @@ def x_run_training__mutmut_78(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40623,11 +42819,11 @@ def x_run_training__mutmut_78(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "SCALER.JOBLIB")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "XXw_matrix.joblibXX")
+    dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
@@ -40683,7 +42879,7 @@ def x_run_training__mutmut_79(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40703,9 +42899,9 @@ def x_run_training__mutmut_79(request: TrainingRequest) -> dict:
         # Dépose le scaler dans un fichier distinct pour inspection
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    dim_reducer: TPVDimReducer = None
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "W_MATRIX.JOBLIB")
+    dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
@@ -40761,7 +42957,7 @@ def x_run_training__mutmut_80(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40781,11 +42977,11 @@ def x_run_training__mutmut_80(request: TrainingRequest) -> dict:
         # Dépose le scaler dans un fichier distinct pour inspection
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    dim_reducer: TPVDimReducer = pipeline.named_steps["XXdimensionalityXX"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
-    scaler_path = ""
+    scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
@@ -40839,7 +43035,475 @@ def x_run_training__mutmut_81(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["DIMENSIONALITY"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_82(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(None)
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_83(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir * "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_84(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "XXw_matrix.joblibXX")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_85(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "W_MATRIX.JOBLIB")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_86(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = ""
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_87(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40893,7 +43557,7 @@ def x_run_training__mutmut_81(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_82(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_88(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -40917,7 +43581,7 @@ def x_run_training__mutmut_82(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40971,7 +43635,7 @@ def x_run_training__mutmut_82(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_83(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_89(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -40995,7 +43659,7 @@ def x_run_training__mutmut_83(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41049,7 +43713,7 @@ def x_run_training__mutmut_83(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_84(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_90(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -41073,7 +43737,7 @@ def x_run_training__mutmut_84(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41127,7 +43791,7 @@ def x_run_training__mutmut_84(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_85(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_91(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -41151,7 +43815,7 @@ def x_run_training__mutmut_85(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41205,7 +43869,7 @@ def x_run_training__mutmut_85(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_86(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_92(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -41229,7 +43893,7 @@ def x_run_training__mutmut_86(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41283,7 +43947,7 @@ def x_run_training__mutmut_86(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_87(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_93(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -41307,7 +43971,7 @@ def x_run_training__mutmut_87(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41361,7 +44025,7 @@ def x_run_training__mutmut_87(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_88(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_94(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -41385,7 +44049,7 @@ def x_run_training__mutmut_88(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41439,7 +44103,7 @@ def x_run_training__mutmut_88(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_89(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_95(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -41463,7 +44127,7 @@ def x_run_training__mutmut_89(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41517,7 +44181,7 @@ def x_run_training__mutmut_89(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_90(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_96(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -41541,7 +44205,7 @@ def x_run_training__mutmut_90(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41586,468 +44250,6 @@ def x_run_training__mutmut_90(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_91(request: TrainingRequest) -> dict:
-    """Entraîne la pipeline et sauvegarde ses artefacts."""
-
-    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
-    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
-    # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(request.pipeline_config)
-    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
-    min_class_count = int(np.bincount(y).min())
-    # Déclare le nombre de splits cible imposé par la consigne (10)
-    requested_splits = DEFAULT_CV_SPLITS
-    # Calcule le nombre de splits atteignable avec la classe minoritaire
-    n_splits = min(requested_splits, min_class_count)
-    # Initialise un tableau vide lorsque la validation croisée est impossible
-    cv_scores = np.array([])
-    # Vérifie si l'effectif autorise une validation croisée exploitable
-    if n_splits < MIN_CV_SPLITS:
-        # Signale la désactivation de la validation croisée par manque d'échantillons
-        print(
-            "AVERTISSEMENT: effectif par classe insuffisant pour la "
-            "validation croisée, cross-val ignorée"
-        )
-    else:
-        # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
-        # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
-    # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
-    # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
-    # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
-    # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
-    # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
-    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is not None:
-        # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
-    # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
-    # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
-    # Calcule le chemin du scaler pour l'ajouter au manifeste
-    scaler_path = None
-    # Renseigne le chemin du scaler uniquement lorsqu'il existe
-    if scaler_step is not None:
-        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
-    # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
-    # Écrit un manifeste décrivant l'entraînement et ses artefacts
-    manifest_paths = _write_manifest(
-        None,
-        target_dir,
-        cv_scores,
-        {
-            "model": model_path,
-            "scaler": scaler_path,
-            "w_matrix": w_matrix_path,
-        },
-    )
-    # Retourne un rapport synthétique pour les tests et la CLI
-    return {
-        "cv_scores": cv_scores,
-        "model_path": model_path,
-        "scaler_path": scaler_path,
-        "w_matrix_path": w_matrix_path,
-        "manifest_path": manifest_paths["json"],
-        "manifest_csv_path": manifest_paths["csv"],
-    }
-
-
-# Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_92(request: TrainingRequest) -> dict:
-    """Entraîne la pipeline et sauvegarde ses artefacts."""
-
-    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
-    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
-    # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(request.pipeline_config)
-    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
-    min_class_count = int(np.bincount(y).min())
-    # Déclare le nombre de splits cible imposé par la consigne (10)
-    requested_splits = DEFAULT_CV_SPLITS
-    # Calcule le nombre de splits atteignable avec la classe minoritaire
-    n_splits = min(requested_splits, min_class_count)
-    # Initialise un tableau vide lorsque la validation croisée est impossible
-    cv_scores = np.array([])
-    # Vérifie si l'effectif autorise une validation croisée exploitable
-    if n_splits < MIN_CV_SPLITS:
-        # Signale la désactivation de la validation croisée par manque d'échantillons
-        print(
-            "AVERTISSEMENT: effectif par classe insuffisant pour la "
-            "validation croisée, cross-val ignorée"
-        )
-    else:
-        # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
-        # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
-    # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
-    # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
-    # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
-    # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
-    # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
-    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is not None:
-        # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
-    # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
-    # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
-    # Calcule le chemin du scaler pour l'ajouter au manifeste
-    scaler_path = None
-    # Renseigne le chemin du scaler uniquement lorsqu'il existe
-    if scaler_step is not None:
-        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
-    # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
-    # Écrit un manifeste décrivant l'entraînement et ses artefacts
-    manifest_paths = _write_manifest(
-        request,
-        None,
-        cv_scores,
-        {
-            "model": model_path,
-            "scaler": scaler_path,
-            "w_matrix": w_matrix_path,
-        },
-    )
-    # Retourne un rapport synthétique pour les tests et la CLI
-    return {
-        "cv_scores": cv_scores,
-        "model_path": model_path,
-        "scaler_path": scaler_path,
-        "w_matrix_path": w_matrix_path,
-        "manifest_path": manifest_paths["json"],
-        "manifest_csv_path": manifest_paths["csv"],
-    }
-
-
-# Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_93(request: TrainingRequest) -> dict:
-    """Entraîne la pipeline et sauvegarde ses artefacts."""
-
-    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
-    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
-    # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(request.pipeline_config)
-    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
-    min_class_count = int(np.bincount(y).min())
-    # Déclare le nombre de splits cible imposé par la consigne (10)
-    requested_splits = DEFAULT_CV_SPLITS
-    # Calcule le nombre de splits atteignable avec la classe minoritaire
-    n_splits = min(requested_splits, min_class_count)
-    # Initialise un tableau vide lorsque la validation croisée est impossible
-    cv_scores = np.array([])
-    # Vérifie si l'effectif autorise une validation croisée exploitable
-    if n_splits < MIN_CV_SPLITS:
-        # Signale la désactivation de la validation croisée par manque d'échantillons
-        print(
-            "AVERTISSEMENT: effectif par classe insuffisant pour la "
-            "validation croisée, cross-val ignorée"
-        )
-    else:
-        # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
-        # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
-    # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
-    # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
-    # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
-    # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
-    # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
-    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is not None:
-        # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
-    # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
-    # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
-    # Calcule le chemin du scaler pour l'ajouter au manifeste
-    scaler_path = None
-    # Renseigne le chemin du scaler uniquement lorsqu'il existe
-    if scaler_step is not None:
-        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
-    # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
-    # Écrit un manifeste décrivant l'entraînement et ses artefacts
-    manifest_paths = _write_manifest(
-        request,
-        target_dir,
-        None,
-        {
-            "model": model_path,
-            "scaler": scaler_path,
-            "w_matrix": w_matrix_path,
-        },
-    )
-    # Retourne un rapport synthétique pour les tests et la CLI
-    return {
-        "cv_scores": cv_scores,
-        "model_path": model_path,
-        "scaler_path": scaler_path,
-        "w_matrix_path": w_matrix_path,
-        "manifest_path": manifest_paths["json"],
-        "manifest_csv_path": manifest_paths["csv"],
-    }
-
-
-# Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_94(request: TrainingRequest) -> dict:
-    """Entraîne la pipeline et sauvegarde ses artefacts."""
-
-    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
-    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
-    # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(request.pipeline_config)
-    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
-    min_class_count = int(np.bincount(y).min())
-    # Déclare le nombre de splits cible imposé par la consigne (10)
-    requested_splits = DEFAULT_CV_SPLITS
-    # Calcule le nombre de splits atteignable avec la classe minoritaire
-    n_splits = min(requested_splits, min_class_count)
-    # Initialise un tableau vide lorsque la validation croisée est impossible
-    cv_scores = np.array([])
-    # Vérifie si l'effectif autorise une validation croisée exploitable
-    if n_splits < MIN_CV_SPLITS:
-        # Signale la désactivation de la validation croisée par manque d'échantillons
-        print(
-            "AVERTISSEMENT: effectif par classe insuffisant pour la "
-            "validation croisée, cross-val ignorée"
-        )
-    else:
-        # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
-        # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
-    # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
-    # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
-    # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
-    # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
-    # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
-    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is not None:
-        # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
-    # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
-    # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
-    # Calcule le chemin du scaler pour l'ajouter au manifeste
-    scaler_path = None
-    # Renseigne le chemin du scaler uniquement lorsqu'il existe
-    if scaler_step is not None:
-        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
-    # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
-    # Écrit un manifeste décrivant l'entraînement et ses artefacts
-    manifest_paths = _write_manifest(
-        request,
-        target_dir,
-        cv_scores,
-        None,
-    )
-    # Retourne un rapport synthétique pour les tests et la CLI
-    return {
-        "cv_scores": cv_scores,
-        "model_path": model_path,
-        "scaler_path": scaler_path,
-        "w_matrix_path": w_matrix_path,
-        "manifest_path": manifest_paths["json"],
-        "manifest_csv_path": manifest_paths["csv"],
-    }
-
-
-# Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_95(request: TrainingRequest) -> dict:
-    """Entraîne la pipeline et sauvegarde ses artefacts."""
-
-    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
-    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
-    # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(request.pipeline_config)
-    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
-    min_class_count = int(np.bincount(y).min())
-    # Déclare le nombre de splits cible imposé par la consigne (10)
-    requested_splits = DEFAULT_CV_SPLITS
-    # Calcule le nombre de splits atteignable avec la classe minoritaire
-    n_splits = min(requested_splits, min_class_count)
-    # Initialise un tableau vide lorsque la validation croisée est impossible
-    cv_scores = np.array([])
-    # Vérifie si l'effectif autorise une validation croisée exploitable
-    if n_splits < MIN_CV_SPLITS:
-        # Signale la désactivation de la validation croisée par manque d'échantillons
-        print(
-            "AVERTISSEMENT: effectif par classe insuffisant pour la "
-            "validation croisée, cross-val ignorée"
-        )
-    else:
-        # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
-        # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
-    # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
-    # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
-    # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
-    # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
-    # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
-    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is not None:
-        # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
-    # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
-    # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
-    # Calcule le chemin du scaler pour l'ajouter au manifeste
-    scaler_path = None
-    # Renseigne le chemin du scaler uniquement lorsqu'il existe
-    if scaler_step is not None:
-        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
-    # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
-    # Écrit un manifeste décrivant l'entraînement et ses artefacts
-    manifest_paths = _write_manifest(
-        target_dir,
-        cv_scores,
-        {
-            "model": model_path,
-            "scaler": scaler_path,
-            "w_matrix": w_matrix_path,
-        },
-    )
-    # Retourne un rapport synthétique pour les tests et la CLI
-    return {
-        "cv_scores": cv_scores,
-        "model_path": model_path,
-        "scaler_path": scaler_path,
-        "w_matrix_path": w_matrix_path,
-        "manifest_path": manifest_paths["json"],
-        "manifest_csv_path": manifest_paths["csv"],
-    }
-
-
-# Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_96(request: TrainingRequest) -> dict:
-    """Entraîne la pipeline et sauvegarde ses artefacts."""
-
-    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
-    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
-    # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(request.pipeline_config)
-    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
-    min_class_count = int(np.bincount(y).min())
-    # Déclare le nombre de splits cible imposé par la consigne (10)
-    requested_splits = DEFAULT_CV_SPLITS
-    # Calcule le nombre de splits atteignable avec la classe minoritaire
-    n_splits = min(requested_splits, min_class_count)
-    # Initialise un tableau vide lorsque la validation croisée est impossible
-    cv_scores = np.array([])
-    # Vérifie si l'effectif autorise une validation croisée exploitable
-    if n_splits < MIN_CV_SPLITS:
-        # Signale la désactivation de la validation croisée par manque d'échantillons
-        print(
-            "AVERTISSEMENT: effectif par classe insuffisant pour la "
-            "validation croisée, cross-val ignorée"
-        )
-    else:
-        # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
-        # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
-    # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
-    # Prépare le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
-    # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
-    # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
-    # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
-    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is not None:
-        # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
-    # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
-    # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
-    # Calcule le chemin du scaler pour l'ajouter au manifeste
-    scaler_path = None
-    # Renseigne le chemin du scaler uniquement lorsqu'il existe
-    if scaler_step is not None:
-        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
-    # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
-    # Écrit un manifeste décrivant l'entraînement et ses artefacts
-    manifest_paths = _write_manifest(
-        request,
-        cv_scores,
-        {
-            "model": model_path,
-            "scaler": scaler_path,
-            "w_matrix": w_matrix_path,
-        },
-    )
-    # Retourne un rapport synthétique pour les tests et la CLI
-    return {
-        "cv_scores": cv_scores,
-        "model_path": model_path,
-        "scaler_path": scaler_path,
-        "w_matrix_path": w_matrix_path,
-        "manifest_path": manifest_paths["json"],
-        "manifest_csv_path": manifest_paths["csv"],
-    }
-
-
-# Exécute la validation croisée et l'entraînement final
 def x_run_training__mutmut_97(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
@@ -42072,7 +44274,7 @@ def x_run_training__mutmut_97(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42105,8 +44307,9 @@ def x_run_training__mutmut_97(request: TrainingRequest) -> dict:
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
-        request,
+        None,
         target_dir,
+        cv_scores,
         {
             "model": model_path,
             "scaler": scaler_path,
@@ -42149,7 +44352,468 @@ def x_run_training__mutmut_98(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        None,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_99(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        None,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_100(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        None,
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_101(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_102(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_103(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_104(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42198,7 +44862,7 @@ def x_run_training__mutmut_98(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_99(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_105(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42222,7 +44886,7 @@ def x_run_training__mutmut_99(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42276,7 +44940,7 @@ def x_run_training__mutmut_99(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_100(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_106(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42300,7 +44964,7 @@ def x_run_training__mutmut_100(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42354,7 +45018,7 @@ def x_run_training__mutmut_100(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_101(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_107(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42378,7 +45042,7 @@ def x_run_training__mutmut_101(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42432,7 +45096,7 @@ def x_run_training__mutmut_101(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_102(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_108(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42456,7 +45120,7 @@ def x_run_training__mutmut_102(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42510,7 +45174,7 @@ def x_run_training__mutmut_102(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_103(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_109(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42534,7 +45198,7 @@ def x_run_training__mutmut_103(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42588,7 +45252,7 @@ def x_run_training__mutmut_103(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_104(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_110(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42612,7 +45276,7 @@ def x_run_training__mutmut_104(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42666,7 +45330,7 @@ def x_run_training__mutmut_104(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_105(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_111(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42690,7 +45354,7 @@ def x_run_training__mutmut_105(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42744,7 +45408,7 @@ def x_run_training__mutmut_105(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_106(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_112(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42768,7 +45432,7 @@ def x_run_training__mutmut_106(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42822,7 +45486,7 @@ def x_run_training__mutmut_106(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_107(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_113(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42846,7 +45510,7 @@ def x_run_training__mutmut_107(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42900,7 +45564,7 @@ def x_run_training__mutmut_107(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_108(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_114(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -42924,7 +45588,7 @@ def x_run_training__mutmut_108(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42978,7 +45642,7 @@ def x_run_training__mutmut_108(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_109(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_115(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43002,7 +45666,7 @@ def x_run_training__mutmut_109(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43056,7 +45720,7 @@ def x_run_training__mutmut_109(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_110(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_116(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43080,7 +45744,7 @@ def x_run_training__mutmut_110(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43134,7 +45798,7 @@ def x_run_training__mutmut_110(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_111(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_117(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43158,7 +45822,7 @@ def x_run_training__mutmut_111(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43212,7 +45876,7 @@ def x_run_training__mutmut_111(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_112(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_118(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43236,7 +45900,7 @@ def x_run_training__mutmut_112(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43290,7 +45954,7 @@ def x_run_training__mutmut_112(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_113(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_119(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43314,7 +45978,7 @@ def x_run_training__mutmut_113(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43368,7 +46032,7 @@ def x_run_training__mutmut_113(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_114(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_120(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43392,7 +46056,7 @@ def x_run_training__mutmut_114(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43446,7 +46110,7 @@ def x_run_training__mutmut_114(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_115(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_121(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43470,7 +46134,7 @@ def x_run_training__mutmut_115(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43524,7 +46188,7 @@ def x_run_training__mutmut_115(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_116(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_122(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43548,7 +46212,7 @@ def x_run_training__mutmut_116(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43602,7 +46266,7 @@ def x_run_training__mutmut_116(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_117(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_123(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43626,7 +46290,7 @@ def x_run_training__mutmut_117(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43680,7 +46344,7 @@ def x_run_training__mutmut_117(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_118(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_124(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43704,7 +46368,7 @@ def x_run_training__mutmut_118(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43758,7 +46422,7 @@ def x_run_training__mutmut_118(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_119(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_125(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43782,7 +46446,7 @@ def x_run_training__mutmut_119(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43836,7 +46500,7 @@ def x_run_training__mutmut_119(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_120(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_126(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -43860,7 +46524,7 @@ def x_run_training__mutmut_120(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44032,7 +46696,13 @@ x_run_training__mutmut_mutants : ClassVar[MutantDict] = {
     'x_run_training__mutmut_117': x_run_training__mutmut_117, 
     'x_run_training__mutmut_118': x_run_training__mutmut_118, 
     'x_run_training__mutmut_119': x_run_training__mutmut_119, 
-    'x_run_training__mutmut_120': x_run_training__mutmut_120
+    'x_run_training__mutmut_120': x_run_training__mutmut_120, 
+    'x_run_training__mutmut_121': x_run_training__mutmut_121, 
+    'x_run_training__mutmut_122': x_run_training__mutmut_122, 
+    'x_run_training__mutmut_123': x_run_training__mutmut_123, 
+    'x_run_training__mutmut_124': x_run_training__mutmut_124, 
+    'x_run_training__mutmut_125': x_run_training__mutmut_125, 
+    'x_run_training__mutmut_126': x_run_training__mutmut_126
 }
 
 def run_training(*args, **kwargs):

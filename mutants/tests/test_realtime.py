@@ -67,6 +67,7 @@ PERF_BASE_TIME = 10.0
 # Fige un instant de démarrage d'inférence pour contrôler inference_started_at
 PERF_INFERENCE_START = 11.0
 
+
 # Vérifie que le parser realtime expose toutes les options attendues
 def test_realtime_build_parser_defines_cli_contract():
     # Construit le parser pour inspecter la configuration CLI
@@ -331,7 +332,9 @@ def test_realtime_latency_threshold_enforced():
 
 
 # Vérifie que l'égalité au SLA ne déclenche pas de TimeoutError
-def test_realtime_latency_threshold_allows_equal_boundary_and_relative_start(monkeypatch):
+def test_realtime_latency_threshold_allows_equal_boundary_and_relative_start(
+    monkeypatch,
+):
     # Définit une pipeline minimale pour éviter les dépendances temporelles réelles
     class _StubPipeline:
         """Pipeline déterministe pour contrôler les valeurs de perf_counter."""
@@ -452,6 +455,7 @@ def test_realtime_empty_stream_returns_zero_latencies():
     assert result["latency_mean"] == 0.0
     # Vérifie que le maximum vaut zéro en absence de fenêtres
     assert result["latency_max"] == 0.0
+
 
 # Vérifie que les fenêtres sont traitées dans l'ordre chronologique
 def test_realtime_time_ordering():
