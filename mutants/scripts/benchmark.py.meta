@@ -1,9 +1,12 @@
 {
     "exit_code_by_key": {
-        "scripts.benchmark.x_run_synthetic_benchmark__mutmut_1": null,
-        "scripts.benchmark.x_run_synthetic_benchmark__mutmut_2": null
+        "scripts.benchmark.x_run_synthetic_benchmark__mutmut_1": 33,
+        "scripts.benchmark.x_run_synthetic_benchmark__mutmut_2": 33
     },
     "hash_by_function_name": {},
     "durations_by_key": {},
-    "estimated_durations_by_key": {}
+    "estimated_durations_by_key": {
+        "scripts.benchmark.x_run_synthetic_benchmark__mutmut_1": 0,
+        "scripts.benchmark.x_run_synthetic_benchmark__mutmut_2": 0
+    }
 }

@@ -39,6 +39,7 @@ from tpv.dimensionality import TPVDimReducer
 # Assemble la pipeline cohérente pour l'entraînement
 from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
 
+
 # Déclare la liste des runs moteurs à couvrir pour l'entraînement massif
 MOTOR_RUNS = (
     # Couvre le run moteur R03 documenté dans le protocole Physionet
@@ -546,12 +547,14 @@ def _load_data(
         # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
         validated_y = cast(np.ndarray, candidate_y)
         # Détecte les incohérences de dimension et déclenche une régénération
-        needs_rebuild = _needs_rebuild_from_shapes(
-            validated_X,
-            validated_y,
-            features_path,
-            labels_path,
-            run_label,
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
         )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement

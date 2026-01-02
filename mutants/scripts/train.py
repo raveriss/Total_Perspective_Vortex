@@ -17,6 +17,9 @@ from dataclasses import asdict, dataclass
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
 
+# Expose cast pour documenter les conversions de types
+from typing import cast
+
 # Offre la persistance dédiée aux objets scikit-learn pour inspection séparée
 import joblib
 
@@ -35,6 +38,7 @@ from tpv.dimensionality import TPVDimReducer
 
 # Assemble la pipeline cohérente pour l'entraînement
 from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
+
 
 # Déclare la liste des runs moteurs à couvrir pour l'entraînement massif
 MOTOR_RUNS = (
@@ -120,6 +124,7 @@ def _mutmut_trampoline(orig, mutants, call_args, call_kwargs, self_arg = None):
     else:
         result = mutants[mutant_name](*call_args, **call_kwargs)
     return result
+
 
 # Regroupe toutes les informations nécessaires à un run d'entraînement
 @dataclass
@@ -21002,6 +21007,1132 @@ def _train_all_runs(
     return 1 if failures else 0
 
 
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_orig(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_1(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim == EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_2(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            None
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_3(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "XXINFO: X chargé depuis XX"
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_4(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "info: x chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_5(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X CHARGÉ DEPUIS "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_6(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return False
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_7(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[1] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_8(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] == candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_9(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[1]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_10(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            None
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_11(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "XXINFO: Désalignement détecté pour XX"
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_12(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "info: désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_13(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: DÉSALIGNEMENT DÉTECTÉ POUR "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_14(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[1]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_15(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[1]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_16(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return False
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_17(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim == 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_18(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 2:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return False
+
+
+# Vérifie si les caches existants respectent les shapes attendues
+def x__needs_rebuild_from_shapes__mutmut_19(
+    candidate_X: np.ndarray,
+    candidate_y: np.ndarray,
+    features_path: Path,
+    labels_path: Path,
+    run_label: str,
+) -> bool:
+    """Valide les dimensions des caches existants pour éviter des erreurs."""
+
+    # Cas 2 : X n'a pas la bonne dimension → reconstruction
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        # Informe l'utilisateur de la dimension inattendue
+        print(
+            "INFO: X chargé depuis "
+            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver la forme attendue
+        return True
+
+    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    if candidate_X.shape[0] != candidate_y.shape[0]:
+        # Signale l'incohérence de longueur entre X et y
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour réaligner les labels
+        return True
+
+    # Cas 4 : labels mal dimensionnés → reconstruction
+    if candidate_y.ndim != 1:
+        # Informe l'utilisateur que y possède une dimension inattendue
+        print(
+            "INFO: y chargé depuis "
+            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
+            "régénération depuis l'EDF..."
+        )
+        # Demande une régénération pour retrouver un vecteur 1D
+        return True
+
+    # Confirme que les caches existants sont utilisables
+    return True
+
+x__needs_rebuild_from_shapes__mutmut_mutants : ClassVar[MutantDict] = {
+'x__needs_rebuild_from_shapes__mutmut_1': x__needs_rebuild_from_shapes__mutmut_1, 
+    'x__needs_rebuild_from_shapes__mutmut_2': x__needs_rebuild_from_shapes__mutmut_2, 
+    'x__needs_rebuild_from_shapes__mutmut_3': x__needs_rebuild_from_shapes__mutmut_3, 
+    'x__needs_rebuild_from_shapes__mutmut_4': x__needs_rebuild_from_shapes__mutmut_4, 
+    'x__needs_rebuild_from_shapes__mutmut_5': x__needs_rebuild_from_shapes__mutmut_5, 
+    'x__needs_rebuild_from_shapes__mutmut_6': x__needs_rebuild_from_shapes__mutmut_6, 
+    'x__needs_rebuild_from_shapes__mutmut_7': x__needs_rebuild_from_shapes__mutmut_7, 
+    'x__needs_rebuild_from_shapes__mutmut_8': x__needs_rebuild_from_shapes__mutmut_8, 
+    'x__needs_rebuild_from_shapes__mutmut_9': x__needs_rebuild_from_shapes__mutmut_9, 
+    'x__needs_rebuild_from_shapes__mutmut_10': x__needs_rebuild_from_shapes__mutmut_10, 
+    'x__needs_rebuild_from_shapes__mutmut_11': x__needs_rebuild_from_shapes__mutmut_11, 
+    'x__needs_rebuild_from_shapes__mutmut_12': x__needs_rebuild_from_shapes__mutmut_12, 
+    'x__needs_rebuild_from_shapes__mutmut_13': x__needs_rebuild_from_shapes__mutmut_13, 
+    'x__needs_rebuild_from_shapes__mutmut_14': x__needs_rebuild_from_shapes__mutmut_14, 
+    'x__needs_rebuild_from_shapes__mutmut_15': x__needs_rebuild_from_shapes__mutmut_15, 
+    'x__needs_rebuild_from_shapes__mutmut_16': x__needs_rebuild_from_shapes__mutmut_16, 
+    'x__needs_rebuild_from_shapes__mutmut_17': x__needs_rebuild_from_shapes__mutmut_17, 
+    'x__needs_rebuild_from_shapes__mutmut_18': x__needs_rebuild_from_shapes__mutmut_18, 
+    'x__needs_rebuild_from_shapes__mutmut_19': x__needs_rebuild_from_shapes__mutmut_19
+}
+
+def _needs_rebuild_from_shapes(*args, **kwargs):
+    result = _mutmut_trampoline(x__needs_rebuild_from_shapes__mutmut_orig, x__needs_rebuild_from_shapes__mutmut_mutants, args, kwargs)
+    return result 
+
+_needs_rebuild_from_shapes.__signature__ = _mutmut_signature(x__needs_rebuild_from_shapes__mutmut_orig)
+x__needs_rebuild_from_shapes__mutmut_orig.__name__ = 'x__needs_rebuild_from_shapes'
+
+
+def x__should_check_shapes__mutmut_orig(
+    needs_rebuild: bool,
+    corrupted_reason: str | None,
+    candidate_X: np.ndarray | None,
+    candidate_y: np.ndarray | None,
+) -> bool:
+    """Détermine si la validation des shapes est nécessaire."""
+
+    return (
+        not needs_rebuild
+        and corrupted_reason is None
+        and candidate_X is not None
+        and candidate_y is not None
+    )
+
+
+def x__should_check_shapes__mutmut_1(
+    needs_rebuild: bool,
+    corrupted_reason: str | None,
+    candidate_X: np.ndarray | None,
+    candidate_y: np.ndarray | None,
+) -> bool:
+    """Détermine si la validation des shapes est nécessaire."""
+
+    return (
+        not needs_rebuild
+        and corrupted_reason is None
+        and candidate_X is not None or candidate_y is not None
+    )
+
+
+def x__should_check_shapes__mutmut_2(
+    needs_rebuild: bool,
+    corrupted_reason: str | None,
+    candidate_X: np.ndarray | None,
+    candidate_y: np.ndarray | None,
+) -> bool:
+    """Détermine si la validation des shapes est nécessaire."""
+
+    return (
+        not needs_rebuild
+        and corrupted_reason is None or candidate_X is not None
+        and candidate_y is not None
+    )
+
+
+def x__should_check_shapes__mutmut_3(
+    needs_rebuild: bool,
+    corrupted_reason: str | None,
+    candidate_X: np.ndarray | None,
+    candidate_y: np.ndarray | None,
+) -> bool:
+    """Détermine si la validation des shapes est nécessaire."""
+
+    return (
+        not needs_rebuild or corrupted_reason is None
+        and candidate_X is not None
+        and candidate_y is not None
+    )
+
+
+def x__should_check_shapes__mutmut_4(
+    needs_rebuild: bool,
+    corrupted_reason: str | None,
+    candidate_X: np.ndarray | None,
+    candidate_y: np.ndarray | None,
+) -> bool:
+    """Détermine si la validation des shapes est nécessaire."""
+
+    return (
+        needs_rebuild
+        and corrupted_reason is None
+        and candidate_X is not None
+        and candidate_y is not None
+    )
+
+
+def x__should_check_shapes__mutmut_5(
+    needs_rebuild: bool,
+    corrupted_reason: str | None,
+    candidate_X: np.ndarray | None,
+    candidate_y: np.ndarray | None,
+) -> bool:
+    """Détermine si la validation des shapes est nécessaire."""
+
+    return (
+        not needs_rebuild
+        and corrupted_reason is not None
+        and candidate_X is not None
+        and candidate_y is not None
+    )
+
+
+def x__should_check_shapes__mutmut_6(
+    needs_rebuild: bool,
+    corrupted_reason: str | None,
+    candidate_X: np.ndarray | None,
+    candidate_y: np.ndarray | None,
+) -> bool:
+    """Détermine si la validation des shapes est nécessaire."""
+
+    return (
+        not needs_rebuild
+        and corrupted_reason is None
+        and candidate_X is None
+        and candidate_y is not None
+    )
+
+
+def x__should_check_shapes__mutmut_7(
+    needs_rebuild: bool,
+    corrupted_reason: str | None,
+    candidate_X: np.ndarray | None,
+    candidate_y: np.ndarray | None,
+) -> bool:
+    """Détermine si la validation des shapes est nécessaire."""
+
+    return (
+        not needs_rebuild
+        and corrupted_reason is None
+        and candidate_X is not None
+        and candidate_y is None
+    )
+
+x__should_check_shapes__mutmut_mutants : ClassVar[MutantDict] = {
+'x__should_check_shapes__mutmut_1': x__should_check_shapes__mutmut_1, 
+    'x__should_check_shapes__mutmut_2': x__should_check_shapes__mutmut_2, 
+    'x__should_check_shapes__mutmut_3': x__should_check_shapes__mutmut_3, 
+    'x__should_check_shapes__mutmut_4': x__should_check_shapes__mutmut_4, 
+    'x__should_check_shapes__mutmut_5': x__should_check_shapes__mutmut_5, 
+    'x__should_check_shapes__mutmut_6': x__should_check_shapes__mutmut_6, 
+    'x__should_check_shapes__mutmut_7': x__should_check_shapes__mutmut_7
+}
+
+def _should_check_shapes(*args, **kwargs):
+    result = _mutmut_trampoline(x__should_check_shapes__mutmut_orig, x__should_check_shapes__mutmut_mutants, args, kwargs)
+    return result 
+
+_should_check_shapes.__signature__ = _mutmut_signature(x__should_check_shapes__mutmut_orig)
+x__should_check_shapes__mutmut_orig.__name__ = 'x__should_check_shapes'
+
+
 # Charge ou génère les matrices numpy attendues pour l'entraînement
 def x__load_data__mutmut_orig(
     subject: str,
@@ -21017,6 +22148,9 @@ def x__load_data__mutmut_orig(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -21024,6 +22158,10 @@ def x__load_data__mutmut_orig(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21040,32 +22178,23 @@ def x__load_data__mutmut_orig(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21110,13 +22239,20 @@ def x__load_data__mutmut_1(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = None
+
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = None
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
     # Garde un bool strict (évite None, tue le mutant False->None).
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21133,32 +22269,23 @@ def x__load_data__mutmut_1(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21203,13 +22330,20 @@ def x__load_data__mutmut_2(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(None, run, data_dir)
+    features_path, labels_path = None
 
     # Garde un bool strict (évite None, tue le mutant False->None).
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21226,32 +22360,23 @@ def x__load_data__mutmut_2(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21296,13 +22421,20 @@ def x__load_data__mutmut_3(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(subject, None, data_dir)
+    features_path, labels_path = _resolve_data_paths(None, run, data_dir)
 
     # Garde un bool strict (évite None, tue le mutant False->None).
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21319,32 +22451,23 @@ def x__load_data__mutmut_3(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21389,13 +22512,20 @@ def x__load_data__mutmut_4(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(subject, run, None)
+    features_path, labels_path = _resolve_data_paths(subject, None, data_dir)
 
     # Garde un bool strict (évite None, tue le mutant False->None).
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21412,32 +22542,23 @@ def x__load_data__mutmut_4(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21482,13 +22603,20 @@ def x__load_data__mutmut_5(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(run, data_dir)
+    features_path, labels_path = _resolve_data_paths(subject, run, None)
 
     # Garde un bool strict (évite None, tue le mutant False->None).
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21505,32 +22633,23 @@ def x__load_data__mutmut_5(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21575,13 +22694,20 @@ def x__load_data__mutmut_6(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(subject, data_dir)
+    features_path, labels_path = _resolve_data_paths(run, data_dir)
 
     # Garde un bool strict (évite None, tue le mutant False->None).
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21598,32 +22724,23 @@ def x__load_data__mutmut_6(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21668,13 +22785,20 @@ def x__load_data__mutmut_7(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(subject, run, )
+    features_path, labels_path = _resolve_data_paths(subject, data_dir)
 
     # Garde un bool strict (évite None, tue le mutant False->None).
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21691,32 +22815,23 @@ def x__load_data__mutmut_7(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21761,13 +22876,20 @@ def x__load_data__mutmut_8(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    features_path, labels_path = _resolve_data_paths(subject, run, )
 
     # Garde un bool strict (évite None, tue le mutant False->None).
-    needs_rebuild: bool = None
+    needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21784,32 +22906,23 @@ def x__load_data__mutmut_8(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21854,13 +22967,20 @@ def x__load_data__mutmut_9(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
     # Garde un bool strict (évite None, tue le mutant False->None).
-    needs_rebuild: bool = True
+    needs_rebuild: bool = None
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21877,32 +22997,23 @@ def x__load_data__mutmut_9(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -21947,13 +23058,20 @@ def x__load_data__mutmut_10(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
     # Garde un bool strict (évite None, tue le mutant False->None).
-    needs_rebuild: bool = False
+    needs_rebuild: bool = True
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
-    corrupted_reason: str | None = ""
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -21970,32 +23088,23 @@ def x__load_data__mutmut_10(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22040,16 +23149,23 @@ def x__load_data__mutmut_11(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
     # Garde un bool strict (évite None, tue le mutant False->None).
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
-    corrupted_reason: str | None = None
+    corrupted_reason: str | None = ""
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
-    if not features_path.exists() and not labels_path.exists():
+    if not features_path.exists() or not labels_path.exists():
         needs_rebuild = True
     else:
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
@@ -22063,32 +23179,23 @@ def x__load_data__mutmut_11(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22133,6 +23240,9 @@ def x__load_data__mutmut_12(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22140,9 +23250,13 @@ def x__load_data__mutmut_12(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = ""
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
-    if features_path.exists() or not labels_path.exists():
+    if not features_path.exists() or not labels_path.exists():
         needs_rebuild = True
     else:
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
@@ -22156,32 +23270,23 @@ def x__load_data__mutmut_12(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22226,6 +23331,9 @@ def x__load_data__mutmut_13(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22233,9 +23341,13 @@ def x__load_data__mutmut_13(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = ""
 
     # Cas 1 : fichiers manquants → on reconstruira
-    if not features_path.exists() or labels_path.exists():
+    if not features_path.exists() or not labels_path.exists():
         needs_rebuild = True
     else:
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
@@ -22249,32 +23361,23 @@ def x__load_data__mutmut_13(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22319,6 +23422,9 @@ def x__load_data__mutmut_14(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22326,10 +23432,14 @@ def x__load_data__mutmut_14(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
-    if not features_path.exists() or not labels_path.exists():
-        needs_rebuild = None
+    if not features_path.exists() and not labels_path.exists():
+        needs_rebuild = True
     else:
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
@@ -22342,32 +23452,23 @@ def x__load_data__mutmut_14(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22412,6 +23513,9 @@ def x__load_data__mutmut_15(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22419,10 +23523,14 @@ def x__load_data__mutmut_15(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
-    if not features_path.exists() or not labels_path.exists():
-        needs_rebuild = False
+    if features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
     else:
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
@@ -22435,32 +23543,23 @@ def x__load_data__mutmut_15(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22505,6 +23604,9 @@ def x__load_data__mutmut_16(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22512,15 +23614,19 @@ def x__load_data__mutmut_16(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
-    if not features_path.exists() or not labels_path.exists():
+    if not features_path.exists() or labels_path.exists():
         needs_rebuild = True
     else:
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = None
+            candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
             candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
@@ -22528,32 +23634,23 @@ def x__load_data__mutmut_16(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22598,6 +23695,9 @@ def x__load_data__mutmut_17(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22605,15 +23705,19 @@ def x__load_data__mutmut_17(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
-        needs_rebuild = True
+        needs_rebuild = None
     else:
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(None, mmap_mode="r")
+            candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
             candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
@@ -22621,32 +23725,23 @@ def x__load_data__mutmut_17(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22691,6 +23786,9 @@ def x__load_data__mutmut_18(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22698,15 +23796,19 @@ def x__load_data__mutmut_18(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
-        needs_rebuild = True
+        needs_rebuild = False
     else:
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(features_path, mmap_mode=None)
+            candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
             candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
@@ -22714,32 +23816,23 @@ def x__load_data__mutmut_18(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22784,6 +23877,9 @@ def x__load_data__mutmut_19(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22791,6 +23887,10 @@ def x__load_data__mutmut_19(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -22799,7 +23899,7 @@ def x__load_data__mutmut_19(
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(mmap_mode="r")
+            candidate_X = None
             # Charge y en mmap pour inspecter la longueur
             candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
@@ -22807,32 +23907,23 @@ def x__load_data__mutmut_19(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22877,6 +23968,9 @@ def x__load_data__mutmut_20(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22884,6 +23978,10 @@ def x__load_data__mutmut_20(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -22892,7 +23990,7 @@ def x__load_data__mutmut_20(
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(features_path, )
+            candidate_X = np.load(None, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
             candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
@@ -22900,32 +23998,23 @@ def x__load_data__mutmut_20(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -22970,6 +24059,9 @@ def x__load_data__mutmut_21(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -22977,6 +24069,10 @@ def x__load_data__mutmut_21(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -22985,7 +24081,7 @@ def x__load_data__mutmut_21(
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(features_path, mmap_mode="XXrXX")
+            candidate_X = np.load(features_path, mmap_mode=None)
             # Charge y en mmap pour inspecter la longueur
             candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
@@ -22993,32 +24089,23 @@ def x__load_data__mutmut_21(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23063,6 +24150,9 @@ def x__load_data__mutmut_22(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23070,6 +24160,10 @@ def x__load_data__mutmut_22(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23078,7 +24172,7 @@ def x__load_data__mutmut_22(
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(features_path, mmap_mode="R")
+            candidate_X = np.load(mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
             candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
@@ -23086,32 +24180,23 @@ def x__load_data__mutmut_22(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23156,6 +24241,9 @@ def x__load_data__mutmut_23(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23163,6 +24251,10 @@ def x__load_data__mutmut_23(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23171,40 +24263,31 @@ def x__load_data__mutmut_23(
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(features_path, mmap_mode="r")
+            candidate_X = np.load(features_path, )
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = None
+            candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23249,6 +24332,9 @@ def x__load_data__mutmut_24(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23256,6 +24342,10 @@ def x__load_data__mutmut_24(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23264,40 +24354,31 @@ def x__load_data__mutmut_24(
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(features_path, mmap_mode="r")
+            candidate_X = np.load(features_path, mmap_mode="XXrXX")
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = np.load(None, mmap_mode="r")
+            candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23342,6 +24423,9 @@ def x__load_data__mutmut_25(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23349,6 +24433,10 @@ def x__load_data__mutmut_25(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23357,40 +24445,31 @@ def x__load_data__mutmut_25(
         # Sécurise le chargement numpy pour tolérer les fichiers corrompus
         try:
             # Charge X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(features_path, mmap_mode="r")
+            candidate_X = np.load(features_path, mmap_mode="R")
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = np.load(labels_path, mmap_mode=None)
+            candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23435,6 +24514,9 @@ def x__load_data__mutmut_26(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23442,6 +24524,10 @@ def x__load_data__mutmut_26(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23452,38 +24538,29 @@ def x__load_data__mutmut_26(
             # Charge X en mmap pour inspecter la forme sans tout charger
             candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = np.load(mmap_mode="r")
+            candidate_y = None
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23528,6 +24605,9 @@ def x__load_data__mutmut_27(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23535,6 +24615,10 @@ def x__load_data__mutmut_27(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23545,38 +24629,29 @@ def x__load_data__mutmut_27(
             # Charge X en mmap pour inspecter la forme sans tout charger
             candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = np.load(labels_path, )
+            candidate_y = np.load(None, mmap_mode="r")
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23621,6 +24696,9 @@ def x__load_data__mutmut_28(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23628,6 +24706,10 @@ def x__load_data__mutmut_28(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23638,38 +24720,29 @@ def x__load_data__mutmut_28(
             # Charge X en mmap pour inspecter la forme sans tout charger
             candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = np.load(labels_path, mmap_mode="XXrXX")
+            candidate_y = np.load(labels_path, mmap_mode=None)
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23714,6 +24787,9 @@ def x__load_data__mutmut_29(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23721,6 +24797,10 @@ def x__load_data__mutmut_29(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23731,38 +24811,29 @@ def x__load_data__mutmut_29(
             # Charge X en mmap pour inspecter la forme sans tout charger
             candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = np.load(labels_path, mmap_mode="R")
+            candidate_y = np.load(mmap_mode="r")
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23807,6 +24878,9 @@ def x__load_data__mutmut_30(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23814,6 +24888,10 @@ def x__load_data__mutmut_30(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23824,38 +24902,29 @@ def x__load_data__mutmut_30(
             # Charge X en mmap pour inspecter la forme sans tout charger
             candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = np.load(labels_path, mmap_mode="r")
+            candidate_y = np.load(labels_path, )
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
-            needs_rebuild = None
+            needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23900,6 +24969,9 @@ def x__load_data__mutmut_31(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -23907,6 +24979,10 @@ def x__load_data__mutmut_31(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -23917,38 +24993,29 @@ def x__load_data__mutmut_31(
             # Charge X en mmap pour inspecter la forme sans tout charger
             candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = np.load(labels_path, mmap_mode="r")
+            candidate_y = np.load(labels_path, mmap_mode="XXrXX")
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
-            needs_rebuild = False
+            needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -23993,6 +25060,9 @@ def x__load_data__mutmut_32(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24000,6 +25070,10 @@ def x__load_data__mutmut_32(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24010,38 +25084,29 @@ def x__load_data__mutmut_32(
             # Charge X en mmap pour inspecter la forme sans tout charger
             candidate_X = np.load(features_path, mmap_mode="r")
             # Charge y en mmap pour inspecter la longueur
-            candidate_y = np.load(labels_path, mmap_mode="r")
+            candidate_y = np.load(labels_path, mmap_mode="R")
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
-            corrupted_reason = None
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24086,6 +25151,9 @@ def x__load_data__mutmut_33(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24093,6 +25161,10 @@ def x__load_data__mutmut_33(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24106,35 +25178,26 @@ def x__load_data__mutmut_33(
             candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
-            needs_rebuild = True
+            needs_rebuild = None
             # Conserve la raison pour orienter l'utilisateur
-            corrupted_reason = str(None)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24179,6 +25242,9 @@ def x__load_data__mutmut_34(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24186,6 +25252,10 @@ def x__load_data__mutmut_34(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24199,35 +25269,26 @@ def x__load_data__mutmut_34(
             candidate_y = np.load(labels_path, mmap_mode="r")
         except (OSError, ValueError) as error:
             # Demande la reconstruction dès qu'un chargement échoue
-            needs_rebuild = True
+            needs_rebuild = False
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim == EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24272,6 +25333,9 @@ def x__load_data__mutmut_35(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24279,6 +25343,10 @@ def x__load_data__mutmut_35(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24294,30 +25362,24 @@ def x__load_data__mutmut_35(
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
-            corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    None
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+            corrupted_reason = None
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24362,6 +25424,9 @@ def x__load_data__mutmut_36(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24369,6 +25434,10 @@ def x__load_data__mutmut_36(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24384,33 +25453,24 @@ def x__load_data__mutmut_36(
             # Demande la reconstruction dès qu'un chargement échoue
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
-            corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "XXINFO: X chargé depuis XX"
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+            corrupted_reason = str(None)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24455,6 +25515,9 @@ def x__load_data__mutmut_37(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24462,6 +25525,10 @@ def x__load_data__mutmut_37(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24478,32 +25545,23 @@ def x__load_data__mutmut_37(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "info: x chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(None, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24548,6 +25606,9 @@ def x__load_data__mutmut_38(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24555,6 +25616,10 @@ def x__load_data__mutmut_38(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24571,32 +25636,23 @@ def x__load_data__mutmut_38(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X CHARGÉ DEPUIS "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, None, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24641,6 +25697,9 @@ def x__load_data__mutmut_39(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24648,6 +25707,10 @@ def x__load_data__mutmut_39(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24664,32 +25727,23 @@ def x__load_data__mutmut_39(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = None
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, None, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24734,6 +25788,9 @@ def x__load_data__mutmut_40(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24741,6 +25798,10 @@ def x__load_data__mutmut_40(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24757,32 +25818,23 @@ def x__load_data__mutmut_40(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = False
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, None):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24827,6 +25879,9 @@ def x__load_data__mutmut_41(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24834,6 +25889,10 @@ def x__load_data__mutmut_41(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24850,32 +25909,23 @@ def x__load_data__mutmut_41(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[1] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -24920,6 +25970,9 @@ def x__load_data__mutmut_42(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -24927,6 +25980,10 @@ def x__load_data__mutmut_42(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -24943,32 +26000,23 @@ def x__load_data__mutmut_42(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] == candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25013,6 +26061,9 @@ def x__load_data__mutmut_43(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25020,6 +26071,10 @@ def x__load_data__mutmut_43(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25036,32 +26091,23 @@ def x__load_data__mutmut_43(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[1]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25106,6 +26152,9 @@ def x__load_data__mutmut_44(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25113,6 +26162,10 @@ def x__load_data__mutmut_44(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25129,30 +26182,23 @@ def x__load_data__mutmut_44(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    None
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, ):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25197,6 +26243,9 @@ def x__load_data__mutmut_45(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25204,6 +26253,10 @@ def x__load_data__mutmut_45(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25220,32 +26273,23 @@ def x__load_data__mutmut_45(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "XXINFO: Désalignement détecté pour XX"
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = None
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25290,6 +26334,9 @@ def x__load_data__mutmut_46(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25297,6 +26344,10 @@ def x__load_data__mutmut_46(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25313,32 +26364,23 @@ def x__load_data__mutmut_46(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "info: désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(None, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25383,6 +26425,9 @@ def x__load_data__mutmut_47(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25390,6 +26435,10 @@ def x__load_data__mutmut_47(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25406,32 +26455,23 @@ def x__load_data__mutmut_47(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: DÉSALIGNEMENT DÉTECTÉ POUR "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, None)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25476,6 +26516,9 @@ def x__load_data__mutmut_48(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25483,6 +26526,10 @@ def x__load_data__mutmut_48(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25499,32 +26546,23 @@ def x__load_data__mutmut_48(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[1]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25569,6 +26607,9 @@ def x__load_data__mutmut_49(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25576,6 +26617,10 @@ def x__load_data__mutmut_49(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25592,32 +26637,23 @@ def x__load_data__mutmut_49(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[1]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, )
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25662,6 +26698,9 @@ def x__load_data__mutmut_50(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25669,6 +26708,10 @@ def x__load_data__mutmut_50(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25685,32 +26728,23 @@ def x__load_data__mutmut_50(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = None
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = None
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25755,6 +26789,9 @@ def x__load_data__mutmut_51(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25762,6 +26799,10 @@ def x__load_data__mutmut_51(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25778,32 +26819,23 @@ def x__load_data__mutmut_51(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = False
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(None, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25848,6 +26880,9 @@ def x__load_data__mutmut_52(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25855,6 +26890,10 @@ def x__load_data__mutmut_52(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25871,32 +26910,23 @@ def x__load_data__mutmut_52(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim == 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, None)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -25941,6 +26971,9 @@ def x__load_data__mutmut_53(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -25948,6 +26981,10 @@ def x__load_data__mutmut_53(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -25964,32 +27001,23 @@ def x__load_data__mutmut_53(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 2:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -26034,6 +27062,9 @@ def x__load_data__mutmut_54(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26041,6 +27072,10 @@ def x__load_data__mutmut_54(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26057,35 +27092,26 @@ def x__load_data__mutmut_54(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, )
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
-    if corrupted_reason is None:
+    if corrupted_reason is not None:
         print(
             "INFO: Chargement numpy impossible pour "
             f"{subject} {run}: {corrupted_reason}. "
@@ -26127,6 +27153,9 @@ def x__load_data__mutmut_55(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26134,6 +27163,10 @@ def x__load_data__mutmut_55(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26150,37 +27183,22 @@ def x__load_data__mutmut_55(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = None
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
         print(
-            None
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
         )
         needs_rebuild = True
 
@@ -26218,6 +27236,9 @@ def x__load_data__mutmut_56(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26225,6 +27246,10 @@ def x__load_data__mutmut_56(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26241,37 +27266,22 @@ def x__load_data__mutmut_56(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            None
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
         print(
-            "XXINFO: Chargement numpy impossible pour XX"
+            "INFO: Chargement numpy impossible pour "
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
@@ -26311,6 +27321,9 @@ def x__load_data__mutmut_57(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26318,6 +27331,10 @@ def x__load_data__mutmut_57(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26334,37 +27351,28 @@ def x__load_data__mutmut_57(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                None,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
         print(
-            "info: chargement numpy impossible pour "
+            "INFO: Chargement numpy impossible pour "
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
@@ -26404,6 +27412,9 @@ def x__load_data__mutmut_58(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26411,6 +27422,10 @@ def x__load_data__mutmut_58(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26427,37 +27442,28 @@ def x__load_data__mutmut_58(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                None,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
         print(
-            "INFO: CHARGEMENT NUMPY IMPOSSIBLE POUR "
+            "INFO: Chargement numpy impossible pour "
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
@@ -26497,6 +27503,9 @@ def x__load_data__mutmut_59(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26504,6 +27513,10 @@ def x__load_data__mutmut_59(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26520,32 +27533,23 @@ def x__load_data__mutmut_59(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                None,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -26554,7 +27558,7 @@ def x__load_data__mutmut_59(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
-        needs_rebuild = None
+        needs_rebuild = True
 
     # Force un bool Python strict (évite None / numpy.bool_).
     needs_rebuild = True if needs_rebuild else False
@@ -26590,6 +27594,9 @@ def x__load_data__mutmut_60(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26597,6 +27604,10 @@ def x__load_data__mutmut_60(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26613,32 +27624,23 @@ def x__load_data__mutmut_60(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                None,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -26647,7 +27649,7 @@ def x__load_data__mutmut_60(
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
-        needs_rebuild = False
+        needs_rebuild = True
 
     # Force un bool Python strict (évite None / numpy.bool_).
     needs_rebuild = True if needs_rebuild else False
@@ -26683,6 +27685,9 @@ def x__load_data__mutmut_61(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26690,6 +27695,10 @@ def x__load_data__mutmut_61(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26706,32 +27715,23 @@ def x__load_data__mutmut_61(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                None,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -26743,7 +27743,7 @@ def x__load_data__mutmut_61(
         needs_rebuild = True
 
     # Force un bool Python strict (évite None / numpy.bool_).
-    needs_rebuild = None
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -26776,6 +27776,9 @@ def x__load_data__mutmut_62(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26783,6 +27786,10 @@ def x__load_data__mutmut_62(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26799,32 +27806,22 @@ def x__load_data__mutmut_62(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -26836,7 +27833,7 @@ def x__load_data__mutmut_62(
         needs_rebuild = True
 
     # Force un bool Python strict (évite None / numpy.bool_).
-    needs_rebuild = False if needs_rebuild else False
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -26869,6 +27866,9 @@ def x__load_data__mutmut_63(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26876,6 +27876,10 @@ def x__load_data__mutmut_63(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26892,32 +27896,22 @@ def x__load_data__mutmut_63(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -26929,7 +27923,7 @@ def x__load_data__mutmut_63(
         needs_rebuild = True
 
     # Force un bool Python strict (évite None / numpy.bool_).
-    needs_rebuild = True if needs_rebuild else True
+    needs_rebuild = True if needs_rebuild else False
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -26962,6 +27956,9 @@ def x__load_data__mutmut_64(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -26969,6 +27966,10 @@ def x__load_data__mutmut_64(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -26985,32 +27986,22 @@ def x__load_data__mutmut_64(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -27026,7 +28017,12 @@ def x__load_data__mutmut_64(
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
-        features_path, labels_path = None
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
 
     # Charge les données validées (3D) et labels réalignés
     X = np.load(features_path)
@@ -27050,6 +28046,9 @@ def x__load_data__mutmut_65(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27057,6 +28056,10 @@ def x__load_data__mutmut_65(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27073,32 +28076,22 @@ def x__load_data__mutmut_65(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -27115,7 +28108,7 @@ def x__load_data__mutmut_65(
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
         features_path, labels_path = _build_npy_from_edf(
-            None,
+            subject,
             run,
             data_dir,
             raw_dir,
@@ -27143,6 +28136,9 @@ def x__load_data__mutmut_66(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27150,6 +28146,10 @@ def x__load_data__mutmut_66(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27166,32 +28166,22 @@ def x__load_data__mutmut_66(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
                 )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -27209,7 +28199,7 @@ def x__load_data__mutmut_66(
     if needs_rebuild:
         features_path, labels_path = _build_npy_from_edf(
             subject,
-            None,
+            run,
             data_dir,
             raw_dir,
         )
@@ -27236,6 +28226,9 @@ def x__load_data__mutmut_67(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27243,6 +28236,10 @@ def x__load_data__mutmut_67(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27259,35 +28256,26 @@ def x__load_data__mutmut_67(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
-    if corrupted_reason is not None:
+    if corrupted_reason is None:
         print(
             "INFO: Chargement numpy impossible pour "
             f"{subject} {run}: {corrupted_reason}. "
@@ -27303,7 +28291,7 @@ def x__load_data__mutmut_67(
         features_path, labels_path = _build_npy_from_edf(
             subject,
             run,
-            None,
+            data_dir,
             raw_dir,
         )
 
@@ -27329,6 +28317,9 @@ def x__load_data__mutmut_68(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27336,6 +28327,10 @@ def x__load_data__mutmut_68(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27352,39 +28347,28 @@ def x__load_data__mutmut_68(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
         print(
-            "INFO: Chargement numpy impossible pour "
-            f"{subject} {run}: {corrupted_reason}. "
-            "Régénération depuis l'EDF..."
+            None
         )
         needs_rebuild = True
 
@@ -27397,7 +28381,7 @@ def x__load_data__mutmut_68(
             subject,
             run,
             data_dir,
-            None,
+            raw_dir,
         )
 
     # Charge les données validées (3D) et labels réalignés
@@ -27422,6 +28406,9 @@ def x__load_data__mutmut_69(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27429,6 +28416,10 @@ def x__load_data__mutmut_69(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27445,37 +28436,28 @@ def x__load_data__mutmut_69(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
         print(
-            "INFO: Chargement numpy impossible pour "
+            "XXINFO: Chargement numpy impossible pour XX"
             f"{subject} {run}: {corrupted_reason}. "
             "Régénération depuis l'EDF..."
         )
@@ -27487,6 +28469,7 @@ def x__load_data__mutmut_69(
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
         features_path, labels_path = _build_npy_from_edf(
+            subject,
             run,
             data_dir,
             raw_dir,
@@ -27514,6 +28497,9 @@ def x__load_data__mutmut_70(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27521,6 +28507,10 @@ def x__load_data__mutmut_70(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27537,32 +28527,1200 @@ def x__load_data__mutmut_70(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "info: chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_71(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: CHARGEMENT NUMPY IMPOSSIBLE POUR "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_72(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = None
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_73(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = False
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_74(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = None
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_75(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = False if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_76(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_77(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = None
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_78(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            None,
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_79(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            None,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_80(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            None,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_81(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            subject,
+            run,
+            data_dir,
+            None,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_82(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
+
+    # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
+    if corrupted_reason is not None:
+        print(
+            "INFO: Chargement numpy impossible pour "
+            f"{subject} {run}: {corrupted_reason}. "
+            "Régénération depuis l'EDF..."
+        )
+        needs_rebuild = True
+
+    # Force un bool Python strict (évite None / numpy.bool_).
+    needs_rebuild = True if needs_rebuild else False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        features_path, labels_path = _build_npy_from_edf(
+            run,
+            data_dir,
+            raw_dir,
+        )
+
+    # Charge les données validées (3D) et labels réalignés
+    X = np.load(features_path)
+    y = np.load(labels_path)
+
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour l'entraînement
+def x__load_data__mutmut_83(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run.
+
+    - Si les .npy n'existent pas, on les génère depuis l'EDF.
+    - Si X existe mais n'est pas 3D, on reconstruit depuis l'EDF.
+    - Si X et y n'ont pas le même nombre d'échantillons, on
+      reconstruit pour réaligner les labels sur les epochs.
+    """
+
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+
+    # Garde un bool strict (évite None, tue le mutant False->None).
+    needs_rebuild: bool = False
+    # Stocke les chemins invalides pour enrichir les logs utilisateurs
+    corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
+
+    # Cas 1 : fichiers manquants → on reconstruira
+    if not features_path.exists() or not labels_path.exists():
+        needs_rebuild = True
+    else:
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -27592,7 +29750,7 @@ def x__load_data__mutmut_70(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_71(
+def x__load_data__mutmut_84(
     subject: str,
     run: str,
     data_dir: Path,
@@ -27606,6 +29764,9 @@ def x__load_data__mutmut_71(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27613,6 +29774,10 @@ def x__load_data__mutmut_71(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27629,32 +29794,23 @@ def x__load_data__mutmut_71(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -27684,7 +29840,7 @@ def x__load_data__mutmut_71(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_72(
+def x__load_data__mutmut_85(
     subject: str,
     run: str,
     data_dir: Path,
@@ -27698,6 +29854,9 @@ def x__load_data__mutmut_72(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27705,6 +29864,10 @@ def x__load_data__mutmut_72(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27721,32 +29884,23 @@ def x__load_data__mutmut_72(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -27776,7 +29930,7 @@ def x__load_data__mutmut_72(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_73(
+def x__load_data__mutmut_86(
     subject: str,
     run: str,
     data_dir: Path,
@@ -27790,6 +29944,9 @@ def x__load_data__mutmut_73(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27797,6 +29954,10 @@ def x__load_data__mutmut_73(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27813,32 +29974,23 @@ def x__load_data__mutmut_73(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -27869,7 +30021,7 @@ def x__load_data__mutmut_73(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_74(
+def x__load_data__mutmut_87(
     subject: str,
     run: str,
     data_dir: Path,
@@ -27883,6 +30035,9 @@ def x__load_data__mutmut_74(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27890,6 +30045,10 @@ def x__load_data__mutmut_74(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27906,32 +30065,23 @@ def x__load_data__mutmut_74(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -27962,7 +30112,7 @@ def x__load_data__mutmut_74(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_75(
+def x__load_data__mutmut_88(
     subject: str,
     run: str,
     data_dir: Path,
@@ -27976,6 +30126,9 @@ def x__load_data__mutmut_75(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -27983,6 +30136,10 @@ def x__load_data__mutmut_75(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -27999,32 +30156,23 @@ def x__load_data__mutmut_75(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -28055,7 +30203,7 @@ def x__load_data__mutmut_75(
 
 
 # Charge ou génère les matrices numpy attendues pour l'entraînement
-def x__load_data__mutmut_76(
+def x__load_data__mutmut_89(
     subject: str,
     run: str,
     data_dir: Path,
@@ -28069,6 +30217,9 @@ def x__load_data__mutmut_76(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
+    # Concatène le couple sujet/run pour les messages utilisateur
+    run_label = f"{subject} {run}"
+
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
 
@@ -28076,6 +30227,10 @@ def x__load_data__mutmut_76(
     needs_rebuild: bool = False
     # Stocke les chemins invalides pour enrichir les logs utilisateurs
     corrupted_reason: str | None = None
+    # Conserve les caches chargés pour valider leurs formes
+    candidate_X: np.ndarray | None = None
+    # Conserve les labels chargés pour valider la longueur
+    candidate_y: np.ndarray | None = None
 
     # Cas 1 : fichiers manquants → on reconstruira
     if not features_path.exists() or not labels_path.exists():
@@ -28092,32 +30247,23 @@ def x__load_data__mutmut_76(
             needs_rebuild = True
             # Conserve la raison pour orienter l'utilisateur
             corrupted_reason = str(error)
-        else:
-            # Cas 2 : X n'a pas la bonne dimension → reconstruction
-            if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-                print(
-                    "INFO: X chargé depuis "
-                    f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-                    f"{EXPECTED_FEATURES_DIMENSIONS}, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 3 : désalignement entre n_samples de X et y → reconstruction
-            elif candidate_X.shape[0] != candidate_y.shape[0]:
-                print(
-                    "INFO: Désalignement détecté pour "
-                    f"{subject} {run}: X.shape[0]={candidate_X.shape[0]}, "
-                    f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
-            # Cas 4 : labels mal dimensionnés → reconstruction
-            elif candidate_y.ndim != 1:
-                print(
-                    "INFO: y chargé depuis "
-                    f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-                    "régénération depuis l'EDF..."
-                )
-                needs_rebuild = True
+
+    # Valide les shapes lorsque les caches ont été chargés avec succès
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
+        # Détecte les incohérences de dimension et déclenche une régénération
+        needs_rebuild = bool(
+            _needs_rebuild_from_shapes(
+                validated_X,
+                validated_y,
+                features_path,
+                labels_path,
+                run_label,
+            )
+        )
 
     # Informe l'utilisateur lorsqu'un fichier corrompu bloque le chargement
     if corrupted_reason is not None:
@@ -28222,7 +30368,20 @@ x__load_data__mutmut_mutants : ClassVar[MutantDict] = {
     'x__load_data__mutmut_73': x__load_data__mutmut_73, 
     'x__load_data__mutmut_74': x__load_data__mutmut_74, 
     'x__load_data__mutmut_75': x__load_data__mutmut_75, 
-    'x__load_data__mutmut_76': x__load_data__mutmut_76
+    'x__load_data__mutmut_76': x__load_data__mutmut_76, 
+    'x__load_data__mutmut_77': x__load_data__mutmut_77, 
+    'x__load_data__mutmut_78': x__load_data__mutmut_78, 
+    'x__load_data__mutmut_79': x__load_data__mutmut_79, 
+    'x__load_data__mutmut_80': x__load_data__mutmut_80, 
+    'x__load_data__mutmut_81': x__load_data__mutmut_81, 
+    'x__load_data__mutmut_82': x__load_data__mutmut_82, 
+    'x__load_data__mutmut_83': x__load_data__mutmut_83, 
+    'x__load_data__mutmut_84': x__load_data__mutmut_84, 
+    'x__load_data__mutmut_85': x__load_data__mutmut_85, 
+    'x__load_data__mutmut_86': x__load_data__mutmut_86, 
+    'x__load_data__mutmut_87': x__load_data__mutmut_87, 
+    'x__load_data__mutmut_88': x__load_data__mutmut_88, 
+    'x__load_data__mutmut_89': x__load_data__mutmut_89
 }
 
 def _load_data(*args, **kwargs):
@@ -36718,7 +38877,9 @@ def x_run_training__mutmut_orig(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36796,7 +38957,9 @@ def x_run_training__mutmut_1(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36874,7 +39037,9 @@ def x_run_training__mutmut_2(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -36952,7 +39117,9 @@ def x_run_training__mutmut_3(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37030,7 +39197,9 @@ def x_run_training__mutmut_4(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37108,7 +39277,9 @@ def x_run_training__mutmut_5(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37186,7 +39357,9 @@ def x_run_training__mutmut_6(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37264,7 +39437,9 @@ def x_run_training__mutmut_7(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37342,7 +39517,9 @@ def x_run_training__mutmut_8(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37420,7 +39597,9 @@ def x_run_training__mutmut_9(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37498,7 +39677,9 @@ def x_run_training__mutmut_10(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37576,7 +39757,9 @@ def x_run_training__mutmut_11(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37654,7 +39837,9 @@ def x_run_training__mutmut_12(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37732,7 +39917,9 @@ def x_run_training__mutmut_13(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37810,7 +39997,9 @@ def x_run_training__mutmut_14(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37888,7 +40077,9 @@ def x_run_training__mutmut_15(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -37966,7 +40157,9 @@ def x_run_training__mutmut_16(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38044,7 +40237,9 @@ def x_run_training__mutmut_17(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38122,7 +40317,9 @@ def x_run_training__mutmut_18(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38200,7 +40397,9 @@ def x_run_training__mutmut_19(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38278,7 +40477,9 @@ def x_run_training__mutmut_20(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38356,7 +40557,9 @@ def x_run_training__mutmut_21(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38434,7 +40637,9 @@ def x_run_training__mutmut_22(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38512,7 +40717,9 @@ def x_run_training__mutmut_23(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38589,7 +40796,9 @@ def x_run_training__mutmut_24(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38667,7 +40876,9 @@ def x_run_training__mutmut_25(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38745,7 +40956,9 @@ def x_run_training__mutmut_26(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38823,7 +41036,9 @@ def x_run_training__mutmut_27(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -38979,7 +41194,9 @@ def x_run_training__mutmut_29(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=None, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=None, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39057,7 +41274,9 @@ def x_run_training__mutmut_30(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=None, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=None, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39135,7 +41354,9 @@ def x_run_training__mutmut_31(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=None)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=None
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39213,7 +41434,9 @@ def x_run_training__mutmut_32(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39291,7 +41514,9 @@ def x_run_training__mutmut_33(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39369,7 +41594,8 @@ def x_run_training__mutmut_34(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, )
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39447,7 +41673,9 @@ def x_run_training__mutmut_35(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=False, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=False, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39525,7 +41753,9 @@ def x_run_training__mutmut_36(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = None
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39603,7 +41833,9 @@ def x_run_training__mutmut_37(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(None, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39681,7 +41913,9 @@ def x_run_training__mutmut_38(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, None, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39759,7 +41993,9 @@ def x_run_training__mutmut_39(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, None, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39837,7 +42073,9 @@ def x_run_training__mutmut_40(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=None)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39915,7 +42153,9 @@ def x_run_training__mutmut_41(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -39993,7 +42233,9 @@ def x_run_training__mutmut_42(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40071,7 +42313,9 @@ def x_run_training__mutmut_43(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40149,7 +42393,9 @@ def x_run_training__mutmut_44(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, )
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40227,7 +42473,9 @@ def x_run_training__mutmut_45(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40305,7 +42553,9 @@ def x_run_training__mutmut_46(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40383,7 +42633,9 @@ def x_run_training__mutmut_47(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40461,7 +42713,9 @@ def x_run_training__mutmut_48(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40539,7 +42793,9 @@ def x_run_training__mutmut_49(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40617,7 +42873,9 @@ def x_run_training__mutmut_50(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40695,7 +42953,9 @@ def x_run_training__mutmut_51(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40773,7 +43033,9 @@ def x_run_training__mutmut_52(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40851,7 +43113,9 @@ def x_run_training__mutmut_53(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -40929,7 +43193,9 @@ def x_run_training__mutmut_54(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41007,7 +43273,9 @@ def x_run_training__mutmut_55(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41085,7 +43353,9 @@ def x_run_training__mutmut_56(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41163,7 +43433,9 @@ def x_run_training__mutmut_57(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41241,7 +43513,9 @@ def x_run_training__mutmut_58(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41319,7 +43593,9 @@ def x_run_training__mutmut_59(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41397,7 +43673,9 @@ def x_run_training__mutmut_60(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41475,7 +43753,9 @@ def x_run_training__mutmut_61(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41553,7 +43833,9 @@ def x_run_training__mutmut_62(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41631,7 +43913,9 @@ def x_run_training__mutmut_63(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41709,7 +43993,9 @@ def x_run_training__mutmut_64(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41787,7 +44073,9 @@ def x_run_training__mutmut_65(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41865,7 +44153,9 @@ def x_run_training__mutmut_66(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -41943,7 +44233,9 @@ def x_run_training__mutmut_67(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42021,7 +44313,9 @@ def x_run_training__mutmut_68(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42099,7 +44393,9 @@ def x_run_training__mutmut_69(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42177,7 +44473,9 @@ def x_run_training__mutmut_70(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42255,7 +44553,9 @@ def x_run_training__mutmut_71(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42333,7 +44633,9 @@ def x_run_training__mutmut_72(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42411,7 +44713,9 @@ def x_run_training__mutmut_73(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42489,7 +44793,9 @@ def x_run_training__mutmut_74(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42567,7 +44873,9 @@ def x_run_training__mutmut_75(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42645,7 +44953,9 @@ def x_run_training__mutmut_76(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42723,7 +45033,9 @@ def x_run_training__mutmut_77(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42801,7 +45113,9 @@ def x_run_training__mutmut_78(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42879,7 +45193,9 @@ def x_run_training__mutmut_79(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -42957,7 +45273,9 @@ def x_run_training__mutmut_80(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43035,7 +45353,9 @@ def x_run_training__mutmut_81(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43113,7 +45433,9 @@ def x_run_training__mutmut_82(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43191,7 +45513,9 @@ def x_run_training__mutmut_83(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43269,7 +45593,9 @@ def x_run_training__mutmut_84(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43347,7 +45673,9 @@ def x_run_training__mutmut_85(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43425,7 +45753,9 @@ def x_run_training__mutmut_86(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43503,7 +45833,9 @@ def x_run_training__mutmut_87(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43581,7 +45913,9 @@ def x_run_training__mutmut_88(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43659,7 +45993,9 @@ def x_run_training__mutmut_89(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43737,7 +46073,9 @@ def x_run_training__mutmut_90(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43815,7 +46153,9 @@ def x_run_training__mutmut_91(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43893,7 +46233,9 @@ def x_run_training__mutmut_92(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -43971,7 +46313,9 @@ def x_run_training__mutmut_93(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44049,7 +46393,9 @@ def x_run_training__mutmut_94(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44127,7 +46473,9 @@ def x_run_training__mutmut_95(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44205,7 +46553,9 @@ def x_run_training__mutmut_96(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44274,7 +46624,9 @@ def x_run_training__mutmut_97(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44352,7 +46704,9 @@ def x_run_training__mutmut_98(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44430,7 +46784,9 @@ def x_run_training__mutmut_99(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44508,7 +46864,9 @@ def x_run_training__mutmut_100(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44582,7 +46940,9 @@ def x_run_training__mutmut_101(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44659,7 +47019,9 @@ def x_run_training__mutmut_102(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44736,7 +47098,9 @@ def x_run_training__mutmut_103(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44813,7 +47177,9 @@ def x_run_training__mutmut_104(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44886,7 +47252,9 @@ def x_run_training__mutmut_105(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -44964,7 +47332,9 @@ def x_run_training__mutmut_106(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45042,7 +47412,9 @@ def x_run_training__mutmut_107(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45120,7 +47492,9 @@ def x_run_training__mutmut_108(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45198,7 +47572,9 @@ def x_run_training__mutmut_109(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45276,7 +47652,9 @@ def x_run_training__mutmut_110(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45354,7 +47732,9 @@ def x_run_training__mutmut_111(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45432,7 +47812,9 @@ def x_run_training__mutmut_112(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45510,7 +47892,9 @@ def x_run_training__mutmut_113(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45588,7 +47972,9 @@ def x_run_training__mutmut_114(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45666,7 +48052,9 @@ def x_run_training__mutmut_115(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45744,7 +48132,9 @@ def x_run_training__mutmut_116(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45822,7 +48212,9 @@ def x_run_training__mutmut_117(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45900,7 +48292,9 @@ def x_run_training__mutmut_118(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -45978,7 +48372,9 @@ def x_run_training__mutmut_119(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -46056,7 +48452,9 @@ def x_run_training__mutmut_120(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -46134,7 +48532,9 @@ def x_run_training__mutmut_121(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -46212,7 +48612,9 @@ def x_run_training__mutmut_122(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -46290,7 +48692,9 @@ def x_run_training__mutmut_123(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -46368,7 +48772,9 @@ def x_run_training__mutmut_124(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -46446,7 +48852,9 @@ def x_run_training__mutmut_125(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation
@@ -46524,7 +48932,9 @@ def x_run_training__mutmut_126(request: TrainingRequest) -> dict:
         )
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE)
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         cv_scores = cross_val_score(pipeline, X, y, cv=cv)
     # Ajuste la pipeline sur toutes les données après évaluation

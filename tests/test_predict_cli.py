@@ -11,6 +11,11 @@ def _get_action(parser: argparse.ArgumentParser, dest: str) -> argparse.Action:
 def test_build_parser_exposes_compatibility_defaults_and_paths() -> None:
     parser = predict.build_parser()
 
+    assert (
+        parser.description == "Charge une pipeline TPV entraînée et produit un rapport"
+    )
+    subject_action = _get_action(parser, "subject")
+    run_action = _get_action(parser, "run")
     classifier_action = _get_action(parser, "classifier")
     scaler_action = _get_action(parser, "scaler")
     feature_action = _get_action(parser, "feature_strategy")
@@ -22,6 +27,9 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> None:
     artifacts_dir_action = _get_action(parser, "artifacts_dir")
     raw_dir_action = _get_action(parser, "raw_dir")
 
+    assert subject_action.help == "Identifiant du sujet (ex: S001)"
+    assert run_action.help == "Identifiant du run (ex: R01)"
+
     assert classifier_action.choices is not None
     assert tuple(classifier_action.choices) == (
         "lda",
@@ -30,15 +38,42 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> None:
         "centroid",
     )
     assert classifier_action.default == "lda"
+    assert (
+        classifier_action.help
+        == "Classifieur final (ignoré en prédiction, pour compatibilité CLI)"
+    )
+
     assert scaler_action.choices is not None
     assert tuple(scaler_action.choices) == ("standard", "robust", "none")
     assert scaler_action.default == "none"
+    assert scaler_action.help == "Scaler appliqué en entraînement (ignoré en prédiction)"
+
     assert feature_action.choices is not None
     assert tuple(feature_action.choices) == ("fft", "wavelet")
     assert feature_action.default == "fft"
+    assert (
+        feature_action.help
+        == "Stratégie de features utilisée à l'entraînement (ignorée ici)"
+    )
+
     assert dim_action.choices is not None
     assert tuple(dim_action.choices) == ("pca", "csp")
     assert dim_action.default == "pca"
+    assert (
+        dim_action.help
+        == "Méthode de réduction de dimension (ignorée en prédiction)"
+    )
+
+    assert (
+        n_components_action.help
+        == "Nombre de composantes (ignoré en prédiction)"
+    )
+    assert (
+        no_normalize_action.help
+        == "Flag de normalisation (ignoré en prédiction)"
+    )
+    assert sfreq_action.help == "Fréquence utilisée en features (ignorée ici)"
+
     assert n_components_action.default is argparse.SUPPRESS
     assert n_components_action.type is int
     assert no_normalize_action.default is False
@@ -46,10 +81,28 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> None:
     assert sfreq_action.default == 50.0
     assert data_dir_action.type is Path
     assert data_dir_action.default == predict.DEFAULT_DATA_DIR
+    assert data_dir_action.help == "Répertoire racine contenant les fichiers numpy"
+
     assert artifacts_dir_action.type is Path
     assert artifacts_dir_action.default == predict.DEFAULT_ARTIFACTS_DIR
+    assert artifacts_dir_action.help == "Répertoire racine où lire le modèle"
+
     assert raw_dir_action.type is Path
     assert raw_dir_action.default == predict.DEFAULT_RAW_DIR
+    assert raw_dir_action.help == "Répertoire racine contenant les fichiers EDF bruts"
+
+    normalized_help = " ".join(parser.format_help().split())
+    assert (
+        "Charge une pipeline TPV entraînée et produit un rapport" in normalized_help
+    )
+    assert "Méthode de réduction de dimension (ignorée en prédiction)" in normalized_help
+    assert "Nombre de composantes (ignoré en prédiction)" in normalized_help
+    assert "Flag de normalisation (ignoré en prédiction)" in normalized_help
+    assert "Fréquence utilisée en features (ignorée ici)" in normalized_help
+    assert "Répertoire racine contenant les fichiers numpy" in normalized_help
+    assert "Répertoire racine où lire le modèle" in normalized_help
+    assert "Répertoire racine contenant les fichiers EDF bruts" in normalized_help
+
 
 
 def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
