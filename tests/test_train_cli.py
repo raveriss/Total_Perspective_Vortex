@@ -1,16 +1,17 @@
 import argparse
-import linecache
-import numpy as np
-
-from pytest import CaptureFixture, MonkeyPatch
 import json
-from typing import cast
-from pathlib import Path
-import sys
-import pytest
+import linecache
 import re
+import sys
+from pathlib import Path
+from typing import cast
+
+import numpy as np
+import pytest
+from pytest import CaptureFixture, MonkeyPatch
 
 from scripts import train
+
 
 # Récupère une action argparse via son dest pour assertions stables
 def _get_action(parser: argparse.ArgumentParser, dest: str) -> argparse.Action:
@@ -29,10 +30,7 @@ def test_build_parser_description_and_help_texts_are_stable() -> None:
     parser = train.build_parser()
 
     # Verrouille la description pour tuer description=None / variantes
-    assert (
-        parser.description
-        == "Entraîne une pipeline TPV et sauvegarde ses artefacts"
-    )
+    assert parser.description == "Entraîne une pipeline TPV et sauvegarde ses artefacts"
 
     # Récupère les actions positionnelles attendues
     subject_action = _get_action(parser, "subject")
@@ -49,20 +47,13 @@ def test_build_parser_description_and_help_texts_are_stable() -> None:
     feature_strategy_action = _get_action(parser, "feature_strategy")
 
     # Verrouille l'aide exacte de --classifier (tue help=None/altérations)
-    assert (
-        classifier_action.help
-        == "Classifieur final utilisé pour l'entraînement"
-    )
+    assert classifier_action.help == "Classifieur final utilisé pour l'entraînement"
     # Verrouille l'aide exacte de --scaler (tue help=None/altérations)
     assert (
-        scaler_action.help
-        == "Scaler optionnel appliqué après l'extraction de features"
+        scaler_action.help == "Scaler optionnel appliqué après l'extraction de features"
     )
     # Verrouille l'aide exacte de --feature-strategy (tue help=None)
-    assert (
-        feature_strategy_action.help
-        == "Méthode d'extraction de features spectrales"
-    )
+    assert feature_strategy_action.help == "Méthode d'extraction de features spectrales"
 
 
 def test_build_parser_sets_training_defaults_and_choices() -> None:
@@ -99,6 +90,7 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
     assert sfreq_action.default == train.DEFAULT_SAMPLING_RATE
     assert sfreq_action.help == "Fréquence d'échantillonnage utilisée pour les features"
 
+
 def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
     parser = train.build_parser()
 
@@ -127,28 +119,18 @@ def test_build_parser_help_texts_and_flags_are_stable() -> None:
     build_all_action = _get_action(parser, "build_all")
     train_all_action = _get_action(parser, "train_all")
     # Verrouille l'aide de --feature-strategy (tue help retiré / variantes)
-    assert (
-        feature_action.help
-        == "Méthode d'extraction de features spectrales"
-    )
+    assert feature_action.help == "Méthode d'extraction de features spectrales"
 
     # Verrouille l'aide de --dim-method (tue help retiré / variantes)
-    assert (
-        dim_action.help
-        == "Méthode de réduction de dimension pour la pipeline"
-    )
+    assert dim_action.help == "Méthode de réduction de dimension pour la pipeline"
 
     # Verrouille l'aide de --n-components (tue help retiré / variantes)
     assert (
-        n_components_action.help
-        == "Nombre de composantes conservées par le réducteur"
+        n_components_action.help == "Nombre de composantes conservées par le réducteur"
     )
 
     # Verrouille l'aide de --no-normalize-features (tue help retiré / variantes)
-    assert (
-        no_norm_action.help
-        == "Désactive la normalisation des features extraites"
-    )
+    assert no_norm_action.help == "Désactive la normalisation des features extraites"
 
     # Verrouille le comportement store_true (tue action=None / action supprimé)
     assert no_norm_action.default is False
@@ -158,26 +140,17 @@ def test_build_parser_help_texts_and_flags_are_stable() -> None:
     # Verrouille le type, le défaut et l'aide de --data-dir
     assert data_dir_action.type is Path
     assert data_dir_action.default == train.DEFAULT_DATA_DIR
-    assert (
-        data_dir_action.help
-        == "Répertoire racine contenant les fichiers numpy"
-    )
+    assert data_dir_action.help == "Répertoire racine contenant les fichiers numpy"
 
     # Verrouille le type, le défaut et l'aide de --artifacts-dir
     assert artifacts_dir_action.type is Path
     assert artifacts_dir_action.default == train.DEFAULT_ARTIFACTS_DIR
-    assert (
-        artifacts_dir_action.help
-        == "Répertoire racine où enregistrer le modèle"
-    )
+    assert artifacts_dir_action.help == "Répertoire racine où enregistrer le modèle"
 
     # Verrouille le type, le défaut et l'aide de --raw-dir
     assert raw_dir_action.type is Path
     assert raw_dir_action.default == train.DEFAULT_RAW_DIR
-    assert (
-        raw_dir_action.help
-        == "Répertoire racine contenant les fichiers EDF bruts"
-    )
+    assert raw_dir_action.help == "Répertoire racine contenant les fichiers EDF bruts"
 
     # Verrouille l'aide de --build-all (tue help retiré / variantes)
     assert (
@@ -186,10 +159,8 @@ def test_build_parser_help_texts_and_flags_are_stable() -> None:
     )
 
     # Verrouille l'aide de --train-all (tue help retiré / variantes)
-    assert (
-        train_all_action.help
-        == "Entraîne tous les sujets/runs détectés dans data/"
-    )
+    assert train_all_action.help == "Entraîne tous les sujets/runs détectés dans data/"
+
 
 def test_build_parser_parses_no_normalize_features_flag() -> None:
     parser = train.build_parser()
@@ -208,8 +179,6 @@ def test_build_parser_applies_default_data_dir_when_missing() -> None:
     assert args.data_dir == train.DEFAULT_DATA_DIR
     assert args.artifacts_dir == train.DEFAULT_ARTIFACTS_DIR
     assert args.raw_dir == train.DEFAULT_RAW_DIR
-
-
 
 
 def test_load_data_does_not_log_corruption_info_on_clean_files(
@@ -302,7 +271,6 @@ def test_load_data_uses_mmap_mode_read_for_shape_validation(
         raise AssertionError("rebuild should not be called for valid files")
 
     monkeypatch.setattr(train, "_build_npy_from_edf", unexpected_rebuild)
- 
 
     real_np_load = np.load
     calls: list[tuple[str, object]] = []
@@ -343,9 +311,7 @@ def test_load_data_reports_real_numpy_error_reason(
     np.save(labels_path, np.zeros((2,), dtype=int))
 
     # La reconstruction doit s'exécuter après l'échec numpy.
-    def fake_rebuild(
-        _subject: str, _run: str, _data_dir: Path, _raw_dir: Path
-    ):
+    def fake_rebuild(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
         np.save(features_path, np.zeros((5, 2, 8), dtype=float))
         np.save(labels_path, np.zeros((5,), dtype=int))
         return features_path, labels_path
@@ -541,7 +507,11 @@ def test_load_data_sets_needs_rebuild_true_inside_numpy_load_except_before_corru
     broke_once: dict[str, bool] = {"done": False}
 
     def fake_np_load(path: Path, *args, **kwargs):
-        if kwargs.get("mmap_mode") == "r" and path == features_path and not broke_once["done"]:
+        if (
+            kwargs.get("mmap_mode") == "r"
+            and path == features_path
+            and not broke_once["done"]
+        ):
             broke_once["done"] = True
             raise ValueError("boom")
         return real_np_load(path, *args, **kwargs)
@@ -594,7 +564,6 @@ def test_load_data_reports_misalignment_with_correct_shape0(
     np.save(subject_dir / f"{run}_X.npy", x_old)
     np.save(subject_dir / f"{run}_y.npy", y_old)
 
-
     # CORRECTION : x_bad (minuscule) au lieu de X_bad
     x_bad = np.zeros((5, 2, 8), dtype=float)
     y_bad = np.zeros((4,), dtype=int)
@@ -603,14 +572,12 @@ def test_load_data_reports_misalignment_with_correct_shape0(
 
     rebuild_calls: list[Path] = []
 
-    def fake_rebuild(
-        subject_arg: str, run_arg: str, data_dir_arg: Path, raw_dir: Path
-    ):
+    def fake_rebuild(subject_arg: str, run_arg: str, data_dir_arg: Path, raw_dir: Path):
         rebuild_calls.append(raw_dir)
         # CORRECTION : x_new (minuscule) au lieu de X_new
         x_new = np.zeros((5, 2, 8), dtype=float)
         y_new = np.zeros((5,), dtype=int)
-        
+
         np.save(subject_dir / f"{run}_X.npy", x_new)
         np.save(subject_dir / f"{run}_y.npy", y_new)
         return subject_dir / f"{run}_X.npy", subject_dir / f"{run}_y.npy"
@@ -719,10 +686,10 @@ def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
     assert config.feature_strategy == "wavelet"
     assert config.dim_method == "csp"
     assert config.n_components == 5
-    
+
     # CORRECTION : Utilisation de pytest.approx pour comparer les flottants
     assert config.sfreq == pytest.approx(120.0)
-    
+
     assert config.normalize_features is True
     assert captured["dirs"] == (
         tmp_path / "data",
