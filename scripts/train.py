@@ -17,6 +17,9 @@ from dataclasses import asdict, dataclass
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
 
+# Expose cast pour documenter les conversions de types
+from typing import cast
+
 # Offre la persistance dédiée aux objets scikit-learn pour inspection séparée
 import joblib
 
@@ -426,38 +429,6 @@ def _train_all_runs(
     return 1 if failures else 0
 
 
-# Charge X et y en mmap et signale les fichiers corrompus
-def _load_data_cached_arrays(
-    features_path: Path,
-    labels_path: Path,
-) -> tuple[bool, str | None, np.ndarray | None, np.ndarray | None]:
-    """Charge les caches en lecture seule pour valider leur intégrité."""
-
-    # Prépare un indicateur de reconstruction en cas d'échec de lecture
-    needs_rebuild = False
-    # Capture la raison exacte d'un chargement numpy impossible
-    corrupted_reason: str | None = None
-    # Initialise le conteneur pour X chargé en mmap
-    candidate_X: np.ndarray | None = None
-    # Initialise le conteneur pour y chargé en mmap
-    candidate_y: np.ndarray | None = None
-
-    # Sécurise le chargement numpy pour tolérer les fichiers corrompus
-    try:
-        # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode="r")
-        # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode="r")
-    except (OSError, ValueError) as error:
-        # Demande la reconstruction dès qu'un chargement échoue
-        needs_rebuild = True
-        # Conserve la raison pour orienter l'utilisateur
-        corrupted_reason = str(error)
-
-    # Retourne l'état de reconstruction, la raison et les candidats chargés
-    return needs_rebuild, corrupted_reason, candidate_X, candidate_y
-
-
 # Vérifie si les caches existants respectent les shapes attendues
 def _needs_rebuild_from_shapes(
     candidate_X: np.ndarray,
@@ -506,6 +477,22 @@ def _needs_rebuild_from_shapes(
     return False
 
 
+def _should_check_shapes(
+    needs_rebuild: bool,
+    corrupted_reason: str | None,
+    candidate_X: np.ndarray | None,
+    candidate_y: np.ndarray | None,
+) -> bool:
+    """Détermine si la validation des shapes est nécessaire."""
+
+    return (
+        not needs_rebuild
+        and corrupted_reason is None
+        and candidate_X is not None
+        and candidate_y is not None
+    )
+
+
 # Charge ou génère les matrices numpy attendues pour l'entraînement
 def _load_data(
     subject: str,
@@ -540,28 +527,28 @@ def _load_data(
     if not features_path.exists() or not labels_path.exists():
         needs_rebuild = True
     else:
-        # Charge les caches pour identifier rapidement les corruptions
-        (
-            needs_rebuild,
-            corrupted_reason,
-            candidate_X,
-            candidate_y,
-        ) = _load_data_cached_arrays(
-            features_path,
-            labels_path,
-        )
+        # Sécurise le chargement numpy pour tolérer les fichiers corrompus
+        try:
+            # Charge X en mmap pour inspecter la forme sans tout charger
+            candidate_X = np.load(features_path, mmap_mode="r")
+            # Charge y en mmap pour inspecter la longueur
+            candidate_y = np.load(labels_path, mmap_mode="r")
+        except (OSError, ValueError) as error:
+            # Demande la reconstruction dès qu'un chargement échoue
+            needs_rebuild = True
+            # Conserve la raison pour orienter l'utilisateur
+            corrupted_reason = str(error)
 
     # Valide les shapes lorsque les caches ont été chargés avec succès
-    if (
-        not needs_rebuild
-        and corrupted_reason is None
-        and candidate_X is not None
-        and candidate_y is not None
-    ):
+    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
+        # Convertit X vers un tableau typé pour satisfaire mypy et bandit
+        validated_X = cast(np.ndarray, candidate_X)
+        # Convertit y vers un vecteur typé pour satisfaire mypy et bandit
+        validated_y = cast(np.ndarray, candidate_y)
         # Détecte les incohérences de dimension et déclenche une régénération
         needs_rebuild = _needs_rebuild_from_shapes(
-            candidate_X,
-            candidate_y,
+            validated_X,
+            validated_y,
             features_path,
             labels_path,
             run_label,
