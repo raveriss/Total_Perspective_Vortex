@@ -1054,28 +1054,38 @@ def test_flatten_hyperparams_passes_bool_false_to_ensure_ascii(
     assert all(isinstance(item, bool) for item in calls)
 
 
-def test_load_data_uses_ndarray_casts_for_validated_buffers() -> None:
-    module_file = getattr(train, "__file__", "")
-    # Valide le texte du module réellement importé (mutmut remplace le fichier).
-    source = (
-        Path(module_file).read_text(encoding="utf-8")
-        if module_file
-        else inspect.getsource(train._load_data)
-    )
-    assert (
-        re.search(
-            r"validated_X\s*=\s*cast\(\s*np\.ndarray\s*,\s*candidate_X\s*\)",
-            source,
-        )
-        is not None
-    )
-    assert (
-        re.search(
-            r"validated_y\s*=\s*cast\(\s*np\.ndarray\s*,\s*candidate_y\s*\)",
-            source,
-        )
-        is not None
-    )
+def test_load_data_uses_ndarray_casts_for_validated_buffers(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    subject = "S01"
+    run = "R01"
+    subject_dir = data_dir / subject
+    subject_dir.mkdir()
+
+    # Crée des fichiers valides pour entrer dans le bloc de validation de shapes
+    np.save(subject_dir / f"{run}_X.npy", np.zeros((2, 1, 4), dtype=float))
+    np.save(subject_dir / f"{run}_y.npy", np.zeros((2,), dtype=int))
+
+    captured_types: list[object] = []
+
+    # Intercepte train.cast pour vérifier les arguments de type
+    # cast(typ, val) doit retourner val pour ne pas briser la logique
+    def spy_cast(typ: object, val: object) -> object:
+        captured_types.append(typ)
+        return val
+
+    monkeypatch.setattr(train, "cast", spy_cast)
+
+    train._load_data(subject, run, data_dir, tmp_path / "raw")
+
+    # Vérifie que cast a été appelé avec np.ndarray pour X et y
+    # Si mutmut remplace par cast(None, ...), ces assertions échoueront
+    assert len(captured_types) >= 2
+    assert captured_types[0] is np.ndarray
+    assert captured_types[1] is np.ndarray
 
 
 def test_main_build_all_invokes_builder(monkeypatch, tmp_path):
@@ -1201,6 +1211,17 @@ def test_main_passes_raw_dir_to_request_and_prints_cv_scores_with_expected_forma
 
     monkeypatch.setattr(train, "run_training", fake_run_training)
 
+    real_array2string = train.np.array2string
+
+    def spy_array2string(*args, **kwargs):
+        separator = kwargs.get("separator", "__missing__")
+        if separator == "__missing__" and len(args) >= 5:
+            separator = args[4]
+        assert separator == " "
+        return real_array2string(*args, **kwargs)
+
+    monkeypatch.setattr(train.np, "array2string", spy_array2string)
+
     raw_dir = tmp_path / "raw_custom"
     exit_code = train.main(
         [
@@ -1319,3 +1340,332 @@ def test_get_git_commit_returns_unknown_when_head_ref_contains_extra_tokens(
     monkeypatch.chdir(tmp_path)
 
     assert train._get_git_commit() == "unknown"
+
+
+def test_run_training_passes_raw_dir_to_load_data_and_reports_scaler_path_none(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Capture les arguments transmis à _load_data pour tuer raw_dir=None
+    captured: dict[str, object] = {}
+
+    def fake_load_data(subject: str, run: str, data_dir: Path, raw_dir: Path):
+        captured["args"] = (subject, run, data_dir, raw_dir)
+        X = np.zeros((2, 1, 4), dtype=float)
+        y = np.array([0, 1], dtype=int)
+        return X, y
+
+    # Force un chargement contrôlé sans dépendre du FS
+    monkeypatch.setattr(train, "_load_data", fake_load_data)
+
+    class FakeDimReducer:
+        def save(self, _path: Path) -> None:
+            return None
+
+    class FakePipeline:
+        def __init__(self) -> None:
+            self.named_steps = {"dimensionality": FakeDimReducer()}
+
+        def fit(self, _X: np.ndarray, _y: np.ndarray) -> "FakePipeline":
+            return self
+
+    # Neutralise la construction scikit-learn réelle
+    monkeypatch.setattr(train, "build_pipeline", lambda _cfg: FakePipeline())
+
+    # Neutralise la persistance joblib / pipeline
+    monkeypatch.setattr(train, "save_pipeline", lambda _p, _path: None)
+
+    # Neutralise l'écriture de manifeste pour isoler run_training
+    monkeypatch.setattr(
+        train,
+        "_write_manifest",
+        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+    )
+
+    # Prépare un request explicite avec raw_dir non défaut
+    raw_dir = tmp_path / "raw_custom"
+    request = train.TrainingRequest(
+        subject="S01",
+        run="R01",
+        pipeline_config=train.PipelineConfig(
+            sfreq=50.0,
+            feature_strategy="fft",
+            normalize_features=True,
+            dim_method="pca",
+            n_components=None,
+            classifier="lda",
+            scaler=None,
+        ),
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+        raw_dir=raw_dir,
+    )
+
+    report = train.run_training(request)
+
+    assert "args" in captured
+    _subject, _run, _data_dir, observed_raw_dir = cast(tuple[object, object, object, object], captured["args"])
+    assert observed_raw_dir == raw_dir
+
+    # Verrouille le contrat: pas de scaler => scaler_path doit rester None
+    assert report["scaler_path"] is None
+
+
+def test_run_training_prints_exact_warning_when_cross_validation_is_disabled(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_load_data(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+        X = np.zeros((2, 1, 4), dtype=float)
+        y = np.array([0, 1], dtype=int)
+        return X, y
+
+    monkeypatch.setattr(train, "_load_data", fake_load_data)
+
+    class FakeDimReducer:
+        def save(self, _path: Path) -> None:
+            return None
+
+    class FakePipeline:
+        def __init__(self) -> None:
+            self.named_steps = {"dimensionality": FakeDimReducer()}
+
+        def fit(self, _X: np.ndarray, _y: np.ndarray) -> "FakePipeline":
+            return self
+
+    monkeypatch.setattr(train, "build_pipeline", lambda _cfg: FakePipeline())
+    monkeypatch.setattr(train, "save_pipeline", lambda _p, _path: None)
+    monkeypatch.setattr(
+        train,
+        "_write_manifest",
+        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+    )
+
+    request = train.TrainingRequest(
+        subject="S01",
+        run="R01",
+        pipeline_config=train.PipelineConfig(
+            sfreq=50.0,
+            feature_strategy="fft",
+            normalize_features=True,
+            dim_method="pca",
+            n_components=None,
+            classifier="lda",
+            scaler=None,
+        ),
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+        raw_dir=tmp_path / "raw",
+    )
+
+    train.run_training(request)
+
+    stdout = capsys.readouterr().out
+    assert (
+        "AVERTISSEMENT: effectif par classe insuffisant pour la "
+        "validation croisée, cross-val ignorée"
+    ) in stdout
+
+
+def test_run_training_builds_stratified_kfold_with_stable_random_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_load_data(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+        X = np.zeros((6, 1, 4), dtype=float)
+        y = np.array([0, 0, 0, 1, 1, 1], dtype=int)
+        return X, y
+
+    monkeypatch.setattr(train, "_load_data", fake_load_data)
+
+    class FakeDimReducer:
+        def save(self, _path: Path) -> None:
+            return None
+
+    class FakePipeline:
+        def __init__(self) -> None:
+            self.named_steps = {"dimensionality": FakeDimReducer()}
+
+        def fit(self, _X: np.ndarray, _y: np.ndarray) -> "FakePipeline":
+            return self
+
+    monkeypatch.setattr(train, "build_pipeline", lambda _cfg: FakePipeline())
+    monkeypatch.setattr(train, "save_pipeline", lambda _p, _path: None)
+    monkeypatch.setattr(
+        train,
+        "_write_manifest",
+        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+    )
+
+    captured: dict[str, object] = {}
+
+    class SpyStratifiedKFold:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+
+    def fake_cross_val_score(_pipeline: object, _X: object, _y: object, cv: object):
+        captured["cv"] = cv
+        return np.array([0.5], dtype=float)
+
+    monkeypatch.setattr(train, "StratifiedKFold", SpyStratifiedKFold)
+    monkeypatch.setattr(train, "cross_val_score", fake_cross_val_score)
+
+    request = train.TrainingRequest(
+        subject="S01",
+        run="R01",
+        pipeline_config=train.PipelineConfig(
+            sfreq=50.0,
+            feature_strategy="fft",
+            normalize_features=True,
+            dim_method="pca",
+            n_components=None,
+            classifier="lda",
+            scaler=None,
+        ),
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+        raw_dir=tmp_path / "raw",
+    )
+
+    train.run_training(request)
+
+    assert "kwargs" in captured
+    kwargs = cast(dict[str, object], captured["kwargs"])
+    assert kwargs.get("n_splits") == train.MIN_CV_SPLITS
+    assert kwargs.get("shuffle") is True
+    assert "random_state" in kwargs
+    assert kwargs["random_state"] == train.DEFAULT_RANDOM_STATE
+
+
+def test_run_training_creates_target_dir_with_exist_ok_true(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_load_data(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+        X = np.zeros((2, 1, 4), dtype=float)
+        y = np.array([0, 1], dtype=int)
+        return X, y
+
+    monkeypatch.setattr(train, "_load_data", fake_load_data)
+
+    class FakeDimReducer:
+        def save(self, _path: Path) -> None:
+            return None
+
+    class FakePipeline:
+        def __init__(self) -> None:
+            self.named_steps = {"dimensionality": FakeDimReducer()}
+
+        def fit(self, _X: np.ndarray, _y: np.ndarray) -> "FakePipeline":
+            return self
+
+    monkeypatch.setattr(train, "build_pipeline", lambda _cfg: FakePipeline())
+    monkeypatch.setattr(train, "save_pipeline", lambda _p, _path: None)
+    monkeypatch.setattr(
+        train,
+        "_write_manifest",
+        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+    )
+
+    artifacts_dir = tmp_path / "artifacts_root"
+    expected_target_dir = artifacts_dir / "S01" / "R01"
+
+    real_mkdir = Path.mkdir
+    mkdir_calls: list[dict[str, object]] = []
+
+    def spy_mkdir(self: Path, *args: object, **kwargs: object) -> None:
+        if self == expected_target_dir:
+            mkdir_calls.append({"args": args, "kwargs": dict(kwargs)})
+        return real_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", spy_mkdir)
+
+    request = train.TrainingRequest(
+        subject="S01",
+        run="R01",
+        pipeline_config=train.PipelineConfig(
+            sfreq=50.0,
+            feature_strategy="fft",
+            normalize_features=True,
+            dim_method="pca",
+            n_components=None,
+            classifier="lda",
+            scaler=None,
+        ),
+        data_dir=tmp_path / "data",
+        artifacts_dir=artifacts_dir,
+        raw_dir=tmp_path / "raw",
+    )
+
+    train.run_training(request)
+
+    assert len(mkdir_calls) == 1
+    kwargs = cast(dict[str, object], mkdir_calls[0]["kwargs"])
+    assert kwargs.get("parents") is True
+    assert "exist_ok" in kwargs
+    assert kwargs["exist_ok"] is True
+
+
+def test_run_training_dumps_scaler_step_when_present(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_load_data(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+        X = np.zeros((2, 1, 4), dtype=float)
+        y = np.array([0, 1], dtype=int)
+        return X, y
+
+    monkeypatch.setattr(train, "_load_data", fake_load_data)
+
+    class FakeDimReducer:
+        def save(self, _path: Path) -> None:
+            return None
+
+    scaler_sentinel = object()
+
+    class FakePipeline:
+        def __init__(self) -> None:
+            self.named_steps = {"dimensionality": FakeDimReducer(), "scaler": scaler_sentinel}
+
+        def fit(self, _X: np.ndarray, _y: np.ndarray) -> "FakePipeline":
+            return self
+
+    monkeypatch.setattr(train, "build_pipeline", lambda _cfg: FakePipeline())
+    monkeypatch.setattr(train, "save_pipeline", lambda _p, _path: None)
+    monkeypatch.setattr(
+        train,
+        "_write_manifest",
+        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+    )
+
+    dumped: dict[str, object] = {}
+
+    def fake_joblib_dump(obj: object, path: Path) -> None:
+        dumped["obj"] = obj
+        dumped["path"] = path
+
+    monkeypatch.setattr(train.joblib, "dump", fake_joblib_dump)
+
+    request = train.TrainingRequest(
+        subject="S01",
+        run="R01",
+        pipeline_config=train.PipelineConfig(
+            sfreq=50.0,
+            feature_strategy="fft",
+            normalize_features=True,
+            dim_method="pca",
+            n_components=None,
+            classifier="lda",
+            scaler=None,
+        ),
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+        raw_dir=tmp_path / "raw",
+    )
+
+    report = train.run_training(request)
+
+    assert dumped.get("obj") is scaler_sentinel
+    assert str(dumped.get("path")) == str(report["scaler_path"])

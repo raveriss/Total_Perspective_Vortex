@@ -1,4 +1,5 @@
 import argparse
+import builtins
 from pathlib import Path
 
 from scripts import predict
@@ -131,6 +132,22 @@ def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
     data_dir = tmp_path / "data"
     artifacts_dir = tmp_path / "artifacts"
     captured_result: dict[str, object] = {}
+    y_pred = [1, 0]
+    y_true = [1, 1]
+
+    zip_strict_values: list[object] = []
+    real_zip = builtins.zip
+
+    def spy_zip(*iterables, **kwargs):
+        if (
+            len(iterables) == 2
+            and iterables[0] is y_pred
+            and iterables[1] is y_true
+        ):
+            zip_strict_values.append(kwargs.get("strict", "__missing__"))
+        return real_zip(*iterables, **kwargs)
+
+    monkeypatch.setattr(builtins, "zip", spy_zip)
 
     def fake_evaluate_run(
         subject_arg: str,
@@ -147,8 +164,8 @@ def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
         return {
             "subject": subject_arg,
             "run": run_arg,
-            "predictions": [1, 0],
-            "y_true": [1, 1],
+            "predictions": y_pred,
+            "y_true": y_true,
             "accuracy": 0.5,
         }
 
@@ -171,6 +188,7 @@ def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
     )
 
     assert exit_code == 0
+    assert zip_strict_values == [True]
     assert captured_result == {
         "subject": subject,
         "run": run,
@@ -180,8 +198,8 @@ def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
         "report_input": {
             "subject": subject,
             "run": run,
-            "predictions": [1, 0],
-            "y_true": [1, 1],
+            "predictions": y_pred,
+            "y_true": y_true,
             "accuracy": 0.5,
         },
     }

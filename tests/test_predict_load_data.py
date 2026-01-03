@@ -1,7 +1,7 @@
 """Tests ciblés sur scripts.predict._load_data pour sécuriser la reconstruction."""
 
-import inspect
-import re
+import sys
+import dis
 from pathlib import Path
 
 import numpy as np
@@ -10,15 +10,29 @@ from scripts import predict
 
 # Verrouille l'initialisation booléenne de needs_rebuild (mutant équivalent sinon)
 def test_predict_load_data_initializes_needs_rebuild_as_false() -> None:
-    """Valide la forme du code pour éviter une régression silencieuse."""
+    """Verrouille l'initialisation littérale de needs_rebuild à False."""
 
-    module_file = getattr(predict, "__file__", "")
-    source = (
-        Path(module_file).read_text(encoding="utf-8")
-        if module_file
-        else inspect.getsource(predict._load_data)
+    # Inspecte le bytecode pour éviter l'interaction sys.settrace/coverage.
+    instructions = list(dis.get_instructions(predict._load_data))
+
+    # Cible la première affectation au local "needs_rebuild".
+    store_idx = next(
+        (
+            idx
+            for idx, ins in enumerate(instructions)
+            if ins.opname == "STORE_FAST" and ins.argval == "needs_rebuild"
+        ),
+        None,
     )
-    assert re.search(r"needs_rebuild\s*=\s*False", source) is not None
+    assert store_idx is not None, "needs_rebuild n'est jamais initialisé"
+
+    # Vérifie que la valeur assignée est la constante booléenne False.
+    load_idx = store_idx - 1
+    while load_idx >= 0 and instructions[load_idx].opname in ("EXTENDED_ARG", "NOP"):
+        load_idx -= 1
+    assert load_idx >= 0, "Aucune valeur n'est assignée à needs_rebuild"
+    assert instructions[load_idx].opname == "LOAD_CONST"
+    assert instructions[load_idx].argval is False
 
 
 # Vérifie que _build_npy_from_edf est invoqué dès que les .npy sont invalides

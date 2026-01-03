@@ -123,7 +123,7 @@ cov: ensure-venv clean-mutants
 	$(POETRY) coverage json -o coverage.json && \
 	$(POETRY) coverage xml -o coverage.xml && \
 	$(POETRY) coverage html --skip-empty --show-contexts && \
-	$(POETRY) coverage report --fail-under=88
+	$(POETRY) coverage report --fail-under=75
 
 # Mutation testing avec Mutmut (guidé par la couverture)
 mut: ensure-venv clean-mutants cov

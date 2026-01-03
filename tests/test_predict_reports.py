@@ -1,17 +1,27 @@
+# Importe builtins pour espionner zip et verrouiller strict=False
+import builtins
+
+
 # Importe csv pour analyser les fichiers produits par le reporting
 import csv
 
 # Importe json pour inspecter le contenu du rapport sérialisé
 import json
 
+# Importe Path pour espionner les appels à open et verrouiller newline=""
+from pathlib import Path
+
 # Importe numpy pour générer des labels synthétiques
 import numpy as np
+
+# Importe le module predict pour monkeypatcher les dépendances internes
+from scripts import predict as predict_module
 
 # Importe la fonction interne pour produire les rapports de prédiction
 from scripts.predict import _write_reports
 
 
-def test_write_reports_serializes_expected_outputs(tmp_path):
+def test_write_reports_serializes_expected_outputs(tmp_path, monkeypatch):
     """Vérifie la sérialisation complète des rapports de prédiction."""
 
     # Prépare le répertoire cible pour collecter les fichiers générés
@@ -26,10 +36,102 @@ def test_write_reports_serializes_expected_outputs(tmp_path):
     y_pred = np.array([0, 0], dtype=int)
     # Fixe une accuracy réaliste pour ce cas de test jouet
     accuracy = 0.5
+
+    # Calcule les labels attendus pour verrouiller l'appel à confusion_matrix
+    expected_labels = sorted(np.unique(np.concatenate((y_true, y_pred))).tolist())
+    # Capture les paramètres passés à confusion_matrix pour tuer les mutants équivalents
+    confusion_labels: list[object] = []
+    # Préserve la fonction réelle pour produire la matrice attendue
+    real_confusion_matrix = predict_module.confusion_matrix
+
+    # Espionne confusion_matrix pour valider que labels est explicitement fourni
+    def spy_confusion_matrix(y_true_arg, y_pred_arg, **kwargs):
+        confusion_labels.append(kwargs.get("labels", "__missing__"))
+        return real_confusion_matrix(y_true_arg, y_pred_arg, **kwargs)
+
+    monkeypatch.setattr(predict_module, "confusion_matrix", spy_confusion_matrix)
+
+    # Capture les kwargs passés à json.dumps pour verrouiller ensure_ascii et indent
+    dumps_kwargs: list[dict[str, object]] = []
+    # Préserve json.dumps pour obtenir un contenu de fichier valide
+    real_json_dumps = predict_module.json.dumps
+
+    # Espionne json.dumps pour valider la sérialisation UTF-8 et l'indentation
+    def spy_json_dumps(*args, **kwargs):
+        dumps_kwargs.append(dict(kwargs))
+        return real_json_dumps(*args, **kwargs)
+
+    monkeypatch.setattr(predict_module.json, "dumps", spy_json_dumps)
+
+    # Capture le strict ciblé sur la boucle de prédictions pour figer le contrat
+    zip_strict_values: list[object] = []
+    # Préserve zip pour déléguer le comportement d'itération standard
+    real_zip = builtins.zip
+
+    # Espionne zip afin de garantir l'usage explicite de strict=False
+    def spy_zip(*iterables, **kwargs):
+        if (
+            len(iterables) == 2
+            and iterables[0] is y_true
+            and iterables[1] is y_pred
+        ):
+            zip_strict_values.append(kwargs.get("strict", "__missing__"))
+        return real_zip(*iterables, **kwargs)
+
+    monkeypatch.setattr(builtins, "zip", spy_zip)
+
+    # Capture les paramètres newline utilisés pour les fichiers CSV écrits
+    newline_values: list[tuple[str, object]] = []
+    # Préserve Path.open pour ouvrir réellement les fichiers sur disque
+    real_path_open = Path.open
+
+    # Espionne Path.open pour verrouiller newline="" sur les deux CSV
+    def spy_path_open(self, *args, **kwargs):
+        mode = args[0] if args else kwargs.get("mode", "r")
+        if mode.startswith("w") and self.name in {
+            "class_report.csv",
+            "predictions.csv",
+        }:
+            newline_values.append((self.name, kwargs.get("newline", "__missing__")))
+        return real_path_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", spy_path_open)
+
     # Génère les rapports en appelant l'utilitaire interne
     reports = _write_reports(target_dir, identifiers, y_true, y_pred, accuracy)
+
+    # Verrouille les chemins de sortie pour éviter des régressions silencieuses
+    assert reports["json_report"] == target_dir / "report.json"
+    assert reports["class_report"] == target_dir / "class_report.csv"
+    assert reports["csv_report"] == target_dir / "predictions.csv"
+
+    # Vérifie que les clés structurantes sont retournées par l'API interne
+    assert reports["confusion"] == [[1, 0], [1, 0]]
+    assert reports["per_class_accuracy"] == {"0": 1.0, "1": 0.0}
+
+    # Vérifie que labels est explicitement fourni à confusion_matrix
+    assert confusion_labels == [expected_labels]
+
+    # Vérifie que json.dumps force ensure_ascii=False et indent=2
+    assert len(dumps_kwargs) == 1
+    assert dumps_kwargs[0].get("ensure_ascii", "__missing__") is False
+    assert dumps_kwargs[0].get("indent", "__missing__") == 2
+
+    # Vérifie que zip est invoqué en spécifiant strict=False
+    assert zip_strict_values == [False]
+
+    # Vérifie que newline="" est propagé sur les deux ouvertures CSV en écriture
+    assert sorted(newline_values) == [
+        ("class_report.csv", ""),
+        ("predictions.csv", ""),
+    ]
+    
     # Charge le contenu JSON pour inspecter les valeurs calculées
     report_json = json.loads(reports["json_report"].read_text())
+    # Vérifie que le sujet est bien propagé dans le rapport
+    assert report_json["subject"] == identifiers["subject"]
+    # Vérifie que le run est bien propagé dans le rapport
+    assert report_json["run"] == identifiers["run"]
     # Vérifie que l'accuracy est bien propagée dans le rapport
     assert report_json["accuracy"] == accuracy
     # Vérifie la matrice de confusion sérialisée attendue

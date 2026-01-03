@@ -1,5 +1,7 @@
 # Importe Path pour vérifier les fichiers de sortie générés
 from pathlib import Path
+# Importe inspect pour verrouiller les defaults via introspection
+import inspect
 
 # Importe pandas pour inspecter les DataFrames produits
 import numpy as np
@@ -8,6 +10,15 @@ from pandas.api.types import is_float_dtype
 
 # Importe les fonctions de benchmark synthétique
 from scripts import benchmark
+
+
+def test_run_synthetic_benchmark_exposes_expected_defaults() -> None:
+    # Capture la signature pour détecter toute dérive des defaults
+    signature = inspect.signature(benchmark.run_synthetic_benchmark)
+    # Verrouille n_samples=120 pour garantir la reproductibilité du benchmark
+    assert signature.parameters["n_samples"].default == 120
+    # Verrouille sfreq=128.0 pour stabiliser la taille des epochs
+    assert signature.parameters["sfreq"].default == 128.0
 
 
 def test_run_synthetic_benchmark_produces_expected_columns(monkeypatch):

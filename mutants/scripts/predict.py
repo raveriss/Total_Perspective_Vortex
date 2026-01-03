@@ -16749,10 +16749,10 @@ def x__load_data__mutmut_13(
     # Construit les .npy depuis l'EDF si l'un d'eux manque
     if not features_path.exists() or not labels_path.exists():
         # Force une reconstruction complète pour retrouver les tensors bruts
-        needs_rebuild = True
+        needs_rebuild = None
     else:
         # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = None
+        candidate_X = np.load(features_path, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
         candidate_y = np.load(labels_path, mmap_mode="r")
 
@@ -16797,10 +16797,10 @@ def x__load_data__mutmut_14(
     # Construit les .npy depuis l'EDF si l'un d'eux manque
     if not features_path.exists() or not labels_path.exists():
         # Force une reconstruction complète pour retrouver les tensors bruts
-        needs_rebuild = True
+        needs_rebuild = False
     else:
         # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(None, mmap_mode="r")
+        candidate_X = np.load(features_path, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
         candidate_y = np.load(labels_path, mmap_mode="r")
 
@@ -16848,7 +16848,7 @@ def x__load_data__mutmut_15(
         needs_rebuild = True
     else:
         # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode=None)
+        candidate_X = None
         # Charge y en mmap pour inspecter la longueur
         candidate_y = np.load(labels_path, mmap_mode="r")
 
@@ -16896,7 +16896,7 @@ def x__load_data__mutmut_16(
         needs_rebuild = True
     else:
         # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(mmap_mode="r")
+        candidate_X = np.load(None, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
         candidate_y = np.load(labels_path, mmap_mode="r")
 
@@ -16944,7 +16944,7 @@ def x__load_data__mutmut_17(
         needs_rebuild = True
     else:
         # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, )
+        candidate_X = np.load(features_path, mmap_mode=None)
         # Charge y en mmap pour inspecter la longueur
         candidate_y = np.load(labels_path, mmap_mode="r")
 
@@ -16992,7 +16992,7 @@ def x__load_data__mutmut_18(
         needs_rebuild = True
     else:
         # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode="XXrXX")
+        candidate_X = np.load(mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
         candidate_y = np.load(labels_path, mmap_mode="r")
 
@@ -17040,7 +17040,7 @@ def x__load_data__mutmut_19(
         needs_rebuild = True
     else:
         # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode="R")
+        candidate_X = np.load(features_path, )
         # Charge y en mmap pour inspecter la longueur
         candidate_y = np.load(labels_path, mmap_mode="r")
 
@@ -17088,9 +17088,9 @@ def x__load_data__mutmut_20(
         needs_rebuild = True
     else:
         # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode="r")
+        candidate_X = np.load(features_path, mmap_mode="XXrXX")
         # Charge y en mmap pour inspecter la longueur
-        candidate_y = None
+        candidate_y = np.load(labels_path, mmap_mode="r")
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
@@ -17136,9 +17136,9 @@ def x__load_data__mutmut_21(
         needs_rebuild = True
     else:
         # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode="r")
+        candidate_X = np.load(features_path, mmap_mode="R")
         # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(None, mmap_mode="r")
+        candidate_y = np.load(labels_path, mmap_mode="r")
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
@@ -17186,7 +17186,7 @@ def x__load_data__mutmut_22(
         # Charge X en mmap pour inspecter la forme sans tout charger
         candidate_X = np.load(features_path, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode=None)
+        candidate_y = None
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
@@ -17234,7 +17234,7 @@ def x__load_data__mutmut_23(
         # Charge X en mmap pour inspecter la forme sans tout charger
         candidate_X = np.load(features_path, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(mmap_mode="r")
+        candidate_y = np.load(None, mmap_mode="r")
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
@@ -17282,7 +17282,7 @@ def x__load_data__mutmut_24(
         # Charge X en mmap pour inspecter la forme sans tout charger
         candidate_X = np.load(features_path, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, )
+        candidate_y = np.load(labels_path, mmap_mode=None)
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
@@ -17330,7 +17330,7 @@ def x__load_data__mutmut_25(
         # Charge X en mmap pour inspecter la forme sans tout charger
         candidate_X = np.load(features_path, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode="XXrXX")
+        candidate_y = np.load(mmap_mode="r")
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
@@ -17378,7 +17378,7 @@ def x__load_data__mutmut_26(
         # Charge X en mmap pour inspecter la forme sans tout charger
         candidate_X = np.load(features_path, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode="R")
+        candidate_y = np.load(labels_path, )
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
@@ -17426,10 +17426,10 @@ def x__load_data__mutmut_27(
         # Charge X en mmap pour inspecter la forme sans tout charger
         candidate_X = np.load(features_path, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode="r")
+        candidate_y = np.load(labels_path, mmap_mode="XXrXX")
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
-        if candidate_X.ndim == EXPECTED_FEATURES_DIMENSIONS:
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
             # Relance la génération si l'ancien format tabulaire est détecté
             needs_rebuild = True
         # Vérifie l'alignement entre le nombre d'epochs et de labels
@@ -17474,12 +17474,12 @@ def x__load_data__mutmut_28(
         # Charge X en mmap pour inspecter la forme sans tout charger
         candidate_X = np.load(features_path, mmap_mode="r")
         # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode="r")
+        candidate_y = np.load(labels_path, mmap_mode="R")
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
             # Relance la génération si l'ancien format tabulaire est détecté
-            needs_rebuild = None
+            needs_rebuild = True
         # Vérifie l'alignement entre le nombre d'epochs et de labels
         elif candidate_X.shape[0] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
@@ -17525,9 +17525,9 @@ def x__load_data__mutmut_29(
         candidate_y = np.load(labels_path, mmap_mode="r")
 
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
-        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        if candidate_X.ndim == EXPECTED_FEATURES_DIMENSIONS:
             # Relance la génération si l'ancien format tabulaire est détecté
-            needs_rebuild = False
+            needs_rebuild = True
         # Vérifie l'alignement entre le nombre d'epochs et de labels
         elif candidate_X.shape[0] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
@@ -17575,9 +17575,9 @@ def x__load_data__mutmut_30(
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
             # Relance la génération si l'ancien format tabulaire est détecté
-            needs_rebuild = True
+            needs_rebuild = None
         # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[1] != candidate_y.shape[0]:
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
             needs_rebuild = True
 
@@ -17623,9 +17623,9 @@ def x__load_data__mutmut_31(
         # Vérifie que X est bien un tenseur 3D attendu par la pipeline
         if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
             # Relance la génération si l'ancien format tabulaire est détecté
-            needs_rebuild = True
+            needs_rebuild = False
         # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[0] == candidate_y.shape[0]:
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
             needs_rebuild = True
 
@@ -17673,7 +17673,7 @@ def x__load_data__mutmut_32(
             # Relance la génération si l'ancien format tabulaire est détecté
             needs_rebuild = True
         # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[0] != candidate_y.shape[1]:
+        elif candidate_X.shape[1] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
             needs_rebuild = True
 
@@ -17721,9 +17721,9 @@ def x__load_data__mutmut_33(
             # Relance la génération si l'ancien format tabulaire est détecté
             needs_rebuild = True
         # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[0] != candidate_y.shape[0]:
+        elif candidate_X.shape[0] == candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
-            needs_rebuild = None
+            needs_rebuild = True
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -17769,9 +17769,9 @@ def x__load_data__mutmut_34(
             # Relance la génération si l'ancien format tabulaire est détecté
             needs_rebuild = True
         # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[0] != candidate_y.shape[0]:
+        elif candidate_X.shape[0] != candidate_y.shape[1]:
             # Relance la génération pour réaligner les données et labels
-            needs_rebuild = False
+            needs_rebuild = True
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
@@ -17819,6 +17819,102 @@ def x__load_data__mutmut_35(
         # Vérifie l'alignement entre le nombre d'epochs et de labels
         elif candidate_X.shape[0] != candidate_y.shape[0]:
             # Relance la génération pour réaligner les données et labels
+            needs_rebuild = None
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_36(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = False
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(features_path)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_37(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
             needs_rebuild = True
 
     # Reconstruit les fichiers lorsque nécessaire
@@ -17835,7 +17931,7 @@ def x__load_data__mutmut_35(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_36(
+def x__load_data__mutmut_38(
     subject: str,
     run: str,
     data_dir: Path,
@@ -17883,7 +17979,7 @@ def x__load_data__mutmut_36(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_37(
+def x__load_data__mutmut_39(
     subject: str,
     run: str,
     data_dir: Path,
@@ -17931,7 +18027,7 @@ def x__load_data__mutmut_37(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_38(
+def x__load_data__mutmut_40(
     subject: str,
     run: str,
     data_dir: Path,
@@ -17979,7 +18075,7 @@ def x__load_data__mutmut_38(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_39(
+def x__load_data__mutmut_41(
     subject: str,
     run: str,
     data_dir: Path,
@@ -18027,7 +18123,7 @@ def x__load_data__mutmut_39(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_40(
+def x__load_data__mutmut_42(
     subject: str,
     run: str,
     data_dir: Path,
@@ -18075,7 +18171,7 @@ def x__load_data__mutmut_40(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_41(
+def x__load_data__mutmut_43(
     subject: str,
     run: str,
     data_dir: Path,
@@ -18123,7 +18219,7 @@ def x__load_data__mutmut_41(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_42(
+def x__load_data__mutmut_44(
     subject: str,
     run: str,
     data_dir: Path,
@@ -18171,7 +18267,7 @@ def x__load_data__mutmut_42(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_43(
+def x__load_data__mutmut_45(
     subject: str,
     run: str,
     data_dir: Path,
@@ -18211,102 +18307,6 @@ def x__load_data__mutmut_43(
 
     # Utilise numpy.load pour récupérer les features en mémoire
     X = np.load(features_path)
-    # Utilise numpy.load pour récupérer les labels associés
-    y = np.load(labels_path)
-    # Retourne les deux tableaux prêts pour le scoring
-    return X, y
-
-
-# Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_44(
-    subject: str,
-    run: str,
-    data_dir: Path,
-    raw_dir: Path,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Charge ou construit les données et étiquettes pour un run."""
-
-    # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
-
-    # Construit les .npy depuis l'EDF si l'un d'eux manque
-    if not features_path.exists() or not labels_path.exists():
-        # Force une reconstruction complète pour retrouver les tensors bruts
-        needs_rebuild = True
-    else:
-        # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode="r")
-        # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode="r")
-
-        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
-        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-            # Relance la génération si l'ancien format tabulaire est détecté
-            needs_rebuild = True
-        # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[0] != candidate_y.shape[0]:
-            # Relance la génération pour réaligner les données et labels
-            needs_rebuild = True
-
-    # Reconstruit les fichiers lorsque nécessaire
-    if needs_rebuild:
-        # Convertit l'EDF associé en fichiers numpy persistés
-        features_path, labels_path = _build_npy_from_edf(
-            subject, run, data_dir, raw_dir
-        )
-
-    # Utilise numpy.load pour récupérer les features en mémoire
-    X = None
-    # Utilise numpy.load pour récupérer les labels associés
-    y = np.load(labels_path)
-    # Retourne les deux tableaux prêts pour le scoring
-    return X, y
-
-
-# Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_45(
-    subject: str,
-    run: str,
-    data_dir: Path,
-    raw_dir: Path,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Charge ou construit les données et étiquettes pour un run."""
-
-    # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
-
-    # Construit les .npy depuis l'EDF si l'un d'eux manque
-    if not features_path.exists() or not labels_path.exists():
-        # Force une reconstruction complète pour retrouver les tensors bruts
-        needs_rebuild = True
-    else:
-        # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode="r")
-        # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode="r")
-
-        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
-        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-            # Relance la génération si l'ancien format tabulaire est détecté
-            needs_rebuild = True
-        # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[0] != candidate_y.shape[0]:
-            # Relance la génération pour réaligner les données et labels
-            needs_rebuild = True
-
-    # Reconstruit les fichiers lorsque nécessaire
-    if needs_rebuild:
-        # Convertit l'EDF associé en fichiers numpy persistés
-        features_path, labels_path = _build_npy_from_edf(
-            subject, run, data_dir, raw_dir
-        )
-
-    # Utilise numpy.load pour récupérer les features en mémoire
-    X = np.load(None)
     # Utilise numpy.load pour récupérer les labels associés
     y = np.load(labels_path)
     # Retourne les deux tableaux prêts pour le scoring
@@ -18354,6 +18354,102 @@ def x__load_data__mutmut_46(
         )
 
     # Utilise numpy.load pour récupérer les features en mémoire
+    X = None
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_47(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
+    X = np.load(None)
+    # Utilise numpy.load pour récupérer les labels associés
+    y = np.load(labels_path)
+    # Retourne les deux tableaux prêts pour le scoring
+    return X, y
+
+
+# Charge ou génère les matrices numpy attendues pour la prédiction
+def x__load_data__mutmut_48(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge ou construit les données et étiquettes pour un run."""
+
+    # Détermine les chemins attendus pour les features et labels
+    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    # Indique si nous devons régénérer les .npy
+    needs_rebuild = False
+
+    # Construit les .npy depuis l'EDF si l'un d'eux manque
+    if not features_path.exists() or not labels_path.exists():
+        # Force une reconstruction complète pour retrouver les tensors bruts
+        needs_rebuild = True
+    else:
+        # Charge X en mmap pour inspecter la forme sans tout charger
+        candidate_X = np.load(features_path, mmap_mode="r")
+        # Charge y en mmap pour inspecter la longueur
+        candidate_y = np.load(labels_path, mmap_mode="r")
+
+        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
+        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+            # Relance la génération si l'ancien format tabulaire est détecté
+            needs_rebuild = True
+        # Vérifie l'alignement entre le nombre d'epochs et de labels
+        elif candidate_X.shape[0] != candidate_y.shape[0]:
+            # Relance la génération pour réaligner les données et labels
+            needs_rebuild = True
+
+    # Reconstruit les fichiers lorsque nécessaire
+    if needs_rebuild:
+        # Convertit l'EDF associé en fichiers numpy persistés
+        features_path, labels_path = _build_npy_from_edf(
+            subject, run, data_dir, raw_dir
+        )
+
+    # Utilise numpy.load pour récupérer les features en mémoire
     X = np.load(features_path)
     # Utilise numpy.load pour récupérer les labels associés
     y = None
@@ -18362,7 +18458,7 @@ def x__load_data__mutmut_46(
 
 
 # Charge ou génère les matrices numpy attendues pour la prédiction
-def x__load_data__mutmut_47(
+def x__load_data__mutmut_49(
     subject: str,
     run: str,
     data_dir: Path,
@@ -18455,7 +18551,9 @@ x__load_data__mutmut_mutants : ClassVar[MutantDict] = {
     'x__load_data__mutmut_44': x__load_data__mutmut_44, 
     'x__load_data__mutmut_45': x__load_data__mutmut_45, 
     'x__load_data__mutmut_46': x__load_data__mutmut_46, 
-    'x__load_data__mutmut_47': x__load_data__mutmut_47
+    'x__load_data__mutmut_47': x__load_data__mutmut_47, 
+    'x__load_data__mutmut_48': x__load_data__mutmut_48, 
+    'x__load_data__mutmut_49': x__load_data__mutmut_49
 }
 
 def _load_data(*args, **kwargs):

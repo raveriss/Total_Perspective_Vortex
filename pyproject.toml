@@ -99,3 +99,15 @@ files = "src scripts tests"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.coverage.run]
+branch = true
+source = ["src", "scripts"]
+
+[tool.coverage.report]
+omit = [
+  "mutants/*",
+  ".venv/*",
+  "*/site-packages/*",
+]
+

@@ -728,7 +728,9 @@ def run_training(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"

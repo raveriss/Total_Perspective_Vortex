@@ -38886,7 +38886,9 @@ def x_run_training__mutmut_orig(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -38966,7 +38968,9 @@ def x_run_training__mutmut_1(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39046,7 +39050,9 @@ def x_run_training__mutmut_2(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39126,7 +39132,9 @@ def x_run_training__mutmut_3(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39206,7 +39214,9 @@ def x_run_training__mutmut_4(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39286,7 +39296,9 @@ def x_run_training__mutmut_5(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39366,7 +39378,9 @@ def x_run_training__mutmut_6(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39446,7 +39460,9 @@ def x_run_training__mutmut_7(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39526,7 +39542,9 @@ def x_run_training__mutmut_8(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39606,7 +39624,9 @@ def x_run_training__mutmut_9(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39686,7 +39706,9 @@ def x_run_training__mutmut_10(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39766,7 +39788,9 @@ def x_run_training__mutmut_11(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39846,7 +39870,9 @@ def x_run_training__mutmut_12(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -39926,7 +39952,9 @@ def x_run_training__mutmut_13(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40006,7 +40034,9 @@ def x_run_training__mutmut_14(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40086,7 +40116,9 @@ def x_run_training__mutmut_15(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40166,7 +40198,9 @@ def x_run_training__mutmut_16(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40246,7 +40280,9 @@ def x_run_training__mutmut_17(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40326,7 +40362,9 @@ def x_run_training__mutmut_18(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40406,7 +40444,9 @@ def x_run_training__mutmut_19(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40486,7 +40526,9 @@ def x_run_training__mutmut_20(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40566,7 +40608,9 @@ def x_run_training__mutmut_21(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40646,7 +40690,9 @@ def x_run_training__mutmut_22(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40726,7 +40772,9 @@ def x_run_training__mutmut_23(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40805,7 +40853,9 @@ def x_run_training__mutmut_24(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40885,7 +40935,9 @@ def x_run_training__mutmut_25(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -40965,7 +41017,9 @@ def x_run_training__mutmut_26(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41045,7 +41099,9 @@ def x_run_training__mutmut_27(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41123,7 +41179,9 @@ def x_run_training__mutmut_28(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41203,7 +41261,9 @@ def x_run_training__mutmut_29(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41283,7 +41343,9 @@ def x_run_training__mutmut_30(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41363,7 +41425,9 @@ def x_run_training__mutmut_31(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41443,7 +41507,9 @@ def x_run_training__mutmut_32(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41523,7 +41589,9 @@ def x_run_training__mutmut_33(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41602,7 +41670,9 @@ def x_run_training__mutmut_34(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41682,7 +41752,9 @@ def x_run_training__mutmut_35(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41762,7 +41834,9 @@ def x_run_training__mutmut_36(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41842,7 +41916,9 @@ def x_run_training__mutmut_37(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -41922,7 +41998,9 @@ def x_run_training__mutmut_38(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42002,7 +42080,9 @@ def x_run_training__mutmut_39(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42082,7 +42162,9 @@ def x_run_training__mutmut_40(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42162,7 +42244,9 @@ def x_run_training__mutmut_41(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42242,7 +42326,9 @@ def x_run_training__mutmut_42(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42322,7 +42408,9 @@ def x_run_training__mutmut_43(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42402,7 +42490,9 @@ def x_run_training__mutmut_44(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42482,7 +42572,9 @@ def x_run_training__mutmut_45(request: TrainingRequest) -> dict:
     pipeline.fit(None, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42562,7 +42654,9 @@ def x_run_training__mutmut_46(request: TrainingRequest) -> dict:
     pipeline.fit(X, None)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42642,7 +42736,9 @@ def x_run_training__mutmut_47(request: TrainingRequest) -> dict:
     pipeline.fit(y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42722,7 +42818,9 @@ def x_run_training__mutmut_48(request: TrainingRequest) -> dict:
     pipeline.fit(X, )
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42802,7 +42900,9 @@ def x_run_training__mutmut_49(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = None
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42882,7 +42982,9 @@ def x_run_training__mutmut_50(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject * request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -42962,7 +43064,9 @@ def x_run_training__mutmut_51(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir * request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -43042,8 +43146,10 @@ def x_run_training__mutmut_52(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=None, exist_ok=True)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=None, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -43122,8 +43228,10 @@ def x_run_training__mutmut_53(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=None)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=None)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -43202,8 +43310,10 @@ def x_run_training__mutmut_54(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(exist_ok=True)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -43282,8 +43392,10 @@ def x_run_training__mutmut_55(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, )
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, )    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -43362,8 +43474,10 @@ def x_run_training__mutmut_56(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=False, exist_ok=True)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=False, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -43442,8 +43556,10 @@ def x_run_training__mutmut_57(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=False)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=False)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
@@ -43522,10 +43638,12 @@ def x_run_training__mutmut_58(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=None, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = None
+    model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
@@ -43602,10 +43720,12 @@ def x_run_training__mutmut_59(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=None)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir * "model.joblib"
+    model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
@@ -43682,10 +43802,12 @@ def x_run_training__mutmut_60(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "XXmodel.joblibXX"
+    model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
@@ -43762,10 +43884,12 @@ def x_run_training__mutmut_61(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, )
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "MODEL.JOBLIB"
+    model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
@@ -43842,12 +43966,14 @@ def x_run_training__mutmut_62(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=False, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(None, str(model_path))
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -43922,12 +44048,14 @@ def x_run_training__mutmut_63(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
-    target_dir.mkdir(parents=True, exist_ok=True)
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=False)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, None)
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -44002,12 +44130,14 @@ def x_run_training__mutmut_64(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
+    model_path = None
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(str(model_path))
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -44082,12 +44212,14 @@ def x_run_training__mutmut_65(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
+    model_path = target_dir * "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, )
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -44162,12 +44294,14 @@ def x_run_training__mutmut_66(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
+    model_path = target_dir / "XXmodel.joblibXX"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(None))
+    save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
@@ -44242,14 +44376,16 @@ def x_run_training__mutmut_67(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
+    model_path = target_dir / "MODEL.JOBLIB"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = None
+    scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
@@ -44322,14 +44458,16 @@ def x_run_training__mutmut_68(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(None, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get(None)
+    scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
@@ -44402,14 +44540,16 @@ def x_run_training__mutmut_69(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(pipeline, None)
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("XXscalerXX")
+    scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
@@ -44482,14 +44622,16 @@ def x_run_training__mutmut_70(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("SCALER")
+    scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
@@ -44562,16 +44704,18 @@ def x_run_training__mutmut_71(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(pipeline, )
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is None:
+    if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
@@ -44642,18 +44786,20 @@ def x_run_training__mutmut_72(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
-    save_pipeline(pipeline, str(model_path))
+    save_pipeline(pipeline, str(None))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(None, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -44722,18 +44868,20 @@ def x_run_training__mutmut_73(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
+    scaler_step = None
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, None)
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -44802,18 +44950,20 @@ def x_run_training__mutmut_74(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
+    scaler_step = pipeline.named_steps.get(None)
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -44882,18 +45032,20 @@ def x_run_training__mutmut_75(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
+    scaler_step = pipeline.named_steps.get("XXscalerXX")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, )
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -44962,18 +45114,20 @@ def x_run_training__mutmut_76(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
     # Sauvegarde la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
-    scaler_step = pipeline.named_steps.get("scaler")
+    scaler_step = pipeline.named_steps.get("SCALER")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir * "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -45042,7 +45196,9 @@ def x_run_training__mutmut_77(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45051,9 +45207,9 @@ def x_run_training__mutmut_77(request: TrainingRequest) -> dict:
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is not None:
+    if scaler_step is None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "XXscaler.joblibXX")
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -45122,7 +45278,9 @@ def x_run_training__mutmut_78(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45133,7 +45291,7 @@ def x_run_training__mutmut_78(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "SCALER.JOBLIB")
+        joblib.dump(None, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
@@ -45202,7 +45360,9 @@ def x_run_training__mutmut_79(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45213,9 +45373,9 @@ def x_run_training__mutmut_79(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, None)
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = None
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
@@ -45282,7 +45442,9 @@ def x_run_training__mutmut_80(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45293,9 +45455,9 @@ def x_run_training__mutmut_80(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["XXdimensionalityXX"]
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
@@ -45362,7 +45524,9 @@ def x_run_training__mutmut_81(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45373,9 +45537,9 @@ def x_run_training__mutmut_81(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, )
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["DIMENSIONALITY"]
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
@@ -45442,7 +45606,9 @@ def x_run_training__mutmut_82(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45453,11 +45619,11 @@ def x_run_training__mutmut_82(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir * "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(None)
+    dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
@@ -45522,7 +45688,9 @@ def x_run_training__mutmut_83(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45533,11 +45701,11 @@ def x_run_training__mutmut_83(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "XXscaler.joblibXX")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir * "w_matrix.joblib")
+    dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
@@ -45602,7 +45770,9 @@ def x_run_training__mutmut_84(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45613,11 +45783,11 @@ def x_run_training__mutmut_84(request: TrainingRequest) -> dict:
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None:
         # Dépose le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, target_dir / "SCALER.JOBLIB")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "XXw_matrix.joblibXX")
+    dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
@@ -45682,7 +45852,9 @@ def x_run_training__mutmut_85(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45695,9 +45867,9 @@ def x_run_training__mutmut_85(request: TrainingRequest) -> dict:
         # Dépose le scaler dans un fichier distinct pour inspection
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    dim_reducer: TPVDimReducer = None
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "W_MATRIX.JOBLIB")
+    dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
@@ -45762,7 +45934,9 @@ def x_run_training__mutmut_86(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45775,11 +45949,11 @@ def x_run_training__mutmut_86(request: TrainingRequest) -> dict:
         # Dépose le scaler dans un fichier distinct pour inspection
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    dim_reducer: TPVDimReducer = pipeline.named_steps["XXdimensionalityXX"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
-    scaler_path = ""
+    scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
@@ -45842,7 +46016,9 @@ def x_run_training__mutmut_87(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45855,13 +46031,13 @@ def x_run_training__mutmut_87(request: TrainingRequest) -> dict:
         # Dépose le scaler dans un fichier distinct pour inspection
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    dim_reducer: TPVDimReducer = pipeline.named_steps["DIMENSIONALITY"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
-    if scaler_step is None:
+    if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
         scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
@@ -45922,7 +46098,9 @@ def x_run_training__mutmut_88(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -45937,13 +46115,13 @@ def x_run_training__mutmut_88(request: TrainingRequest) -> dict:
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
+    dim_reducer.save(None)
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = None
+        scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
@@ -46002,7 +46180,9 @@ def x_run_training__mutmut_89(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46017,13 +46197,13 @@ def x_run_training__mutmut_89(request: TrainingRequest) -> dict:
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
+    dim_reducer.save(target_dir * "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir * "scaler.joblib"
+        scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
@@ -46082,7 +46262,9 @@ def x_run_training__mutmut_90(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46097,13 +46279,13 @@ def x_run_training__mutmut_90(request: TrainingRequest) -> dict:
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
+    dim_reducer.save(target_dir / "XXw_matrix.joblibXX")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "XXscaler.joblibXX"
+        scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
@@ -46162,7 +46344,9 @@ def x_run_training__mutmut_91(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46177,13 +46361,13 @@ def x_run_training__mutmut_91(request: TrainingRequest) -> dict:
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
     # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
+    dim_reducer.save(target_dir / "W_MATRIX.JOBLIB")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "SCALER.JOBLIB"
+        scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
@@ -46242,7 +46426,9 @@ def x_run_training__mutmut_92(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46259,13 +46445,13 @@ def x_run_training__mutmut_92(request: TrainingRequest) -> dict:
     # Sauvegarde la matrice de projection pour les usages temps-réel
     dim_reducer.save(target_dir / "w_matrix.joblib")
     # Calcule le chemin du scaler pour l'ajouter au manifeste
-    scaler_path = None
+    scaler_path = ""
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
         scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = None
+    w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
@@ -46322,7 +46508,9 @@ def x_run_training__mutmut_93(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46341,11 +46529,11 @@ def x_run_training__mutmut_93(request: TrainingRequest) -> dict:
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
-    if scaler_step is not None:
+    if scaler_step is None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
         scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir * "w_matrix.joblib"
+    w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
@@ -46402,7 +46590,9 @@ def x_run_training__mutmut_94(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46423,9 +46613,9 @@ def x_run_training__mutmut_94(request: TrainingRequest) -> dict:
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
+        scaler_path = None
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "XXw_matrix.joblibXX"
+    w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
@@ -46482,7 +46672,9 @@ def x_run_training__mutmut_95(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46503,9 +46695,9 @@ def x_run_training__mutmut_95(request: TrainingRequest) -> dict:
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
+        scaler_path = target_dir * "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "W_MATRIX.JOBLIB"
+    w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
@@ -46562,7 +46754,9 @@ def x_run_training__mutmut_96(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46583,11 +46777,20 @@ def x_run_training__mutmut_96(request: TrainingRequest) -> dict:
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
+        scaler_path = target_dir / "XXscaler.joblibXX"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
-    manifest_paths = None
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
     # Retourne un rapport synthétique pour les tests et la CLI
     return {
         "cv_scores": cv_scores,
@@ -46633,7 +46836,9 @@ def x_run_training__mutmut_97(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46654,12 +46859,12 @@ def x_run_training__mutmut_97(request: TrainingRequest) -> dict:
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
+        scaler_path = target_dir / "SCALER.JOBLIB"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
-        None,
+        request,
         target_dir,
         cv_scores,
         {
@@ -46713,7 +46918,9 @@ def x_run_training__mutmut_98(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46736,11 +46943,11 @@ def x_run_training__mutmut_98(request: TrainingRequest) -> dict:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
         scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
+    w_matrix_path = None
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
-        None,
+        target_dir,
         cv_scores,
         {
             "model": model_path,
@@ -46793,7 +47000,9 @@ def x_run_training__mutmut_99(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46816,12 +47025,12 @@ def x_run_training__mutmut_99(request: TrainingRequest) -> dict:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
         scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
+    w_matrix_path = target_dir * "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
         target_dir,
-        None,
+        cv_scores,
         {
             "model": model_path,
             "scaler": scaler_path,
@@ -46873,7 +47082,9 @@ def x_run_training__mutmut_100(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46896,13 +47107,17 @@ def x_run_training__mutmut_100(request: TrainingRequest) -> dict:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
         scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
+    w_matrix_path = target_dir / "XXw_matrix.joblibXX"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
         target_dir,
         cv_scores,
-        None,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
     )
     # Retourne un rapport synthétique pour les tests et la CLI
     return {
@@ -46949,7 +47164,9 @@ def x_run_training__mutmut_101(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -46972,9 +47189,10 @@ def x_run_training__mutmut_101(request: TrainingRequest) -> dict:
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
         scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
+    w_matrix_path = target_dir / "W_MATRIX.JOBLIB"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
+        request,
         target_dir,
         cv_scores,
         {
@@ -47028,7 +47246,9 @@ def x_run_training__mutmut_102(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47053,15 +47273,7 @@ def x_run_training__mutmut_102(request: TrainingRequest) -> dict:
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
-    manifest_paths = _write_manifest(
-        request,
-        cv_scores,
-        {
-            "model": model_path,
-            "scaler": scaler_path,
-            "w_matrix": w_matrix_path,
-        },
-    )
+    manifest_paths = None
     # Retourne un rapport synthétique pour les tests et la CLI
     return {
         "cv_scores": cv_scores,
@@ -47107,7 +47319,9 @@ def x_run_training__mutmut_103(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47133,8 +47347,9 @@ def x_run_training__mutmut_103(request: TrainingRequest) -> dict:
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
-        request,
+        None,
         target_dir,
+        cv_scores,
         {
             "model": model_path,
             "scaler": scaler_path,
@@ -47186,7 +47401,9 @@ def x_run_training__mutmut_104(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47213,9 +47430,14 @@ def x_run_training__mutmut_104(request: TrainingRequest) -> dict:
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
-        target_dir,
+        None,
         cv_scores,
-        )
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
     # Retourne un rapport synthétique pour les tests et la CLI
     return {
         "cv_scores": cv_scores,
@@ -47261,7 +47483,9 @@ def x_run_training__mutmut_105(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47289,9 +47513,9 @@ def x_run_training__mutmut_105(request: TrainingRequest) -> dict:
     manifest_paths = _write_manifest(
         request,
         target_dir,
-        cv_scores,
+        None,
         {
-            "XXmodelXX": model_path,
+            "model": model_path,
             "scaler": scaler_path,
             "w_matrix": w_matrix_path,
         },
@@ -47341,7 +47565,9 @@ def x_run_training__mutmut_106(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47370,11 +47596,7 @@ def x_run_training__mutmut_106(request: TrainingRequest) -> dict:
         request,
         target_dir,
         cv_scores,
-        {
-            "MODEL": model_path,
-            "scaler": scaler_path,
-            "w_matrix": w_matrix_path,
-        },
+        None,
     )
     # Retourne un rapport synthétique pour les tests et la CLI
     return {
@@ -47421,7 +47643,9 @@ def x_run_training__mutmut_107(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47447,12 +47671,11 @@ def x_run_training__mutmut_107(request: TrainingRequest) -> dict:
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
-        request,
         target_dir,
         cv_scores,
         {
             "model": model_path,
-            "XXscalerXX": scaler_path,
+            "scaler": scaler_path,
             "w_matrix": w_matrix_path,
         },
     )
@@ -47501,7 +47724,9 @@ def x_run_training__mutmut_108(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47528,11 +47753,10 @@ def x_run_training__mutmut_108(request: TrainingRequest) -> dict:
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
-        target_dir,
         cv_scores,
         {
             "model": model_path,
-            "SCALER": scaler_path,
+            "scaler": scaler_path,
             "w_matrix": w_matrix_path,
         },
     )
@@ -47581,7 +47805,9 @@ def x_run_training__mutmut_109(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47609,11 +47835,10 @@ def x_run_training__mutmut_109(request: TrainingRequest) -> dict:
     manifest_paths = _write_manifest(
         request,
         target_dir,
-        cv_scores,
         {
             "model": model_path,
             "scaler": scaler_path,
-            "XXw_matrixXX": w_matrix_path,
+            "w_matrix": w_matrix_path,
         },
     )
     # Retourne un rapport synthétique pour les tests et la CLI
@@ -47661,7 +47886,496 @@ def x_run_training__mutmut_110(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_111(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "XXmodelXX": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_112(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "MODEL": model_path,
+            "scaler": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_113(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "XXscalerXX": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_114(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "SCALER": scaler_path,
+            "w_matrix": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_115(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Calcule le chemin du fichier modèle pour joblib
+    model_path = target_dir / "model.joblib"
+    # Sauvegarde la pipeline complète pour les prédictions futures
+    save_pipeline(pipeline, str(model_path))
+    # Récupère l'éventuel scaler pour une sauvegarde dédiée
+    scaler_step = pipeline.named_steps.get("scaler")
+    # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
+    if scaler_step is not None:
+        # Dépose le scaler dans un fichier distinct pour inspection
+        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+    # Récupère le réducteur de dimension pour exposer la matrice W
+    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    # Sauvegarde la matrice de projection pour les usages temps-réel
+    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Calcule le chemin du scaler pour l'ajouter au manifeste
+    scaler_path = None
+    # Renseigne le chemin du scaler uniquement lorsqu'il existe
+    if scaler_step is not None:
+        # Stocke le chemin vers le scaler sauvegardé pour le manifeste
+        scaler_path = target_dir / "scaler.joblib"
+    # Calcule le chemin du fichier W pour le référencer dans le manifeste
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Écrit un manifeste décrivant l'entraînement et ses artefacts
+    manifest_paths = _write_manifest(
+        request,
+        target_dir,
+        cv_scores,
+        {
+            "model": model_path,
+            "scaler": scaler_path,
+            "XXw_matrixXX": w_matrix_path,
+        },
+    )
+    # Retourne un rapport synthétique pour les tests et la CLI
+    return {
+        "cv_scores": cv_scores,
+        "model_path": model_path,
+        "scaler_path": scaler_path,
+        "w_matrix_path": w_matrix_path,
+        "manifest_path": manifest_paths["json"],
+        "manifest_csv_path": manifest_paths["csv"],
+    }
+
+
+# Exécute la validation croisée et l'entraînement final
+def x_run_training__mutmut_116(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(request.pipeline_config)
+    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
+    min_class_count = int(np.bincount(y).min())
+    # Déclare le nombre de splits cible imposé par la consigne (10)
+    requested_splits = DEFAULT_CV_SPLITS
+    # Calcule le nombre de splits atteignable avec la classe minoritaire
+    n_splits = min(requested_splits, min_class_count)
+    # Initialise un tableau vide lorsque la validation croisée est impossible
+    cv_scores = np.array([])
+    # Vérifie si l'effectif autorise une validation croisée exploitable
+    if n_splits < MIN_CV_SPLITS:
+        # Signale la désactivation de la validation croisée par manque d'échantillons
+        print(
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
+    else:
+        # Configure une StratifiedKFold stable sur le nombre de splits calculé
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+        )
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Ajuste la pipeline sur toutes les données après évaluation
+    pipeline.fit(X, y)
+    # Prépare le dossier d'artefacts spécifique au sujet et au run
+    target_dir = request.artifacts_dir / request.subject / request.run
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47708,7 +48422,7 @@ def x_run_training__mutmut_110(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_111(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_117(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -47741,7 +48455,9 @@ def x_run_training__mutmut_111(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47788,7 +48504,7 @@ def x_run_training__mutmut_111(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_112(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_118(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -47821,7 +48537,9 @@ def x_run_training__mutmut_112(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47868,7 +48586,7 @@ def x_run_training__mutmut_112(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_113(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_119(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -47901,7 +48619,9 @@ def x_run_training__mutmut_113(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -47948,7 +48668,7 @@ def x_run_training__mutmut_113(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_114(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_120(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -47981,7 +48701,9 @@ def x_run_training__mutmut_114(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48028,7 +48750,7 @@ def x_run_training__mutmut_114(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_115(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_121(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48061,7 +48783,9 @@ def x_run_training__mutmut_115(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48108,7 +48832,7 @@ def x_run_training__mutmut_115(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_116(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_122(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48141,7 +48865,9 @@ def x_run_training__mutmut_116(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48188,7 +48914,7 @@ def x_run_training__mutmut_116(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_117(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_123(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48221,7 +48947,9 @@ def x_run_training__mutmut_117(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48268,7 +48996,7 @@ def x_run_training__mutmut_117(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_118(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_124(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48301,7 +49029,9 @@ def x_run_training__mutmut_118(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48348,7 +49078,7 @@ def x_run_training__mutmut_118(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_119(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_125(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48381,7 +49111,9 @@ def x_run_training__mutmut_119(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48428,7 +49160,7 @@ def x_run_training__mutmut_119(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_120(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_126(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48461,7 +49193,9 @@ def x_run_training__mutmut_120(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48508,7 +49242,7 @@ def x_run_training__mutmut_120(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_121(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_127(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48541,7 +49275,9 @@ def x_run_training__mutmut_121(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48588,7 +49324,7 @@ def x_run_training__mutmut_121(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_122(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_128(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48621,7 +49357,9 @@ def x_run_training__mutmut_122(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48668,7 +49406,7 @@ def x_run_training__mutmut_122(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_123(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_129(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48701,7 +49439,9 @@ def x_run_training__mutmut_123(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48748,7 +49488,7 @@ def x_run_training__mutmut_123(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_124(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_130(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48781,7 +49521,9 @@ def x_run_training__mutmut_124(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48828,7 +49570,7 @@ def x_run_training__mutmut_124(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_125(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_131(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48861,7 +49603,9 @@ def x_run_training__mutmut_125(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -48908,7 +49652,7 @@ def x_run_training__mutmut_125(request: TrainingRequest) -> dict:
 
 
 # Exécute la validation croisée et l'entraînement final
-def x_run_training__mutmut_126(request: TrainingRequest) -> dict:
+def x_run_training__mutmut_132(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
@@ -48941,7 +49685,9 @@ def x_run_training__mutmut_126(request: TrainingRequest) -> dict:
     pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
+    # Assure l'existence du parent pour stabiliser la création du dossier cible
+    target_dir.parent.mkdir(parents=True, exist_ok=True)    
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
@@ -49112,7 +49858,13 @@ x_run_training__mutmut_mutants : ClassVar[MutantDict] = {
     'x_run_training__mutmut_123': x_run_training__mutmut_123, 
     'x_run_training__mutmut_124': x_run_training__mutmut_124, 
     'x_run_training__mutmut_125': x_run_training__mutmut_125, 
-    'x_run_training__mutmut_126': x_run_training__mutmut_126
+    'x_run_training__mutmut_126': x_run_training__mutmut_126, 
+    'x_run_training__mutmut_127': x_run_training__mutmut_127, 
+    'x_run_training__mutmut_128': x_run_training__mutmut_128, 
+    'x_run_training__mutmut_129': x_run_training__mutmut_129, 
+    'x_run_training__mutmut_130': x_run_training__mutmut_130, 
+    'x_run_training__mutmut_131': x_run_training__mutmut_131, 
+    'x_run_training__mutmut_132': x_run_training__mutmut_132
 }
 
 def run_training(*args, **kwargs):
