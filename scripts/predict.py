@@ -194,6 +194,7 @@ def _load_data(
 
     # Détermine les chemins attendus pour les features et labels
     features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+  
     # Indique si nous devons régénérer les .npy
     needs_rebuild = False
 

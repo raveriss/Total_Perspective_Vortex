@@ -351,6 +351,156 @@ def test_compute_sha256_matches_expected(monkeypatch, tmp_path: Path) -> None:
     assert fetch_physionet.compute_sha256(file_path) == expected
 
 
+# Verrouille l'ouverture en mode binaire pour éviter les lectures texte
+def test_compute_sha256_opens_in_binary_mode(monkeypatch, tmp_path: Path) -> None:
+    # Crée un fichier réel pour éviter des branches conditionnelles parasites
+    file_path = tmp_path / "sample.bin"
+    # Écrit des octets pour imposer une lecture binaire cohérente
+    file_path.write_bytes(b"abc")
+
+    # Capture les arguments exacts transmis à Path.open()
+    recorded: dict[str, object] = {}
+
+    # Fournit un handle minimal qui simule une lecture en plusieurs blocs
+    class FakeHandle:
+        # Prépare une séquence finie de blocs pour forcer plusieurs read()
+        def __init__(self) -> None:
+            self.chunks = [b"a", b"bc", b""]
+
+        # Retourne le prochain bloc et ignore le contenu du fichier réel
+        def read(self, _size: int | None) -> bytes:
+            return self.chunks.pop(0)
+
+        # Supporte le contexte pour reproduire Path.open()
+        def __enter__(self) -> "FakeHandle":
+            return self
+
+        # Termine le contexte sans effet pour simplifier le test
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    # Espionne Path.open pour verrouiller le mode et éviter les contournements
+    def open_spy(self: Path, *args: object, **kwargs: object):
+        # Archive les args pour vérifier le mode binaire explicite
+        recorded["args"] = args
+        # Archive les kwargs pour refuser encoding=... en hashing
+        recorded["kwargs"] = kwargs
+        # Fournit un handle déterministe pour isoler le hash des IO disque
+        return FakeHandle()
+
+    # Injecte l'espion pour verrouiller l'API réellement utilisée
+    monkeypatch.setattr(Path, "open", open_spy)
+
+    # Exécute le hachage pour déclencher l'ouverture instrumentée
+    fetch_physionet.compute_sha256(file_path)
+
+    # Verrouille le mode binaire pour tuer les mutants open("r") / mode absent
+    assert recorded["args"] == ("rb",)
+    # Verrouille l'absence d'encoding pour tuer les mutants d'ouverture texte
+    assert recorded["kwargs"] == {}
+
+
+# Refuse toute implémentation qui lit le fichier en une fois via read_bytes/read_text
+def test_compute_sha256_does_not_use_read_bytes_or_read_text(
+    monkeypatch, tmp_path: Path
+) -> None:
+    # Crée un fichier déterministe pour un hash attendu stable
+    file_path = tmp_path / "sample.bin"
+    # Fixe un payload stable pour calculer le hash de référence
+    payload = b"hashable"
+    # Matérialise le fichier pour éviter des branches d'erreur hors sujet
+    file_path.write_bytes(payload)
+    # Calcule le hash attendu avec hashlib pour comparaison stricte
+    expected = hashlib.sha256(payload).hexdigest()
+
+    # Force l'échec si une implémentation tente une lecture complète
+    monkeypatch.setattr(
+        Path,
+        "read_bytes",
+        lambda *_: (_ for _ in ()).throw(AssertionError("read_bytes interdit")),
+    )
+    # Force l'échec si une implémentation tente une lecture texte
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda *_: (_ for _ in ()).throw(AssertionError("read_text interdit")),
+    )
+
+    # Fournit un handle en streaming pour permettre l'implémentation attendue
+    class SafeHandle:
+        # Prépare une séquence finie de blocs suivie du sentinel EOF
+        def __init__(self) -> None:
+            self.chunks = [payload[:4], payload[4:], b""]
+            self.eof_seen = False
+
+        # Empêche toute lecture après EOF pour tuer les mutants de boucle
+        def read(self, _size: int | None) -> bytes:
+            if self.eof_seen:
+                raise AssertionError("compute_sha256 read past EOF")
+            chunk = self.chunks.pop(0)
+            if chunk == b"":
+                self.eof_seen = True
+            return chunk
+
+        # Supporte le contexte pour reproduire Path.open()
+        def __enter__(self) -> "SafeHandle":
+            return self
+
+        # Termine le contexte sans effet pour simplifier le test
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    # Redirige Path.open vers le streaming contrôlé
+    monkeypatch.setattr(Path, "open", lambda *_: SafeHandle())
+
+    # Vérifie que le hash reste correct sans jamais appeler read_bytes/read_text
+    assert fetch_physionet.compute_sha256(file_path) == expected
+
+
+# Verrouille l'usage de .open() sur l'objet "path" au lieu de conversions implicites
+def test_compute_sha256_uses_path_open_method_directly() -> None:
+    # Fixe un payload stable pour un hash attendu déterministe
+    payload = b"hashable"
+    # Calcule le hash de référence pour comparaison stricte
+    expected = hashlib.sha256(payload).hexdigest()
+
+    # Définit un objet "path" qui interdit os.fspath et conversions équivalentes
+    class OpaquePath:
+        # Refuse toute conversion en chemin système pour tuer open(pathlike)
+        def __fspath__(self) -> str:
+            raise AssertionError("compute_sha256 doit utiliser .open()")
+
+        # Fournit une API open() compatible avec l'implémentation attendue
+        def open(self, *args: object, **kwargs: object):
+            # Verrouille le mode binaire pour aligner le contrat de hashing
+            assert args == ("rb",)
+            # Refuse les paramètres texte pour éliminer les contournements
+            assert kwargs == {}
+
+            # Fournit un handle streaming déterministe
+            class Handle:
+                # Initialise une séquence finie suivie d'un EOF explicite
+                def __init__(self) -> None:
+                    self.chunks = [payload[:4], payload[4:], b""]
+
+                # Sert les blocs en respectant l'API read(size)
+                def read(self, _size: int | None) -> bytes:
+                    return self.chunks.pop(0)
+
+                # Supporte le contexte pour reproduire Path.open()
+                def __enter__(self) -> "Handle":
+                    return self
+
+                # Termine le contexte sans effet pour simplifier le test
+                def __exit__(self, *args: object) -> None:
+                    return None
+
+            return Handle()
+
+    # Vérifie que compute_sha256 fonctionne via .open() sans conversion de chemin
+    assert fetch_physionet.compute_sha256(OpaquePath()) == expected
+
+
 # Bloque les schémas non HTTP pour les téléchargements distants
 @pytest.mark.parametrize("forbidden_scheme", ["ftp", "file"])
 def test_retrieve_file_rejects_unsupported_scheme(

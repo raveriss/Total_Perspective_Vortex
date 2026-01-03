@@ -1,7 +1,6 @@
 """Tests ciblés sur scripts.predict._load_data pour sécuriser la reconstruction."""
 
 import sys
-import dis
 from pathlib import Path
 
 import numpy as np
@@ -9,30 +8,55 @@ import numpy as np
 from scripts import predict
 
 # Verrouille l'initialisation booléenne de needs_rebuild (mutant équivalent sinon)
-def test_predict_load_data_initializes_needs_rebuild_as_false() -> None:
-    """Verrouille l'initialisation littérale de needs_rebuild à False."""
+def test_predict_load_data_initializes_needs_rebuild_as_false(tmp_path, monkeypatch) -> None:
+    """Verrouille needs_rebuild: bool False dès l'entrée dans l'implémentation."""
 
-    # Inspecte le bytecode pour éviter l'interaction sys.settrace/coverage.
-    instructions = list(dis.get_instructions(predict._load_data))
+    subject = "S011"
+    run = "R03"
+    data_dir = tmp_path / "data"
+    raw_dir = tmp_path / "raw"
+    subject_dir = data_dir / subject
+    subject_dir.mkdir(parents=True)
 
-    # Cible la première affectation au local "needs_rebuild".
-    store_idx = next(
-        (
-            idx
-            for idx, ins in enumerate(instructions)
-            if ins.opname == "STORE_FAST" and ins.argval == "needs_rebuild"
-        ),
-        None,
-    )
-    assert store_idx is not None, "needs_rebuild n'est jamais initialisé"
+    # Prépare des fichiers valides pour forcer le chemin "pas de rebuild".
+    expected_X = np.arange(12).reshape(3, 2, 2)
+    expected_y = np.array([0, 1, 0])
+    np.save(subject_dir / f"{run}_X.npy", expected_X)
+    np.save(subject_dir / f"{run}_y.npy", expected_y)
 
-    # Vérifie que la valeur assignée est la constante booléenne False.
-    load_idx = store_idx - 1
-    while load_idx >= 0 and instructions[load_idx].opname in ("EXTENDED_ARG", "NOP"):
-        load_idx -= 1
-    assert load_idx >= 0, "Aucune valeur n'est assignée à needs_rebuild"
-    assert instructions[load_idx].opname == "LOAD_CONST"
-    assert instructions[load_idx].argval is False
+    # Verrouille l'absence de rebuild dans ce scénario.
+    def _forbid_rebuild(*args, **kwargs):
+        raise AssertionError("_build_npy_from_edf ne doit pas être appelé ici")
+
+    monkeypatch.setattr(predict, "_build_npy_from_edf", _forbid_rebuild)
+
+    captured: dict[str, object] = {}
+
+    # Capture la première valeur observée de needs_rebuild dans une frame load_data.
+    def tracer(frame, event, arg):
+        if event != "line":
+            return tracer
+        filename = frame.f_code.co_filename.replace("\\", "/")
+        name = frame.f_code.co_name
+        if not filename.endswith("scripts/predict.py"):
+            return tracer
+        if "load_data" not in name:
+            return tracer
+        if "needs_rebuild" not in frame.f_locals:
+            return tracer
+        if "value" not in captured:
+            captured["value"] = frame.f_locals["needs_rebuild"]
+        return tracer
+
+    sys.settrace(tracer)
+    try:
+        predict._load_data(subject, run, data_dir, raw_dir)
+    finally:
+        sys.settrace(None)
+
+    assert "value" in captured
+    assert captured["value"] is False
+    assert type(captured["value"]) is bool
 
 
 # Vérifie que _build_npy_from_edf est invoqué dès que les .npy sont invalides
