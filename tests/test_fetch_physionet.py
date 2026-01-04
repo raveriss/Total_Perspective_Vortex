@@ -20,7 +20,7 @@ from io import BytesIO, StringIO
 from pathlib import Path
 
 # Expose Final pour typer les constantes de test
-from typing import Final
+from typing import Final, cast
 
 # Encadre les assertions explicites sur les exceptions attendues
 import pytest
@@ -498,7 +498,7 @@ def test_compute_sha256_uses_path_open_method_directly() -> None:
             return Handle()
 
     # Vérifie que compute_sha256 fonctionne via .open() sans conversion de chemin
-    assert fetch_physionet.compute_sha256(OpaquePath()) == expected
+    assert fetch_physionet.compute_sha256(cast(Path, OpaquePath())) == expected
 
 
 # Bloque les schémas non HTTP pour les téléchargements distants

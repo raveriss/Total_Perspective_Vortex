@@ -1,14 +1,16 @@
 # Importe Path pour vérifier les fichiers de sortie générés
-from pathlib import Path
+import importlib
+
 # Importe inspect pour verrouiller les defaults via introspection
 import inspect
-import importlib
 import sys
+from pathlib import Path
 
 # Importe pandas pour inspecter les DataFrames produits
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_float_dtype
+
 
 def test_run_synthetic_benchmark_exposes_expected_defaults() -> None:
     # Force l'exécution de la ligne `def` *pendant* ce test (mutmut par-test)

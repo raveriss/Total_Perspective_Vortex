@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0915
 from pathlib import Path
 
 import numpy as np
@@ -5,7 +6,9 @@ import numpy as np
 from scripts import predict as predict_cli
 
 
-def test_evaluate_run_trains_and_loads_missing_artifacts(tmp_path, monkeypatch, capsys):
+def test_evaluate_run_trains_and_loads_missing_artifacts(
+    tmp_path, monkeypatch, capsys
+):  # noqa: PLR0915
     """Couvre la régression d'evaluate_run lorsque les artefacts sont absents."""
 
     subject = "S77"

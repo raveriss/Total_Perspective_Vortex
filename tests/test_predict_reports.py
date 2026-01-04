@@ -1,6 +1,6 @@
+# ruff: noqa: PLR0915
 # Importe builtins pour espionner zip et verrouiller strict=False
 import builtins
-
 
 # Importe csv pour analyser les fichiers produits par le reporting
 import csv
@@ -21,7 +21,9 @@ from scripts import predict as predict_module
 from scripts.predict import _write_reports
 
 
-def test_write_reports_serializes_expected_outputs(tmp_path, monkeypatch):
+def test_write_reports_serializes_expected_outputs(
+    tmp_path, monkeypatch
+):  # noqa: PLR0915
     """Vérifie la sérialisation complète des rapports de prédiction."""
 
     # Prépare le répertoire cible pour collecter les fichiers générés
@@ -70,11 +72,7 @@ def test_write_reports_serializes_expected_outputs(tmp_path, monkeypatch):
 
     # Espionne zip afin de garantir l'usage explicite de strict=False
     def spy_zip(*iterables, **kwargs):
-        if (
-            len(iterables) == 2
-            and iterables[0] is y_true
-            and iterables[1] is y_pred
-        ):
+        if len(iterables) == 2 and iterables[0] is y_true and iterables[1] is y_pred:
             zip_strict_values.append(kwargs.get("strict", "__missing__"))
         return real_zip(*iterables, **kwargs)
 
@@ -125,7 +123,7 @@ def test_write_reports_serializes_expected_outputs(tmp_path, monkeypatch):
         ("class_report.csv", ""),
         ("predictions.csv", ""),
     ]
-    
+
     # Charge le contenu JSON pour inspecter les valeurs calculées
     report_json = json.loads(reports["json_report"].read_text())
     # Vérifie que le sujet est bien propagé dans le rapport

@@ -39,7 +39,6 @@ from tpv.dimensionality import TPVDimReducer
 # Assemble la pipeline cohérente pour l'entraînement
 from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
 
-
 # Déclare la liste des runs moteurs à couvrir pour l'entraînement massif
 MOTOR_RUNS = (
     # Couvre le run moteur R03 documenté dans le protocole Physionet
@@ -729,8 +728,8 @@ def run_training(request: TrainingRequest) -> dict:
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Assure l'existence du parent pour stabiliser la création du dossier cible
-    target_dir.parent.mkdir(parents=True, exist_ok=True)    
-    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde    
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
+    # Crée les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule le chemin du fichier modèle pour joblib
     model_path = target_dir / "model.joblib"
