@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0915
 import argparse
 import builtins
 from pathlib import Path
@@ -9,7 +10,9 @@ def _get_action(parser: argparse.ArgumentParser, dest: str) -> argparse.Action:
     return next(action for action in parser._actions if action.dest == dest)
 
 
-def test_build_parser_exposes_compatibility_defaults_and_paths() -> None:
+def test_build_parser_exposes_compatibility_defaults_and_paths() -> (
+    None
+):  # noqa: PLR0915
     parser = predict.build_parser()
 
     assert (
@@ -47,7 +50,9 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> None:
     assert scaler_action.choices is not None
     assert tuple(scaler_action.choices) == ("standard", "robust", "none")
     assert scaler_action.default == "none"
-    assert scaler_action.help == "Scaler appliqué en entraînement (ignoré en prédiction)"
+    assert (
+        scaler_action.help == "Scaler appliqué en entraînement (ignoré en prédiction)"
+    )
 
     assert feature_action.choices is not None
     assert tuple(feature_action.choices) == ("fft", "wavelet")
@@ -61,18 +66,11 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> None:
     assert tuple(dim_action.choices) == ("pca", "csp")
     assert dim_action.default == "pca"
     assert (
-        dim_action.help
-        == "Méthode de réduction de dimension (ignorée en prédiction)"
+        dim_action.help == "Méthode de réduction de dimension (ignorée en prédiction)"
     )
 
-    assert (
-        n_components_action.help
-        == "Nombre de composantes (ignoré en prédiction)"
-    )
-    assert (
-        no_normalize_action.help
-        == "Flag de normalisation (ignoré en prédiction)"
-    )
+    assert n_components_action.help == "Nombre de composantes (ignoré en prédiction)"
+    assert no_normalize_action.help == "Flag de normalisation (ignoré en prédiction)"
     assert sfreq_action.help == "Fréquence utilisée en features (ignorée ici)"
 
     assert n_components_action.default is argparse.SUPPRESS
@@ -93,17 +91,16 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> None:
     assert raw_dir_action.help == "Répertoire racine contenant les fichiers EDF bruts"
 
     normalized_help = " ".join(parser.format_help().split())
+    assert "Charge une pipeline TPV entraînée et produit un rapport" in normalized_help
     assert (
-        "Charge une pipeline TPV entraînée et produit un rapport" in normalized_help
+        "Méthode de réduction de dimension (ignorée en prédiction)" in normalized_help
     )
-    assert "Méthode de réduction de dimension (ignorée en prédiction)" in normalized_help
     assert "Nombre de composantes (ignoré en prédiction)" in normalized_help
     assert "Flag de normalisation (ignoré en prédiction)" in normalized_help
     assert "Fréquence utilisée en features (ignorée ici)" in normalized_help
     assert "Répertoire racine contenant les fichiers numpy" in normalized_help
     assert "Répertoire racine où lire le modèle" in normalized_help
     assert "Répertoire racine contenant les fichiers EDF bruts" in normalized_help
-
 
 
 def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
@@ -139,11 +136,7 @@ def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
     real_zip = builtins.zip
 
     def spy_zip(*iterables, **kwargs):
-        if (
-            len(iterables) == 2
-            and iterables[0] is y_pred
-            and iterables[1] is y_true
-        ):
+        if len(iterables) == 2 and iterables[0] is y_pred and iterables[1] is y_true:
             zip_strict_values.append(kwargs.get("strict", "__missing__"))
         return real_zip(*iterables, **kwargs)
 

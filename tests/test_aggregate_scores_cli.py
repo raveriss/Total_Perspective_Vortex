@@ -1,8 +1,8 @@
-import argparse
 import csv
 import io
 import json
 from pathlib import Path
+from typing import Any, Callable
 
 import pytest
 
@@ -108,7 +108,9 @@ def test_score_run_minimum_threshold_is_inclusive(
     # Verrouille l'inclusivité du seuil minimum (>=) au point d'égalité
     assert entry["meets_minimum"] is True
     # Vérifie la cohérence du drapeau cible via le seuil actuel
-    assert entry["meets_target"] is (aggregate_scores.MINIMUM_ACCURACY >= aggregate_scores.TARGET_ACCURACY)
+    assert entry["meets_target"] is (
+        aggregate_scores.MINIMUM_ACCURACY >= aggregate_scores.TARGET_ACCURACY
+    )
 
 
 def test_score_run_target_threshold_is_inclusive(
@@ -141,7 +143,9 @@ def test_aggregate_scores_subject_target_threshold_is_inclusive(
     tmp_path: Path,
 ) -> None:
     # Force un seul run pour avoir une moyenne sujet == TARGET exactement
-    monkeypatch.setattr(aggregate_scores, "_discover_runs", lambda *_: [("S001", "R01")])
+    monkeypatch.setattr(
+        aggregate_scores, "_discover_runs", lambda *_: [("S001", "R01")]
+    )
 
     # Injecte une entrée run dont l'accuracy est exactement la cible
     def fake_score_run(
@@ -178,7 +182,9 @@ def test_aggregate_scores_global_minimum_threshold_is_inclusive(
     tmp_path: Path,
 ) -> None:
     # Force un seul run pour avoir une moyenne globale == MINIMUM exactement
-    monkeypatch.setattr(aggregate_scores, "_discover_runs", lambda *_: [("S001", "R01")])
+    monkeypatch.setattr(
+        aggregate_scores, "_discover_runs", lambda *_: [("S001", "R01")]
+    )
 
     # Injecte une entrée run dont l'accuracy est exactement le minimum
     def fake_score_run(
@@ -203,7 +209,9 @@ def test_aggregate_scores_global_minimum_threshold_is_inclusive(
     report = aggregate_scores.aggregate_scores(tmp_path, tmp_path)
 
     # Verrouille l'inclusivité du seuil minimum au point d'égalité
-    assert report["global"]["accuracy"] == pytest.approx(aggregate_scores.MINIMUM_ACCURACY)
+    assert report["global"]["accuracy"] == pytest.approx(
+        aggregate_scores.MINIMUM_ACCURACY
+    )
     assert report["global"]["meets_minimum"] is True
 
 
@@ -212,7 +220,9 @@ def test_aggregate_scores_global_target_threshold_is_inclusive(
     tmp_path: Path,
 ) -> None:
     # Force un seul run pour avoir une moyenne globale == TARGET exactement
-    monkeypatch.setattr(aggregate_scores, "_discover_runs", lambda *_: [("S001", "R01")])
+    monkeypatch.setattr(
+        aggregate_scores, "_discover_runs", lambda *_: [("S001", "R01")]
+    )
 
     # Injecte une entrée run dont l'accuracy est exactement la cible
     def fake_score_run(
@@ -237,7 +247,9 @@ def test_aggregate_scores_global_target_threshold_is_inclusive(
     report = aggregate_scores.aggregate_scores(tmp_path, tmp_path)
 
     # Verrouille l'inclusivité du seuil cible au point d'égalité
-    assert report["global"]["accuracy"] == pytest.approx(aggregate_scores.TARGET_ACCURACY)
+    assert report["global"]["accuracy"] == pytest.approx(
+        aggregate_scores.TARGET_ACCURACY
+    )
     assert report["global"]["meets_target"] is True
     assert report["global"]["meets_minimum"] is True
 
@@ -277,9 +289,9 @@ def test_write_csv_uses_stable_io_contract_and_row_schema(
 
     # Capture les paramètres mkdir(...) pour tuer les mutants parents/exist_ok
     mkdir_calls: list[dict[str, object]] = []
-    real_mkdir = Path.mkdir
+    real_mkdir: Callable[..., None] = Path.mkdir
 
-    def mkdir_spy(self: Path, *args: object, **kwargs: object) -> None:
+    def mkdir_spy(self: Path, *args: Any, **kwargs: Any) -> None:
         mkdir_calls.append({"self": self, "args": args, "kwargs": dict(kwargs)})
         return real_mkdir(self, *args, **kwargs)
 
@@ -387,9 +399,9 @@ def test_write_json_uses_stable_io_contract_and_pretty_format(
 
     # Capture les paramètres mkdir(...) pour tuer parents=None/False/absent
     mkdir_calls: list[dict[str, object]] = []
-    real_mkdir = Path.mkdir
+    real_mkdir: Callable[..., None] = Path.mkdir
 
-    def mkdir_spy(self: Path, *args: object, **kwargs: object) -> None:
+    def mkdir_spy(self: Path, *args: Any, **kwargs: Any) -> None:
         mkdir_calls.append({"self": self, "args": args, "kwargs": dict(kwargs)})
         return real_mkdir(self, *args, **kwargs)
 
@@ -408,7 +420,7 @@ def test_write_json_uses_stable_io_contract_and_pretty_format(
         def __exit__(self, *exc: object) -> None:
             return None
 
-    def open_spy(self: Path, *args: object, **kwargs: object) -> Handle:
+    def open_spy(self: Path, *args: Any, **kwargs: Any) -> Handle:
         open_calls.append({"self": self, "args": args, "kwargs": dict(kwargs)})
         return Handle()
 
@@ -416,9 +428,9 @@ def test_write_json_uses_stable_io_contract_and_pretty_format(
 
     # Capture json.dump(...) pour tuer indent=None/absent/3
     dump_calls: list[dict[str, object]] = []
-    real_dump = aggregate_scores.json.dump
+    real_dump: Callable[..., None] = aggregate_scores.json.dump
 
-    def dump_spy(obj: object, fp: object, *args: object, **kwargs: object) -> None:
+    def dump_spy(obj: Any, fp: Any, *args: Any, **kwargs: Any) -> None:
         dump_calls.append({"obj": obj, "fp": fp, "args": args, "kwargs": dict(kwargs)})
         return real_dump(obj, fp, *args, **kwargs)
 
@@ -451,5 +463,3 @@ def test_write_json_uses_stable_io_contract_and_pretty_format(
 
     # Verrouille la sortie texte pour stabiliser le format (indentation)
     assert buffer.getvalue() == json.dumps(report, indent=2)
-
-

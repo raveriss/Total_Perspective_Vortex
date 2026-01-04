@@ -48,6 +48,8 @@ POETRY = poetry run
 
 # Désactive le chargement automatique des plugins pytest globaux (ROS, etc.)
 PYTEST_ENV = PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+# Active la collecte de couverture dans les sous-processus (CLI appelés depuis les tests)
+COVERAGE_ENV = COVERAGE_PROCESS_START=$(PYPROJECT)
 
 # ----------------------------------------------------------------------------------------
 # Installation des dépendances (dev inclus)
@@ -119,11 +121,13 @@ test: ensure-venv clean-mutants
 
 # Analyse de la couverture avec rapport JSON, XML, HTML et console (90% requis)
 cov: ensure-venv clean-mutants
-	$(PYTEST_ENV) $(POETRY) coverage run -m pytest && \
+	$(PYTEST_ENV) $(COVERAGE_ENV) $(POETRY) coverage erase && \
+	$(PYTEST_ENV) $(COVERAGE_ENV) $(POETRY) coverage run --parallel-mode -m pytest && \
+	$(POETRY) coverage combine && \
 	$(POETRY) coverage json -o coverage.json && \
 	$(POETRY) coverage xml -o coverage.xml && \
 	$(POETRY) coverage html --skip-empty --show-contexts && \
-	$(POETRY) coverage report
+	$(POETRY) coverage report --fail-under=90
 
 # Mutation testing avec Mutmut (guidé par la couverture)
 mut: ensure-venv clean-mutants cov

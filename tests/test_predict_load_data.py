@@ -7,8 +7,11 @@ import numpy as np
 
 from scripts import predict
 
+
 # Verrouille l'initialisation booléenne de needs_rebuild (mutant équivalent sinon)
-def test_predict_load_data_initializes_needs_rebuild_as_false(tmp_path, monkeypatch) -> None:
+def test_predict_load_data_initializes_needs_rebuild_as_false(
+    tmp_path, monkeypatch
+) -> None:
     """Verrouille needs_rebuild: bool False dès l'entrée dans l'implémentation."""
 
     subject = "S011"
@@ -48,11 +51,12 @@ def test_predict_load_data_initializes_needs_rebuild_as_false(tmp_path, monkeypa
             captured["value"] = frame.f_locals["needs_rebuild"]
         return tracer
 
+    previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
         predict._load_data(subject, run, data_dir, raw_dir)
     finally:
-        sys.settrace(None)
+        sys.settrace(previous_tracer)
 
     assert "value" in captured
     assert captured["value"] is False
@@ -125,10 +129,11 @@ def test_predict_load_data_skips_rebuild_for_valid_files(tmp_path, monkeypatch):
 
     # Espionne np.load pour imposer mmap_mode="r" sur les chargements "candidate"
     real_load = predict.np.load
-    load_calls: list[tuple[Path, object]] = []
+    load_calls: list[tuple[Path, str]] = []
 
     def spy_load(path, *args, **kwargs):
-        load_calls.append((Path(path), kwargs.get("mmap_mode", "__missing__")))
+        mode = kwargs.get("mmap_mode", "__missing__")
+        load_calls.append((Path(path), str(mode)))
         return real_load(path, *args, **kwargs)
 
     monkeypatch.setattr(predict.np, "load", spy_load)

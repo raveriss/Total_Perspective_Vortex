@@ -102,6 +102,8 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.coverage.run]
 branch = true
+parallel = true
+concurrency = ["multiprocessing"]
 source = ["src", "scripts"]
 
 [tool.coverage.report]
@@ -109,5 +111,7 @@ omit = [
   "mutants/*",
   ".venv/*",
   "*/site-packages/*",
+  "scripts/import_murphy_issues.py",
+  "scripts/import_murphy_to_project.py",
+  "scripts/sync_dataset.py",
 ]
-

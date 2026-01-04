@@ -1,13 +1,10 @@
 import argparse
 import csv
-
-import inspect
 import json
-import linecache
 import re
 import sys
 from pathlib import Path
-from typing import cast
+from typing import Any, Callable, cast
 
 import numpy as np
 import pytest
@@ -318,7 +315,7 @@ def test_load_data_initializes_candidate_buffers_as_none_before_loading(
 
     observed: dict[str, object] = {}
 
-    def tracer(frame, event, arg):
+    def tracer(frame, event, arg):  # noqa: PLR0911
         if event != "line":
             return tracer
         if "snapshot" in observed:
@@ -341,11 +338,12 @@ def test_load_data_initializes_candidate_buffers_as_none_before_loading(
         observed["candidate_y"] = frame.f_locals["candidate_y"]
         return tracer
 
+    previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
         train._load_data(subject, run, data_dir, tmp_path / "raw")
     finally:
-        sys.settrace(None)
+        sys.settrace(previous_tracer)
 
     assert observed["needs_rebuild"] is False
     assert observed["corrupted_reason"] is None
@@ -396,7 +394,7 @@ def test_load_data_initializes_candidate_buffers_as_none_before_loading(
 def test_should_check_shapes_requires_all_preconditions(
     needs_rebuild: bool,
     corrupted_reason: str | None,
-    candidate_X: np.ndarray | None, 
+    candidate_X: np.ndarray | None,
     candidate_y: np.ndarray | None,
     expected: bool,
 ) -> None:
@@ -446,7 +444,9 @@ def test_load_data_forwards_needs_rebuild_bool_to_should_check_shapes_on_clean_f
     train._load_data(subject, run, data_dir, tmp_path / "raw")
 
     assert "args" in captured
-    needs_rebuild, corrupted_reason, candidate_X, candidate_y = captured["args"]
+    needs_rebuild, corrupted_reason, candidate_X, candidate_y = cast(
+        tuple[object, object, object, object], captured["args"]
+    )
     assert needs_rebuild is False
     assert corrupted_reason is None
     assert candidate_X is not None
@@ -618,11 +618,12 @@ def test_load_data_keeps_needs_rebuild_boolean_when_nothing_to_rebuild(
             observed["needs_rebuild"] = frame.f_locals["needs_rebuild"]
         return tracer
 
+    previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
         train._load_data(subject, run, data_dir, tmp_path / "raw")
     finally:
-        sys.settrace(None)
+        sys.settrace(previous_tracer)
 
     assert "needs_rebuild" in observed
     assert observed["needs_rebuild"] is False
@@ -663,11 +664,12 @@ def test_load_data_keeps_needs_rebuild_strict_false_before_bool_coercion_on_clea
                 observed["pre_coercion"] = frame.f_locals["needs_rebuild"]
         return tracer
 
+    previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
         train._load_data(subject, run, data_dir, tmp_path / "raw")
     finally:
-        sys.settrace(None)
+        sys.settrace(previous_tracer)
 
     assert "pre_coercion" in observed
     assert isinstance(observed["pre_coercion"], bool)
@@ -716,7 +718,7 @@ def test_load_data_sets_needs_rebuild_true_inside_numpy_load_except_before_corru
     observed: dict[str, object] = {}
     debug_steps: list[tuple[int, object, object]] = []
 
-    def tracer(frame, event, arg):
+    def tracer(frame, event, arg):  # noqa: PLR0911
         if event != "line":
             return tracer
         if frame.f_globals.get("__name__") != "scripts.train":
@@ -748,13 +750,16 @@ def test_load_data_sets_needs_rebuild_true_inside_numpy_load_except_before_corru
         observed["in_except"] = frame.f_locals["needs_rebuild"]
         return tracer
 
+    previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
         train._load_data(subject, run, data_dir, tmp_path / "raw")
     finally:
-        sys.settrace(None)
+        sys.settrace(previous_tracer)
 
-    assert "in_except" in observed, f"Trace (lineno, needs_rebuild, corrupted_reason)={debug_steps}"
+    assert (
+        "in_except" in observed
+    ), f"Trace (lineno, needs_rebuild, corrupted_reason)={debug_steps}"
     assert isinstance(observed["in_except"], bool), f"Trace={debug_steps}"
     assert observed["in_except"] is True, f"Trace={debug_steps}"
 
@@ -810,7 +815,9 @@ def test_load_data_forwards_corrupted_reason_to_should_check_shapes_on_numpy_err
     train._load_data(subject, run, data_dir, tmp_path / "raw")
 
     assert "args" in captured
-    needs_rebuild, corrupted_reason, _candidate_X, _candidate_y = captured["args"]
+    needs_rebuild, corrupted_reason, _candidate_X, _candidate_y = cast(
+        tuple[object, object, object, object], captured["args"]
+    )
     assert needs_rebuild is True
     assert corrupted_reason == "boom"
 
@@ -1295,8 +1302,6 @@ def test_main_prints_scores_for_singleton_cv_scores_array(monkeypatch, capsys):
     ]
 
 
-
-
 def test_main_returns_error_code_when_training_files_missing(monkeypatch, capsys):
     def fake_run_training(_):
         raise FileNotFoundError("données manquantes pour S001 R01")
@@ -1379,7 +1384,10 @@ def test_run_training_passes_raw_dir_to_load_data_and_reports_scaler_path_none(
     monkeypatch.setattr(
         train,
         "_write_manifest",
-        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+        lambda *_args, **_kwargs: {
+            "json": tmp_path / "m.json",
+            "csv": tmp_path / "m.csv",
+        },
     )
 
     # Prépare un request explicite avec raw_dir non défaut
@@ -1404,7 +1412,9 @@ def test_run_training_passes_raw_dir_to_load_data_and_reports_scaler_path_none(
     report = train.run_training(request)
 
     assert "args" in captured
-    _subject, _run, _data_dir, observed_raw_dir = cast(tuple[object, object, object, object], captured["args"])
+    _subject, _run, _data_dir, observed_raw_dir = cast(
+        tuple[object, object, object, object], captured["args"]
+    )
     assert observed_raw_dir == raw_dir
 
     # Verrouille le contrat: pas de scaler => scaler_path doit rester None
@@ -1439,7 +1449,10 @@ def test_run_training_prints_exact_warning_when_cross_validation_is_disabled(
     monkeypatch.setattr(
         train,
         "_write_manifest",
-        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+        lambda *_args, **_kwargs: {
+            "json": tmp_path / "m.json",
+            "csv": tmp_path / "m.csv",
+        },
     )
 
     request = train.TrainingRequest(
@@ -1495,7 +1508,10 @@ def test_run_training_builds_stratified_kfold_with_stable_random_state(
     monkeypatch.setattr(
         train,
         "_write_manifest",
-        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+        lambda *_args, **_kwargs: {
+            "json": tmp_path / "m.json",
+            "csv": tmp_path / "m.csv",
+        },
     )
 
     captured: dict[str, object] = {}
@@ -1566,16 +1582,19 @@ def test_run_training_creates_target_dir_with_exist_ok_true(
     monkeypatch.setattr(
         train,
         "_write_manifest",
-        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+        lambda *_args, **_kwargs: {
+            "json": tmp_path / "m.json",
+            "csv": tmp_path / "m.csv",
+        },
     )
 
     artifacts_dir = tmp_path / "artifacts_root"
     expected_target_dir = artifacts_dir / "S01" / "R01"
 
-    real_mkdir = Path.mkdir
+    real_mkdir: Callable[..., None] = Path.mkdir
     mkdir_calls: list[dict[str, object]] = []
 
-    def spy_mkdir(self: Path, *args: object, **kwargs: object) -> None:
+    def spy_mkdir(self: Path, *args: Any, **kwargs: Any) -> None:
         if self == expected_target_dir:
             mkdir_calls.append({"args": args, "kwargs": dict(kwargs)})
         return real_mkdir(self, *args, **kwargs)
@@ -1627,7 +1646,10 @@ def test_run_training_dumps_scaler_step_when_present(
 
     class FakePipeline:
         def __init__(self) -> None:
-            self.named_steps = {"dimensionality": FakeDimReducer(), "scaler": scaler_sentinel}
+            self.named_steps = {
+                "dimensionality": FakeDimReducer(),
+                "scaler": scaler_sentinel,
+            }
 
         def fit(self, _X: np.ndarray, _y: np.ndarray) -> "FakePipeline":
             return self
@@ -1637,7 +1659,10 @@ def test_run_training_dumps_scaler_step_when_present(
     monkeypatch.setattr(
         train,
         "_write_manifest",
-        lambda *_args, **_kwargs: {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"},
+        lambda *_args, **_kwargs: {
+            "json": tmp_path / "m.json",
+            "csv": tmp_path / "m.csv",
+        },
     )
 
     dumped: dict[str, object] = {}
