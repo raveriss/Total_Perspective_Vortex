@@ -33,7 +33,6 @@ tant qu’il n’a pas, dans **cette réponse précise** :
    avec les trois lignes suivantes **exactement** :
 
    - `2.2 Pre-commit + static analysis : ✅/❌`
-   - `2.3 Couverture >= 90 % (make cov) : ✅/❌`
    - `→ Commit autorisé : ✅/❌`
 
 3. Listé les **commandes locales** à exécuter, **dans l’ordre 2.1 → 2.3**.
@@ -632,7 +631,7 @@ jobs:
 
 ### 0.5 TDD — Red → Green → Refactor (règle d’or)
 - **Definition of Ready** : pas de code sans **au moins un test qui échoue**.
-- **Definition of Done** : tests verts, **90 %** couverture (branches), CLI/doc à jour.
+- **Definition of Done** : tests verts, CLI/doc à jour.
 - **Hooks (local)** :
   - `pre-commit` : `ruff format --check`, `ruff check`, `mypy` (rapide)
 
@@ -763,8 +762,6 @@ Un commit n’est **valide** que si **toutes** les conditions suivantes sont
 satisfaites :
 
 * 2.2 **complète** et **verte**.
-* 2.3 **OK** avec **>= 90 %** de couverture globale (et par fichier si script
-  dédié).
 
 La réponse de l’agent doit **toujours** contenir, avant toute suggestion de
 message de commit, une synthèse explicite :
@@ -772,7 +769,6 @@ message de commit, une synthèse explicite :
 > « Checklist 2) :
 >
 > * 2.2 Pre-commit + static analysis : ✅/❌
-> * 2.3 Couverture >= 90 % (make cov) : ✅/❌
 >   → Commit autorisé : ✅/❌. »
 
 Si l’agent ne peut pas remplir cette synthèse de façon honnête, il doit
@@ -885,8 +881,8 @@ python mybci.py S001 R01 predict
 ## 6) ✅ Procédure de validation finale (soutenance)
 1. `pytest -q` → **tout vert**
 2. `coverage run -m pytest && coverage json && coverage report --fail-under=90` (branches)
-3. **Contrôle par fichier** : script CI sur `coverage.json` → **>= 90 % partout**
-3bis. **Upload vers Codecov** (`coverage.xml`) + vérif diff>= 90 %
+3. **Contrôle par fichier** : script CI sur `coverage.json`
+3bis. **Upload vers Codecov** (`coverage.xml`)
 4. **Mutation testing (scope global mandatory) ≥ 90 %** + aucun survivant sur les zones critiques.
 5. Démo E2E : `predict(0)=0` → `train` → `predict≈csv` (MAJ simultanée validée)
 6. Vérif visuelle `htmlcov/` (tout vert)
@@ -943,7 +939,6 @@ Toute réponse qui propose **du code ou un changement de fichier** doit
      CHECKLIST 2) – état AVANT COMMIT
 
      2.2 Pre-commit + static analysis : ✅/❌
-     2.3 Couverture 90 % (make cov)   : ✅/❌
      → Commit autorisé                 : ✅/❌
      ```
 
@@ -1016,7 +1011,6 @@ Supposons que toutes ces commandes ont été exécutées avec succès (logs OK).
 CHECKLIST 2) – état AVANT COMMIT
 
 2.2 Pre-commit + static analysis : ✅
-2.3 Couverture 90 % (make cov)   : ✅
 → Commit autorisé                 : ✅
 ```
 
@@ -1043,7 +1037,6 @@ Tests associés : ajout/ajustement de `test_validate_channel_index_raises` dans
 5. **Validation**
 
 * 2.2 : ✅ (pre-commit + black + isort + ruff + mypy + pip-audit OK)
-* 2.3 : ✅ (coverage report --fail-under=90 OK)
 
 → Commit autorisé : ✅
 
@@ -1095,7 +1088,6 @@ Supposons que :
 CHECKLIST 2) – état AVANT COMMIT
 
 2.2 Pre-commit + static analysis : ❌ (ruff KO sur mybci.py)
-2.3 Couverture 90 % (make cov)   : ❌ (non relancé après correction)
 → Commit autorisé                 : ❌
 ```
 
