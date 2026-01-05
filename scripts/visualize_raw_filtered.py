@@ -62,9 +62,14 @@ def build_parser() -> argparse.ArgumentParser:
         )
     )
     # Ajoute l'argument sujet pour cibler un répertoire data/<subject>
-    parser.add_argument("subject", help="Identifiant du sujet ex: S001")
+    parser.add_argument(
+        "subject",
+        help="Identifiant du sujet ex: S001",
+    )
     # Ajoute l'argument run pour choisir le fichier EDF au sein du sujet
-    parser.add_argument("run", help="Identifiant du run ex: R01")
+    parser.add_argument(
+        "run", help="Identifiant du run ex: R01",
+    )
     # Ajoute la racine dataset pour autoriser les chemins personnalisés
     parser.add_argument(
         "--data-root",
@@ -73,7 +78,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     # Ajoute le répertoire de sortie pour ranger les figures générées
     parser.add_argument(
-        "--output-dir", default="docs/viz", help="Répertoire de sauvegarde PNG"
+        "--output-dir",
+        default="docs/viz",
+        help="Répertoire de sauvegarde PNG",
     )
     # Ajoute la liste de canaux facultative pour filtrer l'affichage
     parser.add_argument(
@@ -115,7 +122,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 # Construit le chemin EDF attendu pour un sujet et un run donnés
-def build_recording_path(data_root: Path, subject: str, run: str) -> Path:
+def build_recording_path(
+    data_root: Path,
+    subject: str,
+    run: str,
+) -> Path:
     """Retourne le chemin EDF data/<subject>/<run>.edf."""
 
     # Normalise la racine pour éviter les surprises sur les chemins relatifs
@@ -127,7 +138,9 @@ def build_recording_path(data_root: Path, subject: str, run: str) -> Path:
 
 
 # Charge un enregistrement Physionet complet avec métadonnées associées
-def load_recording(recording_path: Path) -> Tuple[BaseRaw, dict]:
+def load_recording(
+    recording_path: Path,
+) -> Tuple[BaseRaw, dict]:
     """Charge un Raw EDF et retourne le Raw plus ses métadonnées."""
 
     # Vérifie l'existence du fichier pour fournir un message clair au CLI
@@ -148,7 +161,10 @@ def load_recording(recording_path: Path) -> Tuple[BaseRaw, dict]:
 
 
 # Sélectionne éventuellement les canaux avant filtrage pour accélérer les plots
-def pick_channels(raw: BaseRaw, channels: Sequence[str] | None) -> BaseRaw:
+def pick_channels(
+    raw: BaseRaw,
+    channels: Sequence[str] | None,
+) -> BaseRaw:
     """Retourne un Raw limité aux canaux demandés si fournis."""
 
     # Court-circuite si aucun filtre de canaux n'est demandé
