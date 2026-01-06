@@ -101,7 +101,21 @@ def test_build_recording_path_composes_expected_path(
     # Verrouille l'extension EDF pour respecter la convention README
     assert recording_path.suffix == ".edf"
     # Verrouille le chemin complet pour détecter toute dérive
-    assert recording_path == expected_root / "S01" / "R02.edf"
+    assert recording_path == expected_root / "S01" / "S01R02.edf"
+
+
+# Vérifie que build_recording_path sélectionne automatiquement la variante préfixée
+def test_build_recording_path_prefers_subject_prefixed_file(tmp_path: Path) -> None:
+    """Garantit la prise en charge des fichiers Physionet SxxxRyy.edf."""
+
+    # Prépare une arborescence mimant data/S01/S01R02.edf
+    data_root = tmp_path / "data"
+    prefixed = data_root / "S01" / "S01R02.edf"
+    prefixed.parent.mkdir(parents=True)
+    prefixed.write_bytes(b"")
+    # Doit retourner le chemin existant même si run n'est pas préfixé
+    recording_path = viz.build_recording_path(data_root, "S01", "R02")
+    assert recording_path == prefixed
 
 
 # Vérifie que load_recording signale l'absence du fichier demandé
@@ -804,7 +818,7 @@ def test_visualize_run_smoke(  # noqa: PLR0915
     # Capture les appels internes pour tuer les mutants None/paramètres perdus
     seen: dict[str, object] = {}
     # Prépare un chemin EDF factice pour verrouiller build_recording_path
-    recording_path = tmp_path / "S001" / "R01.edf"
+    recording_path = tmp_path / "S001" / "S001R01.edf"
     # Verrouille le chemin de sortie construit depuis output_dir + sujet/run
     expected_output_path = tmp_path / "raw_vs_filtered_S001_R01.png"
 

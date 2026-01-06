@@ -54,6 +54,17 @@ def _describe_runs(subject_root: Path) -> str:
     if not subject_root.exists():
         return f"- Répertoire sujet absent : {subject_root}"
     available_runs = sorted(p.stem for p in subject_root.glob("*.edf"))
+    normalized_runs = []
+    for run in available_runs:
+        if run.startswith(subject_root.name):
+            normalized_runs.append(run[len(subject_root.name) :])
+        else:
+            normalized_runs.append(run)
+    if normalized_runs:
+        return (
+            f"- Runs disponibles pour {subject_root.name}: "
+            f"{', '.join(normalized_runs)}"
+        )
     if available_runs:
         return (
             f"- Runs disponibles pour {subject_root.name}: {', '.join(available_runs)}"
@@ -67,10 +78,23 @@ def _format_missing_recording_message(recording_path: Path) -> str:
 
     data_root = recording_path.parent.parent
     subject_root = recording_path.parent
+    subject = subject_root.name
+    run_stem = recording_path.stem
+    normalized_run = (
+        run_stem[len(subject) :] if run_stem.startswith(subject) else run_stem
+    )
+    primary_candidate = subject_root / f"{subject}{normalized_run}.edf"
+    secondary_candidate = subject_root / f"{normalized_run}.edf"
+    candidates = {primary_candidate, secondary_candidate}
     return "\n".join(
         [
             f"Recording not found: {recording_path}",
-            f"- Structure attendue : {data_root}/<subject>/<run>.edf",
+            "- Chemins tentés : "
+            + ", ".join(str(candidate) for candidate in sorted(candidates)),
+            (
+                f"- Structure attendue : {data_root}/<subject>/<subject><run>.edf "
+                "(ex: S001/S001R03.edf) ou <subject>/<run>.edf si déjà préfixé"
+            ),
             _describe_subjects(data_root),
             _describe_runs(subject_root),
             (
@@ -178,14 +202,23 @@ def build_recording_path(
     subject: str,
     run: str,
 ) -> Path:
-    """Retourne le chemin EDF data/<subject>/<run>.edf."""
+    """Retourne le chemin EDF data/<subject>/<subject><run>.edf si présent."""
 
     # Normalise la racine pour éviter les surprises sur les chemins relatifs
     normalized_root = Path(data_root).expanduser().resolve()
-    # Compose le chemin EDF en respectant la convention README
-    recording_path = normalized_root / subject / f"{run}.edf"
-    # Retourne le chemin, même s'il n'existe pas encore pour simplifier les mocks
-    return recording_path
+    subject_root = normalized_root / subject
+    run_stem = Path(run).stem
+    candidates: list[Path] = []
+    if run_stem.startswith(subject):
+        candidates.append(subject_root / f"{run_stem}.edf")
+    else:
+        candidates.append(subject_root / f"{subject}{run_stem}.edf")
+        candidates.append(subject_root / f"{run_stem}.edf")
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    # Retourne la préférence avec préfixe sujet pour matcher Physionet
+    return candidates[0]
 
 
 # Charge un enregistrement Physionet complet avec métadonnées associées
@@ -201,10 +234,14 @@ def load_recording(
     # Appelle le loader validé pour conserver les contraintes 2.2.x
     raw, metadata = load_physionet_raw(recording_path)
     # Ajoute les clés sujet/run pour faciliter la sérialisation jointe au plot
+    subject = recording_path.parent.name
+    run_label = recording_path.stem
+    if run_label.startswith(subject):
+        run_label = run_label[len(subject) :]
     metadata.update(
         {
-            "subject": recording_path.parent.name,
-            "run": recording_path.stem,
+            "subject": subject,
+            "run": run_label,
         }
     )
     # Retourne le Raw et les métadonnées enrichies pour la visualisation
