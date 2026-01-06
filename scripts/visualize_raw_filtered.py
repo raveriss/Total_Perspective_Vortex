@@ -30,6 +30,56 @@ from mne.io import BaseRaw
 # Importe le filtrage validé pour rester aligné avec preprocessing
 from tpv.preprocessing import apply_bandpass_filter, load_physionet_raw
 
+MAX_SUBJECTS_PREVIEW = 5
+
+
+# Fournit un récap rapide des sujets déjà présents sous data_root
+def _describe_subjects(data_root: Path) -> str:
+    """Retourne une ligne décrivant les sujets détectés sous data_root."""
+
+    if not data_root.exists():
+        return f"- Racine data absente : {data_root}"
+    available_subjects = sorted(p.name for p in data_root.iterdir() if p.is_dir())
+    if not available_subjects:
+        return f"- Aucun sujet détecté dans {data_root}"
+    preview = ", ".join(available_subjects[:MAX_SUBJECTS_PREVIEW])
+    suffix = " …" if len(available_subjects) > MAX_SUBJECTS_PREVIEW else ""
+    return f"- Sujets présents dans {data_root}: {preview}{suffix}"
+
+
+# Fournit un récap rapide des runs disponibles pour le sujet demandé
+def _describe_runs(subject_root: Path) -> str:
+    """Retourne une ligne listant les runs EDF trouvés pour le sujet."""
+
+    if not subject_root.exists():
+        return f"- Répertoire sujet absent : {subject_root}"
+    available_runs = sorted(p.stem for p in subject_root.glob("*.edf"))
+    if available_runs:
+        return (
+            f"- Runs disponibles pour {subject_root.name}: {', '.join(available_runs)}"
+        )
+    return f"- Aucun run EDF trouvé dans {subject_root}"
+
+
+# Construit un message clair pour guider l'utilisateur lorsque le fichier est absent
+def _format_missing_recording_message(recording_path: Path) -> str:
+    """Assemble un message multi-lignes décrivant l'arborescence attendue."""
+
+    data_root = recording_path.parent.parent
+    subject_root = recording_path.parent
+    return "\n".join(
+        [
+            f"Recording not found: {recording_path}",
+            f"- Structure attendue : {data_root}/<subject>/<run>.edf",
+            _describe_subjects(data_root),
+            _describe_runs(subject_root),
+            (
+                "Téléchargez le dataset Physionet EEG Motor Movement/Imagery "
+                "et pointez --data-root vers sa racine."
+            ),
+        ]
+    )
+
 
 # Regroupe les paramètres de visualisation pour limiter les arguments
 @dataclass
@@ -68,7 +118,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     # Ajoute l'argument run pour choisir le fichier EDF au sein du sujet
     parser.add_argument(
-        "run", help="Identifiant du run ex: R01",
+        "run",
+        help="Identifiant du run ex: R01",
     )
     # Ajoute la racine dataset pour autoriser les chemins personnalisés
     parser.add_argument(
@@ -146,7 +197,7 @@ def load_recording(
     # Vérifie l'existence du fichier pour fournir un message clair au CLI
     if not recording_path.exists():
         # Lève une erreur explicite pour guider l'utilisateur sur data
-        raise FileNotFoundError(f"Recording not found: {recording_path}")
+        raise FileNotFoundError(_format_missing_recording_message(recording_path))
     # Appelle le loader validé pour conserver les contraintes 2.2.x
     raw, metadata = load_physionet_raw(recording_path)
     # Ajoute les clés sujet/run pour faciliter la sérialisation jointe au plot
