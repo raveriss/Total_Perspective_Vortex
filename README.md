@@ -255,7 +255,8 @@ PY
 Exemple :
 
 ```bash
-poetry run python scripts/visualize_raw_filtered.py ./path/to/eeg/
+poetry run python scripts/visualize_raw_filtered.py S001 R03 --data-root ./data --output-dir ./docs/viz
+# Si le fichier est absent, le message indique la structure attendue et les sujets/runs détectés.
 ```
 
 ---

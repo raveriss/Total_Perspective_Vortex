@@ -1,6 +1,10 @@
 """Tests de fumée pour scripts/visualize_raw_filtered.py sans dataset."""
 
 # Importe runpy pour exécuter le module en mode script
+import argparse
+
+# Importe json pour verrouiller la sérialisation du sidecar
+import json
 import runpy
 
 # Importe sys pour manipuler argv lors des tests CLI
@@ -26,13 +30,6 @@ import pytest
 
 # Importe le module à tester pour cibler directement visualize_run
 import scripts.visualize_raw_filtered as viz
-
-
-import argparse
-
-# Importe json pour verrouiller la sérialisation du sidecar
-import json
-
 from scripts import visualize_raw_filtered
 
 # Centralise la valeur de padding par défaut pour éviter une constante magique
@@ -117,7 +114,11 @@ def test_load_recording_missing_file(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError) as excinfo:
         viz.load_recording(missing_path)
     # Vérifie que le message indique clairement le chemin manquant
-    assert str(excinfo.value) == f"Recording not found: {missing_path}"
+    message_lines = str(excinfo.value).splitlines()
+    assert message_lines[0] == f"Recording not found: {missing_path}"
+    assert any("Structure attendue" in line for line in message_lines)
+    assert any("Physionet EEG Motor Movement/Imagery" in line for line in message_lines)
+    assert any("Répertoire sujet absent" in line for line in message_lines)
 
 
 # Vérifie que load_recording enrichit les métadonnées lorsque le fichier existe
@@ -226,7 +227,7 @@ def test_pick_channels_returns_copied_and_picked_raw() -> None:
             return _StubRaw(list(self.ch_names))
 
         # Simule une sélection stricte des canaux demandés
-        def pick(self, channels: object) -> "_StubRaw":
+        def pick(self, channels: list[str]) -> "_StubRaw":
             # Refuse None pour tuer les mutants pick(None)
             assert channels is not None
             # Mémorise l'argument reçu pour verrouiller l'appel
@@ -251,7 +252,9 @@ def test_pick_channels_returns_copied_and_picked_raw() -> None:
 
 
 # Vérifie que filter_recording forwarde strictement les paramètres vers apply_bandpass_filter
-def test_filter_recording_forwards_expected_kwargs(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_filter_recording_forwards_expected_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Tue les mutants qui suppriment/altèrent method, freq_band ou pad_duration."""
 
     # Construit un Raw synthétique pour alimenter la fonction
@@ -357,7 +360,7 @@ def test_main_invokes_visualize_run(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # Vérifie que plot_raw_vs_filtered crée les dossiers et garde le layout attendu
-def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(
+def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR0915
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Tue les mutants qui altèrent layout, labels et appels plot()."""
@@ -372,7 +375,7 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(
     output_path = tmp_path / "nested" / "deep" / "fig.png"
     # Capture les arguments de subplots et les appels faits aux axes
     seen: dict[str, object] = {}
-    
+
     # Définit un axe enregistreur pour verrouiller les appels plot/labels
     class _Axis:
         # Initialise les buffers d'appels pour une assertion post-exécution
@@ -469,16 +472,18 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(
     original_write_text = Path.write_text
 
     # Intercepte l'écriture du sidecar JSON pour verrouiller encoding + payload
-    def _spy_write_text(self: Path, data: str, *args: object, **kwargs: object) -> int:
+    def _spy_write_text(
+        self: Path, data: str, encoding: str | None = None, errors: str | None = None
+    ) -> int:
         # Ne capture que l'écriture du sidecar de CE test
         if self == output_path.with_suffix(".json"):
             # Capture le payload exact pour tuer json.dumps muté
             seen["sidecar_data"] = data
             # Capture args/kwargs pour tuer encoding=None / encoding supprimé / UTF-8
-            seen["sidecar_args"] = args
-            seen["sidecar_kwargs"] = dict(kwargs)
+            seen["sidecar_args"] = ()
+            seen["sidecar_kwargs"] = {"encoding": encoding, "errors": errors}
         # Délègue à l'implémentation réelle pour écrire sur disque
-        return original_write_text(self, data, *args, **kwargs)
+        return original_write_text(self, data, encoding=encoding, errors=errors)
 
     # Patch Path.write_text une seule fois (sinon récursion)
     monkeypatch.setattr(Path, "write_text", _spy_write_text)
@@ -698,7 +703,7 @@ def test_plot_raw_vs_filtered_allows_existing_output_dir(
 # Vérifie que main convertit une erreur en code de sortie explicite
 def test_main_exits_on_visualize_failure(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:    # Force visualize_run à échouer pour tester la conversion en SystemExit
+) -> None:  # Force visualize_run à échouer pour tester la conversion en SystemExit
     monkeypatch.setattr(
         viz, "visualize_run", lambda **_: (_ for _ in ()).throw(RuntimeError("boom"))
     )
@@ -780,7 +785,9 @@ def test_main_propagates_errors(monkeypatch: pytest.MonkeyPatch) -> None:
 # Vérifie que visualize_run produit bien un PNG et un JSON sans dataset
 # WBS 3.3.1-3.3.3 : garantir la génération des plots de référence
 @pytest.mark.filterwarnings("ignore:MNE has detected*")
-def test_visualize_run_smoke(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_visualize_run_smoke(  # noqa: PLR0915
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Verrouille les paramètres forwardés par visualize_run()."""
 
     # Construit un Raw factice pour simuler une acquisition Physionet
@@ -834,7 +841,9 @@ def test_visualize_run_smoke(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
         return raw, dict(metadata)
 
     # Spy pick_channels pour tuer pick_channels(raw, None)
-    def _spy_pick_channels(input_raw: mne.io.Raw, channels: list[str] | None) -> mne.io.Raw:
+    def _spy_pick_channels(
+        input_raw: mne.io.Raw, channels: list[str] | None
+    ) -> mne.io.Raw:
         # Trace l'argument channels pour validation stricte
         seen["pick_channels_channels"] = channels
         # Verrouille le Raw issu du loader
@@ -952,8 +961,7 @@ def test_build_parser_description_and_help_texts_are_stable() -> None:
 
     # Verrouille la description pour tuer description=None / variantes
     assert (
-        parser.description
-        == "Charge un run Physionet, applique le filtre 8-40 Hz, "
+        parser.description == "Charge un run Physionet, applique le filtre 8-40 Hz, "
         "et enregistre un plot brut vs filtré."
     )
 
@@ -1058,7 +1066,7 @@ def test_build_parser_title_passes_explicit_default_none(
 
     # Définit un spy qui enregistre uniquement l'appel concernant --title
     def _spy_add_argument(
-        self: argparse.ArgumentParser, *args: object, **kwargs: object
+        self: argparse.ArgumentParser, *args: Any, **kwargs: Any
     ) -> argparse.Action:
         # Enregistre les kwargs uniquement pour l'option --title
         if args and args[0] == "--title":
