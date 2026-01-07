@@ -575,13 +575,8 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
         )
         assert plot_kwargs == {"label": channel}
 
-    # Verrouille la légende brute: loc="upper right" sur axes[0]
+    # Verrouille l'absence de légende sur l'axe brut
     assert raw_axis.legend_calls == []
-    raw_legend_args, raw_legend_kwargs = raw_axis.legend_calls[0]
-    if "loc" in raw_legend_kwargs:
-        assert raw_legend_kwargs["loc"] == "upper right"
-    else:
-        assert raw_legend_args == ("upper right",)
 
     # Verrouille le label Y brut pour tuer None / texte altéré
     assert len(raw_axis.ylabel_calls) == 1
@@ -608,13 +603,8 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
         )
         assert plot_kwargs == {"label": channel}
 
-    # Verrouille la légende filtrée: loc="upper right" sur axes[1]
+    # Verrouille l'absence de légende sur l'axe filtré
     assert filtered_axis.legend_calls == []
-    filt_legend_args, filt_legend_kwargs = filtered_axis.legend_calls[0]
-    if "loc" in filt_legend_kwargs:
-        assert filt_legend_kwargs["loc"] == "upper right"
-    else:
-        assert filt_legend_args == ("upper right",)
 
     # Verrouille le label Y filtré pour tuer None / texte altéré
     assert len(filtered_axis.ylabel_calls) == 1
@@ -691,6 +681,7 @@ def test_plot_raw_vs_filtered_allows_existing_output_dir(
     class _Fig:
         def legend(self, *_: object, **__: object) -> None:
             return None
+
         # Ignore suptitle pour isoler mkdir() et savefig()
         def suptitle(self, *_: object, **__: object) -> None:
             # No-op : test centré sur la création de dossier
