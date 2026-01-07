@@ -36,23 +36,6 @@ from matplotlib.patches import Patch
 # Importe l'isotonic regression pour recalibrer les probabilités
 from sklearn.isotonic import IsotonicRegression
 
-# Empêche isort de regrouper les imports sklearn.metrics
-# isort: off
-# Importe les métriques sklearn pour scorer la classification
-from sklearn.metrics import accuracy_score
-
-# Importe la balanced accuracy pour les classes déséquilibrées
-from sklearn.metrics import balanced_accuracy_score
-
-# Importe la matrice de confusion pour visualiser les erreurs
-from sklearn.metrics import confusion_matrix
-
-# Importe le F1 macro pour résumer toutes les classes
-from sklearn.metrics import f1_score
-
-# Réactive isort après les imports sklearn.metrics
-# isort: on
-
 # Définit la taille par défaut de la figure en pouces
 DEFAULT_FIGSIZE = (12, 8)
 
@@ -70,6 +53,9 @@ DEFAULT_CONFIDENCE_BINS = 10
 
 # Définit le seuil de contraste pour les annotations de matrice
 CONFUSION_TEXT_THRESHOLD = 0.5
+
+# Définit l'évitement de division par zéro pour les métriques
+SAFE_DENOMINATOR = 1.0
 
 
 # Regroupe les options CLI pour la génération du tableau de bord
@@ -274,12 +260,85 @@ def compute_calibration_curve(confidences, correct, bins):
     return np.asarray(mean_confidences), np.asarray(mean_accuracies)
 
 
+# Calcule une accuracy simple sur les prédictions
+def compute_accuracy(y_true, y_pred) -> float:
+    """Retourne la proportion de prédictions correctes."""
+
+    # Calcule la moyenne des prédictions correctes
+    return float(np.mean(y_true == y_pred))
+
+
+# Calcule la balanced accuracy en moyenne de recall par classe
+def compute_balanced_accuracy(y_true, y_pred, labels) -> float:
+    """Retourne la balanced accuracy pour les classes fournies."""
+
+    # Initialise la liste des recalls par classe
+    recalls: list[float] = []
+    # Itère sur chaque label pour calculer le recall
+    for label in labels:
+        # Calcule le nombre de vrais positifs pour la classe
+        true_positive = int(np.sum((y_true == label) & (y_pred == label)))
+        # Calcule le nombre total d'exemples de la classe
+        true_total = int(np.sum(y_true == label))
+        # Définit un dénominateur sûr pour éviter la division par zéro
+        denom = float(true_total) if true_total > 0 else SAFE_DENOMINATOR
+        # Ajoute le recall pour cette classe
+        recalls.append(true_positive / denom)
+    # Retourne la moyenne des recalls
+    return float(np.mean(recalls)) if recalls else 0.0
+
+
+# Calcule le F1 macro via précision et rappel par classe
+def compute_f1_macro(y_true, y_pred, labels) -> float:
+    """Retourne le F1 macro sur les classes fournies."""
+
+    # Initialise la liste des F1 par classe
+    f1_scores: list[float] = []
+    # Itère sur chaque label pour calculer précision et rappel
+    for label in labels:
+        # Calcule le nombre de vrais positifs pour la classe
+        true_positive = int(np.sum((y_true == label) & (y_pred == label)))
+        # Calcule le nombre de prédictions pour la classe
+        pred_total = int(np.sum(y_pred == label))
+        # Calcule le nombre de vrais exemples de la classe
+        true_total = int(np.sum(y_true == label))
+        # Définit un dénominateur sûr pour la précision
+        precision_denom = float(pred_total) if pred_total > 0 else SAFE_DENOMINATOR
+        # Définit un dénominateur sûr pour le rappel
+        recall_denom = float(true_total) if true_total > 0 else SAFE_DENOMINATOR
+        # Calcule la précision pour la classe
+        precision = true_positive / precision_denom
+        # Calcule le rappel pour la classe
+        recall = true_positive / recall_denom
+        # Calcule le dénominateur du F1
+        f1_denom = precision + recall
+        # Définit le F1 à zéro si la classe est absente
+        f1 = 0.0 if f1_denom == 0.0 else 2.0 * precision * recall / f1_denom
+        # Ajoute le F1 pour cette classe
+        f1_scores.append(f1)
+    # Retourne la moyenne des F1
+    return float(np.mean(f1_scores)) if f1_scores else 0.0
+
+
 # Produit la matrice de confusion normalisée par ligne
 def compute_confusion_data(y_true, y_pred, labels):
     """Retourne la matrice de confusion brute et normalisée en %."""
 
-    # Calcule la matrice de confusion brute
-    matrix = confusion_matrix(y_true, y_pred, labels=labels)
+    # Construit l'index des labels pour la matrice
+    label_to_index = {label: idx for idx, label in enumerate(labels)}
+    # Initialise la matrice de confusion à zéro
+    matrix = np.zeros((len(labels), len(labels)), dtype=int)
+    # Itère sur les paires vraie/predite pour remplir la matrice
+    for true_label, pred_label in zip(y_true, y_pred, strict=False):
+        # Ignore les labels inconnus pour rester robuste
+        if true_label not in label_to_index or pred_label not in label_to_index:
+            continue
+        # Récupère l'index ligne pour la vraie classe
+        row = label_to_index[true_label]
+        # Récupère l'index colonne pour la classe prédite
+        col = label_to_index[pred_label]
+        # Incrémente la cellule correspondante
+        matrix[row, col] += 1
     # Calcule la somme par ligne pour normaliser
     row_sums = matrix.sum(axis=1, keepdims=True)
     # Évite la division par zéro en remplaçant les lignes vides
@@ -439,11 +498,11 @@ def generate_dashboard(y_true, y_pred, y_proba, config) -> Path:
     # Construit les labels numériques pour la matrice
     labels = list(range(class_count))
     # Calcule les métriques principales d'évaluation
-    accuracy = accuracy_score(y_true, y_pred)
+    accuracy = compute_accuracy(y_true, y_pred)
     # Calcule la balanced accuracy utile aux classes déséquilibrées
-    balanced_acc = balanced_accuracy_score(y_true, y_pred)
+    balanced_acc = compute_balanced_accuracy(y_true, y_pred, labels)
     # Calcule le F1 macro pour résumer les classes
-    f1_macro = f1_score(y_true, y_pred, average="macro")
+    f1_macro = compute_f1_macro(y_true, y_pred, labels)
     # Calcule le nombre d'erreurs totales
     errors = int(np.sum(y_true != y_pred))
     # Calcule la matrice de confusion brute et en %
