@@ -12,6 +12,9 @@ import argparse
 # Importe json pour sérialiser la configuration accompagnant les figures
 import json
 
+# Importe math pour dimensionner la légende
+import math
+
 # Importe dataclass pour encapsuler les paramètres de visualisation
 from dataclasses import dataclass
 
@@ -20,8 +23,6 @@ from pathlib import Path
 
 # Importe typing pour typer explicitement les séquences et tuples
 from typing import Sequence, Tuple
-
-import math
 
 # Importe pyplot pour tracer les figures comparatives
 import matplotlib.pyplot as plt
@@ -74,6 +75,7 @@ def _infer_tight_layout_right(ncol: int) -> float:
 
     # Retourne la borne droite des axes pour laisser la place à la légende
     return 1.0 - reserved
+
 
 # Fournit un récap rapide des sujets déjà présents sous data_root
 def _describe_subjects(data_root: Path) -> str:

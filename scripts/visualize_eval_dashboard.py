@@ -15,18 +15,29 @@ import json
 # Importe pathlib pour gérer les chemins d'entrée/sortie
 from pathlib import Path
 
-# Importe typing pour typer les séquences de classes
-from typing import Sequence
+# Importe typing pour gérer les casts explicites
+from typing import Any, cast
 
-# Importe numpy pour manipuler les tableaux de labels/probas
-import numpy as np
+# Importe colors pour accéder aux colormaps matplotlib
+import matplotlib.colors as mcolors
 
 # Importe pyplot pour tracer le tableau de bord
 import matplotlib.pyplot as plt
 
+# Importe numpy pour manipuler les tableaux de labels/probas
+import numpy as np
+
 # Importe gridspec pour structurer la mise en page du dashboard
 from matplotlib import gridspec
 
+# Importe Patch pour construire la légende des classes
+from matplotlib.patches import Patch
+
+# Importe l'isotonic regression pour recalibrer les probabilités
+from sklearn.isotonic import IsotonicRegression
+
+# Empêche isort de regrouper les imports sklearn.metrics
+# isort: off
 # Importe les métriques sklearn pour scorer la classification
 from sklearn.metrics import accuracy_score
 
@@ -39,8 +50,8 @@ from sklearn.metrics import confusion_matrix
 # Importe le F1 macro pour résumer toutes les classes
 from sklearn.metrics import f1_score
 
-# Importe l'isotonic regression pour recalibrer les probabilités
-from sklearn.isotonic import IsotonicRegression
+# Réactive isort après les imports sklearn.metrics
+# isort: on
 
 # Définit la taille par défaut de la figure en pouces
 DEFAULT_FIGSIZE = (12, 8)
@@ -51,8 +62,14 @@ DEFAULT_CLASS_COUNT = 4
 # Définit les couleurs associées aux classes pour cohérence visuelle
 DEFAULT_CLASS_COLORS = ["#5DA5DA", "#FAA43A", "#60BD68", "#F17CB0"]
 
+# Définit les libellés par défaut des classes
+DEFAULT_CLASS_NAMES = tuple(f"Classe {idx}" for idx in range(DEFAULT_CLASS_COUNT))
+
 # Définit le nombre de bins pour l'histogramme des confiances
 DEFAULT_CONFIDENCE_BINS = 10
+
+# Définit le seuil de contraste pour les annotations de matrice
+CONFUSION_TEXT_THRESHOLD = 0.5
 
 
 # Regroupe les options CLI pour la génération du tableau de bord
@@ -60,7 +77,7 @@ class DashboardConfig:
     """Paramètres de génération du tableau de bord de performance."""
 
     # Initialise les options nécessaires au rendu du dashboard
-    def __init__(self, input_path: Path | None, output_dir: Path, output_name: str, class_names: Sequence[str], confidence_bins: int) -> None:
+    def __init__(self, input_path, output_dir, output_name, class_names, bins) -> None:
         # Stocke la source optionnelle de données en entrée
         self.input_path = input_path
         # Stocke le répertoire de sortie des figures
@@ -70,7 +87,7 @@ class DashboardConfig:
         # Stocke les labels de classes affichés dans la figure
         self.class_names = class_names
         # Stocke le nombre de bins de l'histogramme de confiance
-        self.confidence_bins = confidence_bins
+        self.confidence_bins = bins
 
 
 # Centralise la construction du parseur CLI
@@ -82,21 +99,25 @@ def build_parser() -> argparse.ArgumentParser:
     # Initialise le parseur avec une description claire
     parser = argparse.ArgumentParser(description=description)
     # Ajoute un chemin d'entrée optionnel pour les labels/probabilités
-    parser.add_argument("--input", dest="input_path", default=None, help="Chemin JSON/NPZ")
+    parser.add_argument("--input", default=None, help="Chemin JSON/NPZ")
     # Ajoute le répertoire de sortie pour l'image générée
-    parser.add_argument("--output-dir", default="docs/viz", help="Répertoire de sauvegarde")
+    parser.add_argument("--output-dir", default="docs/viz", help="Dossier de sortie")
     # Ajoute le nom de fichier cible pour l'image
-    parser.add_argument("--output-name", default="eval_dashboard.png", help="Nom du PNG")
+    parser.add_argument("--output-name", default="eval_dashboard.png", help="PNG")
+    # Définit les classes par défaut pour argparse
+    default_classes = DEFAULT_CLASS_NAMES
+    # Définit les bins par défaut pour argparse
+    default_bins = DEFAULT_CONFIDENCE_BINS
     # Ajoute les noms de classes à afficher dans la figure
-    parser.add_argument("--class-names", nargs="*", default=[f"Classe {idx}" for idx in range(DEFAULT_CLASS_COUNT)], help="Libellés des classes")
+    parser.add_argument("--classes", nargs="*", default=default_classes, help="Classes")
     # Ajoute le nombre de bins pour l'histogramme de confiance
-    parser.add_argument("--confidence-bins", type=int, default=DEFAULT_CONFIDENCE_BINS, help="Nombre de bins")
+    parser.add_argument("--bins", type=int, default=default_bins, help="Bins")
     # Retourne le parseur prêt à l'emploi
     return parser
 
 
 # Valide que les tableaux chargés ont une cohérence basique
-def _validate_input_shapes(y_true: np.ndarray, y_pred: np.ndarray, y_proba: np.ndarray) -> None:
+def _validate_input_shapes(y_true, y_pred, y_proba) -> None:
     """Vérifie la cohérence des dimensions des labels/probabilités."""
 
     # Refuse les tailles différentes entre vérité et prédiction
@@ -162,7 +183,7 @@ def _generate_example_data() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 # Charge les données d'entrée ou génère un exemple déterministe
-def load_dashboard_data(input_path: Path | None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def load_dashboard_data(input_path):
     """Charge les labels/probabilités depuis un fichier ou génère un exemple."""
 
     # Utilise un jeu d'exemple si aucun fichier n'est fourni
@@ -188,7 +209,7 @@ def load_dashboard_data(input_path: Path | None) -> tuple[np.ndarray, np.ndarray
 
 
 # Calcule l'Expected Calibration Error (ECE) sur la confiance top-1
-def expected_calibration_error(confidences: np.ndarray, correct: np.ndarray, bins: int) -> float:
+def expected_calibration_error(confidences, correct, bins) -> float:
     """Retourne l'ECE en comparant confiance et précision par bin."""
 
     # Initialise l'ECE à zéro avant accumulation
@@ -196,7 +217,7 @@ def expected_calibration_error(confidences: np.ndarray, correct: np.ndarray, bin
     # Définit les bornes de bins uniformes entre 0 et 1
     bin_edges = np.linspace(0.0, 1.0, bins + 1)
     # Itère sur chaque intervalle pour agréger l'erreur
-    for lower, upper in zip(bin_edges[:-1], bin_edges[1:]):
+    for lower, upper in zip(bin_edges[:-1], bin_edges[1:], strict=True):
         # Sélectionne les prédictions appartenant au bin courant
         in_bin = (confidences >= lower) & (confidences < upper)
         # Ignore les bins vides pour éviter des divisions par zéro
@@ -224,11 +245,11 @@ def calibrate_confidences(confidences: np.ndarray, correct: np.ndarray) -> np.nd
     # Ajuste le modèle sur les couples confiance/correction
     model.fit(confidences, correct)
     # Retourne les confiances recalibrées
-    return model.transform(confidences)
+    return np.asarray(model.transform(confidences))
 
 
 # Calcule les points de la courbe de calibration (reliability diagram)
-def compute_calibration_curve(confidences: np.ndarray, correct: np.ndarray, bins: int) -> tuple[np.ndarray, np.ndarray]:
+def compute_calibration_curve(confidences, correct, bins):
     """Retourne les moyennes de confiance et précision par bin."""
 
     # Prépare les bornes de bins entre 0 et 1
@@ -238,7 +259,7 @@ def compute_calibration_curve(confidences: np.ndarray, correct: np.ndarray, bins
     # Initialise les listes de précision par bin
     mean_accuracies: list[float] = []
     # Itère sur chaque bin pour construire la courbe
-    for lower, upper in zip(bin_edges[:-1], bin_edges[1:]):
+    for lower, upper in zip(bin_edges[:-1], bin_edges[1:], strict=True):
         # Calcule le masque des prédictions dans le bin
         in_bin = (confidences >= lower) & (confidences < upper)
         # Ignore les bins vides pour éviter des points trompeurs
@@ -254,7 +275,7 @@ def compute_calibration_curve(confidences: np.ndarray, correct: np.ndarray, bins
 
 
 # Produit la matrice de confusion normalisée par ligne
-def compute_confusion_data(y_true: np.ndarray, y_pred: np.ndarray, labels: Sequence[int]) -> tuple[np.ndarray, np.ndarray]:
+def compute_confusion_data(y_true, y_pred, labels):
     """Retourne la matrice de confusion brute et normalisée en %."""
 
     # Calcule la matrice de confusion brute
@@ -270,11 +291,11 @@ def compute_confusion_data(y_true: np.ndarray, y_pred: np.ndarray, labels: Seque
 
 
 # Trace la matrice de confusion annotée avec pourcentages et comptes
-def plot_confusion_matrix(axis: plt.Axes, matrix: np.ndarray, percent: np.ndarray, class_names: Sequence[str]) -> None:
+def plot_confusion_matrix(axis, matrix, percent, class_names) -> None:
     """Dessine la matrice de confusion avec annotations lisibles."""
 
     # Trace la matrice en heatmap pour la lisibilité
-    heatmap = axis.imshow(percent, cmap="Blues", vmin=0.0, vmax=1.0)
+    axis.imshow(percent, cmap="Blues", vmin=0.0, vmax=1.0)
     # Fixe les ticks X/Y avec les labels de classes
     axis.set_xticks(range(len(class_names)))
     # Applique les libellés sur l'axe X
@@ -298,15 +319,13 @@ def plot_confusion_matrix(axis: plt.Axes, matrix: np.ndarray, percent: np.ndarra
             # Formate le texte avec pourcentage et compte brut
             label = f"{percent[row, col]:.0%}\n({matrix[row, col]})"
             # Choisit une couleur de texte contrastée
-            color = "white" if percent[row, col] > 0.5 else "black"
+            color = "white" if percent[row, col] > CONFUSION_TEXT_THRESHOLD else "black"
             # Place le texte au centre de la cellule
             axis.text(col, row, label, ha="center", va="center", color=color)
-    # Retourne la heatmap pour ajout éventuel de colorbar
-    return heatmap
 
 
 # Trace l'histogramme de confiance et affiche l'ECE
-def plot_confidence_histogram(axis: plt.Axes, confidences: np.ndarray, bins: int, ece: float) -> None:
+def plot_confidence_histogram(axis, confidences, bins, ece) -> None:
     """Affiche l'histogramme de confiance avec annotation ECE."""
 
     # Définit les bornes de bins uniformes
@@ -321,20 +340,34 @@ def plot_confidence_histogram(axis: plt.Axes, confidences: np.ndarray, bins: int
     axis.set_ylabel("Nombre d'epochs")
     # Définit le style d'encart pour l'ECE
     bbox_style = {"facecolor": "white", "alpha": 0.8, "edgecolor": "none"}
+    # Définit la position X de l'annotation
+    ece_x = 0.05
+    # Définit la position Y de l'annotation
+    ece_y = 0.85
     # Formate le texte d'ECE pour l'annotation
     ece_text = f"ECE = {ece:.02f}"
+    # Prépare les options de style pour l'annotation
+    text_kwargs = {"transform": axis.transAxes}
+    # Ajoute l'alignement horizontal aux options texte
+    text_kwargs["ha"] = "left"
+    # Ajoute l'alignement vertical aux options texte
+    text_kwargs["va"] = "center"
+    # Ajoute le style de boîte aux options texte
+    text_kwargs["bbox"] = bbox_style
     # Ajoute une annotation ECE dans le graphique
-    axis.text(0.05, 0.85, ece_text, transform=axis.transAxes, ha="left", va="center", bbox=bbox_style)
+    axis.text(ece_x, ece_y, ece_text, **text_kwargs)
 
 
 # Trace la séquence prédictions/vérité terrain le long des epochs
-def plot_predictions_vs_truth(axis: plt.Axes, y_true: np.ndarray, y_pred: np.ndarray, class_names: Sequence[str]) -> None:
+def plot_predictions_vs_truth(axis, y_true, y_pred, class_names) -> None:
     """Affiche une bande temporelle vérité vs prédictions."""
 
     # Empile vérité et prédictions pour une image 2xN
     stacked = np.vstack([y_true, y_pred])
+    # Prépare le constructeur de colormap avec un cast explicite
+    cmap_builder = cast(Any, mcolors.ListedColormap)
     # Construit une colormap discrète à partir des classes
-    cmap = plt.matplotlib.colors.ListedColormap(DEFAULT_CLASS_COLORS)
+    cmap = cmap_builder(DEFAULT_CLASS_COLORS)
     # Trace l'image des classes sur les epochs
     axis.imshow(stacked, aspect="auto", cmap=cmap)
     # Masque les ticks Y pour une présentation épurée
@@ -348,27 +381,41 @@ def plot_predictions_vs_truth(axis: plt.Axes, y_true: np.ndarray, y_pred: np.nda
     # Initialise les handles de légende
     handles = []
     # Itère sur les classes pour créer les patches
-    for color, name in zip(DEFAULT_CLASS_COLORS, class_names):
+    for color, name in zip(DEFAULT_CLASS_COLORS, class_names, strict=False):
         # Ajoute un patch de légende par classe
-        handles.append(plt.matplotlib.patches.Patch(color=color, label=name))
+        handles.append(Patch(color=color, label=name))
     # Ajoute la légende sous le graphique
     axis.legend(handles=handles, loc="upper center", ncol=2, fontsize="small")
 
 
 # Trace la courbe de calibration avant et après recalibration
-def plot_calibration_curves(axis: plt.Axes, raw_curve: tuple[np.ndarray, np.ndarray], calibrated_curve: tuple[np.ndarray, np.ndarray], raw_ece: float, calibrated_ece: float) -> None:
+def plot_calibration_curves(axis, raw_curve, cal_curve, raw_ece, cal_ece) -> None:
     """Affiche les courbes de calibration avant/après recalibration."""
 
     # Prépare l'étiquette de la courbe avant recalibration
     raw_label = f"Avant (ECE {raw_ece:.02f})"
     # Prépare l'étiquette de la courbe après recalibration
-    calibrated_label = f"Après (ECE {calibrated_ece:.02f})"
+    calibrated_label = f"Après (ECE {cal_ece:.02f})"
     # Trace la diagonale idéale pour référence
     axis.plot([0, 1], [0, 1], linestyle="--", color="#888888")
+    # Prépare les X de la courbe avant recalibration
+    raw_x = raw_curve[0]
+    # Prépare les Y de la courbe avant recalibration
+    raw_y = raw_curve[1]
     # Trace la courbe avant recalibration
-    axis.plot(raw_curve[0], raw_curve[1], marker="o", color="#F15854", label=raw_label)
+    axis.plot(raw_x, raw_y, marker="o", color="#F15854", label=raw_label)
+    # Prépare les X de la courbe après recalibration
+    calibrated_x = cal_curve[0]
+    # Prépare les Y de la courbe après recalibration
+    calibrated_y = cal_curve[1]
+    # Prépare les options de style pour la courbe recalibrée
+    cal_style = {"marker": "o"}
+    # Ajoute la couleur de la courbe recalibrée
+    cal_style["color"] = "#5DA5DA"
+    # Ajoute le label de la courbe recalibrée
+    cal_style["label"] = calibrated_label
     # Trace la courbe après recalibration
-    axis.plot(calibrated_curve[0], calibrated_curve[1], marker="o", color="#5DA5DA", label=calibrated_label)
+    axis.plot(calibrated_x, calibrated_y, **cal_style)
     # Ajoute un titre explicite au sous-graphique
     axis.set_title("Courbes de calibration")
     # Ajoute un label d'axe X pour la confiance
@@ -380,7 +427,7 @@ def plot_calibration_curves(axis: plt.Axes, raw_curve: tuple[np.ndarray, np.ndar
 
 
 # Génère la figure complète du tableau de bord
-def generate_dashboard(y_true: np.ndarray, y_pred: np.ndarray, y_proba: np.ndarray, config: DashboardConfig) -> Path:
+def generate_dashboard(y_true, y_pred, y_proba, config) -> Path:
     """Construit et sauvegarde le tableau de bord d'évaluation."""
 
     # Valide la cohérence des tailles d'entrée
@@ -405,16 +452,20 @@ def generate_dashboard(y_true: np.ndarray, y_pred: np.ndarray, y_proba: np.ndarr
     confidences = np.max(y_proba, axis=1)
     # Calcule la correction binaire pour la calibration
     correct = (y_true == y_pred).astype(float)
+    # Stocke le nombre de bins pour les métriques de calibration
+    bins = config.confidence_bins
     # Calcule l'ECE avant recalibration
-    raw_ece = expected_calibration_error(confidences, correct, config.confidence_bins)
+    raw_ece = expected_calibration_error(confidences, correct, bins)
     # Calibre les confidences via isotonic regression
     calibrated_confidences = calibrate_confidences(confidences, correct)
     # Calcule l'ECE après recalibration
-    calibrated_ece = expected_calibration_error(calibrated_confidences, correct, config.confidence_bins)
+    calibrated_ece = expected_calibration_error(calibrated_confidences, correct, bins)
     # Calcule les points de calibration avant recalibration
-    raw_curve = compute_calibration_curve(confidences, correct, config.confidence_bins)
+    raw_curve = compute_calibration_curve(confidences, correct, bins)
     # Calcule les points de calibration après recalibration
-    calibrated_curve = compute_calibration_curve(calibrated_confidences, correct, config.confidence_bins)
+    calibrated_curve = compute_calibration_curve(calibrated_confidences, correct, bins)
+    # Alias court pour la courbe recalibrée
+    cal_curve = calibrated_curve
 
     # Crée la figure principale avec la taille définie
     fig = plt.figure(figsize=DEFAULT_FIGSIZE)
@@ -424,8 +475,16 @@ def generate_dashboard(y_true: np.ndarray, y_pred: np.ndarray, y_proba: np.ndarr
     metrics_axis = fig.add_subplot(layout[0, :])
     # Masque les axes pour un rendu type header
     metrics_axis.axis("off")
+    # Construit le fragment Accuracy pour l'entête
+    acc_text = f"Accuracy:{accuracy:.2f}"
+    # Construit le fragment Balanced Acc pour l'entête
+    balanced_text = f"Balanced:{balanced_acc:.2f}"
+    # Construit le fragment F1-macro pour l'entête
+    f1_text = f"F1-macro:{f1_macro:.2f}"
+    # Construit le fragment Errors pour l'entête
+    errors_text = f"Errors:{errors}/{len(y_true)} epochs"
     # Construit le texte d'entête avec les métriques
-    metrics_text = f"Accuracy:{accuracy:.2f} | Balanced:{balanced_acc:.2f} | F1-macro:{f1_macro:.2f} | Errors:{errors}/{len(y_true)} epochs"
+    metrics_text = " | ".join([acc_text, balanced_text, f1_text, errors_text])
     # Ajoute le texte d'entête centré
     metrics_axis.text(0.5, 0.5, metrics_text, ha="center", va="center")
 
@@ -437,7 +496,7 @@ def generate_dashboard(y_true: np.ndarray, y_pred: np.ndarray, y_proba: np.ndarr
     # Ajoute l'axe pour l'histogramme de confiance
     histogram_axis = fig.add_subplot(layout[1, 1])
     # Trace l'histogramme des confiances avec ECE
-    plot_confidence_histogram(histogram_axis, confidences, config.confidence_bins, raw_ece)
+    plot_confidence_histogram(histogram_axis, confidences, bins, raw_ece)
 
     # Ajoute l'axe pour la comparaison vérité/pred
     prediction_axis = fig.add_subplot(layout[2, 0])
@@ -446,13 +505,19 @@ def generate_dashboard(y_true: np.ndarray, y_pred: np.ndarray, y_proba: np.ndarr
 
     # Ajoute l'axe pour les courbes de calibration
     calibration_axis = fig.add_subplot(layout[2, 1])
+    # Regroupe les arguments de calibration pour un appel compact
+    calibration_args = (raw_curve, cal_curve, raw_ece, calibrated_ece)
     # Trace les courbes de calibration avant/après
-    plot_calibration_curves(calibration_axis, raw_curve, calibrated_curve, raw_ece, calibrated_ece)
+    plot_calibration_curves(calibration_axis, *calibration_args)
 
     # Ajuste la mise en page globale
     fig.tight_layout()
+    # Normalise le répertoire de sortie en objet Path
+    output_dir = Path(config.output_dir)
+    # Normalise le nom de fichier de sortie en chaîne
+    output_name = str(config.output_name)
     # Construit le chemin de sortie complet
-    output_path = config.output_dir / config.output_name
+    output_path = output_dir / output_name
     # Sauvegarde la figure au format PNG
     fig.savefig(output_path)
     # Ferme la figure pour libérer la mémoire
@@ -478,11 +543,11 @@ def main() -> None:
     # Prépare le nom de fichier de sortie
     output_name = str(args.output_name)
     # Prépare les noms de classes pour l'affichage
-    class_names = list(args.class_names)
+    class_names = list(args.classes)
     # Prépare le nombre de bins pour l'histogramme
-    confidence_bins = int(args.confidence_bins)
+    bins = int(args.bins)
     # Prépare la configuration de génération
-    config = DashboardConfig(input_path, output_dir, output_name, class_names, confidence_bins)
+    config = DashboardConfig(input_path, output_dir, output_name, class_names, bins)
     # Génère le tableau de bord et récupère le chemin
     output_path = generate_dashboard(y_true, y_pred, y_proba, config)
     # Affiche le chemin pour faciliter le scripting
