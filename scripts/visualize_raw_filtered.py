@@ -21,6 +21,8 @@ from pathlib import Path
 # Importe typing pour typer explicitement les séquences et tuples
 from typing import Sequence, Tuple
 
+import math
+
 # Importe pyplot pour tracer les figures comparatives
 import matplotlib.pyplot as plt
 
@@ -32,6 +34,46 @@ from tpv.preprocessing import apply_bandpass_filter, load_physionet_raw
 
 MAX_SUBJECTS_PREVIEW = 5
 
+# Fixe le nombre maximal de lignes par colonne dans la légende
+LEGEND_MAX_ROWS = 16
+
+# Fixe une limite haute de colonnes pour préserver la zone de tracé
+LEGEND_MAX_COLS = 6
+
+
+# Calcule le nombre de colonnes pour afficher toutes les entrées de légende
+def _infer_legend_ncol(channel_count: int) -> int:
+    """Retourne ncol afin d'éviter une légende trop haute."""
+
+    # Retourne une colonne par défaut si aucun canal n'est fourni
+    if channel_count <= 0:
+        return 1
+
+    # Calcule le nombre de colonnes requis pour borner la hauteur
+    required = int(math.ceil(channel_count / float(LEGEND_MAX_ROWS)))
+
+    # Borne ncol pour préserver une largeur de tracé acceptable
+    return max(1, min(LEGEND_MAX_COLS, required))
+
+
+# Calcule la fraction de figure dédiée aux axes en réservant une zone légende
+def _infer_tight_layout_right(ncol: int) -> float:
+    """Retourne le paramètre rect.right pour tight_layout()."""
+
+    # Définit une réserve minimale suffisante pour une colonne unique
+    base_reserved = 0.17
+
+    # Ajoute une réserve par colonne supplémentaire pour éviter le recouvrement
+    per_col_reserved = 0.06
+
+    # Calcule la réserve totale à droite selon le nombre de colonnes
+    reserved = base_reserved + per_col_reserved * max(0, ncol - 1)
+
+    # Limite la réserve pour éviter d'écraser totalement les graphiques
+    reserved = min(0.45, reserved)
+
+    # Retourne la borne droite des axes pour laisser la place à la légende
+    return 1.0 - reserved
 
 # Fournit un récap rapide des sujets déjà présents sous data_root
 def _describe_subjects(data_root: Path) -> str:
@@ -313,12 +355,15 @@ def plot_raw_vs_filtered(
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(10, 6))
     # Définit le titre global pour rappeler sujet/run et méthode
     fig.suptitle(title or f"{metadata['subject']} {metadata['run']} raw vs filtered")
+
+    # Capture les handles matplotlib pour construire une légende unique
+    raw_handles: list[object] = []
+
     # Trace chaque canal brut avec légende pour lecture rapide
     for idx, channel in enumerate(raw.ch_names):
         # Trace le canal idx sur le premier subplot
-        axes[0].plot(times, raw_data[idx], label=channel)
-    # Ajoute une légende compacte au panneau brut
-    axes[0].legend(loc="upper right")
+        lines = axes[0].plot(times, raw_data[idx], label=channel)
+        raw_handles.append(lines[0])
     # Ajoute un label d'axe pour contextualiser les valeurs brutes
     axes[0].set_ylabel("Amplitude (a.u.)")
     # Titre spécifique à la partie brute pour distinguer visuellement
@@ -327,16 +372,34 @@ def plot_raw_vs_filtered(
     for idx, channel in enumerate(filtered.ch_names):
         # Trace le canal idx filtré sur le second subplot
         axes[1].plot(times, filtered_data[idx], label=channel)
-    # Ajoute une légende pour vérifier que les canaux concordent
-    axes[1].legend(loc="upper right")
     # Ajoute un label d'axe dédié aux données filtrées
     axes[1].set_ylabel("Amplitude filtrée (a.u.)")
     # Ajoute un label de l'axe des temps pour les deux sous-graphiques
     axes[1].set_xlabel("Temps (s)")
     # Titre spécifique à la partie filtrée pour faciliter la comparaison
     axes[1].set_title("Signal filtré 8-40 Hz")
-    # Réduit les marges pour minimiser l'espace vide dans les PNG
-    fig.tight_layout()
+
+    # Calcule le nombre de colonnes pour éviter une légende trop haute
+    legend_ncol = _infer_legend_ncol(len(raw.ch_names))
+
+    # Réserve une zone à droite pour afficher la légende intégrale
+    layout_right = _infer_tight_layout_right(legend_ncol)
+
+    # Place la légende dans la zone réservée pour éviter la troncature
+    legend_x = min(0.98, layout_right + 0.01)
+
+    # Crée une légende unique pour éviter la duplication sur les deux axes
+    fig.legend(
+        handles=raw_handles,
+        labels=list(raw.ch_names),
+        loc="center left",
+        bbox_to_anchor=(legend_x, 0.5),
+        ncol=legend_ncol,
+        fontsize="small",
+    )
+
+    # Ajuste le layout en gardant de la place pour la légende et le suptitle
+    fig.tight_layout(rect=(0.0, 0.0, layout_right, 0.95))
     # Sauvegarde la figure au chemin fourni
     fig.savefig(output_path)
     # Ferme la figure pour libérer la mémoire en batch

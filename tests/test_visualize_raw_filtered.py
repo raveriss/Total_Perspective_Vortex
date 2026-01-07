@@ -408,9 +408,10 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
             self.xlabel_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
         # Enregistre le tracé pour valider times, data et label
-        def plot(self, *args: object, **kwargs: object) -> None:
+        def plot(self, *args: object, **kwargs: object) -> list[object]:
             # Stocke args/kwargs pour assertions strictes après exécution
             self.plot_calls.append((args, dict(kwargs)))
+            return [object()]
 
         # Enregistre la légende pour valider loc et l'axe utilisé
         def legend(self, *args: object, **kwargs: object) -> None:
@@ -440,6 +441,9 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
             self.suptitle_value: object | None = None
             # Marque l'appel tight_layout pour tuer le bypass
             self.tight_layout_called = False
+            self.tight_layout_args: tuple[object, ...] = ()
+            self.tight_layout_kwargs: dict[str, object] = {}
+            self.legend_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
             # Capture le chemin de sauvegarde pour tuer savefig mal routé
             self.savefig_path: object | None = None
 
@@ -449,9 +453,14 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
             self.suptitle_value = value
 
         # Capture tight_layout pour éviter qu'il soit supprimé
-        def tight_layout(self) -> None:
+        def tight_layout(self, *args: object, **kwargs: object) -> None:
             # Marque l'appel afin de détecter un bypass
             self.tight_layout_called = True
+            self.tight_layout_args = args
+            self.tight_layout_kwargs = dict(kwargs)
+
+        def legend(self, *args: object, **kwargs: object) -> None:
+            self.legend_calls.append((args, dict(kwargs)))
 
         # Simule l'écriture de la figure pour valider le chemin
         def savefig(self, path: Path) -> None:
@@ -531,6 +540,15 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
 
     # Verrouille l'application de tight_layout pour éviter les figures tassées
     assert fig_used.tight_layout_called is True
+    assert fig_used.tight_layout_kwargs["rect"] == (0.0, 0.0, 0.83, 0.95)
+
+    assert len(fig_used.legend_calls) == 1
+    _, legend_kwargs = fig_used.legend_calls[0]
+    assert legend_kwargs["labels"] == list(raw.ch_names)
+    assert legend_kwargs["loc"] == "center left"
+    assert legend_kwargs["bbox_to_anchor"] == (0.84, 0.5)
+    assert legend_kwargs["ncol"] == 1
+    assert legend_kwargs["fontsize"] == "small"
     # Verrouille le chemin passé à savefig pour tuer les redirections
     assert fig_used.savefig_path == output_path
     # Verrouille la fermeture de la figure pour tuer le bypass close
@@ -558,7 +576,7 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
         assert plot_kwargs == {"label": channel}
 
     # Verrouille la légende brute: loc="upper right" sur axes[0]
-    assert len(raw_axis.legend_calls) == 1
+    assert raw_axis.legend_calls == []
     raw_legend_args, raw_legend_kwargs = raw_axis.legend_calls[0]
     if "loc" in raw_legend_kwargs:
         assert raw_legend_kwargs["loc"] == "upper right"
@@ -591,7 +609,7 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
         assert plot_kwargs == {"label": channel}
 
     # Verrouille la légende filtrée: loc="upper right" sur axes[1]
-    assert len(filtered_axis.legend_calls) == 1
+    assert filtered_axis.legend_calls == []
     filt_legend_args, filt_legend_kwargs = filtered_axis.legend_calls[0]
     if "loc" in filt_legend_kwargs:
         assert filt_legend_kwargs["loc"] == "upper right"
@@ -646,9 +664,8 @@ def test_plot_raw_vs_filtered_allows_existing_output_dir(
     # Définit un axe minimaliste pour absorber les appels matplotlib
     class _Axis:
         # Ignore les tracés pour isoler mkdir() et savefig()
-        def plot(self, *_: object, **__: object) -> None:
-            # No-op : test centré sur la création de dossier
-            return None
+        def plot(self, *_: object, **__: object) -> list[object]:
+            return [object()]
 
         # Ignore la légende pour isoler mkdir() et savefig()
         def legend(self, *_: object, **__: object) -> None:
@@ -672,6 +689,8 @@ def test_plot_raw_vs_filtered_allows_existing_output_dir(
 
     # Définit une figure minimaliste pour éviter matplotlib réel
     class _Fig:
+        def legend(self, *_: object, **__: object) -> None:
+            return None
         # Ignore suptitle pour isoler mkdir() et savefig()
         def suptitle(self, *_: object, **__: object) -> None:
             # No-op : test centré sur la création de dossier

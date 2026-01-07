@@ -15,17 +15,17 @@
   },
   "scores": {
     "cv_scores": [
-      0.6666666666666666,
       1.0,
       0.5,
-      0.0,
+      1.0,
       0.5,
       0.5,
-      1.0
+      0.5,
+      0.5
     ],
-    "cv_mean": 0.5952380952380951
+    "cv_mean": 0.6428571428571429
   },
-  "git_commit": "81178af38c3fc1a390e98950fded24ac9e1cb426",
+  "git_commit": "7c31c1d41967d5438de00f6f261a1334f93959e8",
   "artifacts": {
     "model": "artifacts/S001/R03/model.joblib",
     "scaler": null,
