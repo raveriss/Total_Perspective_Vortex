@@ -594,7 +594,7 @@ def main() -> None:
     # Analyse les arguments fournis par l'utilisateur
     args = parser.parse_args()
     # Charge les données depuis le fichier ou l'exemple
-    input_path = Path(args.input_path) if args.input_path else None
+    input_path = Path(args.input) if args.input else None
     # Charge les labels et probabilités
     y_true, y_pred, y_proba = load_dashboard_data(input_path)
     # Prépare le répertoire de sortie en objet Path
