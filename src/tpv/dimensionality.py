@@ -45,92 +45,30 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         self.mean_: np.ndarray | None
         # Prépare le stockage des valeurs propres pour validation et débogage
         self.eigenvalues_: np.ndarray | None
+        # Prépare le stockage des valeurs singulières pour l'option SVD
+        self.singular_values_: np.ndarray | None
         # Positionne None pour refléter l'absence d'apprentissage initial
         self.w_matrix = None
         # Positionne None pour éviter un centrage tant que fit n'est pas appelé
         self.mean_ = None
         # Positionne None avant calcul des valeurs propres
         self.eigenvalues_ = None
+        # Positionne None avant calcul des valeurs singulières
+        self.singular_values_ = None
 
     # Apprend la matrice de projection à partir des données et des labels
     def fit(self, X: np.ndarray, y: np.ndarray | None = None):
         # Sécurise le choix de méthode pour éviter des branches invalides
-        if self.method not in {"pca", "csp"}:
+        if self.method not in {"pca", "csp", "svd"}:
             # Informe clairement l'utilisateur en cas de paramètre invalide
-            raise ValueError("method must be 'pca' or 'csp'")
-        # Applique la méthode PCA si spécifiée
+            raise ValueError("method must be 'pca', 'csp', or 'svd'")
+        # Délègue le calcul aux helpers spécialisés pour réduire la complexité
         if self.method == "pca":
-            # Vérifie que les données sont tabulaires pour PCA
-            if X.ndim != TABLE_DIMENSION:
-                # Informe que PCA attend des données échantillon x feature
-                raise ValueError("PCA expects a 2D array")
-            # Centre les données pour une covariance cohérente
-            self.mean_ = np.mean(X, axis=0)
-            # Calcule les données centrées pour la covariance
-            centered = X - self.mean_
-            # Calcule la covariance avec régularisation diagonale
-            covariance = self._regularized_covariance(centered)
-            # Extrait les vecteurs propres pour définir la projection
-            eigvals, eigvecs = np.linalg.eigh(covariance)
-            # Trie les composantes par variance décroissante
-            order = np.argsort(eigvals)[::-1]
-            # Réordonne les vecteurs propres selon l'importance
-            sorted_vecs = eigvecs[:, order]
-            # Limite le nombre de composantes si demandé
-            if self.n_components is not None:
-                # Sélectionne uniquement les premières composantes utiles
-                sorted_vecs = sorted_vecs[:, : self.n_components]
-                # Tronque aussi la liste des valeurs propres
-                eigvals = eigvals[order][: self.n_components]
-            else:
-                # Conserve toutes les valeurs propres si aucune coupe n'est demandée
-                eigvals = eigvals[order]
-            # Stocke la matrice de projection apprise
-            self.w_matrix = sorted_vecs
-            # Stocke les valeurs propres associées pour vérification externe
-            self.eigenvalues_ = eigvals
+            self._fit_pca(X)
+        elif self.method == "svd":
+            self._fit_svd(X)
         else:
-            # Vérifie la présence des étiquettes pour la méthode CSP
-            if y is None:
-                # Informe que CSP requiert des labels binaires
-                raise ValueError("y is required for CSP")
-            # Valide la dimension trial x channel x time attendue
-            if X.ndim != TRIAL_DIMENSION:
-                # Informe que CSP demande des essais temporels bruts
-                raise ValueError("CSP expects a 3D array")
-            # Identifie les classes présentes pour contrôler le problème
-            classes = np.unique(y)
-            # Valide que seules deux classes sont fournies
-            if classes.size != EXPECTED_CSP_CLASSES:
-                # Empêche un calcul CSP invalide avec plus de deux classes
-                raise ValueError("CSP requires exactly two classes")
-            # Agrège les covariances des essais pour la première classe
-            cov_a = self._average_covariance(X[y == classes[0]])
-            # Agrège les covariances des essais pour la seconde classe
-            cov_b = self._average_covariance(X[y == classes[1]])
-            # Combine les covariances pour le problème généralisé
-            composite = cov_a + cov_b
-            # Ajoute une régularisation pour stabiliser l'inversion implicite
-            composite = self._regularize_matrix(composite)
-            # Résout le problème généralisé pour maximiser la séparation
-            eigvals, eigvecs = linalg.eigh(cov_a, composite)
-            # Trie les vecteurs par valeurs propres décroissantes
-            order = np.argsort(eigvals)[::-1]
-            # Réordonne les vecteurs propres pour prioriser les extrêmes
-            sorted_vecs = eigvecs[:, order]
-            # Limite le nombre de composantes selon la demande
-            if self.n_components is not None:
-                # Sélectionne la tranche désirée de composantes
-                sorted_vecs = sorted_vecs[:, : self.n_components]
-                # Tronque également les valeurs propres associées
-                eigvals = eigvals[order][: self.n_components]
-            else:
-                # Conserve toutes les valeurs propres si aucune coupe n'est appliquée
-                eigvals = eigvals[order]
-            # Stocke la matrice de projection CSP
-            self.w_matrix = sorted_vecs
-            # Stocke les valeurs propres pour inspection éventuelle
-            self.eigenvalues_ = eigvals
+            self._fit_csp(X, y)
         # Retourne l'instance pour chaînage scikit-learn
         return self
 
@@ -173,6 +111,7 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
                 "w_matrix": self.w_matrix,
                 "mean": self.mean_,
                 "eig": self.eigenvalues_,
+                "singular_values": self.singular_values_,
                 "method": self.method,
                 "n_components": self.n_components,
                 "regularization": self.regularization,
@@ -190,6 +129,8 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         self.mean_ = data.get("mean")
         # Restaure les valeurs propres éventuelles
         self.eigenvalues_ = data.get("eig")
+        # Restaure les valeurs singulières éventuelles
+        self.singular_values_ = data.get("singular_values")
         # Restaure la méthode utilisée pour la projection
         self.method = data.get("method", self.method)
         # Restaure le nombre de composantes demandé
@@ -235,3 +176,152 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             regularized += self.regularization * np.eye(matrix.shape[0])
         # Retourne la matrice régularisée pour les calculs ultérieurs
         return regularized
+
+    # Applique l'apprentissage PCA sur des données tabulaires
+    def _fit_pca(self, X: np.ndarray) -> None:
+        """Apprend la projection PCA via la covariance régularisée."""
+
+        # Vérifie que les données sont tabulaires pour PCA
+        if X.ndim != TABLE_DIMENSION:
+            # Informe que PCA attend des données échantillon x feature
+            raise ValueError("PCA expects a 2D array")
+        # Centre les données pour une covariance cohérente
+        self.mean_ = np.mean(X, axis=0)
+        # Calcule les données centrées pour la covariance
+        centered = X - self.mean_
+        # Calcule la covariance avec régularisation diagonale
+        covariance = self._regularized_covariance(centered)
+        # Extrait les vecteurs propres pour définir la projection
+        eigvals, eigvecs = np.linalg.eigh(covariance)
+        # Trie les composantes par variance décroissante
+        order = np.argsort(eigvals)[::-1]
+        # Réordonne les vecteurs propres selon l'importance
+        sorted_vecs = eigvecs[:, order]
+        # Limite le nombre de composantes si demandé
+        if self.n_components is not None:
+            # Sélectionne uniquement les premières composantes utiles
+            sorted_vecs = sorted_vecs[:, : self.n_components]
+            # Tronque aussi la liste des valeurs propres
+            eigvals = eigvals[order][: self.n_components]
+        else:
+            # Conserve toutes les valeurs propres si aucune coupe n'est demandée
+            eigvals = eigvals[order]
+        # Stocke la matrice de projection apprise
+        self.w_matrix = sorted_vecs
+        # Stocke les valeurs propres associées pour vérification externe
+        self.eigenvalues_ = eigvals
+        # Réinitialise les valeurs singulières quand PCA est utilisé
+        self.singular_values_ = None
+
+    # Applique l'apprentissage SVD sur des données tabulaires
+    def _fit_svd(self, X: np.ndarray) -> None:
+        """Apprend la projection SVD via la covariance centrée."""
+
+        # Vérifie que les données sont tabulaires pour la SVD
+        if X.ndim != TABLE_DIMENSION:
+            # Informe que SVD attend des données échantillon x feature
+            raise ValueError("SVD expects a 2D array")
+        # Centre les données pour stabiliser la covariance
+        self.mean_ = np.mean(X, axis=0)
+        # Calcule les données centrées pour la SVD
+        centered = X - self.mean_
+        # Calcule une SVD maison à partir de la covariance centrée
+        _u_matrix, singular_values, v_matrix = self._svd_from_covariance(centered)
+        # Limite le nombre de composantes si demandé
+        if self.n_components is not None:
+            # Tronque la base de projection au nombre souhaité
+            v_matrix = v_matrix[:, : self.n_components]
+            # Tronque les valeurs singulières
+            singular_values = singular_values[: self.n_components]
+        # Stocke la matrice de projection apprise
+        self.w_matrix = v_matrix
+        # Stocke les valeurs singulières pour inspection
+        self.singular_values_ = singular_values
+        # Dérive les valeurs propres de la covariance à partir des singulières
+        self.eigenvalues_ = (
+            singular_values**2 / (centered.shape[0] - 1)
+            if centered.shape[0] > 1
+            else singular_values**2
+        )
+
+    # Applique l'apprentissage CSP sur des essais EEG 3D
+    def _fit_csp(self, X: np.ndarray, y: np.ndarray | None) -> None:
+        """Apprend la projection CSP à partir des essais et labels."""
+
+        # Vérifie la présence des étiquettes pour la méthode CSP
+        if y is None:
+            # Informe que CSP requiert des labels binaires
+            raise ValueError("y is required for CSP")
+        # Valide la dimension trial x channel x time attendue
+        if X.ndim != TRIAL_DIMENSION:
+            # Informe que CSP demande des essais temporels bruts
+            raise ValueError("CSP expects a 3D array")
+        # Identifie les classes présentes pour contrôler le problème
+        classes = np.unique(y)
+        # Valide que seules deux classes sont fournies
+        if classes.size != EXPECTED_CSP_CLASSES:
+            # Empêche un calcul CSP invalide avec plus de deux classes
+            raise ValueError("CSP requires exactly two classes")
+        # Agrège les covariances des essais pour la première classe
+        cov_a = self._average_covariance(X[y == classes[0]])
+        # Agrège les covariances des essais pour la seconde classe
+        cov_b = self._average_covariance(X[y == classes[1]])
+        # Combine les covariances pour le problème généralisé
+        composite = cov_a + cov_b
+        # Ajoute une régularisation pour stabiliser l'inversion implicite
+        composite = self._regularize_matrix(composite)
+        # Résout le problème généralisé pour maximiser la séparation
+        eigvals, eigvecs = linalg.eigh(cov_a, composite)
+        # Trie les vecteurs par valeurs propres décroissantes
+        order = np.argsort(eigvals)[::-1]
+        # Réordonne les vecteurs propres pour prioriser les extrêmes
+        sorted_vecs = eigvecs[:, order]
+        # Limite le nombre de composantes selon la demande
+        if self.n_components is not None:
+            # Sélectionne la tranche désirée de composantes
+            sorted_vecs = sorted_vecs[:, : self.n_components]
+            # Tronque également les valeurs propres associées
+            eigvals = eigvals[order][: self.n_components]
+        else:
+            # Conserve toutes les valeurs propres si aucune coupe n'est appliquée
+            eigvals = eigvals[order]
+        # Stocke la matrice de projection CSP
+        self.w_matrix = sorted_vecs
+        # Stocke les valeurs propres pour inspection éventuelle
+        self.eigenvalues_ = eigvals
+        # Réinitialise les valeurs singulières pour CSP
+        self.singular_values_ = None
+
+    # Reconstruit une SVD via la covariance pour conserver un contrôle local
+    def _svd_from_covariance(
+        self, centered: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Construit une SVD maison via la covariance centrée."""
+
+        # Vérifie que les données sont bien 2D pour la SVD
+        if centered.ndim != TABLE_DIMENSION:
+            # Signale une incohérence de dimension avant le calcul
+            raise ValueError("SVD expects a 2D array")
+        # Calcule la covariance régularisée pour stabiliser le spectre
+        covariance = self._regularized_covariance(centered)
+        # Résout la décomposition en valeurs propres de la covariance
+        eigvals, eigvecs = np.linalg.eigh(covariance)
+        # Trie les valeurs propres en ordre décroissant
+        order = np.argsort(eigvals)[::-1]
+        # Réordonne les vecteurs propres en conséquence
+        eigvecs = eigvecs[:, order]
+        # Force les valeurs propres négatives à zéro pour stabilité numérique
+        eigvals = np.clip(eigvals[order], 0.0, None)
+        # Convertit les valeurs propres en valeurs singulières de X
+        singular_values = np.sqrt(eigvals * max(centered.shape[0] - 1, 1))
+        # Construit V (vecteurs propres) pour la projection
+        v_matrix = eigvecs
+        # Calcule U en normalisant les projections sur V
+        u_matrix = centered @ v_matrix
+        # Évite les divisions par zéro en masquant les valeurs singulières nulles
+        nonzero = singular_values > 0
+        if np.any(nonzero):
+            # Normalise chaque colonne de U par la valeur singulière associée
+            u_matrix[:, nonzero] = u_matrix[:, nonzero] / singular_values[nonzero]
+        # Retourne les matrices U, S, V pour inspection éventuelle
+        return u_matrix, singular_values, v_matrix

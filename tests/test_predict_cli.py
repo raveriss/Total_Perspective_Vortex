@@ -63,7 +63,7 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> (
     )
 
     assert dim_action.choices is not None
-    assert tuple(dim_action.choices) == ("pca", "csp")
+    assert tuple(dim_action.choices) == ("pca", "csp", "svd")
     assert dim_action.default == "pca"
     assert (
         dim_action.help == "Méthode de réduction de dimension (ignorée en prédiction)"

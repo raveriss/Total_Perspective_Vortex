@@ -83,7 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--dim-method",
-        choices=("pca", "csp"),
+        choices=("pca", "csp", "svd"),
         default="pca",
         help="Méthode de réduction de dimension (ignorée en prédiction)",
     )

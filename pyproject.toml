@@ -17,7 +17,7 @@ mne = "^1.6"
 matplotlib = "^3.8"
 joblib = "^1.4"
 tqdm = "^4.67.1"
-urllib3 = "^2.6.0"
+urllib3 = "^2.6.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3"

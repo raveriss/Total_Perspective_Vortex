@@ -498,7 +498,7 @@ def test_build_parser_defines_optional_defaults_and_choices():
     assert scaler_action.default == "none"
     assert tuple(feature_action.choices) == ("fft", "wavelet")
     assert feature_action.default == "fft"
-    assert tuple(dim_action.choices) == ("pca", "csp")
+    assert tuple(dim_action.choices) == ("pca", "csp", "svd")
     assert dim_action.default == "pca"
     assert n_components_action.default is argparse.SUPPRESS
     assert normalize_action.default is False
