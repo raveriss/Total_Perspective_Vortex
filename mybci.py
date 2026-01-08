@@ -624,7 +624,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Ajoute la méthode de réduction de dimension pour ajuster la compression
     parser.add_argument(
         "--dim-method",
-        choices=("pca", "csp"),
+        choices=("pca", "csp", "svd"),
         default="pca",
         help="Technique de réduction de dimension",
     )

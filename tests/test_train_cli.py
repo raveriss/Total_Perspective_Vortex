@@ -67,6 +67,8 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
     build_all_action = _get_action(parser, "build_all")
     train_all_action = _get_action(parser, "train_all")
     sfreq_action = _get_action(parser, "sfreq")
+    grid_search_action = _get_action(parser, "grid_search")
+    grid_search_splits_action = _get_action(parser, "grid_search_splits")
 
     assert classifier_action.choices is not None
     assert tuple(classifier_action.choices) == ("lda", "logistic", "svm", "centroid")
@@ -78,7 +80,7 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
     assert tuple(feature_action.choices) == ("fft", "wavelet")
     assert feature_action.default == "fft"
     assert dim_action.choices is not None
-    assert tuple(dim_action.choices) == ("pca", "csp")
+    assert tuple(dim_action.choices) == ("pca", "csp", "svd")
     assert dim_action.default == "pca"
     assert n_components_action.default is argparse.SUPPRESS
     assert n_components_action.type is int
@@ -89,6 +91,10 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
     assert sfreq_action.type is float
     assert sfreq_action.default == train.DEFAULT_SAMPLING_RATE
     assert sfreq_action.help == "Fréquence d'échantillonnage utilisée pour les features"
+    assert grid_search_action.default is False
+    assert grid_search_action.option_strings == ["--grid-search"]
+    assert grid_search_splits_action.default is None
+    assert grid_search_splits_action.type is int
 
 
 def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
@@ -102,6 +108,8 @@ def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
     assert args.dim_method == "pca"
     assert args.build_all is False
     assert args.train_all is False
+    assert args.grid_search is False
+    assert args.grid_search_splits is None
     assert "n_components" not in vars(args)
     assert args.sfreq == train.DEFAULT_SAMPLING_RATE
 
@@ -118,6 +126,8 @@ def test_build_parser_help_texts_and_flags_are_stable() -> None:
     raw_dir_action = _get_action(parser, "raw_dir")
     build_all_action = _get_action(parser, "build_all")
     train_all_action = _get_action(parser, "train_all")
+    grid_search_action = _get_action(parser, "grid_search")
+    grid_search_splits_action = _get_action(parser, "grid_search_splits")
     # Verrouille l'aide de --feature-strategy (tue help retiré / variantes)
     assert feature_action.help == "Méthode d'extraction de features spectrales"
 
@@ -160,6 +170,18 @@ def test_build_parser_help_texts_and_flags_are_stable() -> None:
 
     # Verrouille l'aide de --train-all (tue help retiré / variantes)
     assert train_all_action.help == "Entraîne tous les sujets/runs détectés dans data/"
+
+    # Verrouille l'aide de --grid-search (tue help retiré / variantes)
+    assert (
+        grid_search_action.help
+        == "Active une optimisation systématique des hyperparamètres"
+    )
+
+    # Verrouille l'aide de --grid-search-splits
+    assert (
+        grid_search_splits_action.help
+        == "Nombre de splits CV dédié à la recherche d'hyperparamètres"
+    )
 
 
 def test_build_parser_parses_no_normalize_features_flag() -> None:
@@ -1563,6 +1585,88 @@ def test_run_training_builds_stratified_kfold_with_stable_random_state(
     assert kwargs.get("shuffle") is True
     assert "random_state" in kwargs
     assert kwargs["random_state"] == train.DEFAULT_RANDOM_STATE
+
+
+def test_run_training_uses_grid_search_and_captures_best_scores(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La recherche grid search doit piloter le pipeline et exposer les scores."""
+
+    X = np.random.default_rng(0).standard_normal((6, 2, 4))
+    y = np.array([0, 0, 0, 1, 1, 1])
+
+    monkeypatch.setattr(train, "_load_data", lambda *_args: (X, y))
+
+    class FakeDimReducer:
+        def save(self, _path: Path) -> None:
+            return None
+
+    class FakePipeline:
+        def __init__(self) -> None:
+            self.named_steps = {"dimensionality": FakeDimReducer(), "scaler": None}
+
+    class FakeSearch:
+        def __init__(self, estimator, param_grid, cv, scoring, refit) -> None:
+            self.estimator = estimator
+            self.param_grid = param_grid
+            self.cv = cv
+            self.scoring = scoring
+            self.refit = refit
+            self.best_estimator_ = FakePipeline()
+            self.best_params_ = {"classifier": "lda"}
+            self.best_score_ = 0.75
+            self.best_index_ = 0
+            self.cv_results_ = {
+                "split0_test_score": [0.7],
+                "split1_test_score": [0.8],
+                "split2_test_score": [0.75],
+            }
+
+        def fit(self, *_args, **_kwargs):
+            return self
+
+    monkeypatch.setattr(train, "build_search_pipeline", lambda *_cfg: FakePipeline())
+    monkeypatch.setattr(train, "GridSearchCV", FakeSearch)
+    monkeypatch.setattr(train, "save_pipeline", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(train.joblib, "dump", lambda *_args, **_kwargs: None)
+
+    captured: dict[str, object] = {}
+
+    def fake_write_manifest(
+        _request, _target_dir, cv_scores, _artifacts, search_summary=None
+    ):
+        captured["cv_scores"] = cv_scores
+        captured["search_summary"] = search_summary
+        return {"json": tmp_path / "m.json", "csv": tmp_path / "m.csv"}
+
+    monkeypatch.setattr(train, "_write_manifest", fake_write_manifest)
+
+    request = train.TrainingRequest(
+        subject="S001",
+        run="R01",
+        pipeline_config=train.PipelineConfig(
+            sfreq=50.0,
+            feature_strategy="fft",
+            normalize_features=True,
+            dim_method="pca",
+            n_components=2,
+            classifier="lda",
+            scaler=None,
+        ),
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+        raw_dir=tmp_path / "raw",
+        enable_grid_search=True,
+        grid_search_splits=3,
+    )
+
+    train.run_training(request)
+
+    cv_scores = np.array(cast(np.ndarray, captured["cv_scores"]))
+    assert cv_scores.shape == (3,)
+    search_summary = cast(dict[str, object], captured["search_summary"])
+    assert search_summary["best_score"] == pytest.approx(0.75)
 
 
 def test_run_training_creates_target_dir_with_exist_ok_true(

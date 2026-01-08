@@ -101,6 +101,32 @@ def build_pipeline(
     return Pipeline(steps)
 
 
+# Construit une pipeline dédiée aux recherches d'hyperparamètres
+def build_search_pipeline(config: PipelineConfig) -> Pipeline:
+    """Assemble une pipeline avec des étapes paramétrables pour GridSearch."""
+
+    # Prépare les étapes fixes de la pipeline
+    steps: List[Tuple[str, object]] = [
+        (
+            "features",
+            ExtractFeatures(
+                sfreq=config.sfreq,
+                feature_strategy=config.feature_strategy,
+                normalize=config.normalize_features,
+            ),
+        ),
+        # Utilise passthrough pour autoriser la sélection de scaler en grid search
+        ("scaler", "passthrough"),
+        (
+            "dimensionality",
+            TPVDimReducer(method=config.dim_method, n_components=config.n_components),
+        ),
+        ("classifier", _build_classifier(config.classifier)),
+    ]
+    # Retourne la pipeline prête pour GridSearchCV
+    return Pipeline(steps)
+
+
 # Sélectionne le scaler adapté selon la configuration utilisateur
 def _build_scaler(option: str | None) -> TransformerMixin | None:
     """Retourne l'instance de scaler correspondant au paramètre fourni."""

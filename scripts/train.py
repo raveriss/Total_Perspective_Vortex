@@ -27,17 +27,27 @@ import joblib
 import numpy as np
 
 # Fournit la validation croisée pour évaluer la pipeline complète
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_score
+from sklearn.preprocessing import RobustScaler, StandardScaler
+from sklearn.svm import LinearSVC
 
 # Centralise le parsing et le contrôle qualité des fichiers EDF
 # Extrait les features fréquentielles depuis des epochs EEG
 from tpv import preprocessing
 
+# Assemble la pipeline cohérente pour l'entraînement
+from tpv.classifier import CentroidClassifier
+
 # Permet de persister séparément la matrice W apprise
 from tpv.dimensionality import TPVDimReducer
-
-# Assemble la pipeline cohérente pour l'entraînement
-from tpv.pipeline import PipelineConfig, build_pipeline, save_pipeline
+from tpv.pipeline import (
+    PipelineConfig,
+    build_pipeline,
+    build_search_pipeline,
+    save_pipeline,
+)
 
 # Déclare la liste des runs moteurs à couvrir pour l'entraînement massif
 MOTOR_RUNS = (
@@ -110,6 +120,10 @@ class TrainingRequest:
     artifacts_dir: Path
     # Spécifie le répertoire des enregistrements EDF bruts
     raw_dir: Path = DEFAULT_RAW_DIR
+    # Active une optimisation systématique des hyperparamètres si demandé
+    enable_grid_search: bool = False
+    # Fixe un nombre de splits spécifique pour la recherche si fourni
+    grid_search_splits: int | None = None
 
 
 # Centralise les ressources partagées entre plusieurs entraînements
@@ -125,6 +139,10 @@ class TrainingResources:
     artifacts_dir: Path
     # Spécifie le répertoire des enregistrements EDF bruts
     raw_dir: Path = DEFAULT_RAW_DIR
+    # Active une optimisation systématique des hyperparamètres si demandé
+    enable_grid_search: bool = False
+    # Fixe un nombre de splits spécifique pour la recherche si fourni
+    grid_search_splits: int | None = None
 
 
 # Construit un argument parser aligné sur la CLI mybci
@@ -163,7 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Ajoute la méthode de réduction de dimension pour contrôler la compression
     parser.add_argument(
         "--dim-method",
-        choices=("pca", "csp"),
+        choices=("pca", "csp", "svd"),
         default="pca",
         help="Méthode de réduction de dimension pour la pipeline",
     )
@@ -212,6 +230,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--train-all",
         action="store_true",
         help="Entraîne tous les sujets/runs détectés dans data/",
+    )
+    # Ajoute une option pour activer une recherche systématique de paramètres
+    parser.add_argument(
+        "--grid-search",
+        action="store_true",
+        help="Active une optimisation systématique des hyperparamètres",
+    )
+    # Ajoute une option pour forcer le nombre de splits en grid search
+    parser.add_argument(
+        "--grid-search-splits",
+        type=int,
+        default=None,
+        help="Nombre de splits CV dédié à la recherche d'hyperparamètres",
     )
     # Ajoute une option pour spécifier la fréquence d'échantillonnage
     parser.add_argument(
@@ -629,6 +660,7 @@ def _write_manifest(
     target_dir: Path,
     cv_scores: np.ndarray,
     artifacts: dict[str, Path | None],
+    search_summary: dict[str, object] | None = None,
 ) -> dict[str, Path]:
     """Écrit des manifestes JSON et CSV décrivant le run d'entraînement."""
 
@@ -663,6 +695,10 @@ def _write_manifest(
         "git_commit": git_commit,
         "artifacts": artifacts_section,
     }
+    # Ajoute un résumé de recherche uniquement si une optimisation a eu lieu
+    if search_summary is not None:
+        # Expose les paramètres optimaux et score CV associé
+        manifest["hyperparam_search"] = search_summary
     # Définit le chemin de sortie du manifeste JSON à côté des artefacts
     manifest_json_path = target_dir / "manifest.json"
     # Écrit le manifeste JSON sur disque en UTF-8 pour la portabilité
@@ -693,6 +729,56 @@ def _write_manifest(
     return {"json": manifest_json_path, "csv": manifest_csv_path}
 
 
+# Construit la grille d'hyperparamètres par défaut pour l'optimisation
+def _build_grid_search_grid(config: PipelineConfig) -> dict[str, list[object]]:
+    """Retourne une grille raisonnable pour la recherche d'hyperparamètres."""
+
+    # Déclare un ensemble restreint de classifieurs pour limiter la complexité
+    classifier_grid = [
+        LinearDiscriminantAnalysis(),
+        LogisticRegression(max_iter=1000),
+        LinearSVC(),
+        CentroidClassifier(),
+    ]
+    # Déclare des scalers optionnels, dont passthrough pour désactiver
+    scaler_grid: list[object] = ["passthrough", StandardScaler(), RobustScaler()]
+    # Déclare une plage compacte de composantes pour PCA/SVD
+    n_components_grid: list[object] = [None, 2, 4, 8]
+    # Ajoute la valeur demandée explicitement pour garantir sa présence
+    if config.n_components is not None and config.n_components not in n_components_grid:
+        n_components_grid.append(config.n_components)
+    # Construit la grille finale en couvrant features + réduction + classif
+    return {
+        "features__feature_strategy": ["fft", "wavelet"],
+        "features__normalize": [True, False],
+        "dimensionality__method": ["pca", "svd"],
+        "dimensionality__n_components": n_components_grid,
+        "classifier": classifier_grid,
+        "scaler": scaler_grid,
+    }
+
+
+# Extrait les scores par split d'une GridSearchCV pour le meilleur modèle
+def _extract_grid_search_scores(search: GridSearchCV, n_splits: int) -> np.ndarray:
+    """Construit un tableau de scores à partir des résultats de grid search."""
+
+    # Récupère l'index du meilleur modèle sélectionné
+    best_index = int(search.best_index_)
+    # Construit la liste des scores par split pour l'entrée manifeste
+    split_scores = []
+    for split_index in range(n_splits):
+        # Compose la clé de split attendue dans cv_results_
+        key = f"split{split_index}_test_score"
+        # Récupère la colonne associée si disponible
+        column = search.cv_results_.get(key)
+        # Ignore les splits manquants si la CV est réduite
+        if column is None:
+            continue
+        split_scores.append(float(column[best_index]))
+    # Retourne un tableau numpy stable même si partiellement rempli
+    return np.array(split_scores, dtype=float)
+
+
 # Exécute la validation croisée et l'entraînement final
 def run_training(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
@@ -709,6 +795,8 @@ def run_training(request: TrainingRequest) -> dict:
     n_splits = min(requested_splits, min_class_count)
     # Initialise un tableau vide lorsque la validation croisée est impossible
     cv_scores = np.array([])
+    # Prépare un résumé de recherche d'hyperparamètres si besoin
+    search_summary: dict[str, object] | None = None
     # Vérifie si l'effectif autorise une validation croisée exploitable
     if n_splits < MIN_CV_SPLITS:
         # Signale la désactivation de la validation croisée par manque d'échantillons
@@ -716,15 +804,54 @@ def run_training(request: TrainingRequest) -> dict:
             "AVERTISSEMENT: effectif par classe insuffisant pour la "
             "validation croisée, cross-val ignorée"
         )
+        # Ajuste la pipeline sur toutes les données malgré l'absence de CV
+        pipeline.fit(X, y)
     else:
         # Configure une StratifiedKFold stable sur le nombre de splits calculé
         cv = StratifiedKFold(
             n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
         )
-        # Calcule les scores de validation croisée sur l'ensemble du pipeline
-        cv_scores = cross_val_score(pipeline, X, y, cv=cv)
-    # Ajuste la pipeline sur toutes les données après évaluation
-    pipeline.fit(X, y)
+        # Lance une recherche systématique des hyperparamètres si demandée
+        if request.enable_grid_search:
+            # Construit la pipeline dédiée au grid search
+            search_pipeline = build_search_pipeline(request.pipeline_config)
+            # Construit la grille d'hyperparamètres à explorer
+            param_grid = _build_grid_search_grid(request.pipeline_config)
+            # Détermine le nombre de splits spécifique si fourni
+            search_splits = request.grid_search_splits or n_splits
+            # S'assure que la recherche respecte les bornes disponibles
+            search_splits = min(search_splits, min_class_count)
+            search_splits = max(search_splits, MIN_CV_SPLITS)
+            # Prépare la CV pour la recherche avec splits contrôlés
+            search_cv = StratifiedKFold(
+                n_splits=search_splits,
+                shuffle=True,
+                random_state=DEFAULT_RANDOM_STATE,
+            )
+            # Instancie la recherche exhaustive pour maximiser l'accuracy
+            search = GridSearchCV(
+                search_pipeline,
+                param_grid,
+                cv=search_cv,
+                scoring="accuracy",
+                refit=True,
+            )
+            # Lance l'optimisation des hyperparamètres
+            search.fit(X, y)
+            # Extrait les scores par split pour l'entrée de manifeste
+            cv_scores = _extract_grid_search_scores(search, search_splits)
+            # Capture un résumé des meilleurs paramètres
+            search_summary = {
+                "best_params": search.best_params_,
+                "best_score": float(search.best_score_),
+            }
+            # Récupère l'estimateur entraîné sur tous les échantillons
+            pipeline = search.best_estimator_
+        else:
+            # Calcule les scores de validation croisée sur l'ensemble du pipeline
+            cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+            # Ajuste la pipeline sur toutes les données après évaluation
+            pipeline.fit(X, y)
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Assure l'existence du parent pour stabiliser la création du dossier cible
@@ -738,7 +865,7 @@ def run_training(request: TrainingRequest) -> dict:
     # Récupère l'éventuel scaler pour une sauvegarde dédiée
     scaler_step = pipeline.named_steps.get("scaler")
     # Sauvegarde le scaler uniquement s'il est présent dans la pipeline
-    if scaler_step is not None:
+    if scaler_step is not None and scaler_step != "passthrough":
         # Dépose le scaler dans un fichier distinct pour inspection
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
@@ -748,7 +875,7 @@ def run_training(request: TrainingRequest) -> dict:
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
-    if scaler_step is not None:
+    if scaler_step is not None and scaler_step != "passthrough":
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
         scaler_path = target_dir / "scaler.joblib"
     # Calcule le chemin du fichier W pour le référencer dans le manifeste
@@ -763,6 +890,7 @@ def run_training(request: TrainingRequest) -> dict:
             "scaler": scaler_path,
             "w_matrix": w_matrix_path,
         },
+        search_summary,
     )
     # Retourne un rapport synthétique pour les tests et la CLI
     return {
@@ -820,6 +948,8 @@ def main(argv: list[str] | None = None) -> int:
         data_dir=args.data_dir,
         artifacts_dir=args.artifacts_dir,
         raw_dir=args.raw_dir,
+        enable_grid_search=args.grid_search,
+        grid_search_splits=args.grid_search_splits,
     )
     # Exécute l'entraînement et la sauvegarde des artefacts
     # Sécurise l'exécution pour afficher une erreur lisible sans trace

@@ -28,6 +28,8 @@ def test_init_defaults_lock_api_contract() -> None:
     assert reducer.mean_ is None
     # Verrouille l'absence de valeurs propres avant l'apprentissage
     assert reducer.eigenvalues_ is None
+    # Verrouille l'absence de valeurs singulières avant l'apprentissage
+    assert reducer.singular_values_ is None
 
 
 def test_csp_returns_log_variances_and_orthogonality() -> None:
@@ -246,6 +248,34 @@ def test_pca_explained_variance_and_projection_shape() -> None:
     assert variance_ratio[1] > 0
 
 
+def test_svd_recovers_singular_values_and_projection_shape() -> None:
+    """SVD doit exposer les valeurs singulières et une projection orthonormée."""
+
+    # Prépare un générateur déterministe pour les données tabulaires
+    rng = np.random.default_rng(7)
+    # Construit une matrice d'observations avec corrélations fortes
+    observations = rng.standard_normal((80, 5))
+    # Introduit une corrélation pour rendre les singular values distinctes
+    observations[:, 0] = observations[:, 1] * 2.0 + 0.1
+    # Instancie le réducteur SVD avec coupe de composantes
+    reducer = TPVDimReducer(method="svd", n_components=3, regularization=1e-6)
+    # Apprend la projection SVD sur les observations
+    reducer.fit(observations)
+    # Transforme les observations pour vérifier la projection
+    transformed = reducer.transform(observations)
+    # Verrouille la forme des scores projetés
+    assert transformed.shape == (observations.shape[0], 3)
+    # Vérifie que la matrice W est orthonormée
+    assert reducer.w_matrix is not None
+    assert np.allclose(reducer.w_matrix.T @ reducer.w_matrix, np.eye(3), atol=1e-6)
+    # Vérifie que les valeurs singulières sont présentes et décroissantes
+    assert reducer.singular_values_ is not None
+    assert np.all(np.diff(reducer.singular_values_) <= 0)
+    # Vérifie que les valeurs propres dérivées restent positives
+    assert reducer.eigenvalues_ is not None
+    assert np.all(reducer.eigenvalues_ >= 0)
+
+
 def test_pca_regularization_stops_nan_on_duplicate_features() -> None:
     """La régularisation doit stabiliser une covariance singulière."""
 
@@ -392,6 +422,8 @@ def test_load_restores_expected_keys_from_payload(monkeypatch, tmp_path) -> None
     mean = np.array([0.5, -0.25])
     # Construit des valeurs propres explicites pour valider la clé "eig"
     eig = np.array([2.0, 1.0])
+    # Construit des valeurs singulières pour valider la restauration
+    singular_values = np.array([3.0, 1.0])
     # Fixe une méthode distincte de l'état initial pour détecter data.get(self.method)
     method = "pca"
     # Fixe un n_components distinct de l'état initial pour détecter data.get(self.n_components)
@@ -404,6 +436,7 @@ def test_load_restores_expected_keys_from_payload(monkeypatch, tmp_path) -> None
         "w_matrix": w_matrix,
         "mean": mean,
         "eig": eig,
+        "singular_values": singular_values,
         "method": method,
         "n_components": n_components,
         "regularization": regularization,
@@ -440,6 +473,9 @@ def test_load_restores_expected_keys_from_payload(monkeypatch, tmp_path) -> None
     # Verrouille la restauration de eig via la clé exacte "eig"
     assert restored.eigenvalues_ is not None
     assert np.allclose(restored.eigenvalues_, eig)
+    # Verrouille la restauration de singular_values via la clé exacte
+    assert restored.singular_values_ is not None
+    assert np.allclose(restored.singular_values_, singular_values)
     # Verrouille la restauration de method via la clé exacte "method"
     assert restored.method == method
     # Verrouille la restauration de n_components via la clé exacte "n_components"
@@ -527,6 +563,7 @@ def test_save_serializes_expected_payload_keys_and_values(
         "w_matrix",
         "mean",
         "eig",
+        "singular_values",
         "method",
         "n_components",
         "regularization",
@@ -560,7 +597,7 @@ def test_validation_guards_raise_errors_for_invalid_calls() -> None:
     # Instancie PCA avec une méthode incorrecte pour vérifier la validation
     invalid_method = TPVDimReducer(method="unknown")
     # Vérifie que la méthode inconnue est rejetée
-    with pytest.raises(ValueError, match=r"^method must be 'pca' or 'csp'$"):
+    with pytest.raises(ValueError, match=r"^method must be 'pca', 'csp', or 'svd'$"):
         invalid_method.fit(tabular)
     # Instancie PCA pour déclencher l'erreur de dimension attendue
     pca = TPVDimReducer(method="pca")
