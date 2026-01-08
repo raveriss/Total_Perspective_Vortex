@@ -149,6 +149,14 @@ def run_realtime_inference(
         buffer.append(raw_prediction)
         # Calcule la prédiction lissée en fonction des valeurs récentes
         smoothed = _smooth_prediction(buffer)
+        # Log la prédiction courante pour fournir un suivi temps réel explicite
+        print(
+            "realtime prediction "
+            f"window={index} offset={offset_seconds:.3f}s "
+            f"raw={raw_prediction} smoothed={smoothed} "
+            f"latency={latency:.3f}s",
+            flush=True,
+        )
         # Construit l'événement associé à la fenêtre courante
         events.append(
             RealtimeEvent(
