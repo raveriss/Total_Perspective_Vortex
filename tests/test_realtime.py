@@ -45,6 +45,12 @@ DEFAULT_BUFFER_SIZE = 3
 DEFAULT_MAX_LATENCY = 2.0
 # Fige la fréquence par défaut pour empêcher les valeurs magiques
 DEFAULT_SFREQ = 50.0
+# Fige le set de libellés par défaut pour la CLI
+DEFAULT_LABEL_SET = "t1-t2"
+# Fige l'étiquette par défaut pour la classe zéro
+DEFAULT_LABEL_ZERO = "T1"
+# Fige l'étiquette par défaut pour la classe un
+DEFAULT_LABEL_ONE = "T2"
 # Fige la fenêtre personnalisée pour documenter les attentes CLI
 CUSTOM_WINDOW_SIZE = 128
 # Fige le pas personnalisé pour documenter les attentes CLI
@@ -55,6 +61,12 @@ CUSTOM_BUFFER_SIZE = 5
 CUSTOM_MAX_LATENCY = 1.5
 # Fige la fréquence personnalisée pour documenter les attentes CLI
 CUSTOM_SFREQ = 250.0
+# Fige le set de libellés personnalisé pour la CLI
+CUSTOM_LABEL_SET = "left-right"
+# Fige l'étiquette personnalisée pour la classe zéro
+CUSTOM_LABEL_ZERO = "main gauche"
+# Fige l'étiquette personnalisée pour la classe un
+CUSTOM_LABEL_ONE = "main droite"
 
 # Fige une latence exacte pour couvrir le cas frontière du SLA
 EQUAL_LATENCY = 0.5
@@ -131,6 +143,32 @@ def test_realtime_build_parser_defines_cli_contract():
     assert actions["sfreq"].option_strings == ["--sfreq"]
     # Verrouille le texte d'aide pour éviter une rupture de contrat CLI
     assert actions["sfreq"].help == "Fréquence d'échantillonnage utilisée pour l'offset"
+    # Vérifie que le set de libellés est exposé par défaut
+    assert actions["label_set"].default == DEFAULT_LABEL_SET
+    # Vérifie que l'option --label-set est exposée par le parser
+    assert actions["label_set"].option_strings == ["--label-set"]
+    # Verrouille le texte d'aide pour le set de libellés
+    assert actions["label_set"].help == "Type de libellés à afficher (T1/T2, A/B, etc.)"
+    # Normalise la liste de choix pour éviter les None du type hints
+    label_set_choices = actions["label_set"].choices or []
+    # Vérifie que les choix proposés incluent le mapping t1-t2
+    assert "t1-t2" in label_set_choices
+    # Vérifie que les choix proposés incluent le mapping left-right
+    assert "left-right" in label_set_choices
+    # Vérifie que les choix proposés incluent le mapping fists-feet
+    assert "fists-feet" in label_set_choices
+    # Vérifie que l'étiquette zéro est paramétrable via la CLI
+    assert actions["label_zero"].default is None
+    # Vérifie que l'option --label-zero est exposée par le parser
+    assert actions["label_zero"].option_strings == ["--label-zero"]
+    # Verrouille le texte d'aide pour la classe zéro
+    assert actions["label_zero"].help == "Étiquette affichée pour la classe 0"
+    # Vérifie que l'étiquette un est paramétrable via la CLI
+    assert actions["label_one"].default is None
+    # Vérifie que l'option --label-one est exposée par le parser
+    assert actions["label_one"].option_strings == ["--label-one"]
+    # Verrouille le texte d'aide pour la classe un
+    assert actions["label_one"].help == "Étiquette affichée pour la classe 1"
 
 
 # Vérifie que le chargement des données retourne exactement les tableaux écrits
@@ -176,6 +214,8 @@ def test_realtime_parser_parses_custom_cli_values():
             "1.5",
             "--sfreq",
             "250.0",
+            "--label-set",
+            "left-right",
         ]
     )
     # Vérifie la conversion automatique en Path pour data_dir
@@ -192,6 +232,12 @@ def test_realtime_parser_parses_custom_cli_values():
     assert args.max_latency == CUSTOM_MAX_LATENCY
     # Vérifie la prise en compte de la fréquence d'échantillonnage personnalisée
     assert args.sfreq == CUSTOM_SFREQ
+    # Vérifie la prise en compte du set de libellés personnalisé
+    assert args.label_set == CUSTOM_LABEL_SET
+    # Vérifie que l'override est absent lorsque non fourni
+    assert args.label_zero is None
+    # Vérifie que l'override est absent lorsque non fourni
+    assert args.label_one is None
 
 
 # Vérifie que la matrice W sauvegardée est cohérente avec la pipeline
@@ -300,6 +346,8 @@ def test_realtime_latency_metrics():
             # Fige la latence max pour garantir le respect du SLA de 2 s
             max_latency=2.0,
             sfreq=50.0,
+            label_zero=DEFAULT_LABEL_ZERO,
+            label_one=DEFAULT_LABEL_ONE,
         ),
     )
     # Vérifie que chaque latence dépasse le délai simulé
@@ -327,6 +375,8 @@ def test_realtime_latency_threshold_enforced():
                 # Fige la latence maximale à la valeur autorisée
                 max_latency=MAX_ALLOWED_LATENCY,
                 sfreq=5.0,
+                label_zero=DEFAULT_LABEL_ZERO,
+                label_one=DEFAULT_LABEL_ONE,
             ),
         )
 
@@ -367,6 +417,8 @@ def test_realtime_latency_threshold_allows_equal_boundary_and_relative_start(
             # Fige le SLA pour couvrir le cas latency == max_latency
             max_latency=STRICT_MAX_LATENCY,
             sfreq=4.0,
+            label_zero=DEFAULT_LABEL_ZERO,
+            label_one=DEFAULT_LABEL_ONE,
         ),
     )
 
@@ -416,6 +468,8 @@ def test_realtime_timeout_error_includes_latency_message(monkeypatch):
                 # Fixe le SLA pour déclencher la branche d'erreur
                 max_latency=STRICT_MAX_LATENCY,
                 sfreq=4.0,
+                label_zero=DEFAULT_LABEL_ZERO,
+                label_one=DEFAULT_LABEL_ONE,
             ),
         )
 
@@ -446,6 +500,8 @@ def test_realtime_empty_stream_returns_zero_latencies():
             # Définit un SLA standard pour éviter des effets de bord
             max_latency=MAX_ALLOWED_LATENCY,
             sfreq=4.0,
+            label_zero=DEFAULT_LABEL_ZERO,
+            label_one=DEFAULT_LABEL_ONE,
         ),
     )
 
@@ -474,6 +530,8 @@ def test_realtime_time_ordering():
             # Définit la latence maximale pour sécuriser la boucle
             max_latency=2.0,
             sfreq=20.0,
+            label_zero=DEFAULT_LABEL_ZERO,
+            label_one=DEFAULT_LABEL_ONE,
         ),
     )
     # Extrait les offsets temporels pour vérifier la progression
@@ -515,6 +573,8 @@ def test_realtime_windowing_avoids_future_leakage():
             # Fige la latence maximale pour respecter le SLA
             max_latency=MAX_ALLOWED_LATENCY,
             sfreq=6.0,
+            label_zero=DEFAULT_LABEL_ZERO,
+            label_one=DEFAULT_LABEL_ONE,
         ),
     )
     # Décrit les fenêtres attendues pour exclure tout échantillon futur
@@ -550,6 +610,8 @@ def test_realtime_smoothed_predictions():
             # Définit la latence maximale attendue pour les prédictions
             max_latency=2.0,
             sfreq=10.0,
+            label_zero=DEFAULT_LABEL_ZERO,
+            label_one=DEFAULT_LABEL_ONE,
         ),
     )
     # Extrait les prédictions lissées pour les comparer à l'attendu
@@ -590,6 +652,65 @@ def test_smooth_prediction_counts_increment_by_one(monkeypatch):
     assert majority == 1
 
 
+# Vérifie que le libellé retourne les classes attendues pour l'UX
+def test_label_prediction_returns_configured_labels_and_fallback():
+    # Construit une configuration simple pour piloter le mapping des labels
+    config = RealtimeConfig(
+        # Fixe la taille de fenêtre pour le test de mapping
+        window_size=4,
+        # Fixe le pas de fenêtre pour un cas minimal
+        step_size=2,
+        # Fixe la taille du buffer pour respecter le constructeur
+        buffer_size=2,
+        # Fixe la latence maximale pour satisfaire le constructeur
+        max_latency=2.0,
+        # Fixe la fréquence d'échantillonnage pour le constructeur
+        sfreq=10.0,
+        # Fournit l'étiquette explicite pour la classe zéro
+        label_zero=DEFAULT_LABEL_ZERO,
+        # Fournit l'étiquette explicite pour la classe un
+        label_one=DEFAULT_LABEL_ONE,
+    )
+
+    # Vérifie le libellé explicite pour la classe zéro
+    assert realtime._label_prediction(0, config) == DEFAULT_LABEL_ZERO
+    # Vérifie le libellé explicite pour la classe un
+    assert realtime._label_prediction(1, config) == DEFAULT_LABEL_ONE
+    # Vérifie le libellé de repli pour une classe inconnue
+    assert realtime._label_prediction(2, config) == "classe 2"
+
+
+# Vérifie que les libellés sont résolus selon le set choisi
+def test_resolve_label_pair_uses_label_set_defaults_and_overrides():
+    # Résout les libellés par défaut pour le set left-right
+    left_zero, left_one = realtime._resolve_label_pair(
+        # Spécifie le set de libellés pour main gauche/droite
+        "left-right",
+        # Ne fournit pas d'override pour la classe zéro
+        None,
+        # Ne fournit pas d'override pour la classe un
+        None,
+    )
+    # Vérifie que la classe zéro suit le set choisi
+    assert left_zero == "main gauche"
+    # Vérifie que la classe un suit le set choisi
+    assert left_one == "main droite"
+
+    # Résout les libellés avec overrides explicites
+    override_zero, override_one = realtime._resolve_label_pair(
+        # Conserve le set t1-t2 pour établir un contexte
+        "t1-t2",
+        # Force l'override explicite pour la classe zéro
+        "main gauche",
+        # Force l'override explicite pour la classe un
+        "main droite",
+    )
+    # Vérifie que l'override écrase le set par défaut
+    assert override_zero == "main gauche"
+    # Vérifie que l'override écrase le set par défaut
+    assert override_one == "main droite"
+
+
 # Vérifie que la pipeline factice retourne une valeur de secours sans outputs
 def test_realtime_pipeline_default_prediction():
     # Instancie une pipeline avec une seule prédiction fournie
@@ -607,6 +728,8 @@ def test_realtime_pipeline_default_prediction():
             # Définit la latence maximale pour respecter le SLA
             max_latency=2.0,
             sfreq=10.0,
+            label_zero=DEFAULT_LABEL_ZERO,
+            label_one=DEFAULT_LABEL_ONE,
         ),
     )
 
@@ -663,6 +786,8 @@ def test_run_realtime_session_streams_saved_data(monkeypatch, tmp_path):
             # Définit la latence maximale pour sécuriser la simulation
             max_latency=2.0,
             sfreq=10.0,
+            label_zero=DEFAULT_LABEL_ZERO,
+            label_one=DEFAULT_LABEL_ONE,
         ),
     )
 
@@ -714,6 +839,8 @@ def test_realtime_main_invokes_session(monkeypatch, tmp_path):
             "2",
             "--sfreq",
             "25",
+            "--label-set",
+            "left-right",
         ]
     )
 
@@ -732,5 +859,9 @@ def test_realtime_main_invokes_session(monkeypatch, tmp_path):
             # Spécifie la latence maximale attendue pour chaque fenêtre
             max_latency=2.0,
             sfreq=25.0,
+            # Vérifie que le set left-right est résolu en labels explicites
+            label_zero=CUSTOM_LABEL_ZERO,
+            # Vérifie que le set left-right est résolu en labels explicites
+            label_one=CUSTOM_LABEL_ONE,
         ),
     }
