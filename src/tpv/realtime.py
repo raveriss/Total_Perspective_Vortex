@@ -48,6 +48,10 @@ class RealtimeConfig:
     max_latency: float
     # Fixe la fréquence d'échantillonnage pour les offsets
     sfreq: float
+    # Définit l'étiquette lisible associée à la classe zéro
+    label_zero: str
+    # Définit l'étiquette lisible associée à la classe un
+    label_one: str
 
 
 # Décrit un événement individuel produit par la boucle temps réel
@@ -113,6 +117,53 @@ def _smooth_prediction(buffer: Deque[int]) -> int:
     return majority
 
 
+# Retourne un libellé lisible pour une prédiction numérique
+def _label_prediction(value: int, config: RealtimeConfig) -> str:
+    """Convertit une classe numérique en libellé utilisateur."""
+
+    # Fournit l'étiquette configurée pour la classe zéro
+    if value == 0:
+        # Retourne la classe zéro lisible pour l'utilisateur
+        return config.label_zero
+    # Fournit l'étiquette configurée pour la classe un
+    if value == 1:
+        # Retourne la classe un lisible pour l'utilisateur
+        return config.label_one
+    # Retourne un libellé générique pour les classes inattendues
+    return f"classe {value}"
+
+
+# Centralise les jeux de libellés par type de tâche motrice
+DEFAULT_LABEL_SETS: dict[str, tuple[str, str]] = {
+    # Fournit le mapping explicite des événements T1/T2
+    "t1-t2": ("T1", "T2"),
+    # Fournit le mapping symbolique A/B utilisé dans le pipeline
+    "a-b": ("A", "B"),
+    # Fournit le mapping explicite pour main gauche/droite
+    "left-right": ("main gauche", "main droite"),
+    # Fournit le mapping explicite pour deux poings/deux pieds
+    "fists-feet": ("deux poings", "deux pieds"),
+}
+
+
+# Résout les libellés finaux en combinant le set et les overrides CLI
+def _resolve_label_pair(
+    label_set: str,
+    label_zero: str | None,
+    label_one: str | None,
+) -> tuple[str, str]:
+    """Retourne les libellés à utiliser pour les classes 0/1."""
+
+    # Sélectionne la paire par défaut pour le set demandé
+    default_zero, default_one = DEFAULT_LABEL_SETS[label_set]
+    # Priorise l'override explicite pour la classe zéro
+    resolved_zero = label_zero if label_zero is not None else default_zero
+    # Priorise l'override explicite pour la classe un
+    resolved_one = label_one if label_one is not None else default_one
+    # Retourne les libellés finaux prêts à être affichés
+    return resolved_zero, resolved_one
+
+
 # Applique la pipeline entraînée à un flux continu en mesurant la latence
 def run_realtime_inference(
     pipeline: PredictablePipeline,
@@ -149,14 +200,25 @@ def run_realtime_inference(
         buffer.append(raw_prediction)
         # Calcule la prédiction lissée en fonction des valeurs récentes
         smoothed = _smooth_prediction(buffer)
-        # Log la prédiction courante pour fournir un suivi temps réel explicite
-        print(
+        # Construit le libellé lisible pour la prédiction brute
+        raw_label = _label_prediction(raw_prediction, config)
+        # Construit le libellé lisible pour la prédiction lissée
+        smoothed_label = _label_prediction(smoothed, config)
+        # Construit le message complet pour la trace temps réel
+        message = (
+            # Ajoute l'en-tête constant pour identifier le mode
             "realtime prediction "
+            # Ajoute l'index et le décalage de la fenêtre courante
             f"window={index} offset={offset_seconds:.3f}s "
-            f"raw={raw_prediction} smoothed={smoothed} "
-            f"latency={latency:.3f}s",
-            flush=True,
+            # Ajoute le libellé utilisateur pour la prédiction brute
+            f"raw={raw_prediction} ({raw_label}) "
+            # Ajoute le libellé utilisateur pour la prédiction lissée
+            f"smoothed={smoothed} ({smoothed_label}) "
+            # Ajoute la latence mesurée pour la fenêtre courante
+            f"latency={latency:.3f}s"
         )
+        # Log la prédiction courante pour fournir un suivi temps réel explicite
+        print(message, flush=True)
         # Construit l'événement associé à la fenêtre courante
         events.append(
             RealtimeEvent(
@@ -243,6 +305,25 @@ def build_parser() -> argparse.ArgumentParser:
         default=50.0,
         help="Fréquence d'échantillonnage utilisée pour l'offset",
     )
+    # Ajoute une option pour choisir le set de libellés par tâche
+    parser.add_argument(
+        "--label-set",
+        choices=sorted(DEFAULT_LABEL_SETS.keys()),
+        default="t1-t2",
+        help="Type de libellés à afficher (T1/T2, A/B, etc.)",
+    )
+    # Ajoute une option pour nommer la classe zéro
+    parser.add_argument(
+        "--label-zero",
+        default=None,
+        help="Étiquette affichée pour la classe 0",
+    )
+    # Ajoute une option pour nommer la classe un
+    parser.add_argument(
+        "--label-one",
+        default=None,
+        help="Étiquette affichée pour la classe 1",
+    )
     # Retourne le parser configuré
     return parser
 
@@ -307,6 +388,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     # Parse les arguments fournis par l'utilisateur
     args = parser.parse_args(argv)
+    # Résout les libellés finaux avec les overrides CLI
+    # Résout les libellés finaux selon le set demandé
+    label_zero, label_one = _resolve_label_pair(
+        # Passe le set de libellés sélectionné via la CLI
+        args.label_set,
+        # Passe l'override explicite pour la classe zéro
+        args.label_zero,
+        # Passe l'override explicite pour la classe un
+        args.label_one,
+    )
     # Lance une session temps réel à partir des paramètres fournis
     _ = run_realtime_session(
         subject=args.subject,
@@ -319,6 +410,10 @@ def main(argv: list[str] | None = None) -> int:
             buffer_size=args.buffer_size,
             max_latency=args.max_latency,
             sfreq=args.sfreq,
+            # Renseigne l'étiquette utilisateur associée à la classe zéro
+            label_zero=label_zero,
+            # Renseigne l'étiquette utilisateur associée à la classe un
+            label_one=label_one,
         ),
     )
     # Retourne 0 pour signaler un succès CLI à mybci
