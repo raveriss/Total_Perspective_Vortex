@@ -43,6 +43,12 @@ REALTIME_SFREQ_DEFAULT = 50.0
 
 # Fixe la latence maximale par défaut pour le streaming realtime
 REALTIME_LATENCY_DEFAULT = 2.0
+# Fixe le set de libellés par défaut pour le streaming realtime
+REALTIME_LABEL_SET_DEFAULT = "t1-t2"
+# Fixe l'override de label zéro utilisé dans les tests realtime
+REALTIME_LABEL_ZERO_OVERRIDE = "main gauche"
+# Fixe l'override de label un utilisé dans les tests realtime
+REALTIME_LABEL_ONE_OVERRIDE = "main droite"
 
 
 # Vérifie que le rapport agrège correctement toutes les alertes attendues
@@ -255,6 +261,12 @@ def test_call_realtime_executes_python_module(monkeypatch):
             sfreq=42.0,
             data_dir="data",
             artifacts_dir="artifacts",
+            # Fixe un set explicite pour couvrir la propagation CLI
+            label_set=REALTIME_LABEL_SET_DEFAULT,
+            # Fixe l'override explicite pour la classe zéro
+            label_zero=REALTIME_LABEL_ZERO_OVERRIDE,
+            # Fixe l'override explicite pour la classe un
+            label_one=REALTIME_LABEL_ONE_OVERRIDE,
         )
     )
 
@@ -280,6 +292,12 @@ def test_call_realtime_executes_python_module(monkeypatch):
         "data",
         "--artifacts-dir",
         "artifacts",
+        "--label-set",
+        REALTIME_LABEL_SET_DEFAULT,
+        "--label-zero",
+        REALTIME_LABEL_ZERO_OVERRIDE,
+        "--label-one",
+        REALTIME_LABEL_ONE_OVERRIDE,
     ]
 
 
@@ -524,6 +542,12 @@ def test_build_parser_defines_realtime_defaults_and_help():
     latency_action = get_action("max_latency")
     # Récupère l'action de fréquence pour surveiller la valeur par défaut
     sfreq_action = get_action("sfreq")
+    # Récupère l'action label-set pour vérifier les choix disponibles
+    label_set_action = get_action("label_set")
+    # Récupère l'action label-zero pour valider l'override
+    label_zero_action = get_action("label_zero")
+    # Récupère l'action label-one pour valider l'override
+    label_one_action = get_action("label_one")
     # Récupère l'action data-dir pour bloquer les mutations de défaut
     data_dir_action = get_action("data_dir")
     # Récupère l'action artifacts-dir pour fixer le chemin par défaut
@@ -561,6 +585,20 @@ def test_build_parser_defines_realtime_defaults_and_help():
     assert sfreq_action.default == REALTIME_SFREQ_DEFAULT
     # Vérifie que l'aide de sfreq reste descriptive
     assert sfreq_action.help == "Fréquence d'échantillonnage appliquée au flux realtime"
+    # Vérifie que label-set expose le défaut attendu
+    assert label_set_action.default == REALTIME_LABEL_SET_DEFAULT
+    # Vérifie que label-set conserve les choix attendus
+    assert tuple(label_set_action.choices) == mybci.REALTIME_LABEL_SETS
+    # Vérifie que l'aide label-set reste explicite
+    assert label_set_action.help == "Set de libellés pour les classes realtime"
+    # Vérifie que label-zero ne fournit pas de valeur par défaut
+    assert label_zero_action.default is None
+    # Vérifie que l'aide label-zero reste explicite
+    assert label_zero_action.help == "Override du libellé pour la classe 0"
+    # Vérifie que label-one ne fournit pas de valeur par défaut
+    assert label_one_action.default is None
+    # Vérifie que l'aide label-one reste explicite
+    assert label_one_action.help == "Override du libellé pour la classe 1"
     # Vérifie que data-dir conserve le défaut attendu
     assert data_dir_action.default == "data"
     # Vérifie que l'aide de data-dir reste informative
@@ -779,6 +817,12 @@ def test_main_routes_to_realtime(monkeypatch):
             "1.5",
             "--sfreq",
             "64.0",
+            "--label-set",
+            "left-right",
+            "--label-zero",
+            "main gauche",
+            "--label-one",
+            "main droite",
             "--data-dir",
             "custom-data",
             "--artifacts-dir",
@@ -797,6 +841,9 @@ def test_main_routes_to_realtime(monkeypatch):
         sfreq=64.0,
         data_dir="custom-data",
         artifacts_dir="custom-artifacts",
+        label_set="left-right",
+        label_zero="main gauche",
+        label_one="main droite",
     )
 
 
