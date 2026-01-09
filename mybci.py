@@ -32,6 +32,9 @@ sys.path.append(str(Path(__file__).resolve().parent / "src"))
 # Fournit les fonctions de prédiction pour l'évaluation globale
 from tpv import predict as tpv_predict
 
+# Déclare les sets de libellés disponibles pour le mode realtime
+REALTIME_LABEL_SETS = ("t1-t2", "a-b", "left-right", "fists-feet")
+
 
 # Centralise les options nécessaires pour invoquer le mode realtime
 @dataclass
@@ -56,6 +59,12 @@ class RealtimeCallConfig:
     data_dir: str
     # Spécifie le répertoire racine où lire les artefacts entraînés
     artifacts_dir: str
+    # Spécifie le set de libellés attendu pour les prédictions realtime
+    label_set: str
+    # Spécifie un override explicite pour le label de la classe zéro
+    label_zero: str | None
+    # Spécifie un override explicite pour le label de la classe un
+    label_one: str | None
 
 
 # Centralise les options nécessaires pour invoquer un module TPV
@@ -549,6 +558,16 @@ def _call_realtime(config: RealtimeCallConfig) -> int:
     command.extend(["--data-dir", config.data_dir])
     # Ajoute le répertoire d'artefacts contenant le modèle entraîné
     command.extend(["--artifacts-dir", config.artifacts_dir])
+    # Ajoute le set de libellés pour aligner la sortie realtime
+    command.extend(["--label-set", config.label_set])
+    # Ajoute le label zéro explicite lorsqu'il est fourni
+    if config.label_zero is not None:
+        # Propulse l'override de label zéro vers le module realtime
+        command.extend(["--label-zero", config.label_zero])
+    # Ajoute le label un explicite lorsqu'il est fourni
+    if config.label_one is not None:
+        # Propulse l'override de label un vers le module realtime
+        command.extend(["--label-one", config.label_one])
     # Exécute la commande en capturant le code retour sans lever d'exception
     completed = subprocess.run(command, check=False)
     # Retourne le code retour pour propagation à l'appelant principal
@@ -676,6 +695,25 @@ def build_parser() -> argparse.ArgumentParser:
         default=2.0,
         help="Latence maximale autorisée par fenêtre realtime",
     )
+    # Ajoute le set de libellés prédéfinis pour le mode realtime
+    parser.add_argument(
+        "--label-set",
+        choices=REALTIME_LABEL_SETS,
+        default="t1-t2",
+        help="Set de libellés pour les classes realtime",
+    )
+    # Ajoute un override explicite pour la classe zéro
+    parser.add_argument(
+        "--label-zero",
+        default=None,
+        help="Override du libellé pour la classe 0",
+    )
+    # Ajoute un override explicite pour la classe un
+    parser.add_argument(
+        "--label-one",
+        default=None,
+        help="Override du libellé pour la classe 1",
+    )
     # Ajoute le répertoire de données nécessaire au streaming
     parser.add_argument(
         "--data-dir",
@@ -768,6 +806,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_latency=args.max_latency,
             data_dir=args.data_dir,
             artifacts_dir=args.artifacts_dir,
+            # Transmet le set de libellés choisi à la session realtime
+            label_set=args.label_set,
+            # Transmet l'override de label zéro lorsqu'il est défini
+            label_zero=args.label_zero,
+            # Transmet l'override de label un lorsqu'il est défini
+            label_one=args.label_one,
         )
         # Retourne le code retour du module realtime avec la configuration
         return _call_realtime(realtime_config)
