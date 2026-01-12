@@ -38,6 +38,145 @@ sys.path.append(str(Path(__file__).resolve().parent / "src"))
 # Déclare les sets de libellés disponibles pour le mode realtime
 REALTIME_LABEL_SETS = ("t1-t2", "a-b", "left-right", "fists-feet")
 
+# Regroupe les specs pour éviter les répétitions dans build_parser
+_ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
+    (
+        ("subject",),
+        {
+            "help": "Identifiant du sujet (ex: S001)",
+        },
+    ),
+    (
+        ("run",),
+        {
+            "help": "Identifiant du run (ex: R01)",
+        },
+    ),
+    (
+        ("mode",),
+        {
+            "choices": ("train", "predict", "realtime"),
+            "help": "Choix du pipeline à lancer",
+        },
+    ),
+    (
+        ("--classifier",),
+        {
+            "choices": ("lda", "logistic", "svm", "centroid"),
+            "default": "lda",
+            "help": "Choix du classifieur final",
+        },
+    ),
+    (
+        ("--scaler",),
+        {
+            "choices": ("standard", "robust", "none"),
+            "default": "none",
+            "help": "Scaler optionnel appliqué après les features",
+        },
+    ),
+    (
+        ("--feature-strategy",),
+        {
+            "choices": ("fft", "wavelet"),
+            "default": "fft",
+            "help": "Méthode d'extraction des features",
+        },
+    ),
+    (
+        ("--dim-method",),
+        {
+            "choices": ("pca", "csp", "svd"),
+            "default": "pca",
+            "help": "Technique de réduction de dimension",
+        },
+    ),
+    (
+        ("--n-components",),
+        {
+            "type": int,
+            "default": argparse.SUPPRESS,
+            "help": "Nombre de composantes à conserver",
+        },
+    ),
+    (
+        ("--no-normalize-features",),
+        {
+            "action": "store_true",
+            "help": "Désactive la normalisation des features",
+        },
+    ),
+    (
+        ("--window-size",),
+        {
+            "type": int,
+            "default": 50,
+            "help": "Taille de fenêtre glissante pour le mode realtime",
+        },
+    ),
+    (
+        ("--step-size",),
+        {
+            "type": int,
+            "default": 25,
+            "help": "Pas entre deux fenêtres en streaming realtime",
+        },
+    ),
+    (
+        ("--buffer-size",),
+        {
+            "type": int,
+            "default": 3,
+            "help": "Taille du buffer de lissage pour le mode realtime",
+        },
+    ),
+    (
+        ("--sfreq",),
+        {
+            "type": float,
+            "default": 50.0,
+            "help": "Fréquence d'échantillonnage appliquée au flux realtime",
+        },
+    ),
+    (
+        ("--max-latency",),
+        {
+            "type": float,
+            "default": 2.0,
+            "help": "Latence maximale autorisée par fenêtre realtime",
+        },
+    ),
+    (
+        ("--label-set",),
+        {
+            "choices": REALTIME_LABEL_SETS,
+            "default": "t1-t2",
+            "help": "Set de libellés pour les classes realtime",
+        },
+    ),
+    (
+        ("--data-dir",),
+        {
+            "default": "data",
+            "help": "Répertoire racine contenant les fichiers numpy",
+        },
+    ),
+    (
+        ("--artifacts-dir",),
+        {
+            "default": "artifacts",
+            "help": "Répertoire racine où récupérer le modèle entraîné",
+        },
+    ),
+    (
+        ("--raw-dir",),
+        {
+            "default": "data",
+            "help": "Répertoire racine contenant les fichiers EDF bruts",
+        },
+    ),
+)
+
 
 # Valide la présence d'une dépendance critique avant exécution
 def _require_dependency(module_name: str, install_hint: str) -> None:
@@ -644,145 +783,31 @@ def _print_epoch_predictions(
     print(f"Accuracy: {accuracy:.4f}")
 
 
+# Centralise le pattern add_argument pour appliquer une liste de specs
+def _add_argument_specs(parser: argparse.ArgumentParser) -> None:
+    """Ajoute les arguments déclarés dans _ARGUMENT_SPECS au parser."""
+    for flags, kwargs in _ARGUMENT_SPECS:
+        parser.add_argument(*flags, **kwargs)
+
+# Regroupe les overrides similaires pour réduire la duplication
+def _add_label_overrides(parser: argparse.ArgumentParser) -> None:
+    """Ajoute les overrides de labels pour les classes realtime."""
+    for flag, idx in (("--label-zero", 0), ("--label-one", 1)):
+        parser.add_argument(
+            flag,
+            default=None,
+            help=f"Override du libellé pour la classe {idx}",
+        )
+
 # Construit le parser CLI avec toutes les options du pipeline
 def build_parser() -> argparse.ArgumentParser:
     """Construit l'argument parser pour mybci."""
-
-    # Instancie le parser avec description et usage explicite
     parser = argparse.ArgumentParser(
         description="Pilote un workflow d'entraînement ou de prédiction TPV",
         usage="python mybci.py <subject> <run> {train,predict,realtime}",
     )
-    # Ajoute l'identifiant du sujet pour cibler les données
-    parser.add_argument(
-        "subject",
-        help="Identifiant du sujet (ex: S001)"
-    )
-    # Ajoute l'identifiant du run pour cibler la session
-    parser.add_argument(
-        "run",
-        help="Identifiant du run (ex: R01)"
-    )
-    # Ajoute le mode pour distinguer entraînement et prédiction
-    parser.add_argument(
-        "mode",
-        choices=("train", "predict", "realtime"),
-        help="Choix du pipeline à lancer",
-    )
-    # Ajoute le choix du classifieur pour composer le pipeline
-    parser.add_argument(
-        "--classifier",
-        choices=("lda", "logistic", "svm", "centroid"),
-        default="lda",
-        help="Choix du classifieur final",
-    )
-    # Ajoute le scaler optionnel pour stabiliser les features
-    parser.add_argument(
-        "--scaler",
-        choices=("standard", "robust", "none"),
-        default="none",
-        help="Scaler optionnel appliqué après les features",
-    )
-    # Ajoute la stratégie d'extraction de features pour harmoniser train/predict
-    parser.add_argument(
-        "--feature-strategy",
-        choices=("fft", "wavelet"),
-        default="fft",
-        help="Méthode d'extraction des features",
-    )
-    # Ajoute la méthode de réduction de dimension pour ajuster la compression
-    parser.add_argument(
-        "--dim-method",
-        choices=("pca", "csp", "svd"),
-        default="pca",
-        help="Technique de réduction de dimension",
-    )
-    # Ajoute le nombre de composantes pour contrôler la taille projetée
-    parser.add_argument(
-        "--n-components",
-        type=int,
-        default=argparse.SUPPRESS,
-        help="Nombre de composantes à conserver",
-    )
-    # Ajoute un flag pour désactiver la normalisation des features
-    parser.add_argument(
-        "--no-normalize-features",
-        action="store_true",
-        help="Désactive la normalisation des features",
-    )
-    # Ajoute la taille de fenêtre pour la lecture streaming en realtime
-    parser.add_argument(
-        "--window-size",
-        type=int,
-        default=50,
-        help="Taille de fenêtre glissante pour le mode realtime",
-    )
-    # Ajoute le pas entre deux fenêtres successives
-    parser.add_argument(
-        "--step-size",
-        type=int,
-        default=25,
-        help="Pas entre deux fenêtres en streaming realtime",
-    )
-    # Ajoute la taille du buffer pour lisser les prédictions instantanées
-    parser.add_argument(
-        "--buffer-size",
-        type=int,
-        default=3,
-        help="Taille du buffer de lissage pour le mode realtime",
-    )
-    # Ajoute la fréquence d'échantillonnage utilisée pour les offsets
-    parser.add_argument(
-        "--sfreq",
-        type=float,
-        default=50.0,
-        help="Fréquence d'échantillonnage appliquée au flux realtime",
-    )
-    # Ajoute la latence maximale tolérée pour surveiller la boucle
-    parser.add_argument(
-        "--max-latency",
-        type=float,
-        default=2.0,
-        help="Latence maximale autorisée par fenêtre realtime",
-    )
-    # Ajoute le set de libellés prédéfinis pour le mode realtime
-    parser.add_argument(
-        "--label-set",
-        choices=REALTIME_LABEL_SETS,
-        default="t1-t2",
-        help="Set de libellés pour les classes realtime",
-    )
-    # Ajoute un override explicite pour la classe zéro
-    parser.add_argument(
-        "--label-zero",
-        default=None,
-        help="Override du libellé pour la classe 0",
-    )
-    # Ajoute un override explicite pour la classe un
-    parser.add_argument(
-        "--label-one",
-        default=None,
-        help="Override du libellé pour la classe 1",
-    )
-    # Ajoute le répertoire de données nécessaire au streaming
-    parser.add_argument(
-        "--data-dir",
-        default="data",
-        help="Répertoire racine contenant les fichiers numpy",
-    )
-    # Ajoute le répertoire d'artefacts où lire le modèle entraîné
-    parser.add_argument(
-        "--artifacts-dir",
-        default="artifacts",
-        help="Répertoire racine où récupérer le modèle entraîné",
-    )
-    # Ajoute le répertoire racine des fichiers EDF bruts
-    parser.add_argument(
-        "--raw-dir",
-        default="data",
-        help="Répertoire racine contenant les fichiers EDF bruts",
-    )
-    # Retourne le parser configuré
+    _add_argument_specs(parser)
+    _add_label_overrides(parser)
     return parser
 
 
