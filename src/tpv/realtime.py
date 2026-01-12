@@ -3,6 +3,9 @@
 # Centralise argparse pour exposer un parser CLI dédié
 import argparse
 
+# Fournit sys pour écrire les erreurs CLI sur stderr
+import sys
+
 # Mesure précisément le temps d'exécution pour les métriques de latence
 import time
 
@@ -465,24 +468,32 @@ def main(argv: list[str] | None = None) -> int:
         # Passe l'override explicite pour la classe un
         args.label_one,
     )
-    # Lance une session temps réel à partir des paramètres fournis
-    _ = run_realtime_session(
-        subject=args.subject,
-        run=args.run,
-        data_dir=args.data_dir,
-        artifacts_dir=args.artifacts_dir,
-        config=RealtimeConfig(
-            window_size=args.window_size,
-            step_size=args.step_size,
-            buffer_size=args.buffer_size,
-            max_latency=args.max_latency,
-            sfreq=args.sfreq,
-            # Renseigne l'étiquette utilisateur associée à la classe zéro
-            label_zero=label_zero,
-            # Renseigne l'étiquette utilisateur associée à la classe un
-            label_one=label_one,
-        ),
-    )
+    # Encadre l'exécution pour éviter un traceback non actionnable
+    try:
+        # Lance une session temps réel à partir des paramètres fournis
+        _ = run_realtime_session(
+            subject=args.subject,
+            run=args.run,
+            data_dir=args.data_dir,
+            artifacts_dir=args.artifacts_dir,
+            config=RealtimeConfig(
+                window_size=args.window_size,
+                step_size=args.step_size,
+                buffer_size=args.buffer_size,
+                max_latency=args.max_latency,
+                sfreq=args.sfreq,
+                # Renseigne l'étiquette utilisateur associée à la classe zéro
+                label_zero=label_zero,
+                # Renseigne l'étiquette utilisateur associée à la classe un
+                label_one=label_one,
+            ),
+        )
+    # Intercepte les artefacts manquants pour un message clair
+    except FileNotFoundError as exc:
+        # Écrit le message d'erreur sans afficher le traceback
+        print(str(exc), file=sys.stderr)
+        # Retourne un code d'erreur non nul pour le CLI
+        return 2
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
 

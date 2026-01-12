@@ -931,3 +931,27 @@ def test_realtime_main_invokes_session(monkeypatch, tmp_path):
             label_one=CUSTOM_LABEL_ONE,
         ),
     }
+
+
+# Vérifie que le main realtime renvoie un message sans traceback
+def test_realtime_main_reports_missing_artifacts(monkeypatch, capsys):
+    # Conserve un message d'erreur stable pour la sortie CLI
+    error_message = "ERROR[TPV-RT-001]: artefacts manquants"
+
+    # Simule une absence d'artefacts en forçant une erreur dédiée
+    def raise_missing(subject, run, data_dir, artifacts_dir, config):
+        # Propage un FileNotFoundError avec un message clair
+        raise FileNotFoundError(error_message)
+
+    # Injecte la fonction simulée pour déclencher l'erreur contrôlée
+    monkeypatch.setattr(realtime, "run_realtime_session", raise_missing)
+
+    # Exécute le main avec des paramètres minimaux
+    exit_code = realtime.main(["S01", "R01"])
+    # Capture les sorties standard et erreur de la CLI
+    captured = capsys.readouterr()
+
+    # Vérifie que le code de sortie signale une erreur utilisateur
+    assert exit_code == 2
+    # Vérifie que le message est envoyé sur stderr
+    assert error_message in captured.err
