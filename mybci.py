@@ -5,6 +5,12 @@
 # Préserve argparse pour parser les options CLI avec validation
 import argparse
 
+# Préserve importlib pour charger des modules sans import direct
+import importlib
+
+# Préserve importlib pour détecter des dépendances installées
+import importlib.util
+
 # Préserve subprocess pour lancer les modules en sous-processus isolés
 import subprocess
 
@@ -29,11 +35,45 @@ from tqdm import tqdm
 # Assure l'accès à tpv via src lors d'une exécution locale
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
 
-# Fournit les fonctions de prédiction pour l'évaluation globale
-from tpv import predict as tpv_predict
-
 # Déclare les sets de libellés disponibles pour le mode realtime
 REALTIME_LABEL_SETS = ("t1-t2", "a-b", "left-right", "fists-feet")
+
+
+# Valide la présence d'une dépendance critique avant exécution
+def _require_dependency(module_name: str, install_hint: str) -> None:
+    """Interrompt l'exécution si une dépendance Python manque."""
+
+    # Interroge l'environnement pour vérifier la disponibilité du module
+    if importlib.util.find_spec(module_name) is None:
+        # Prépare l'entête du message d'erreur utilisateur
+        message = f"ERROR: dépendance Python manquante: {module_name}."
+        # Ajoute la consigne d'installation pour rendre l'action explicite
+        message = f"{message} {install_hint}"
+        # Interrompt avec un message actionnable pour l'utilisateur
+        raise SystemExit(message)
+
+
+# Centralise le message d'installation pour les dépendances ML
+def _ensure_ml_dependencies() -> None:
+    """Vérifie les dépendances nécessaires au ML temps réel."""
+
+    # Prépare un rappel d'installation cohérent avec Poetry
+    hint = "Installez via `poetry install --with dev` (ou `poetry install`)."
+    # Vérifie la présence de scikit-learn avant les imports ML
+    _require_dependency("sklearn", hint)
+
+
+# Importe tpv.predict uniquement quand il est nécessaire
+def _load_predict_module():
+    """Charge le module predict après validation des dépendances."""
+
+    # Vérifie que les dépendances ML sont disponibles
+    _ensure_ml_dependencies()
+    # Charge le module predict au dernier moment pour éviter les crashes
+    tpv_predict = importlib.import_module("tpv.predict")
+
+    # Retourne le module chargé pour l'appelant
+    return tpv_predict
 
 
 # Centralise les options nécessaires pour invoquer le mode realtime
@@ -203,6 +243,8 @@ def _evaluate_experiment_subject(
 
     # Construit l'identifiant complet du sujet pour les chemins disque
     subject = _subject_identifier(subject_index)
+    # Charge le module predict seulement au moment de l'évaluation
+    tpv_predict = _load_predict_module()
     # Exécute evaluate_run sur le run associé à l'expérience
     result = tpv_predict.evaluate_run(
         subject,
@@ -467,6 +509,8 @@ def _run_global_evaluation(
 ) -> int:
     """Exécute la boucle d'évaluation globale décrite dans le sujet."""
 
+    # Vérifie les dépendances ML avant l'évaluation globale
+    _ensure_ml_dependencies()
     # Utilise les expériences par défaut si aucune liste n'est fournie
     experiment_definitions = list(experiments or _build_default_experiments())
     # Normalise les chemins racine de données pour les appels descendants
@@ -758,6 +802,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_global_evaluation()
     # Parse les arguments fournis par l'utilisateur
     args = parse_args(provided_args)
+    # Vérifie les dépendances ML pour les modes qui en ont besoin
+    if args.mode in {"train", "predict", "realtime"}:
+        # Interrompt avec un message actionnable si scikit-learn manque
+        _ensure_ml_dependencies()
     # Interprète le choix du scaler pour convertir "none" en None
     scaler = None if args.scaler == "none" else args.scaler
     # Applique la normalisation en inversant le flag d'opt-out
@@ -821,6 +869,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     artifacts_dir = Path(args.artifacts_dir)
     raw_dir = Path(args.raw_dir)
 
+    # Charge le module predict pour l'évaluation directe
+    tpv_predict = _load_predict_module()
     # Évalue le run en récupérant prédictions et vérité terrain
     try:
         # Lance l'évaluation en rechargeant la pipeline entraînée

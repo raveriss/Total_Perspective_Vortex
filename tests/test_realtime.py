@@ -191,6 +191,28 @@ def test_load_data_reads_numpy_files(tmp_path):
     assert np.array_equal(loaded_labels, labels)
 
 
+# Vérifie que le chargement signale clairement les fichiers manquants
+def test_load_data_raises_with_missing_files(tmp_path):
+    # Définit un chemin de features inexistant pour le scénario d'erreur
+    features_path = tmp_path / "features.npy"
+    # Définit un chemin de labels inexistant pour le scénario d'erreur
+    labels_path = tmp_path / "labels.npy"
+    # Capture l'exception attendue pour inspecter le message utilisateur
+    with pytest.raises(FileNotFoundError) as exc_info:
+        # Appelle le loader avec des chemins absents pour déclencher l'erreur
+        realtime._load_data(features_path, labels_path)
+    # Convertit l'exception en texte pour vérifier le contenu UX
+    message = str(exc_info.value)
+    # Vérifie que le message signale l'absence de fichiers numpy
+    assert "fichiers numpy introuvables" in message
+    # Vérifie que le chemin des features est indiqué dans le message
+    assert str(features_path) in message
+    # Vérifie que le chemin des labels est indiqué dans le message
+    assert str(labels_path) in message
+    # Vérifie que la commande de train suggérée est explicitement mentionnée
+    assert "python mybci.py" in message
+
+
 # Vérifie que le parser interprète correctement des arguments explicites
 def test_realtime_parser_parses_custom_cli_values():
     # Construit le parser pour interpréter des valeurs non par défaut
