@@ -203,14 +203,58 @@ def test_load_data_raises_with_missing_files(tmp_path):
         realtime._load_data(features_path, labels_path)
     # Convertit l'exception en texte pour vérifier le contenu UX
     message = str(exc_info.value)
-    # Vérifie que le message signale l'absence de fichiers numpy
-    assert "fichiers numpy introuvables" in message
+    # Vérifie que le code d'erreur couvre l'absence totale de fichiers
+    assert "ERROR[TPV-RT-001]" in message
+    # Vérifie que le message signale l'absence de fichiers numpy attendus
+    assert "fichiers features et labels manquants" in message
     # Vérifie que le chemin des features est indiqué dans le message
     assert str(features_path) in message
     # Vérifie que le chemin des labels est indiqué dans le message
     assert str(labels_path) in message
     # Vérifie que la commande de train suggérée est explicitement mentionnée
     assert "python mybci.py" in message
+    # Vérifie que l'action data-dir est proposée pour un chemin alternatif
+    assert "--data-dir" in message
+
+
+# Vérifie que le chargement signale un code dédié aux features manquants
+def test_load_data_raises_with_missing_features_only(tmp_path):
+    # Définit un chemin de features inexistant pour le scénario d'erreur
+    features_path = tmp_path / "features.npy"
+    # Définit un chemin de labels existant pour isoler le cas features manquants
+    labels_path = tmp_path / "labels.npy"
+    # Sauvegarde un tableau de labels pour déclencher l'erreur ciblée
+    np.save(labels_path, np.array([0, 1]))
+    # Capture l'exception attendue pour inspecter le message utilisateur
+    with pytest.raises(FileNotFoundError) as exc_info:
+        # Appelle le loader avec un seul fichier manquant pour l'erreur
+        realtime._load_data(features_path, labels_path)
+    # Convertit l'exception en texte pour vérifier le contenu UX
+    message = str(exc_info.value)
+    # Vérifie que le code d'erreur cible l'absence de features
+    assert "ERROR[TPV-RT-002]" in message
+    # Vérifie que le message mentionne explicitement les features manquants
+    assert "fichiers features manquants" in message
+
+
+# Vérifie que le chargement signale un code dédié aux labels manquants
+def test_load_data_raises_with_missing_labels_only(tmp_path):
+    # Définit un chemin de features existant pour isoler le cas labels manquants
+    features_path = tmp_path / "features.npy"
+    # Définit un chemin de labels inexistant pour le scénario d'erreur
+    labels_path = tmp_path / "labels.npy"
+    # Sauvegarde un tableau de features pour déclencher l'erreur ciblée
+    np.save(features_path, np.array([[1, 2], [3, 4]]))
+    # Capture l'exception attendue pour inspecter le message utilisateur
+    with pytest.raises(FileNotFoundError) as exc_info:
+        # Appelle le loader avec un seul fichier manquant pour l'erreur
+        realtime._load_data(features_path, labels_path)
+    # Convertit l'exception en texte pour vérifier le contenu UX
+    message = str(exc_info.value)
+    # Vérifie que le code d'erreur cible l'absence de labels
+    assert "ERROR[TPV-RT-003]" in message
+    # Vérifie que le message mentionne explicitement les labels manquants
+    assert "fichiers labels manquants" in message
 
 
 # Vérifie que le parser interprète correctement des arguments explicites

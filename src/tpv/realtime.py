@@ -342,30 +342,77 @@ def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, P
     return features_path, labels_path
 
 
+# Sélectionne un code d'erreur stable selon les fichiers absents
+def _resolve_missing_files_code(features_missing: bool, labels_missing: bool) -> str:
+    """Retourne un code d'erreur UX pour fichiers manquants."""
+
+    # Retourne un code dédié lorsque les deux fichiers sont absents
+    if features_missing and labels_missing:
+        # Fournit un identifiant unique pour l'absence complète
+        return "TPV-RT-001"
+    # Retourne un code dédié lorsqu'il manque uniquement les features
+    if features_missing:
+        # Fournit un identifiant unique pour l'absence de features
+        return "TPV-RT-002"
+    # Retourne un code dédié lorsqu'il manque uniquement les labels
+    return "TPV-RT-003"
+
+
 # Charge les matrices numpy attendues pour simuler un flux
 def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.ndarray]:
     """Charge les données et étiquettes depuis des fichiers numpy."""
 
+    # Détermine si les features sont absents pour piloter le code d'erreur
+    features_missing = not features_path.exists()
+    # Détermine si les labels sont absents pour piloter le code d'erreur
+    labels_missing = not labels_path.exists()
     # Prépare une liste des chemins manquants pour un message utilisateur clair
     missing_paths = []
-    # Valide l'existence des features avant lecture disque
-    if not features_path.exists():
+    # Ajoute les features manquants à la liste de diagnostic
+    if features_missing:
         # Trace le fichier manquant pour guider le diagnostic utilisateur
         missing_paths.append(str(features_path))
-    # Valide l'existence des labels avant lecture disque
-    if not labels_path.exists():
+    # Ajoute les labels manquants à la liste de diagnostic
+    if labels_missing:
         # Trace le fichier manquant pour guider le diagnostic utilisateur
         missing_paths.append(str(labels_path))
     # Interrompt l'exécution si les fichiers attendus sont absents
     if missing_paths:
+        # Déduit un code d'erreur stable pour aider le support utilisateur
+        error_code = _resolve_missing_files_code(features_missing, labels_missing)
+        # Décrit le type de fichier manquant pour un message précis
+        if features_missing and labels_missing:
+            # Précise que les features et labels manquent simultanément
+            missing_label = "features et labels"
+        # Décrit le cas où seules les features sont absentes
+        elif features_missing:
+            # Précise que les features manquent sans ambiguïté
+            missing_label = "features"
+        # Décrit le cas où seuls les labels sont absents
+        else:
+            # Précise que les labels manquent sans ambiguïté
+            missing_label = "labels"
         # Construit un libellé unique pour la liste des fichiers manquants
         missing_list = ", ".join(missing_paths)
-        # Indique la commande de train requise pour générer les artefacts
-        raise FileNotFoundError(
-            "ERROR: fichiers numpy introuvables pour la session temps réel: "
-            f"{missing_list}. Lancez d'abord `python mybci.py <Sxxx> <Rxx> train` "
-            "pour générer les artefacts."
+        # Cible le répertoire racine des données pour guider la vérification
+        data_root = features_path.parent.parent
+        # Construit un message UX actionnable pour corriger l'erreur
+        message = (
+            # Pose l'entête UX avec code d'erreur et contexte
+            f"ERROR[{error_code}]: fichiers {missing_label} manquants pour la "
+            # Ajoute une coupure pour rendre la lecture plus claire
+            "session temps réel.\n"
+            # Liste explicitement les fichiers attendus pour l'utilisateur
+            f"- Attendus: {missing_list}\n"
+            # Indique la commande de train requise pour générer les artefacts
+            "- Action 1: Lancez `python mybci.py <Sxxx> <Rxx> train`.\n"
+            # Invite à vérifier le répertoire de données cible
+            f"- Action 2: Vérifiez le dossier {data_root}.\n"
+            # Rappelle l'option de surcharge pour un autre emplacement
+            "- Action 3: Utilisez --data-dir si vos données sont ailleurs."
         )
+        # Lève une erreur explicite pour interrompre le flux temps réel
+        raise FileNotFoundError(message)
     # Utilise numpy.load pour récupérer les features en mémoire
     X = np.load(features_path)
     # Utilise numpy.load pour récupérer les labels associés
