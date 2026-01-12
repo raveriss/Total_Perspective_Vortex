@@ -206,7 +206,7 @@ def test_load_data_raises_with_missing_files(tmp_path):
     # Vérifie que le code d'erreur couvre l'absence totale de fichiers
     assert "ERROR[TPV-RT-001]" in message
     # Vérifie que le message signale l'absence de fichiers numpy attendus
-    assert "fichiers features et labels manquants" in message
+    assert "Fichiers features et labels manquants" in message
     # Vérifie que le chemin des features est indiqué dans le message
     assert str(features_path) in message
     # Vérifie que le chemin des labels est indiqué dans le message
@@ -234,7 +234,7 @@ def test_load_data_raises_with_missing_features_only(tmp_path):
     # Vérifie que le code d'erreur cible l'absence de features
     assert "ERROR[TPV-RT-002]" in message
     # Vérifie que le message mentionne explicitement les features manquants
-    assert "fichiers features manquants" in message
+    assert "Fichiers features manquants" in message
 
 
 # Vérifie que le chargement signale un code dédié aux labels manquants

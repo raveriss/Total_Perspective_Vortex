@@ -347,18 +347,19 @@ def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, P
 
 # Sélectionne un code d'erreur stable selon les fichiers absents
 def _resolve_missing_files_code(features_missing: bool, labels_missing: bool) -> str:
-    """Retourne un code d'erreur UX pour fichiers manquants."""
+    """Retourne un code d'erreur UX explicite pour fichiers manquants."""
 
-    # Retourne un code dédié lorsque les deux fichiers sont absents
+    # Distingue l'absence complète des entrées nécessaires au realtime
     if features_missing and labels_missing:
-        # Fournit un identifiant unique pour l'absence complète
-        return "TPV-RT-001"
-    # Retourne un code dédié lorsqu'il manque uniquement les features
+        # Rend le diagnostic immédiat sans table de correspondance
+        return "MISSING-FEATURES-AND-LABELS"
+    # Signale un échec lié uniquement aux features
     if features_missing:
-        # Fournit un identifiant unique pour l'absence de features
-        return "TPV-RT-002"
-    # Retourne un code dédié lorsqu'il manque uniquement les labels
-    return "TPV-RT-003"
+        # Oriente l'utilisateur vers la génération des features
+        return "MISSING-FEATURES"
+    # Signale un échec lié uniquement aux labels
+    return "MISSING-LABELS"
+
 
 
 # Charge les matrices numpy attendues pour simuler un flux
@@ -402,7 +403,7 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
         # Construit un message UX actionnable pour corriger l'erreur
         message = (
             # Pose l'entête UX avec code d'erreur et contexte
-            f"ERROR[{error_code}]: fichiers {missing_label} manquants pour la "
+            f"ERROR[{error_code}]: Fichiers {missing_label} manquants pour la "
             # Ajoute une coupure pour rendre la lecture plus claire
             "session temps réel.\n"
             # Liste explicitement les fichiers attendus pour l'utilisateur

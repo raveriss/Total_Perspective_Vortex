@@ -143,7 +143,7 @@ mut: ensure-venv clean-mutants cov
 # ----------------------------------------------------------------------------------------
 
 TRAIN_SUBJECT ?= S001
-TRAIN_RUN ?= R03
+TRAIN_RUN ?= R05
 TRAIN_ALL ?= true
 PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
 PREDICT_RUN ?= $(TRAIN_RUN)
