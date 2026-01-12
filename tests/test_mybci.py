@@ -51,6 +51,22 @@ REALTIME_LABEL_ZERO_OVERRIDE = "main gauche"
 REALTIME_LABEL_ONE_OVERRIDE = "main droite"
 
 
+# Vérifie que l'absence de scikit-learn produit un message actionnable
+def test_require_dependency_reports_missing_sklearn(monkeypatch):
+    # Simule l'absence de scikit-learn dans l'environnement courant
+    monkeypatch.setattr(mybci.importlib.util, "find_spec", lambda _: None)
+    # Capture l'exception SystemExit pour inspecter le message utilisateur
+    with pytest.raises(SystemExit) as exc_info:
+        # Lance la vérification des dépendances ML
+        mybci._ensure_ml_dependencies()
+    # Convertit l'exception en chaîne pour analyser le message
+    message = str(exc_info.value)
+    # Vérifie que le module manquant est clairement cité
+    assert "sklearn" in message
+    # Vérifie que la commande d'installation Poetry est suggérée
+    assert "poetry install" in message
+
+
 # Vérifie que le rapport agrège correctement toutes les alertes attendues
 def test_report_missing_artifacts_summarizes_all_alerts(capsys):
     # Rassemble douze couples manquants pour tester le découpage à dix éléments
