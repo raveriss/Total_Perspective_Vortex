@@ -654,9 +654,15 @@ def build_parser() -> argparse.ArgumentParser:
         usage="python mybci.py <subject> <run> {train,predict,realtime}",
     )
     # Ajoute l'identifiant du sujet pour cibler les données
-    parser.add_argument("subject", help="Identifiant du sujet (ex: S001)")
+    parser.add_argument(
+        "subject",
+        help="Identifiant du sujet (ex: S001)"
+    )
     # Ajoute l'identifiant du run pour cibler la session
-    parser.add_argument("run", help="Identifiant du run (ex: R01)")
+    parser.add_argument(
+        "run",
+        help="Identifiant du run (ex: R01)"
+    )
     # Ajoute le mode pour distinguer entraînement et prédiction
     parser.add_argument(
         "mode",
