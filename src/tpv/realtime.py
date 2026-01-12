@@ -346,6 +346,26 @@ def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, P
 def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.ndarray]:
     """Charge les données et étiquettes depuis des fichiers numpy."""
 
+    # Prépare une liste des chemins manquants pour un message utilisateur clair
+    missing_paths = []
+    # Valide l'existence des features avant lecture disque
+    if not features_path.exists():
+        # Trace le fichier manquant pour guider le diagnostic utilisateur
+        missing_paths.append(str(features_path))
+    # Valide l'existence des labels avant lecture disque
+    if not labels_path.exists():
+        # Trace le fichier manquant pour guider le diagnostic utilisateur
+        missing_paths.append(str(labels_path))
+    # Interrompt l'exécution si les fichiers attendus sont absents
+    if missing_paths:
+        # Construit un libellé unique pour la liste des fichiers manquants
+        missing_list = ", ".join(missing_paths)
+        # Indique la commande de train requise pour générer les artefacts
+        raise FileNotFoundError(
+            "ERROR: fichiers numpy introuvables pour la session temps réel: "
+            f"{missing_list}. Lancez d'abord `python mybci.py <Sxxx> <Rxx> train` "
+            "pour générer les artefacts."
+        )
     # Utilise numpy.load pour récupérer les features en mémoire
     X = np.load(features_path)
     # Utilise numpy.load pour récupérer les labels associés
