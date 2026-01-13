@@ -163,9 +163,6 @@ bench: ensure-venv
 
 # Affiche la commande pour activer le venv
 activate:
-	@echo "Chemin de l'environnement Poetry :"
-	@poetry env info -p
-	@echo
 	@echo "Pour activer manuellement cet environnement :"
 	@echo "  source $$(poetry env info -p)/bin/activate"
 
