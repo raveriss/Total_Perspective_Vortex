@@ -789,6 +789,7 @@ def _add_argument_specs(parser: argparse.ArgumentParser) -> None:
     for flags, kwargs in _ARGUMENT_SPECS:
         parser.add_argument(*flags, **kwargs)
 
+
 # Regroupe les overrides similaires pour réduire la duplication
 def _add_label_overrides(parser: argparse.ArgumentParser) -> None:
     """Ajoute les overrides de labels pour les classes realtime."""
@@ -798,6 +799,7 @@ def _add_label_overrides(parser: argparse.ArgumentParser) -> None:
             default=None,
             help=f"Override du libellé pour la classe {idx}",
         )
+
 
 # Construit le parser CLI avec toutes les options du pipeline
 def build_parser() -> argparse.ArgumentParser:

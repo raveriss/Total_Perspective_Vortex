@@ -385,10 +385,32 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
     filtered = _mock_filter(raw)
     # Prépare des métadonnées minimales pour le titre fallback
     metadata = {"subject": "S01", "run": "R02"}
+    # Fixe la bande de fréquence pour alimenter le titre automatique
+    freq_band = (8.0, 40.0)
+    # Prépare une configuration minimale pour le plot
+    config = viz.VisualizationConfig(
+        channels=None,
+        output_dir=tmp_path,
+        filter_method="fir",
+        freq_band=freq_band,
+        pad_duration=0.5,
+        title=None,
+    )
+    # Prépare une configuration minimale pour le plot
+    config = viz.VisualizationConfig(
+        channels=None,
+        output_dir=tmp_path,
+        filter_method="fir",
+        freq_band=freq_band,
+        pad_duration=0.5,
+        title=None,
+    )
     # Cible un chemin dont le parent n'existe pas pour tester parents=True
     output_path = tmp_path / "nested" / "deep" / "fig.png"
     # Capture les arguments de subplots et les appels faits aux axes
     seen: dict[str, object] = {}
+    # Prépare la région attendue pour C3/C4
+    expected_regions = ["Central"]
 
     # Définit un axe enregistreur pour verrouiller les appels plot/labels
     class _Axis:
@@ -406,6 +428,12 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
             self.title_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
             # Capture les appels set_xlabel pour tuer None / texte altéré
             self.xlabel_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+            # Capture les appels fill_between pour verrouiller l'enveloppe
+            self.fill_between_calls: list[
+                tuple[tuple[object, ...], dict[str, object]]
+            ] = []
+            # Capture les appels grid pour verrouiller la grille légère
+            self.grid_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
         # Enregistre le tracé pour valider times, data et label
         def plot(self, *args: object, **kwargs: object) -> list[object]:
@@ -433,6 +461,16 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
             # Stocke args/kwargs pour vérifier le texte exact
             self.xlabel_calls.append((args, dict(kwargs)))
 
+        # Enregistre l'enveloppe pour valider mean ± std
+        def fill_between(self, *args: object, **kwargs: object) -> None:
+            # Stocke args/kwargs pour vérifier la bande d'écart-type
+            self.fill_between_calls.append((args, dict(kwargs)))
+
+        # Enregistre les grilles pour valider l'intensité visuelle
+        def grid(self, *args: object, **kwargs: object) -> None:
+            # Stocke args/kwargs pour valider les paramètres de grille
+            self.grid_calls.append((args, dict(kwargs)))
+
     # Définit une figure minimaliste pour capturer suptitle/savefig
     class _Fig:
         # Initialise le conteneur d'arguments suptitle
@@ -446,6 +484,8 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
             self.legend_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
             # Capture le chemin de sauvegarde pour tuer savefig mal routé
             self.savefig_path: object | None = None
+            # Capture les appels text pour verrouiller le sous-titre
+            self.text_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
         # Capture le titre global pour vérification
         def suptitle(self, value: object) -> None:
@@ -461,6 +501,11 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
 
         def legend(self, *args: object, **kwargs: object) -> None:
             self.legend_calls.append((args, dict(kwargs)))
+
+        # Capture les textes libres pour vérifier le sous-titre
+        def text(self, *args: object, **kwargs: object) -> None:
+            # Stocke args/kwargs pour vérifier le contenu ajouté
+            self.text_calls.append((args, dict(kwargs)))
 
         # Simule l'écriture de la figure pour valider le chemin
         def savefig(self, path: Path) -> None:
@@ -516,7 +561,7 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
         raw=raw,
         filtered=filtered,
         output_path=output_path,
-        title=None,
+        config=config,
         metadata=metadata,
     )
 
@@ -529,26 +574,43 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
     # Verrouille la création du sidecar JSON
     assert output_path.with_suffix(".json").exists()
 
-    # Verrouille subplots(2, 1, sharex=True, figsize=(10, 6))
-    assert seen["args"] == (2, 1)
+    # Verrouille subplots(1, 2, sharex=True, sharey="row", figsize=...)
+    assert seen["args"] == (1, 2)
     assert cast(dict[str, object], seen["kwargs"])["sharex"] is True
-    assert cast(dict[str, object], seen["kwargs"])["figsize"] == (10, 6)
+    assert cast(dict[str, object], seen["kwargs"])["sharey"] == "row"
+    assert cast(dict[str, object], seen["kwargs"])["figsize"] == (
+        viz.FIGURE_WIDTH,
+        viz.FIGURE_ROW_HEIGHT,
+    )
 
-    # Verrouille le titre fallback (title=None) basé sur metadata
+    # Verrouille le titre fallback (title=None) basé sur la bande de fréquence
     fig_used = cast(_Fig, seen["fig"])
-    assert fig_used.suptitle_value == "S01 R02 raw vs filtered"
+    assert fig_used.suptitle_value == "EEG – Comparaison brut vs filtré (8-40 Hz)"
+
+    # Verrouille l'ajout du sous-titre sujet/run
+    assert len(fig_used.text_calls) == 1
+    text_args, text_kwargs = fig_used.text_calls[0]
+    assert text_args == (
+        0.5,
+        0.94,
+        "Sujet S01 • Run R02 • 2 canaux",
+    )
+    assert text_kwargs["ha"] == "center"
+    assert text_kwargs["fontsize"] == "small"
 
     # Verrouille l'application de tight_layout pour éviter les figures tassées
     assert fig_used.tight_layout_called is True
-    assert fig_used.tight_layout_kwargs["rect"] == (0.0, 0.0, 0.83, 0.95)
+    assert fig_used.tight_layout_kwargs["rect"] == (0.0, 0.0, 1.0, 0.86)
 
+    # Verrouille la légende compacte par région
     assert len(fig_used.legend_calls) == 1
     _, legend_kwargs = fig_used.legend_calls[0]
-    assert legend_kwargs["labels"] == list(raw.ch_names)
-    assert legend_kwargs["loc"] == "center left"
-    assert legend_kwargs["bbox_to_anchor"] == (0.84, 0.5)
+    assert legend_kwargs["labels"] == expected_regions
+    assert legend_kwargs["loc"] == "upper center"
+    assert legend_kwargs["bbox_to_anchor"] == (0.5, 0.985)
     assert legend_kwargs["ncol"] == 1
     assert legend_kwargs["fontsize"] == "small"
+    assert legend_kwargs["frameon"] is False
     # Verrouille le chemin passé à savefig pour tuer les redirections
     assert fig_used.savefig_path == output_path
     # Verrouille la fermeture de la figure pour tuer le bypass close
@@ -563,9 +625,17 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
     expected_raw_data = raw.get_data()
     expected_filtered_data = filtered.get_data()
 
-    # Verrouille les appels plot bruts: (times, y[idx]) + label=channel
-    assert len(raw_axis.plot_calls) == len(raw.ch_names)
-    for idx, channel in enumerate(raw.ch_names):
+    # Calcule la moyenne et l'écart-type attendus pour C3/C4
+    expected_raw_mean = expected_raw_data.mean(axis=0)
+    expected_raw_std = expected_raw_data.std(axis=0)
+    expected_filtered_mean = expected_filtered_data.mean(axis=0)
+    expected_filtered_std = expected_filtered_data.std(axis=0)
+    # Capture la couleur attendue pour la région centrale
+    expected_color = viz.REGION_COLORS["Central"]
+
+    # Verrouille les appels plot bruts: deux canaux + moyenne
+    assert len(raw_axis.plot_calls) == 3
+    for idx in range(2):
         plot_args, plot_kwargs = raw_axis.plot_calls[idx]
         assert len(plot_args) == 2
         assert np.array_equal(np.asarray(plot_args[0]), np.asarray(expected_times))
@@ -573,27 +643,35 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
             np.asarray(plot_args[1]),
             np.asarray(expected_raw_data[idx]),
         )
-        assert plot_kwargs == {"label": channel}
+        assert plot_kwargs == {
+            "color": expected_color,
+            "alpha": 0.2,
+            "linewidth": 0.6,
+        }
 
-    # Verrouille l'absence de légende sur l'axe brut
-    assert raw_axis.legend_calls == []
+    # Verrouille le tracé de moyenne brute
+    mean_args, mean_kwargs = raw_axis.plot_calls[2]
+    assert np.array_equal(np.asarray(mean_args[0]), np.asarray(expected_times))
+    assert np.array_equal(np.asarray(mean_args[1]), np.asarray(expected_raw_mean))
+    assert mean_kwargs == {"color": expected_color, "linewidth": 1.6}
 
-    # Verrouille le label Y brut pour tuer None / texte altéré
-    assert len(raw_axis.ylabel_calls) == 1
-    raw_ylabel_args, _ = raw_axis.ylabel_calls[0]
-    assert raw_ylabel_args == ("Amplitude (a.u.)",)
+    # Verrouille l'enveloppe brute mean ± std
+    assert len(raw_axis.fill_between_calls) == 1
+    fill_args, fill_kwargs = raw_axis.fill_between_calls[0]
+    assert np.array_equal(np.asarray(fill_args[0]), np.asarray(expected_times))
+    assert np.array_equal(
+        np.asarray(fill_args[1]),
+        np.asarray(expected_raw_mean - expected_raw_std),
+    )
+    assert np.array_equal(
+        np.asarray(fill_args[2]),
+        np.asarray(expected_raw_mean + expected_raw_std),
+    )
+    assert fill_kwargs == {"color": expected_color, "alpha": 0.2}
 
-    # Verrouille le titre brut pour tuer None / texte altéré
-    assert len(raw_axis.title_calls) == 1
-    raw_title_args, _ = raw_axis.title_calls[0]
-    assert raw_title_args == ("Signal brut",)
-
-    # Verrouille l'absence de label X sur l'axe brut
-    assert raw_axis.xlabel_calls == []
-
-    # Verrouille les appels plot filtrés: (times, y[idx]) + label=channel
-    assert len(filtered_axis.plot_calls) == len(filtered.ch_names)
-    for idx, channel in enumerate(filtered.ch_names):
+    # Verrouille les appels plot filtrés: deux canaux + moyenne
+    assert len(filtered_axis.plot_calls) == 3
+    for idx in range(2):
         plot_args, plot_kwargs = filtered_axis.plot_calls[idx]
         assert len(plot_args) == 2
         assert np.array_equal(np.asarray(plot_args[0]), np.asarray(expected_times))
@@ -601,25 +679,82 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
             np.asarray(plot_args[1]),
             np.asarray(expected_filtered_data[idx]),
         )
-        assert plot_kwargs == {"label": channel}
+        assert plot_kwargs == {
+            "color": expected_color,
+            "alpha": 0.2,
+            "linewidth": 0.6,
+        }
 
-    # Verrouille l'absence de légende sur l'axe filtré
+    # Verrouille le tracé de moyenne filtrée
+    mean_args, mean_kwargs = filtered_axis.plot_calls[2]
+    assert np.array_equal(np.asarray(mean_args[0]), np.asarray(expected_times))
+    assert np.array_equal(
+        np.asarray(mean_args[1]),
+        np.asarray(expected_filtered_mean),
+    )
+    assert mean_kwargs == {"color": expected_color, "linewidth": 1.6}
+
+    # Verrouille l'enveloppe filtrée mean ± std
+    assert len(filtered_axis.fill_between_calls) == 1
+    fill_args, fill_kwargs = filtered_axis.fill_between_calls[0]
+    assert np.array_equal(np.asarray(fill_args[0]), np.asarray(expected_times))
+    assert np.array_equal(
+        np.asarray(fill_args[1]),
+        np.asarray(expected_filtered_mean - expected_filtered_std),
+    )
+    assert np.array_equal(
+        np.asarray(fill_args[2]),
+        np.asarray(expected_filtered_mean + expected_filtered_std),
+    )
+    assert fill_kwargs == {"color": expected_color, "alpha": 0.2}
+
+    # Verrouille l'absence de légende sur les axes
+    assert raw_axis.legend_calls == []
     assert filtered_axis.legend_calls == []
+
+    # Verrouille le label Y brut pour tuer None / texte altéré
+    assert len(raw_axis.ylabel_calls) == 1
+    raw_ylabel_args, _ = raw_axis.ylabel_calls[0]
+    assert raw_ylabel_args == ("Amplitude (a.u.)",)
 
     # Verrouille le label Y filtré pour tuer None / texte altéré
     assert len(filtered_axis.ylabel_calls) == 1
     filt_ylabel_args, _ = filtered_axis.ylabel_calls[0]
     assert filt_ylabel_args == ("Amplitude filtrée (a.u.)",)
 
-    # Verrouille le label X filtré pour tuer None / texte altéré
-    assert len(filtered_axis.xlabel_calls) == 1
-    filt_xlabel_args, _ = filtered_axis.xlabel_calls[0]
-    assert filt_xlabel_args == ("Temps (s)",)
+    # Verrouille le titre brut pour tuer None / texte altéré
+    assert len(raw_axis.title_calls) == 1
+    raw_title_args, _ = raw_axis.title_calls[0]
+    assert raw_title_args == ("Brut — Central",)
 
     # Verrouille le titre filtré pour tuer None / texte altéré
     assert len(filtered_axis.title_calls) == 1
     filt_title_args, _ = filtered_axis.title_calls[0]
-    assert filt_title_args == ("Signal filtré 8-40 Hz",)
+    assert filt_title_args == ("Filtré 8-40 Hz — Central",)
+
+    # Verrouille le label X sur la dernière ligne
+    assert len(raw_axis.xlabel_calls) == 1
+    raw_xlabel_args, _ = raw_axis.xlabel_calls[0]
+    assert raw_xlabel_args == ("Temps (s)",)
+    assert len(filtered_axis.xlabel_calls) == 1
+    filt_xlabel_args, _ = filtered_axis.xlabel_calls[0]
+    assert filt_xlabel_args == ("Temps (s)",)
+
+    # Verrouille la grille légère sur les deux axes
+    assert len(raw_axis.grid_calls) == 1
+    assert raw_axis.grid_calls[0][1] == {
+        "axis": "y",
+        "alpha": 0.15,
+        "linestyle": "--",
+        "linewidth": 0.6,
+    }
+    assert len(filtered_axis.grid_calls) == 1
+    assert filtered_axis.grid_calls[0][1] == {
+        "axis": "y",
+        "alpha": 0.15,
+        "linestyle": "--",
+        "linewidth": 0.6,
+    }
 
     # Verrouille l'usage explicite de encoding="utf-8" (tue mutmut_82/84/96)
     sidecar_kwargs = cast(dict[str, object], seen["sidecar_kwargs"])
@@ -643,6 +778,17 @@ def test_plot_raw_vs_filtered_allows_existing_output_dir(
     filtered = _mock_filter(raw)
     # Prépare des métadonnées minimales pour le fallback de titre
     metadata = {"subject": "S01", "run": "R02"}
+    # Fixe la bande de fréquence pour alimenter le titre automatique
+    freq_band = (8.0, 40.0)
+    # Prépare une configuration minimale pour le plot
+    config = viz.VisualizationConfig(
+        channels=None,
+        output_dir=tmp_path,
+        filter_method="fir",
+        freq_band=freq_band,
+        pad_duration=0.5,
+        title=None,
+    )
 
     # Cible un chemin dont le parent existera déjà avant l'appel
     output_path = tmp_path / "already_there" / "fig.png"
@@ -656,6 +802,16 @@ def test_plot_raw_vs_filtered_allows_existing_output_dir(
         # Ignore les tracés pour isoler mkdir() et savefig()
         def plot(self, *_: object, **__: object) -> list[object]:
             return [object()]
+
+        # Ignore fill_between pour isoler mkdir() et savefig()
+        def fill_between(self, *_: object, **__: object) -> None:
+            # No-op : test centré sur la création de dossier
+            return None
+
+        # Ignore la grille pour isoler mkdir() et savefig()
+        def grid(self, *_: object, **__: object) -> None:
+            # No-op : test centré sur la création de dossier
+            return None
 
         # Ignore la légende pour isoler mkdir() et savefig()
         def legend(self, *_: object, **__: object) -> None:
@@ -687,6 +843,11 @@ def test_plot_raw_vs_filtered_allows_existing_output_dir(
             # No-op : test centré sur la création de dossier
             return None
 
+        # Ignore text pour isoler mkdir() et savefig()
+        def text(self, *_: object, **__: object) -> None:
+            # No-op : test centré sur la création de dossier
+            return None
+
         # Ignore tight_layout pour isoler mkdir() et savefig()
         def tight_layout(self, *_: object, **__: object) -> None:
             # No-op : test centré sur la création de dossier
@@ -712,7 +873,7 @@ def test_plot_raw_vs_filtered_allows_existing_output_dir(
         raw=raw,
         filtered=filtered,
         output_path=output_path,
-        title=None,
+        config=config,
         metadata=metadata,
     )
 
@@ -904,7 +1065,7 @@ def test_visualize_run_smoke(  # noqa: PLR0915
         input_raw: mne.io.Raw,
         input_filtered: mne.io.Raw,
         output_path: Path,
-        title: str | None,
+        config: viz.VisualizationConfig,
         plot_metadata: dict,
     ) -> Path:
         # Verrouille raw pour tuer plot_raw_vs_filtered(None, ...)
@@ -921,7 +1082,9 @@ def test_visualize_run_smoke(  # noqa: PLR0915
         # Verrouille le chemin de sortie construit depuis config + sujet/run
         assert output_path == expected_output_path
         # Verrouille le titre forwardé depuis config
-        assert title == "Smoke Test"
+        assert config.title == "Smoke Test"
+        # Verrouille la bande de fréquence forwardée depuis config
+        assert config.freq_band == (8.0, 40.0)
         # Verrouille les métadonnées forwardées depuis load_recording
         assert plot_metadata == metadata
         # Crée le répertoire parent pour simuler l'écriture réelle
