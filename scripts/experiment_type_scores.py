@@ -21,11 +21,11 @@ from statistics import mean
 # Garantit l'accès aux types pour clarifier les signatures
 from typing import Callable, Iterable, TypedDict
 
-# Réutilise la CLI d'entraînement pour générer les artefacts manquants
-from scripts.train import TrainingRequest, run_training
-
 # Réutilise l'évaluation d'un run pour obtenir l'accuracy
 from scripts.predict import evaluate_run
+
+# Réutilise la CLI d'entraînement pour générer les artefacts manquants
+from scripts.train import TrainingRequest, run_training
 
 # Réutilise la configuration de pipeline partagée avec train.py
 from tpv.pipeline import PipelineConfig
