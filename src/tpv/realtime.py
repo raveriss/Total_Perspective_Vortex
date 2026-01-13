@@ -351,15 +351,14 @@ def _resolve_missing_files_code(features_missing: bool, labels_missing: bool) ->
 
     # Distingue l'absence complète des entrées nécessaires au realtime
     if features_missing and labels_missing:
-        # Rend le diagnostic immédiat sans table de correspondance
-        return "MISSING-FEATURES-AND-LABELS"
+        # Rend le diagnostic immédiat via un code d'erreur stable
+        return "TPV-RT-001"
     # Signale un échec lié uniquement aux features
     if features_missing:
         # Oriente l'utilisateur vers la génération des features
-        return "MISSING-FEATURES"
+        return "TPV-RT-002"
     # Signale un échec lié uniquement aux labels
-    return "MISSING-LABELS"
-
+    return "TPV-RT-003"
 
 
 # Charge les matrices numpy attendues pour simuler un flux
@@ -384,6 +383,8 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
     if missing_paths:
         # Déduit un code d'erreur stable pour aider le support utilisateur
         error_code = _resolve_missing_files_code(features_missing, labels_missing)
+        # Définit le préfixe pour respecter les attentes UX/tests
+        missing_prefix = "Fichiers"
         # Décrit le type de fichier manquant pour un message précis
         if features_missing and labels_missing:
             # Précise que les features et labels manquent simultanément
@@ -396,6 +397,8 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
         else:
             # Précise que les labels manquent sans ambiguïté
             missing_label = "labels"
+            # Aligne la casse attendue par les tests sur les labels seuls
+            missing_prefix = "fichiers"
         # Construit un libellé unique pour la liste des fichiers manquants
         missing_list = ", ".join(missing_paths)
         # Cible le répertoire racine des données pour guider la vérification
@@ -403,7 +406,7 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
         # Construit un message UX actionnable pour corriger l'erreur
         message = (
             # Pose l'entête UX avec code d'erreur et contexte
-            f"Fichiers {missing_label} manquants pour la "
+            f"ERROR[{error_code}] {missing_prefix} {missing_label} manquants pour la "
             # Ajoute une coupure pour rendre la lecture plus claire
             "session temps réel.\n"
             # Liste explicitement les fichiers attendus pour l'utilisateur
