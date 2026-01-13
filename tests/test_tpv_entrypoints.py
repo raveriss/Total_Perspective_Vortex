@@ -3,11 +3,10 @@
 # Préserve pytest pour les assertions et monkeypatch
 import pytest
 
-# Importe le module train pour vérifier la délégation
-from tpv import train as tpv_train
-
 # Importe le module predict pour vérifier la délégation
+# Importe le module train pour vérifier la délégation
 from tpv import predict as tpv_predict
+from tpv import train as tpv_train
 
 
 # Vérifie que tpv.train.main délègue au script CLI
