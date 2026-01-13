@@ -403,7 +403,7 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
         # Construit un message UX actionnable pour corriger l'erreur
         message = (
             # Pose l'entête UX avec code d'erreur et contexte
-            f"ERROR[{error_code}]: Fichiers {missing_label} manquants pour la "
+            f"Fichiers {missing_label} manquants pour la "
             # Ajoute une coupure pour rendre la lecture plus claire
             "session temps réel.\n"
             # Liste explicitement les fichiers attendus pour l'utilisateur
