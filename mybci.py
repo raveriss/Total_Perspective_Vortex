@@ -35,9 +35,6 @@ from tqdm import tqdm
 # Assure l'accès à tpv via src lors d'une exécution locale
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
 
-# Déclare les sets de libellés disponibles pour le mode realtime
-REALTIME_LABEL_SETS = ("t1-t2", "a-b", "left-right", "fists-feet")
-
 # Regroupe les specs pour éviter les répétitions dans build_parser
 _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
     (
@@ -55,124 +52,8 @@ _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
     (
         ("mode",),
         {
-            "choices": ("train", "predict", "realtime"),
+            "choices": ("train", "predict"),
             "help": "Choix du pipeline à lancer",
-        },
-    ),
-    (
-        ("--classifier",),
-        {
-            "choices": ("lda", "logistic", "svm", "centroid"),
-            "default": "lda",
-            "help": "Choix du classifieur final",
-        },
-    ),
-    (
-        ("--scaler",),
-        {
-            "choices": ("standard", "robust", "none"),
-            "default": "none",
-            "help": "Scaler optionnel appliqué après les features",
-        },
-    ),
-    (
-        ("--feature-strategy",),
-        {
-            "choices": ("fft", "wavelet"),
-            "default": "fft",
-            "help": "Méthode d'extraction des features",
-        },
-    ),
-    (
-        ("--dim-method",),
-        {
-            "choices": ("pca", "csp", "svd"),
-            "default": "pca",
-            "help": "Technique de réduction de dimension",
-        },
-    ),
-    (
-        ("--n-components",),
-        {
-            "type": int,
-            "default": argparse.SUPPRESS,
-            "help": "Nombre de composantes à conserver",
-        },
-    ),
-    (
-        ("--no-normalize-features",),
-        {
-            "action": "store_true",
-            "help": "Désactive la normalisation des features",
-        },
-    ),
-    (
-        ("--window-size",),
-        {
-            "type": int,
-            "default": 50,
-            "help": "Taille de fenêtre glissante pour le mode realtime",
-        },
-    ),
-    (
-        ("--step-size",),
-        {
-            "type": int,
-            "default": 25,
-            "help": "Pas entre deux fenêtres en streaming realtime",
-        },
-    ),
-    (
-        ("--buffer-size",),
-        {
-            "type": int,
-            "default": 3,
-            "help": "Taille du buffer de lissage pour le mode realtime",
-        },
-    ),
-    (
-        ("--sfreq",),
-        {
-            "type": float,
-            "default": 50.0,
-            "help": "Fréquence d'échantillonnage appliquée au flux realtime",
-        },
-    ),
-    (
-        ("--max-latency",),
-        {
-            "type": float,
-            "default": 2.0,
-            "help": "Latence maximale autorisée par fenêtre realtime",
-        },
-    ),
-    (
-        ("--label-set",),
-        {
-            "choices": REALTIME_LABEL_SETS,
-            "default": "t1-t2",
-            "help": "Set de libellés pour les classes realtime",
-        },
-    ),
-    (
-        ("--data-dir",),
-        {
-            "default": "data",
-            "help": "Répertoire racine contenant les fichiers numpy",
-        },
-    ),
-    (
-        ("--artifacts-dir",),
-        {
-            "default": "artifacts",
-            "help": "Répertoire racine où récupérer le modèle entraîné",
-        },
-    ),
-    (
-        ("--raw-dir",),
-        {
-            "default": "data",
-            "help": "Répertoire racine contenant les fichiers EDF bruts",
         },
     ),
 )
@@ -215,37 +96,6 @@ def _load_predict_module():
     return tpv_predict
 
 
-# Centralise les options nécessaires pour invoquer le mode realtime
-@dataclass
-class RealtimeCallConfig:
-    """Conteneur des paramètres transmis au module realtime."""
-
-    # Identifie le sujet cible pour cibler les artefacts du modèle
-    subject: str
-    # Identifie le run cible pour sélectionner la session
-    run: str
-    # Fixe la taille de fenêtre glissante en échantillons
-    window_size: int
-    # Fixe le pas entre deux fenêtres successives
-    step_size: int
-    # Fixe la taille du buffer utilisé pour lisser les prédictions
-    buffer_size: int
-    # Renseigne la fréquence d'échantillonnage pour calculer les offsets
-    sfreq: float
-    # Spécifie la latence maximale autorisée pour chaque fenêtre
-    max_latency: float
-    # Spécifie le répertoire contenant les fichiers numpy streamés
-    data_dir: str
-    # Spécifie le répertoire racine où lire les artefacts entraînés
-    artifacts_dir: str
-    # Spécifie le set de libellés attendu pour les prédictions realtime
-    label_set: str
-    # Spécifie un override explicite pour le label de la classe zéro
-    label_zero: str | None
-    # Spécifie un override explicite pour le label de la classe un
-    label_one: str | None
-
-
 # Centralise les options nécessaires pour invoquer un module TPV
 @dataclass
 class ModuleCallConfig:
@@ -255,18 +105,6 @@ class ModuleCallConfig:
     subject: str
     # Identifie le run cible pour charger la bonne session
     run: str
-    # Sélectionne le classifieur pour harmoniser train et predict
-    classifier: str
-    # Sélectionne le scaler optionnel pour stabiliser les features
-    scaler: str | None
-    # Harmonise la stratégie d'extraction des features
-    feature_strategy: str
-    # Choisit la méthode de réduction de dimension
-    dim_method: str
-    # Spécifie le nombre de composantes projetées
-    n_components: int | None
-    # Indique si les features doivent être normalisées
-    normalize_features: bool
 
 
 # Centralise les répertoires nécessaires pendant l'évaluation globale
@@ -294,24 +132,6 @@ def _call_module(module_name: str, config: ModuleCallConfig) -> int:
         config.subject,
         config.run,
     ]
-    # Ajoute le classifieur choisi pour transmettre la préférence utilisateur
-    command.extend(["--classifier", config.classifier])
-    # Ajoute la stratégie de scaler uniquement lorsqu'elle est définie
-    if config.scaler is not None:
-        # Propulse le scaler choisi vers le module appelé
-        command.extend(["--scaler", config.scaler])
-    # Ajoute la stratégie de features pour harmoniser train et predict
-    command.extend(["--feature-strategy", config.feature_strategy])
-    # Ajoute la méthode de réduction de dimension pour la cohérence
-    command.extend(["--dim-method", config.dim_method])
-    # Ajoute le nombre de composantes si fourni pour contrôler la compression
-    if config.n_components is not None:
-        # Passe n_components sous forme de chaîne pour argparse descendant
-        command.extend(["--n-components", str(config.n_components)])
-    # Ajoute un indicateur pour désactiver la normalisation si demandé
-    if not config.normalize_features:
-        # Utilise un flag booléen pour inverser la valeur par défaut
-        command.append("--no-normalize-features")
     # Exécute la commande en capturant le code retour sans lever d'exception
     completed = subprocess.run(command, check=False)
     # Retourne le code retour pour propagation à l'appelant principal
@@ -715,48 +535,6 @@ def _run_global_evaluation(
     return 0
 
 
-# Construit la ligne de commande pour invoquer le mode realtime
-def _call_realtime(config: RealtimeCallConfig) -> int:
-    """Invoke le module tpv.realtime avec les paramètres streaming."""
-
-    # Initialise la commande avec l'interpréteur courant et le module ciblé
-    command: list[str] = [
-        sys.executable,
-        "-m",
-        "tpv.realtime",
-        config.subject,
-        config.run,
-    ]
-    # Ajoute la taille de fenêtre demandée pour le streaming
-    command.extend(["--window-size", str(config.window_size)])
-    # Ajoute le pas de glissement entre fenêtres successives
-    command.extend(["--step-size", str(config.step_size)])
-    # Ajoute la taille du buffer utilisé pour lisser les prédictions
-    command.extend(["--buffer-size", str(config.buffer_size)])
-    # Ajoute la latence maximale autorisée pour surveiller le SLA
-    command.extend(["--max-latency", str(config.max_latency)])
-    # Ajoute la fréquence d'échantillonnage pour calculer les offsets
-    command.extend(["--sfreq", str(config.sfreq)])
-    # Ajoute le répertoire des données streamées
-    command.extend(["--data-dir", config.data_dir])
-    # Ajoute le répertoire d'artefacts contenant le modèle entraîné
-    command.extend(["--artifacts-dir", config.artifacts_dir])
-    # Ajoute le set de libellés pour aligner la sortie realtime
-    command.extend(["--label-set", config.label_set])
-    # Ajoute le label zéro explicite lorsqu'il est fourni
-    if config.label_zero is not None:
-        # Propulse l'override de label zéro vers le module realtime
-        command.extend(["--label-zero", config.label_zero])
-    # Ajoute le label un explicite lorsqu'il est fourni
-    if config.label_one is not None:
-        # Propulse l'override de label un vers le module realtime
-        command.extend(["--label-one", config.label_one])
-    # Exécute la commande en capturant le code retour sans lever d'exception
-    completed = subprocess.run(command, check=False)
-    # Retourne le code retour pour propagation à l'appelant principal
-    return completed.returncode
-
-
 # Imprime les prédictions epoch par epoch dans un format compact
 def _print_epoch_predictions(
     y_true: Sequence[int],
@@ -790,26 +568,14 @@ def _add_argument_specs(parser: argparse.ArgumentParser) -> None:
         parser.add_argument(*flags, **kwargs)
 
 
-# Regroupe les overrides similaires pour réduire la duplication
-def _add_label_overrides(parser: argparse.ArgumentParser) -> None:
-    """Ajoute les overrides de labels pour les classes realtime."""
-    for flag, idx in (("--label-zero", 0), ("--label-one", 1)):
-        parser.add_argument(
-            flag,
-            default=None,
-            help=f"Override du libellé pour la classe {idx}",
-        )
-
-
 # Construit le parser CLI avec toutes les options du pipeline
 def build_parser() -> argparse.ArgumentParser:
     """Construit l'argument parser pour mybci."""
     parser = argparse.ArgumentParser(
         description="Pilote un workflow d'entraînement ou de prédiction TPV",
-        usage="python mybci.py <subject> <run> {train,predict,realtime}",
+        usage="python mybci.py <subject> <run> {train,predict}",
     )
     _add_argument_specs(parser)
-    _add_label_overrides(parser)
     return parser
 
 
@@ -836,26 +602,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Parse les arguments fournis par l'utilisateur
     args = parse_args(provided_args)
     # Vérifie les dépendances ML pour les modes qui en ont besoin
-    if args.mode in {"train", "predict", "realtime"}:
+    if args.mode in {"train", "predict"}:
         # Interrompt avec un message actionnable si scikit-learn manque
         _ensure_ml_dependencies()
-    # Interprète le choix du scaler pour convertir "none" en None
-    scaler = None if args.scaler == "none" else args.scaler
-    # Applique la normalisation en inversant le flag d'opt-out
-    normalize_features = not args.no_normalize_features
-    # Construit la configuration partagée entre les modules train et predict
-    n_components = getattr(args, "n_components", None)
 
     # Construit la configuration de pipeline commune
     config = ModuleCallConfig(
         subject=args.subject,
         run=args.run,
-        classifier=args.classifier,
-        scaler=scaler,
-        feature_strategy=args.feature_strategy,
-        dim_method=args.dim_method,
-        n_components=n_components,
-        normalize_features=normalize_features,
     )
 
     # Appelle le module train si le mode le demande
@@ -874,64 +628,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             config,
         )
 
-    # Bascule vers le module realtime pour le streaming fenêtré
-    if args.mode == "realtime":
-        # Construit la configuration spécifique au lissage et fenêtrage
-        realtime_config = RealtimeCallConfig(
-            subject=args.subject,
-            run=args.run,
-            window_size=args.window_size,
-            step_size=args.step_size,
-            buffer_size=args.buffer_size,
-            sfreq=args.sfreq,
-            max_latency=args.max_latency,
-            data_dir=args.data_dir,
-            artifacts_dir=args.artifacts_dir,
-            # Transmet le set de libellés choisi à la session realtime
-            label_set=args.label_set,
-            # Transmet l'override de label zéro lorsqu'il est défini
-            label_zero=args.label_zero,
-            # Transmet l'override de label un lorsqu'il est défini
-            label_one=args.label_one,
-        )
-        # Retourne le code retour du module realtime avec la configuration
-        return _call_realtime(realtime_config)
-
-    # Convertit les répertoires en Path pour l'appel direct
-    data_dir = Path(args.data_dir)
-    artifacts_dir = Path(args.artifacts_dir)
-    raw_dir = Path(args.raw_dir)
-
-    # Charge le module predict pour l'évaluation directe
-    tpv_predict = _load_predict_module()
-    # Évalue le run en récupérant prédictions et vérité terrain
-    try:
-        # Lance l'évaluation en rechargeant la pipeline entraînée
-        result = tpv_predict.evaluate_run(
-            args.subject,
-            args.run,
-            data_dir,
-            artifacts_dir,
-            raw_dir,
-        )
-    except FileNotFoundError as error:
-        # Affiche une erreur compréhensible pour l'utilisateur CLI
-        print(f"ERREUR: {error}")
-        # Retourne un code non nul pour signaler l'échec
-        return 1
-
-    # Construit le rapport agrégé (accuracy globale, confusion, etc.)
-    _ = tpv_predict.build_report(result)
-    # Récupère les prédictions calculées par evaluate_run
-    y_pred = result["predictions"]
-    # Récupère la vérité terrain en privilégiant la clé harmonisée
-    y_true = result.get("y_true", result["truth"])
-    # Récupère l'accuracy globale pour l'affichage final
-    accuracy = float(result["accuracy"])
-    # Affiche le détail epoch par epoch dans le format attendu
-    _print_epoch_predictions(y_true, y_pred, accuracy)
-    # Retourne 0 pour signaler un succès CLI à l'utilisateur
-    return 0
+    # Retourne un code explicite si aucun mode valide n'est routé
+    return 1
 
 
 # Protège l'exécution directe pour déléguer au main
