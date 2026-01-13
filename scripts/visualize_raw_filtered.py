@@ -12,6 +12,9 @@ import argparse
 # Importe json pour sérialiser la configuration accompagnant les figures
 import json
 
+# Importe math pour dimensionner la légende
+import math
+
 # Importe dataclass pour encapsuler les paramètres de visualisation
 from dataclasses import dataclass
 
@@ -24,11 +27,8 @@ from typing import Sequence, Tuple
 # Importe pyplot pour tracer les figures comparatives
 import matplotlib.pyplot as plt
 
-# Importe numpy pour agréger les canaux par région
-import numpy as np
-
-# Importe Line2D pour construire une légende compacte par région
-from matplotlib.lines import Line2D
+# Importe Axes pour typer explicitement les axes Matplotlib
+from matplotlib.axes import Axes
 
 # Importe BaseRaw pour typer précisément les enregistrements EEG
 from mne.io import BaseRaw
@@ -38,104 +38,95 @@ from tpv.preprocessing import apply_bandpass_filter, load_physionet_raw
 
 MAX_SUBJECTS_PREVIEW = 5
 
-# Fixe l'ordre d'affichage des régions EEG principales
-REGION_ORDER = ("Frontal", "Central", "Parietal", "Occipital", "Temporal", "Autres")
+# Fixe le nombre maximal de lignes par colonne dans la légende
+LEGEND_MAX_ROWS = 16
 
-# Associe une couleur stable à chaque région pour guider la lecture
-REGION_COLORS = {
-    "Frontal": "#1f77b4",
-    "Central": "#2ca02c",
-    "Parietal": "#ff7f0e",
-    "Occipital": "#9467bd",
-    "Temporal": "#d62728",
-    "Autres": "#7f7f7f",
-}
+# Fixe une limite haute de colonnes pour préserver la zone de tracé
+LEGEND_MAX_COLS = 6
+ 
+# Fixe un seuil au-delà duquel la légende devient contre-productive
+LEGEND_MAX_CHANNELS = 12
 
-# Limite le nombre de canaux détaillés pour éviter la surcharge visuelle
-MAX_DETAIL_CHANNELS = 7
-
-# Fixe la largeur de figure pour garantir la lisibilité des subplots
-FIGURE_WIDTH = 12.0
-
-# Fixe la hauteur par ligne pour garder des tracés équilibrés
-FIGURE_ROW_HEIGHT = 2.4
+# Définit un bleu électrique unique pour un rendu cohérent
+ELECTRIC_BLUE = "#12127E"
 
 
-# Normalise un nom de canal pour faciliter l'affectation régionale
-def _normalize_channel_name(channel: str) -> str:
-    """Retourne une version normalisée du nom de canal EEG."""
+# Définit un sous-ensemble sensorimoteur lisible pour l’usage quotidien
+DEFAULT_MOTOR_ROI = (
+    "FC3",
+    "FC1",
+    "FCz",
+    "FC2",
+    "FC4",
+    "C3",
+    "C1",
+    "Cz",
+    "C2",
+    "C4",
+    "CP3",
+    "CP1",
+    "CPz",
+    "CP2",
+    "CP4",
+)
 
-    # Supprime les espaces parasites pour éviter les faux négatifs
-    normalized = channel.strip()
-    # Retourne le nom en majuscules pour simplifier les préfixes
-    return normalized.upper()
+# Uniformise le style des séries temporelles pour une lecture plus rapide
+def _style_timeseries_axis(axis: Axes) -> None:
+    """Applique un style cohérent aux axes des séries temporelles."""
 
-
-# Détermine la région EEG attendue à partir du nom de canal
-def _infer_region_from_channel(channel: str) -> str:
-    """Retourne une région EEG basée sur les préfixes 10-10."""
-
-    # Normalise le nom de canal pour comparer les préfixes
-    normalized = _normalize_channel_name(channel)
-    # Capture les canaux fronto-centraux avant les frontaux purs
-    if normalized.startswith(("FC", "C", "CP")):
-        return "Central"
-    # Capture les canaux frontaux sans ambiguité centrale
-    if normalized.startswith(("FP", "AF", "F")):
-        return "Frontal"
-    # Capture les canaux pariétaux (PO/P)
-    if normalized.startswith(("PO", "P")):
-        return "Parietal"
-    # Capture les canaux occipitaux (O)
-    if normalized.startswith(("O",)):
-        return "Occipital"
-    # Capture les canaux temporaux (FT/TP/T)
-    if normalized.startswith(("FT", "TP", "T")):
-        return "Temporal"
-    # Retourne Autres pour ne pas perdre d'informations
-    return "Autres"
-
-
-# Construit un mapping région -> indices de canaux pour l'agrégation
-def _group_channels_by_region(ch_names: Sequence[str]) -> dict[str, list[int]]:
-    """Retourne un dictionnaire des indices de canaux par région."""
-
-    # Initialise le mapping avec l'ordre des régions pour stabilité
-    grouped: dict[str, list[int]] = {region: [] for region in REGION_ORDER}
-    # Parcourt chaque canal pour l'affecter à une région
-    for idx, channel in enumerate(ch_names):
-        # Détermine la région du canal courant
-        region = _infer_region_from_channel(channel)
-        # Ajoute l'index au groupe correspondant
-        grouped.setdefault(region, []).append(idx)
-    # Prépare un mapping filtré pour ignorer les régions vides
-    non_empty: dict[str, list[int]] = {}
-    # Conserve uniquement les régions qui contiennent des canaux
-    for region, indices in grouped.items():
-        # Ignore les régions sans canaux pour limiter les subplots
-        if not indices:
-            continue
-        # Ajoute la région non vide au mapping final
-        non_empty[region] = indices
-    # Retourne les régions qui contiennent au moins un canal
-    return non_empty
+    # Place le cadrillage derrière les courbes pour préserver le contraste
+    axis.set_axisbelow(True)
+    # Active des ticks mineurs pour densifier la lecture sans surcharger
+    axis.minorticks_on()
+    # Ajoute le cadrillage principal pour guider les lectures x/y
+    axis.grid(which="major", axis="both", linewidth=0.4, alpha=0.80)
+    # Ajoute un cadrillage secondaire plus discret pour les interpolations
+    axis.grid(which="minor", axis="both", linewidth=0.2, alpha=0.50)
+    # Ajoute une ligne zéro pour ancrer la lecture des amplitudes
+    axis.axhline(0.0, linewidth=0.6, alpha=0.25)
+    # Supprime des bordures peu informatives pour alléger le rendu
+    axis.spines["top"].set_visible(False)
+    # Supprime des bordures peu informatives pour alléger le rendu
+    axis.spines["right"].set_visible(False)
+    # Harmonise les ticks pour une lecture plus propre
+    axis.tick_params(which="both", direction="out", length=3, width=0.6)
 
 
-# Calcule la moyenne et l'écart-type d'un groupe de canaux
-def _summarize_region_data(
-    data: np.ndarray,
-    indices: Sequence[int],
-) -> tuple[np.ndarray, np.ndarray]:
-    """Retourne la moyenne et l'écart-type par région."""
 
-    # Sélectionne les canaux concernés pour l'agrégation
-    region_data = data[np.asarray(indices)]
-    # Calcule la moyenne temporelle pour réduire la charge visuelle
-    mean_trace = region_data.mean(axis=0)
-    # Calcule l'écart-type pour matérialiser la dispersion
-    std_trace = region_data.std(axis=0)
-    # Retourne les deux séries pour le tracé mean ± std
-    return mean_trace, std_trace
+
+# Calcule le nombre de colonnes pour afficher toutes les entrées de légende
+def _infer_legend_ncol(channel_count: int) -> int:
+    """Retourne ncol afin d'éviter une légende trop haute."""
+
+    # Retourne une colonne par défaut si aucun canal n'est fourni
+    if channel_count <= 0:
+        return 1
+
+    # Calcule le nombre de colonnes requis pour borner la hauteur
+    required = int(math.ceil(channel_count / float(LEGEND_MAX_ROWS)))
+
+    # Borne ncol pour préserver une largeur de tracé acceptable
+    return max(1, min(LEGEND_MAX_COLS, required))
+
+
+# Calcule la fraction de figure dédiée aux axes en réservant une zone légende
+def _infer_tight_layout_right(ncol: int) -> float:
+    """Retourne le paramètre rect.right pour tight_layout()."""
+
+    # Définit une réserve minimale suffisante pour une colonne unique
+    base_reserved = 0.17
+
+    # Ajoute une réserve par colonne supplémentaire pour éviter le recouvrement
+    per_col_reserved = 0.06
+
+    # Calcule la réserve totale à droite selon le nombre de colonnes
+    reserved = base_reserved + per_col_reserved * max(0, ncol - 1)
+
+    # Limite la réserve pour éviter d'écraser totalement les graphiques
+    reserved = min(0.45, reserved)
+
+    # Retourne la borne droite des axes pour laisser la place à la légende
+    return 1.0 - reserved
 
 
 # Fournit un récap rapide des sujets déjà présents sous data_root
@@ -267,6 +258,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--channels",
         nargs="*",
         help="Sous-ensemble de canaux à tracer (ex: C3 C4 Cz)",
+    )
+    # Ajoute un flag pour forcer l’affichage intégral des 64 canaux
+    parser.add_argument(
+        "--all-channels",
+        action="store_true",
+        help="Affiche tous les canaux (désactive la sélection ROI par défaut)",
     )
     # Ajoute le choix du filtre pour comparer FIR/IIR sans modifier preprocessing
     parser.add_argument(
@@ -401,10 +398,10 @@ def plot_raw_vs_filtered(
     raw: BaseRaw,
     filtered: BaseRaw,
     output_path: Path,
-    config: VisualizationConfig,
+    title: str | None,
     metadata: dict,
 ) -> Path:
-    """Enregistre une figure structurée par régions (brut vs filtré)."""
+    """Enregistre une figure montrant brut et filtré canal par canal."""
 
     # Crée le répertoire parent pour éviter les erreurs d'écriture
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -414,145 +411,69 @@ def plot_raw_vs_filtered(
     raw_data = raw.get_data()
     # Extrait les données filtrées pour comparaison directe
     filtered_data = filtered.get_data()
-    # Regroupe les canaux par région pour structurer la lecture
-    region_map = _group_channels_by_region(raw.ch_names)
-    # Liste les régions présentes dans l'enregistrement
-    regions = list(region_map.keys())
-    # Garantit au moins une région pour éviter subplots(0, 2)
-    if not regions:
-        regions = ["Autres"]
-        region_map = {"Autres": list(range(len(raw.ch_names)))}
-    # Calcule le nombre de lignes de subplots (une par région)
-    nrows = len(regions)
-    # Calcule la taille de figure proportionnelle au nombre de régions
-    fig_height = FIGURE_ROW_HEIGHT * nrows
-    # Crée une grille 2 colonnes pour comparer brut vs filtré
-    fig, axes = plt.subplots(
-        nrows,
-        2,
-        sharex=True,
-        sharey="row",
-        figsize=(FIGURE_WIDTH, fig_height),
-    )
-    # Force axes en matrice 2D pour simplifier l'indexation
-    axes = np.atleast_2d(axes)
-    # Extrait la bande de fréquence depuis la configuration
-    freq_band = config.freq_band
-    # Prépare le titre principal pour guider l'utilisateur
-    title_text = config.title or (
-        f"EEG – Comparaison brut vs filtré ({freq_band[0]:g}-{freq_band[1]:g} Hz)"
-    )
-    # Applique le titre principal pour expliciter la comparaison
-    fig.suptitle(title_text)
-    # Prépare un sous-titre informatif avec contexte sujet/run
-    subtitle_text = (
-        f"Sujet {metadata['subject']} • Run {metadata['run']} • "
-        f"{len(raw.ch_names)} canaux"
-    )
-    # Ajoute le sous-titre au-dessus des subplots
-    fig.text(0.5, 0.94, subtitle_text, ha="center", fontsize="small")
+    # Crée une figure avec deux lignes pour juxtaposer brut et filtré
+    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(10, 6))
+    # Définit le titre global pour rappeler sujet/run et méthode
+    fig.suptitle(title or f"EEG – Comparaison brut vs filtré (8–40 Hz)\n{metadata['subject']} {metadata['run']}")
 
-    # Parcourt les régions pour tracer les comparaisons alignées
-    for row_index, region in enumerate(regions):
-        # Récupère les indices de canaux pour la région courante
-        indices = region_map[region]
-        # Récupère la couleur dédiée pour l'identité régionale
-        color = REGION_COLORS.get(region, REGION_COLORS["Autres"])
-        # Sélectionne l'axe brut pour la région
-        raw_axis = axes[row_index, 0]
-        # Sélectionne l'axe filtré pour la région
-        filtered_axis = axes[row_index, 1]
-        # Calcule la moyenne et l'écart-type du signal brut
-        raw_mean, raw_std = _summarize_region_data(raw_data, indices)
-        # Calcule la moyenne et l'écart-type du signal filtré
-        filtered_mean, filtered_std = _summarize_region_data(filtered_data, indices)
-        # Trace les canaux bruts détaillés uniquement si peu nombreux
-        if len(indices) <= MAX_DETAIL_CHANNELS:
-            # Parcourt les canaux pour un contexte local discret
-            for idx in indices:
-                # Trace chaque canal brut avec faible opacité
-                raw_axis.plot(
-                    times,
-                    raw_data[idx],
-                    color=color,
-                    alpha=0.2,
-                    linewidth=0.6,
-                )
-        # Trace la moyenne brute pour la lisibilité immédiate
-        raw_axis.plot(times, raw_mean, color=color, linewidth=1.6)
-        # Ajoute l'enveloppe brute pour matérialiser la dispersion
-        raw_axis.fill_between(
-            times,
-            raw_mean - raw_std,
-            raw_mean + raw_std,
-            color=color,
-            alpha=0.2,
-        )
-        # Trace les canaux filtrés détaillés uniquement si peu nombreux
-        if len(indices) <= MAX_DETAIL_CHANNELS:
-            # Parcourt les canaux pour un contexte local discret
-            for idx in indices:
-                # Trace chaque canal filtré avec faible opacité
-                filtered_axis.plot(
-                    times,
-                    filtered_data[idx],
-                    color=color,
-                    alpha=0.2,
-                    linewidth=0.6,
-                )
-        # Trace la moyenne filtrée pour la lecture rapide
-        filtered_axis.plot(times, filtered_mean, color=color, linewidth=1.6)
-        # Ajoute l'enveloppe filtrée pour matérialiser la dispersion
-        filtered_axis.fill_between(
-            times,
-            filtered_mean - filtered_std,
-            filtered_mean + filtered_std,
-            color=color,
-            alpha=0.2,
-        )
-        # Ajoute un titre contextualisé à la ligne brute
-        raw_axis.set_title(f"Brut — {region}")
-        # Ajoute un titre contextualisé à la ligne filtrée
-        filtered_axis.set_title(
-            f"Filtré {freq_band[0]:g}-{freq_band[1]:g} Hz — {region}"
-        )
-        # Ajoute le label Y pour rappeler l'unité en brut
-        raw_axis.set_ylabel("Amplitude (a.u.)")
-        # Ajoute le label Y pour rappeler l'unité en filtré
-        filtered_axis.set_ylabel("Amplitude filtrée (a.u.)")
-        # Ajoute une grille verticale légère pour l'alignement visuel
-        raw_axis.grid(axis="y", alpha=0.15, linestyle="--", linewidth=0.6)
-        # Ajoute une grille verticale légère pour l'alignement visuel
-        filtered_axis.grid(axis="y", alpha=0.15, linestyle="--", linewidth=0.6)
-        # Ajoute le label X uniquement sur la dernière ligne
-        if row_index == nrows - 1:
-            # Ajoute le label temps pour l'axe brut
-            raw_axis.set_xlabel("Temps (s)")
-            # Ajoute le label temps pour l'axe filtré
-            filtered_axis.set_xlabel("Temps (s)")
+    # Capture les handles matplotlib pour construire une légende unique
+    raw_handles: list[object] = []
+    # Définit un style brut pour une lecture nette et cohérente
+    raw_line_style = {"linewidth": 0.6, "alpha": 0.70, "color": ELECTRIC_BLUE}
+    # Définit un style filtré plus discret pour comparer sans confondre
+    filt_line_style = {"linewidth": 0.6, "alpha": 0.50, "color": ELECTRIC_BLUE}
+    # Trace chaque canal brut avec légende pour lecture rapide
+    for idx, channel in enumerate(raw.ch_names):
+        # Trace le canal idx sur le premier subplot
+        lines = axes[0].plot(times, raw_data[idx], label=channel, **raw_line_style)
+        raw_handles.append(lines[0])
+    # Ajoute un label d'axe pour contextualiser les valeurs brutes
+    axes[0].set_ylabel("Amplitude (a.u.)")
+    # Titre spécifique à la partie brute pour distinguer visuellement
+    axes[0].set_title("Signal brut")
+    # Trace chaque canal filtré en alignant sur la même grille temporelle
+    for idx, channel in enumerate(filtered.ch_names):
+        # Trace le canal idx filtré sur le second subplot
+        axes[1].plot(times, filtered_data[idx], label=channel, **filt_line_style)
+    axes[1].set_ylabel("Amplitude filtrée (a.u.)")
+    # Ajoute un label de l'axe des temps pour les deux sous-graphiques
+    axes[1].set_xlabel("Temps (s)")
+    # Titre spécifique à la partie filtrée pour faciliter la comparaison
+    axes[1].set_title("Signal filtré 8-40 Hz")
 
-    # Prépare les handles de légende par région
-    # Initialise la liste des handles pour la légende
-    legend_handles: list[Line2D] = []
-    # Construit un handle de couleur pour chaque région affichée
-    for region in regions:
-        # Déclare la couleur associée à la région
-        region_color = REGION_COLORS.get(region, REGION_COLORS["Autres"])
-        # Ajoute un handle de légende pour la région
-        legend_handles.append(Line2D([0], [0], color=region_color))
-    # Construit une légende compacte pour les régions visibles
-    fig.legend(
-        handles=legend_handles,
-        labels=regions,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.985),
-        ncol=min(len(regions), 3),
-        fontsize="small",
-        frameon=False,
+    # Applique un style cohérent pour améliorer la lecture des deux panneaux
+    _style_timeseries_axis(axes[0])
+    _style_timeseries_axis(axes[1])
+    # Calcule le nombre de colonnes pour éviter une légende trop haute
+    legend_ncol = _infer_legend_ncol(len(raw.ch_names))
+    legend_enabled = len(raw.ch_names) <= LEGEND_MAX_CHANNELS
+    legend_ncol = _infer_legend_ncol(len(raw.ch_names))
+    # Réserve une zone à droite pour afficher la légende intégrale
+    layout_right = _infer_tight_layout_right(legend_ncol) if legend_enabled else 1.0
+    # Place la légende dans la zone réservée pour éviter la troncature
+    if legend_enabled:
+        legend_x = min(0.98, layout_right + 0.01)
+        legend_labels = [
+            f"{name} ({i + 1:02d})" for i, name in enumerate(raw.ch_names)
+        ]
+        fig.legend(
+            handles=raw_handles,
+            labels=legend_labels,
+            loc="center left",
+            bbox_to_anchor=(legend_x, 0.5),
+            ncol=legend_ncol,
+            fontsize="small",
+        )
+    # Rappelle le contexte montage pour éviter toute ambiguïté d’interprétation
+    fig.text(
+        0.01,
+        0.01,
+        "Montage 10-10 (PhysioNet) — indices = ordre d’enregistrement (1–64)",
+        fontsize=8,
+        alpha=0.65,
     )
-
-    # Ajuste le layout en gardant de la place pour titre et légende
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.86))
+    # Ajuste le layout en gardant de la place pour la légende et le suptitle
+    fig.tight_layout(rect=(0.0, 0.0, layout_right, 0.95))
     # Sauvegarde la figure au chemin fourni
     fig.savefig(output_path)
     # Ferme la figure pour libérer la mémoire en batch
@@ -595,7 +516,7 @@ def visualize_run(
         picked_raw,
         filtered,
         output_path,
-        config,
+        config.title,
         metadata,
     )
 
@@ -612,7 +533,11 @@ def main() -> None:
     try:
         # Instancie la configuration pour respecter la limite d'arguments
         config = VisualizationConfig(
-            channels=args.channels,
+            channels=(
+                None
+                if args.all_channels
+                else (DEFAULT_MOTOR_ROI if args.channels is None else args.channels)
+            ),
             output_dir=Path(args.output_dir),
             filter_method=args.filter_method,
             freq_band=(float(args.freq_band[0]), float(args.freq_band[1])),
