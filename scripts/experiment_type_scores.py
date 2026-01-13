@@ -19,7 +19,7 @@ from pathlib import Path
 from statistics import mean
 
 # Garantit l'accès aux types pour clarifier les signatures
-from typing import Callable, Iterable
+from typing import Callable, Iterable, TypedDict
 
 # Réutilise la CLI d'entraînement pour générer les artefacts manquants
 from scripts.train import TrainingRequest, run_training
@@ -41,6 +41,20 @@ DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 
 # Définit le répertoire par défaut des EDF bruts
 DEFAULT_RAW_DIR = Path("data")
+
+
+# Décrit la structure du rapport agrégé pour les types d'expérience
+class ExperimentTypeReport(TypedDict):
+    """Structure typée du rapport des moyennes par type."""
+
+    # Associe chaque sujet aux moyennes par type d'expérience
+    subjects: dict[str, dict[str, float]]
+    # Fournit la moyenne globale par type d'expérience
+    by_type: dict[str, float]
+    # Stocke la moyenne globale des quatre types
+    overall_mean: float
+    # Indique si le seuil cible est atteint
+    meets_target: bool
 
 
 # Regroupe les paramètres d'entraînement pour tous les sujets
@@ -329,7 +343,7 @@ def compute_experiment_type_report(
     subjects: Iterable[str],
     experiment_types: dict[str, tuple[str, ...]],
     score_lookup: Callable[[str, str], float],
-) -> dict[str, object]:
+) -> ExperimentTypeReport:
     """Retourne les moyennes par sujet, par type, et la moyenne globale."""
 
     # Prépare le stockage des moyennes par sujet
@@ -370,7 +384,7 @@ def compute_experiment_type_report(
 
 
 # Écrit un rapport CSV des moyennes calculées
-def write_csv(report: dict[str, object], csv_path: Path) -> None:
+def write_csv(report: ExperimentTypeReport, csv_path: Path) -> None:
     """Sérialise le rapport au format CSV."""
 
     # Crée le répertoire cible avant écriture
@@ -398,7 +412,7 @@ def write_csv(report: dict[str, object], csv_path: Path) -> None:
 
 
 # Écrit un rapport JSON des moyennes calculées
-def write_json(report: dict[str, object], json_path: Path) -> None:
+def write_json(report: ExperimentTypeReport, json_path: Path) -> None:
     """Sérialise le rapport au format JSON."""
 
     # Crée le répertoire cible avant écriture
