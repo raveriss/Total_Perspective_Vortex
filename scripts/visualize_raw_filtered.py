@@ -85,6 +85,7 @@ DEFAULT_MOTOR_ROI = (
     "CP4",
 )
 
+
 # Uniformise le style des séries temporelles pour une lecture plus rapide
 def _style_timeseries_axis(axis: Axes) -> None:
     """Applique un style cohérent aux axes des séries temporelles."""
@@ -151,7 +152,6 @@ def _apply_light_grid(axis: Axes) -> None:
 
     # Ajoute une grille légère uniquement sur l'axe Y
     axis.grid(axis="y", alpha=0.15, linestyle="--", linewidth=0.6)
-
 
 
 # Calcule le nombre de colonnes pour afficher toutes les entrées de légende
@@ -489,8 +489,7 @@ def plot_raw_vs_filtered(
     band_low, band_high = config.freq_band
     # Définit le titre global pour rappeler la bande utilisée
     fallback_title = (
-        "EEG – Comparaison brut vs filtré "
-        f"({band_low:.0f}-{band_high:.0f} Hz)"
+        "EEG – Comparaison brut vs filtré " f"({band_low:.0f}-{band_high:.0f} Hz)"
     )
     # Applique le titre global fourni ou le fallback
     fig.suptitle(config.title or fallback_title)
