@@ -606,7 +606,21 @@ def visualize_run(
     # Charge l'enregistrement et récupère ses métadonnées enrichies
     raw, metadata = load_recording(recording_path)
     # Limite éventuellement aux canaux sélectionnés pour focaliser la figure
-    picked_raw = pick_channels(raw, config.channels)
+    try:
+        # Applique la sélection demandée pour éviter les canaux inutiles
+        picked_raw = pick_channels(raw, config.channels)
+    # Intercepte les canaux manquants pour éviter un crash en mode défaut
+    except ValueError as error:
+        # Vérifie que l'on utilise la sélection par défaut sensorimotrice
+        if config.channels == DEFAULT_MOTOR_ROI:
+            # Informe l'utilisateur du fallback sur tous les canaux disponibles
+            print(f"AVERTISSEMENT: {error} — fallback sur tous les canaux.")
+            # Utilise le Raw complet pour poursuivre la visualisation
+            picked_raw = raw
+        # Bascule sur l'exception si la sélection est explicite
+        else:
+            # Relance l'erreur pour conserver la validation stricte personnalisée
+            raise
     # Applique le filtre avec les paramètres demandés
     filtered = filter_recording(
         picked_raw,
