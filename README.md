@@ -28,6 +28,7 @@
 - [🧠 Objectifs pédagogiques (42 / IA / ML)](#objectifs-pédagogiques-42--ia--ml)
 - [🧩 Architecture du projet](#architecture-du-projet)
 - [🔬 1. Préprocessing & parsing EEG (MNE)](#1-préprocessing--parsing-eeg-mne)
+- [📊 Visualiser raw vs filtré](#-visualiser-raw-vs-filtré)
 - [🎛️ 2. Extraction de features](#2-extraction-de-features)
 - [🧮 3. Réduction de dimension (PCA, CSP, ICA…)](#3-réduction-de-dimension-pca-csp-ica)
 - [🧠 4. Pipeline scikit-learn](#4-pipeline-scikit-learn)
@@ -258,6 +259,25 @@ Exemple :
 poetry run python scripts/visualize_raw_filtered.py S001 R03 --data-root ./data --output-dir ./docs/viz
 # Si le fichier est absent, le message indique la structure attendue et les sujets/runs détectés.
 ```
+---
+
+
+## 📊 Visualiser raw vs filtré
+
+Ce script génère une figure comparative **signal brut vs signal filtré**
+(bande-passante 8–40 Hz), afin de valider visuellement le préprocessing
+sur un couple **(subject, run)** avant d’enchaîner sur l’extraction de features.
+
+### Commande
+
+> Recommandé : exécuter via Poetry pour garantir l’environnement.
+
+```bash
+python scripts/visualize_raw_filtered.py S001 R05
+```
+<div align="center">
+  <img src="https://github.com/raveriss/Total_Perspective_Vortex/blob/main/docs/viz/raw_vs_filtered_S001_R05.png" alt="scripts visualize">
+</div> 
 
 ---
 
