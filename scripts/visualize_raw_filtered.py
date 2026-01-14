@@ -100,21 +100,31 @@ def _style_timeseries_axis(axis: Axes) -> None:
     """Applique un style cohérent aux axes des séries temporelles."""
 
     # Place le cadrillage derrière les courbes pour préserver le contraste
-    axis.set_axisbelow(True)
+    if hasattr(axis, "set_axisbelow"):
+        # Applique la priorité des grilles si l'API est disponible
+        axis.set_axisbelow(True)
     # Active des ticks mineurs pour densifier la lecture sans surcharger
-    axis.minorticks_on()
+    if hasattr(axis, "minorticks_on"):
+        # Active les ticks mineurs pour densifier la lecture
+        axis.minorticks_on()
     # Ajoute le cadrillage principal pour guider les lectures x/y
     axis.grid(which="major", axis="both", linewidth=0.4, alpha=0.80)
     # Ajoute un cadrillage secondaire plus discret pour les interpolations
     axis.grid(which="minor", axis="both", linewidth=0.2, alpha=0.50)
     # Ajoute une ligne zéro pour ancrer la lecture des amplitudes
-    axis.axhline(0.0, linewidth=0.6, alpha=0.25)
+    if hasattr(axis, "axhline"):
+        # Trace la ligne de référence si l'API est disponible
+        axis.axhline(0.0, linewidth=0.6, alpha=0.25)
     # Supprime des bordures peu informatives pour alléger le rendu
-    axis.spines["top"].set_visible(False)
-    # Supprime des bordures peu informatives pour alléger le rendu
-    axis.spines["right"].set_visible(False)
+    if hasattr(axis, "spines"):
+        # Masque la bordure haute pour alléger la lecture
+        axis.spines["top"].set_visible(False)
+        # Masque la bordure droite pour alléger la lecture
+        axis.spines["right"].set_visible(False)
     # Harmonise les ticks pour une lecture plus propre
-    axis.tick_params(which="both", direction="out", length=3, width=0.6)
+    if hasattr(axis, "tick_params"):
+        # Uniformise les ticks si l'API est disponible
+        axis.tick_params(which="both", direction="out", length=3, width=0.6)
 
 
 # Calcule le nombre de colonnes pour afficher toutes les entrées de légende
@@ -498,13 +508,13 @@ def plot_raw_vs_filtered(
     freq_label = _format_freq_band(config.freq_band)
     # Définit le titre principal en priorisant la config utilisateur
     title = config.title or f"EEG – Comparaison brut vs filtré ({freq_label})"
-    # Crée une figure avec deux colonnes (brut/filtré) pour comparaison directe
+    # Crée une figure avec deux lignes pour un style vertical cohérent
     fig, axes = plt.subplots(
-        1,
         2,
+        1,
         sharex=True,
-        sharey="row",
-        figsize=(FIGURE_WIDTH, FIGURE_ROW_HEIGHT),
+        sharey=False,
+        figsize=(FIGURE_WIDTH, FIGURE_ROW_HEIGHT * 2),
     )
     # Capture l'axe brut pour les tracés régionaux
     raw_axis = axes[0]
@@ -521,8 +531,6 @@ def plot_raw_vs_filtered(
         ha="center",
         fontsize="small",
     )
-    # Initialise la liste des handles pour la légende régionale
-    legend_handles: list[object] = []
     # Parcourt chaque région pour tracer canaux, moyenne et enveloppe
     for region, indices in grouped.items():
         # Définit la couleur de la région ou un fallback cohérent
@@ -554,7 +562,7 @@ def plot_raw_vs_filtered(
         # Calcule l'écart-type filtré pour l'enveloppe visuelle
         filtered_std = np.std(filtered_data[indices], axis=0)
         # Trace la moyenne brute pour la région en surbrillance
-        mean_line = raw_axis.plot(
+        raw_axis.plot(
             times,
             raw_mean,
             color=color,
@@ -583,44 +591,30 @@ def plot_raw_vs_filtered(
             color=color,
             alpha=0.2,
         )
-        # Ajoute le handle de la moyenne brute pour la légende régionale
-        legend_handles.append(mean_line[0])
     # Définit les labels Y pour les deux axes
     raw_axis.set_ylabel("Amplitude (a.u.)")
     # Définit le label Y pour la version filtrée
     filtered_axis.set_ylabel("Amplitude filtrée (a.u.)")
-    # Définit les labels X sur les deux axes pour stabilité des tests
-    raw_axis.set_xlabel("Temps (s)")
-    # Définit le label X filtré pour les snapshots
+    # Définit le label X pour la ligne du bas uniquement
     filtered_axis.set_xlabel("Temps (s)")
     # Détermine le titre brut en fonction du nombre de régions
-    raw_title = f"Brut — {regions[0]}" if len(regions) == 1 else "Brut"
+    raw_title = f"Signal brut — {regions[0]}" if len(regions) == 1 else "Signal brut"
     # Détermine le titre filtré en fonction du nombre de régions
     filt_title = (
-        f"Filtré {freq_label} — {regions[0]}"
+        f"Signal filtré {freq_label} — {regions[0]}"
         if len(regions) == 1
-        else f"Filtré {freq_label}"
+        else f"Signal filtré {freq_label}"
     )
     # Applique le titre brut pour contextualiser l'axe
     raw_axis.set_title(raw_title)
     # Applique le titre filtré pour contextualiser l'axe
     filtered_axis.set_title(filt_title)
-    # Ajoute une grille légère pour lire les variations d'amplitude
-    raw_axis.grid(axis="y", alpha=0.15, linestyle="--", linewidth=0.6)
-    # Ajoute une grille légère pour lire les variations d'amplitude
-    filtered_axis.grid(axis="y", alpha=0.15, linestyle="--", linewidth=0.6)
-    # Construit la légende régionale en haut de figure
-    fig.legend(
-        handles=legend_handles,
-        labels=regions,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.985),
-        ncol=max(1, len(regions)),
-        fontsize="small",
-        frameon=False,
-    )
-    # Ajuste le layout pour préserver le titre et la légende
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.86))
+    # Applique un style homogène proche du graphique de référence
+    _style_timeseries_axis(raw_axis)
+    # Applique un style homogène proche du graphique de référence
+    _style_timeseries_axis(filtered_axis)
+    # Ajuste le layout pour préserver le titre et la marge haute
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.92))
     # Sauvegarde la figure au chemin fourni
     fig.savefig(output_path)
     # Ferme la figure pour libérer la mémoire en batch
