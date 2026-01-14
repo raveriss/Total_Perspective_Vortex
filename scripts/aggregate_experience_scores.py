@@ -136,12 +136,14 @@ def compute_bonus_points(mean_score: float | None) -> int:
     return int(delta // BONUS_STEP) + 1
 
 
-# Calcule les moyennes par type d'expérience pour chaque sujet
-def aggregate_experience_scores(data_dir: Path, artifacts_dir: Path) -> dict:
-    """Produit un rapport agrégé par sujet et type d'expérience (WBS 7.4)."""
+# Agrège les scores par sujet en parcourant les runs disponibles
+def _collect_subject_scores(
+    runs: list[tuple[str, str]],
+    data_dir: Path,
+    artifacts_dir: Path,
+) -> dict[str, dict[str, list[float]]]:
+    """Regroupe les accuracies par sujet et type d'expérience."""
 
-    # Récupère la liste des runs éligibles à l'agrégation
-    runs = _discover_runs(artifacts_dir)
     # Initialise le conteneur des scores par sujet et par type
     subject_scores: dict[str, dict[str, list[float]]] = {}
     # Parcourt chaque run détecté pour calculer l'accuracy associée
@@ -164,6 +166,16 @@ def aggregate_experience_scores(data_dir: Path, artifacts_dir: Path) -> dict:
             subject_scores[subject][experience] = []
         # Empile l'accuracy pour la moyenne par expérience
         subject_scores[subject][experience].append(result["accuracy"])
+    # Retourne le regroupement par sujet
+    return subject_scores
+
+
+# Construit les entrées par sujet avec moyenne par expérience
+def _build_subject_entries(
+    subject_scores: dict[str, dict[str, list[float]]]
+) -> list[dict]:
+    """Construit les entrées par sujet pour le reporting."""
+
     # Initialise la liste des lignes agrégées par sujet
     subject_entries: list[dict] = []
     # Parcourt les sujets dans un ordre déterministe
@@ -197,13 +209,35 @@ def aggregate_experience_scores(data_dir: Path, artifacts_dir: Path) -> dict:
                 "mean_of_means": mean_of_means,
             }
         )
-    # Extrait les moyennes valides pour le score global
-    eligible_means = [
+    # Retourne les entrées prêtes pour l'affichage
+    return subject_entries
+
+
+# Extrait la liste des moyennes globales éligibles
+def _extract_eligible_means(subject_entries: list[dict]) -> list[float]:
+    """Retourne les moyennes des sujets complets."""
+
+    # Retourne uniquement les moyennes non nulles
+    return [
         # Conserve uniquement les sujets avec quatre expériences valides
         entry["mean_of_means"]
         for entry in subject_entries
         if entry["mean_of_means"] is not None
     ]
+
+
+# Calcule les moyennes par type d'expérience pour chaque sujet
+def aggregate_experience_scores(data_dir: Path, artifacts_dir: Path) -> dict:
+    """Produit un rapport agrégé par sujet et type d'expérience (WBS 7.4)."""
+
+    # Récupère la liste des runs éligibles à l'agrégation
+    runs = _discover_runs(artifacts_dir)
+    # Regroupe les accuracies par sujet et type d'expérience
+    subject_scores = _collect_subject_scores(runs, data_dir, artifacts_dir)
+    # Construit les entrées prêtes pour affichage ou export
+    subject_entries = _build_subject_entries(subject_scores)
+    # Extrait les moyennes valides pour le score global
+    eligible_means = _extract_eligible_means(subject_entries)
     # Calcule la moyenne globale sur les sujets complets
     global_mean = float(np.mean(eligible_means)) if eligible_means else None
     # Calcule les points bonus associés à la moyenne globale

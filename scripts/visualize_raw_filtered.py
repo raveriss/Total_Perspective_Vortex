@@ -1,11 +1,5 @@
 """Visualisation WBS 3.3 : brut vs filtré Physionet."""
 
-# Force un backend sans affichage pour les environnements CI et serveurs
-import matplotlib
-
-# Active Agg pour générer les PNG sans dépendre d'un écran
-matplotlib.use("Agg")
-
 # Importe argparse pour exposer les options CLI sujet/run/canaux
 import argparse
 
@@ -24,8 +18,17 @@ from pathlib import Path
 # Importe typing pour typer explicitement les séquences et tuples
 from typing import Sequence, Tuple
 
+# Force un backend sans affichage pour les environnements CI et serveurs
+import matplotlib
+
+# Active Agg pour générer les PNG sans dépendre d'un écran
+matplotlib.use("Agg")
+
 # Importe pyplot pour tracer les figures comparatives
 import matplotlib.pyplot as plt
+
+# Importe numpy pour calculer mean/std des régions
+import numpy as np
 
 # Importe Axes pour typer explicitement les axes Matplotlib
 from matplotlib.axes import Axes
@@ -43,13 +46,34 @@ LEGEND_MAX_ROWS = 16
 
 # Fixe une limite haute de colonnes pour préserver la zone de tracé
 LEGEND_MAX_COLS = 6
- 
+
 # Fixe un seuil au-delà duquel la légende devient contre-productive
 LEGEND_MAX_CHANNELS = 12
 
 # Définit un bleu électrique unique pour un rendu cohérent
 ELECTRIC_BLUE = "#12127E"
 
+# Fixe la largeur standard des figures pour des snapshots stables
+FIGURE_WIDTH = 10
+
+# Fixe la hauteur standard des figures pour des snapshots stables
+FIGURE_ROW_HEIGHT = 6
+
+# Assigne une couleur par région EEG pour une lecture homogène
+REGION_COLORS = {
+    # Marque la région centrale avec le bleu projet
+    "Central": ELECTRIC_BLUE,
+}
+
+# Associe des canaux connus à une région standardisée
+CHANNEL_REGION_MAP = {
+    # Classe C3 dans la région centrale pour la comparaison
+    "C3": "Central",
+    # Classe C4 dans la région centrale pour la comparaison
+    "C4": "Central",
+    # Classe Cz dans la région centrale pour la comparaison
+    "Cz": "Central",
+}
 
 # Définit un sous-ensemble sensorimoteur lisible pour l’usage quotidien
 DEFAULT_MOTOR_ROI = (
@@ -127,6 +151,52 @@ def _infer_tight_layout_right(ncol: int) -> float:
 
     # Retourne la borne droite des axes pour laisser la place à la légende
     return 1.0 - reserved
+
+
+# Formate une bande de fréquences pour le titre automatique
+def _format_freq_band(freq_band: Tuple[float, float]) -> str:
+    """Retourne une chaîne lisible type 8-40 Hz."""
+
+    # Déplie les bornes pour formater chaque valeur
+    low, high = freq_band
+    # Convertit la borne basse en entier si c'est un float entier
+    low_str = str(int(low)) if low.is_integer() else str(low)
+    # Convertit la borne haute en entier si c'est un float entier
+    high_str = str(int(high)) if high.is_integer() else str(high)
+    # Retourne la chaîne formatée pour le titre
+    return f"{low_str}-{high_str} Hz"
+
+
+# Déduit la région anatomique d'un canal EEG
+def _infer_channel_region(channel: str) -> str:
+    """Retourne la région associée au canal ou 'Autre'."""
+
+    # Retourne la région connue si le canal est mappé
+    if channel in CHANNEL_REGION_MAP:
+        # Retourne directement la région enregistrée
+        return CHANNEL_REGION_MAP[channel]
+    # Retourne une région par défaut pour les canaux non mappés
+    return "Autre"
+
+
+# Groupe les indices de canaux par région dans l'ordre d'apparition
+def _group_channels_by_region(ch_names: Sequence[str]) -> dict[str, list[int]]:
+    """Regroupe les indices de canaux par région anatomique."""
+
+    # Initialise le dictionnaire de regroupement
+    grouped: dict[str, list[int]] = {}
+    # Parcourt chaque canal en respectant l'ordre brut
+    for idx, name in enumerate(ch_names):
+        # Détermine la région pour le canal courant
+        region = _infer_channel_region(name)
+        # Initialise la liste d'indices pour la région
+        if region not in grouped:
+            # Crée la liste vide pour la région rencontrée
+            grouped[region] = []
+        # Ajoute l'indice du canal à la région correspondante
+        grouped[region].append(idx)
+    # Retourne le regroupement complet
+    return grouped
 
 
 # Fournit un récap rapide des sujets déjà présents sous data_root
@@ -398,7 +468,7 @@ def plot_raw_vs_filtered(
     raw: BaseRaw,
     filtered: BaseRaw,
     output_path: Path,
-    title: str | None,
+    config: VisualizationConfig,
     metadata: dict,
 ) -> Path:
     """Enregistre une figure montrant brut et filtré canal par canal."""
@@ -411,69 +481,137 @@ def plot_raw_vs_filtered(
     raw_data = raw.get_data()
     # Extrait les données filtrées pour comparaison directe
     filtered_data = filtered.get_data()
-    # Crée une figure avec deux lignes pour juxtaposer brut et filtré
-    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(10, 6))
-    # Définit le titre global pour rappeler sujet/run et méthode
-    fig.suptitle(title or f"EEG – Comparaison brut vs filtré (8–40 Hz)\n{metadata['subject']} {metadata['run']}")
-
-    # Capture les handles matplotlib pour construire une légende unique
-    raw_handles: list[object] = []
-    # Définit un style brut pour une lecture nette et cohérente
-    raw_line_style = {"linewidth": 0.6, "alpha": 0.70, "color": ELECTRIC_BLUE}
-    # Définit un style filtré plus discret pour comparer sans confondre
-    filt_line_style = {"linewidth": 0.6, "alpha": 0.50, "color": ELECTRIC_BLUE}
-    # Trace chaque canal brut avec légende pour lecture rapide
-    for idx, channel in enumerate(raw.ch_names):
-        # Trace le canal idx sur le premier subplot
-        lines = axes[0].plot(times, raw_data[idx], label=channel, **raw_line_style)
-        raw_handles.append(lines[0])
-    # Ajoute un label d'axe pour contextualiser les valeurs brutes
-    axes[0].set_ylabel("Amplitude (a.u.)")
-    # Titre spécifique à la partie brute pour distinguer visuellement
-    axes[0].set_title("Signal brut")
-    # Trace chaque canal filtré en alignant sur la même grille temporelle
-    for idx, channel in enumerate(filtered.ch_names):
-        # Trace le canal idx filtré sur le second subplot
-        axes[1].plot(times, filtered_data[idx], label=channel, **filt_line_style)
-    axes[1].set_ylabel("Amplitude filtrée (a.u.)")
-    # Ajoute un label de l'axe des temps pour les deux sous-graphiques
-    axes[1].set_xlabel("Temps (s)")
-    # Titre spécifique à la partie filtrée pour faciliter la comparaison
-    axes[1].set_title("Signal filtré 8-40 Hz")
-
-    # Applique un style cohérent pour améliorer la lecture des deux panneaux
-    _style_timeseries_axis(axes[0])
-    _style_timeseries_axis(axes[1])
-    # Calcule le nombre de colonnes pour éviter une légende trop haute
-    legend_ncol = _infer_legend_ncol(len(raw.ch_names))
-    legend_enabled = len(raw.ch_names) <= LEGEND_MAX_CHANNELS
-    legend_ncol = _infer_legend_ncol(len(raw.ch_names))
-    # Réserve une zone à droite pour afficher la légende intégrale
-    layout_right = _infer_tight_layout_right(legend_ncol) if legend_enabled else 1.0
-    # Place la légende dans la zone réservée pour éviter la troncature
-    if legend_enabled:
-        legend_x = min(0.98, layout_right + 0.01)
-        legend_labels = [
-            f"{name} ({i + 1:02d})" for i, name in enumerate(raw.ch_names)
-        ]
-        fig.legend(
-            handles=raw_handles,
-            labels=legend_labels,
-            loc="center left",
-            bbox_to_anchor=(legend_x, 0.5),
-            ncol=legend_ncol,
-            fontsize="small",
-        )
-    # Rappelle le contexte montage pour éviter toute ambiguïté d’interprétation
-    fig.text(
-        0.01,
-        0.01,
-        "Montage 10-10 (PhysioNet) — indices = ordre d’enregistrement (1–64)",
-        fontsize=8,
-        alpha=0.65,
+    # Détermine les régions par canal pour regrouper les tracés
+    grouped = _group_channels_by_region(raw.ch_names)
+    # Construit la liste ordonnée des régions pour la légende
+    regions = list(grouped.keys())
+    # Formate la bande de fréquence pour le titre et les sous-titres
+    freq_label = _format_freq_band(config.freq_band)
+    # Définit le titre principal en priorisant la config utilisateur
+    title = config.title or f"EEG – Comparaison brut vs filtré ({freq_label})"
+    # Crée une figure avec deux colonnes (brut/filtré) pour comparaison directe
+    fig, axes = plt.subplots(
+        1,
+        2,
+        sharex=True,
+        sharey="row",
+        figsize=(FIGURE_WIDTH, FIGURE_ROW_HEIGHT),
     )
-    # Ajuste le layout en gardant de la place pour la légende et le suptitle
-    fig.tight_layout(rect=(0.0, 0.0, layout_right, 0.95))
+    # Capture l'axe brut pour les tracés régionaux
+    raw_axis = axes[0]
+    # Capture l'axe filtré pour les tracés régionaux
+    filtered_axis = axes[1]
+    # Applique le titre principal attendu par la checklist
+    fig.suptitle(title)
+    # Ajoute un sous-titre sujet/run pour contextualiser la figure
+    fig.text(
+        0.5,
+        0.94,
+        f"Sujet {metadata['subject']} \u2022 Run {metadata['run']} \u2022 "
+        f"{len(raw.ch_names)} canaux",
+        ha="center",
+        fontsize="small",
+    )
+    # Initialise la liste des handles pour la légende régionale
+    legend_handles: list[object] = []
+    # Parcourt chaque région pour tracer canaux, moyenne et enveloppe
+    for region, indices in grouped.items():
+        # Définit la couleur de la région ou un fallback cohérent
+        color = REGION_COLORS.get(region, ELECTRIC_BLUE)
+        # Trace chaque canal brut pour la région courante
+        for idx in indices:
+            raw_axis.plot(
+                times,
+                raw_data[idx],
+                color=color,
+                alpha=0.2,
+                linewidth=0.6,
+            )
+        # Trace chaque canal filtré pour la région courante
+        for idx in indices:
+            filtered_axis.plot(
+                times,
+                filtered_data[idx],
+                color=color,
+                alpha=0.2,
+                linewidth=0.6,
+            )
+        # Calcule la moyenne brute par région pour lisser le signal
+        raw_mean = np.mean(raw_data[indices], axis=0)
+        # Calcule l'écart-type brut pour l'enveloppe visuelle
+        raw_std = np.std(raw_data[indices], axis=0)
+        # Calcule la moyenne filtrée par région pour lisser le signal
+        filtered_mean = np.mean(filtered_data[indices], axis=0)
+        # Calcule l'écart-type filtré pour l'enveloppe visuelle
+        filtered_std = np.std(filtered_data[indices], axis=0)
+        # Trace la moyenne brute pour la région en surbrillance
+        mean_line = raw_axis.plot(
+            times,
+            raw_mean,
+            color=color,
+            linewidth=1.6,
+        )
+        # Trace la moyenne filtrée pour la région en surbrillance
+        filtered_axis.plot(
+            times,
+            filtered_mean,
+            color=color,
+            linewidth=1.6,
+        )
+        # Dessine l'enveloppe brute mean ± std pour la région
+        raw_axis.fill_between(
+            times,
+            raw_mean - raw_std,
+            raw_mean + raw_std,
+            color=color,
+            alpha=0.2,
+        )
+        # Dessine l'enveloppe filtrée mean ± std pour la région
+        filtered_axis.fill_between(
+            times,
+            filtered_mean - filtered_std,
+            filtered_mean + filtered_std,
+            color=color,
+            alpha=0.2,
+        )
+        # Ajoute le handle de la moyenne brute pour la légende régionale
+        legend_handles.append(mean_line[0])
+    # Définit les labels Y pour les deux axes
+    raw_axis.set_ylabel("Amplitude (a.u.)")
+    # Définit le label Y pour la version filtrée
+    filtered_axis.set_ylabel("Amplitude filtrée (a.u.)")
+    # Définit les labels X sur les deux axes pour stabilité des tests
+    raw_axis.set_xlabel("Temps (s)")
+    # Définit le label X filtré pour les snapshots
+    filtered_axis.set_xlabel("Temps (s)")
+    # Détermine le titre brut en fonction du nombre de régions
+    raw_title = f"Brut — {regions[0]}" if len(regions) == 1 else "Brut"
+    # Détermine le titre filtré en fonction du nombre de régions
+    filt_title = (
+        f"Filtré {freq_label} — {regions[0]}"
+        if len(regions) == 1
+        else f"Filtré {freq_label}"
+    )
+    # Applique le titre brut pour contextualiser l'axe
+    raw_axis.set_title(raw_title)
+    # Applique le titre filtré pour contextualiser l'axe
+    filtered_axis.set_title(filt_title)
+    # Ajoute une grille légère pour lire les variations d'amplitude
+    raw_axis.grid(axis="y", alpha=0.15, linestyle="--", linewidth=0.6)
+    # Ajoute une grille légère pour lire les variations d'amplitude
+    filtered_axis.grid(axis="y", alpha=0.15, linestyle="--", linewidth=0.6)
+    # Construit la légende régionale en haut de figure
+    fig.legend(
+        handles=legend_handles,
+        labels=regions,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.985),
+        ncol=max(1, len(regions)),
+        fontsize="small",
+        frameon=False,
+    )
+    # Ajuste le layout pour préserver le titre et la légende
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.86))
     # Sauvegarde la figure au chemin fourni
     fig.savefig(output_path)
     # Ferme la figure pour libérer la mémoire en batch
@@ -516,7 +654,7 @@ def visualize_run(
         picked_raw,
         filtered,
         output_path,
-        config.title,
+        config,
         metadata,
     )
 
