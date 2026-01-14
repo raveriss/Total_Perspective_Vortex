@@ -90,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 # Inventorie les runs disponibles en inspectant les artefacts présents
-def _discover_runs(artifacts_dir: Path) -> list[tuple[str, str]]:
+def _discover_runs_from_artifacts(artifacts_dir: Path) -> list[tuple[str, str]]:
     """Liste les couples (sujet, run) disposant d'un modèle sauvegardé."""
 
     # Initialise la liste de sortie pour conserver l'ordre déterministe
@@ -115,6 +115,64 @@ def _discover_runs(artifacts_dir: Path) -> list[tuple[str, str]]:
                 runs.append((subject_dir.name, run_dir.name))
     # Retourne l'ensemble des couples détectés
     return runs
+
+
+# Détecte si des données existent pour un run dans le dataset local
+def _has_run_data(data_dir: Path, subject: str, run: str) -> bool:
+    """Retourne True si un EDF ou un .npy est disponible pour ce run."""
+
+    # Construit le chemin attendu du fichier EDF pour le run
+    edf_path = data_dir / subject / f"{subject}{run}.edf"
+    # Construit le chemin attendu des features numpy pour le run
+    features_path = data_dir / subject / f"{run}_X.npy"
+    # Construit le chemin attendu des labels numpy pour le run
+    labels_path = data_dir / subject / f"{run}_y.npy"
+    # Confirme la présence d'un support de données exploitable
+    return edf_path.exists() or (features_path.exists() and labels_path.exists())
+
+
+# Inventorie les runs disponibles en inspectant les données brutes
+def _discover_runs_from_data(data_dir: Path) -> list[tuple[str, str]]:
+    """Liste les couples (sujet, run) présents dans le dataset Physionet."""
+
+    # Initialise la liste de sortie pour conserver l'ordre déterministe
+    runs: list[tuple[str, str]] = []
+    # Ignore silencieusement l'exploration si le dossier n'existe pas
+    if not data_dir.exists():
+        # Retourne une liste vide pour signaler l'absence de données
+        return runs
+    # Aplatis la liste des runs attendus pour les expériences T1-T4
+    expected_runs = [run for runs in EXPERIENCE_RUNS.values() for run in runs]
+    # Parcourt les dossiers de sujets pour détecter les runs
+    for subject_dir in sorted(data_dir.iterdir()):
+        # Ignore les éléments qui ne représentent pas un sujet
+        if not subject_dir.is_dir():
+            # Passe au chemin suivant pour éviter les collisions
+            continue
+        # Récupère le nom du sujet pour composer les chemins de runs
+        subject = subject_dir.name
+        # Parcourt chaque run attendu pour la moyenne par expérience
+        for run in expected_runs:
+            # Ajoute uniquement les runs disposant de données accessibles
+            if _has_run_data(data_dir, subject, run):
+                # Enregistre le couple (sujet, run) pour l'agrégation
+                runs.append((subject, run))
+    # Retourne l'ensemble des couples détectés
+    return runs
+
+
+# Sélectionne l'origine des runs en priorisant les artefacts existants
+def _discover_runs(data_dir: Path, artifacts_dir: Path) -> list[tuple[str, str]]:
+    """Liste les couples (sujet, run) via artefacts ou dataset."""
+
+    # Tente d'abord de réutiliser les artefacts persistés
+    runs = _discover_runs_from_artifacts(artifacts_dir)
+    # Retourne immédiatement si des artefacts sont disponibles
+    if runs:
+        # Préserve le chemin rapide pour éviter un scan lourd des données
+        return runs
+    # Bascule vers un scan des données pour déclencher l'auto-train
+    return _discover_runs_from_data(data_dir)
 
 
 # Associe un run à un type d'expérience connu
@@ -250,7 +308,7 @@ def aggregate_experience_scores(data_dir: Path, artifacts_dir: Path) -> dict:
     """Produit un rapport agrégé par sujet et type d'expérience (WBS 7.4)."""
 
     # Récupère la liste des runs éligibles à l'agrégation
-    runs = _discover_runs(artifacts_dir)
+    runs = _discover_runs(data_dir, artifacts_dir)
     # Regroupe les accuracies par sujet et type d'expérience
     subject_scores = _collect_subject_scores(runs, data_dir, artifacts_dir)
     # Construit les entrées prêtes pour affichage ou export

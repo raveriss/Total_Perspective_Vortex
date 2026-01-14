@@ -410,8 +410,6 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
     output_path = tmp_path / "nested" / "deep" / "fig.png"
     # Capture les arguments de subplots et les appels faits aux axes
     seen: dict[str, object] = {}
-    # Prépare la région attendue pour C3/C4
-    expected_regions = ["Central"]
 
     # Définit un axe enregistreur pour verrouiller les appels plot/labels
     class _Axis:
@@ -575,13 +573,13 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
     # Verrouille la création du sidecar JSON
     assert output_path.with_suffix(".json").exists()
 
-    # Verrouille subplots(1, 2, sharex=True, sharey="row", figsize=...)
-    assert seen["args"] == (1, 2)
+    # Verrouille subplots(2, 1, sharex=True, sharey=False, figsize=...)
+    assert seen["args"] == (2, 1)
     assert cast(dict[str, object], seen["kwargs"])["sharex"] is True
-    assert cast(dict[str, object], seen["kwargs"])["sharey"] == "row"
+    assert cast(dict[str, object], seen["kwargs"])["sharey"] is False
     assert cast(dict[str, object], seen["kwargs"])["figsize"] == (
         viz.FIGURE_WIDTH,
-        viz.FIGURE_ROW_HEIGHT,
+        viz.FIGURE_ROW_HEIGHT * 2,
     )
 
     # Verrouille le titre fallback (title=None) basé sur la bande de fréquence
@@ -601,17 +599,10 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
 
     # Verrouille l'application de tight_layout pour éviter les figures tassées
     assert fig_used.tight_layout_called is True
-    assert fig_used.tight_layout_kwargs["rect"] == (0.0, 0.0, 1.0, 0.86)
+    assert fig_used.tight_layout_kwargs["rect"] == (0.0, 0.0, 1.0, 0.92)
 
-    # Verrouille la légende compacte par région
-    assert len(fig_used.legend_calls) == 1
-    _, legend_kwargs = fig_used.legend_calls[0]
-    assert legend_kwargs["labels"] == expected_regions
-    assert legend_kwargs["loc"] == "upper center"
-    assert legend_kwargs["bbox_to_anchor"] == (0.5, 0.985)
-    assert legend_kwargs["ncol"] == 1
-    assert legend_kwargs["fontsize"] == "small"
-    assert legend_kwargs["frameon"] is False
+    # Verrouille l'absence de légende globale pour le style vertical
+    assert fig_used.legend_calls == []
     # Verrouille le chemin passé à savefig pour tuer les redirections
     assert fig_used.savefig_path == output_path
     # Verrouille la fermeture de la figure pour tuer le bypass close
@@ -726,35 +717,45 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
     # Verrouille le titre brut pour tuer None / texte altéré
     assert len(raw_axis.title_calls) == 1
     raw_title_args, _ = raw_axis.title_calls[0]
-    assert raw_title_args == ("Brut — Central",)
+    assert raw_title_args == ("Signal brut — Central",)
 
     # Verrouille le titre filtré pour tuer None / texte altéré
     assert len(filtered_axis.title_calls) == 1
     filt_title_args, _ = filtered_axis.title_calls[0]
-    assert filt_title_args == ("Filtré 8-40 Hz — Central",)
+    assert filt_title_args == ("Signal filtré 8-40 Hz — Central",)
 
     # Verrouille le label X sur la dernière ligne
-    assert len(raw_axis.xlabel_calls) == 1
-    raw_xlabel_args, _ = raw_axis.xlabel_calls[0]
-    assert raw_xlabel_args == ("Temps (s)",)
+    assert raw_axis.xlabel_calls == []
     assert len(filtered_axis.xlabel_calls) == 1
     filt_xlabel_args, _ = filtered_axis.xlabel_calls[0]
     assert filt_xlabel_args == ("Temps (s)",)
 
-    # Verrouille la grille légère sur les deux axes
-    assert len(raw_axis.grid_calls) == 1
+    # Verrouille la grille majeure + mineure sur les deux axes
+    assert len(raw_axis.grid_calls) == 2
     assert raw_axis.grid_calls[0][1] == {
-        "axis": "y",
-        "alpha": 0.15,
-        "linestyle": "--",
-        "linewidth": 0.6,
+        "which": "major",
+        "axis": "both",
+        "linewidth": 0.4,
+        "alpha": 0.8,
     }
-    assert len(filtered_axis.grid_calls) == 1
+    assert raw_axis.grid_calls[1][1] == {
+        "which": "minor",
+        "axis": "both",
+        "linewidth": 0.2,
+        "alpha": 0.5,
+    }
+    assert len(filtered_axis.grid_calls) == 2
     assert filtered_axis.grid_calls[0][1] == {
-        "axis": "y",
-        "alpha": 0.15,
-        "linestyle": "--",
-        "linewidth": 0.6,
+        "which": "major",
+        "axis": "both",
+        "linewidth": 0.4,
+        "alpha": 0.8,
+    }
+    assert filtered_axis.grid_calls[1][1] == {
+        "which": "minor",
+        "axis": "both",
+        "linewidth": 0.2,
+        "alpha": 0.5,
     }
 
     # Verrouille l'usage explicite de encoding="utf-8" (tue mutmut_82/84/96)

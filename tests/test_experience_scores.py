@@ -143,8 +143,10 @@ def test_compute_bonus_points_returns_zero_at_threshold() -> None:
 def test_discover_runs_returns_empty_when_dir_missing(tmp_path) -> None:
     # Construit un chemin d'artefacts inexistant
     missing_dir = tmp_path / "artifacts"
+    # Construit un chemin data inexistant pour le fallback
+    missing_data_dir = tmp_path / "data"
     # Exécute la découverte sur un dossier absent
-    runs = aggregate_experience_scores._discover_runs(missing_dir)
+    runs = aggregate_experience_scores._discover_runs(missing_data_dir, missing_dir)
     # Vérifie que la liste est vide
     assert runs == []
 
