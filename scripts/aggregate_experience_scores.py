@@ -172,7 +172,7 @@ def _collect_subject_scores(
 
 # Construit les entrées par sujet avec moyenne par expérience
 def _build_subject_entries(
-    subject_scores: dict[str, dict[str, list[float]]]
+    subject_scores: dict[str, dict[str, list[float]]],
 ) -> list[dict]:
     """Construit les entrées par sujet pour le reporting."""
 
