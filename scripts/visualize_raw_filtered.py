@@ -434,8 +434,18 @@ def pick_channels(
     missing = [ch for ch in channels if ch not in raw.ch_names]
     # Refuse silencieux pour préserver la traçabilité des erreurs utilisateur
     if missing:
-        # Lève un message explicite listant les canaux absents
-        raise ValueError(f"Unknown channels: {', '.join(missing)}")
+        # Tolère un sous-ensemble lorsque la ROI par défaut est indisponible
+        if tuple(channels) == DEFAULT_MOTOR_ROI:
+            # Filtre la sélection pour garder uniquement les canaux présents
+            channels = [ch for ch in channels if ch in raw.ch_names]
+            # Interrompt si aucun canal de la ROI n'est disponible
+            if not channels:
+                # Lève un message explicite listant les canaux absents
+                raise ValueError(f"Unknown channels: {', '.join(missing)}")
+        # Refuse les canaux inconnus pour les sélections explicites
+        else:
+            # Lève un message explicite listant les canaux absents
+            raise ValueError(f"Unknown channels: {', '.join(missing)}")
     # Copie le Raw pour éviter de modifier l'objet d'origine
     picked = raw.copy().pick(channels)
     # Retourne le Raw restreint pour le filtrage et le tracé

@@ -119,3 +119,143 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
     assert report["eligible_subjects"] == 1
     # Vérifie que le bonus est calculé pour la moyenne globale
     assert report["bonus_points"] >= 1
+
+
+# Vérifie que les bonus sont nuls lorsque la moyenne est absente
+def test_compute_bonus_points_returns_zero_on_missing_mean() -> None:
+    # Calcule le bonus pour une moyenne absente
+    bonus = aggregate_experience_scores.compute_bonus_points(None)
+    # Vérifie que le bonus est nul sans moyenne
+    assert bonus == 0
+
+
+# Vérifie la borne du bonus lorsque la moyenne atteint le seuil
+def test_compute_bonus_points_returns_zero_at_threshold() -> None:
+    # Référence le seuil pour éviter une ligne trop longue
+    threshold = aggregate_experience_scores.BONUS_THRESHOLD
+    # Calcule le bonus pour la moyenne exactement au seuil
+    bonus = aggregate_experience_scores.compute_bonus_points(threshold)
+    # Vérifie que le bonus est nul à la limite
+    assert bonus == 0
+
+
+# Vérifie que _discover_runs renvoie une liste vide si aucun artefact
+def test_discover_runs_returns_empty_when_dir_missing(tmp_path) -> None:
+    # Construit un chemin d'artefacts inexistant
+    missing_dir = tmp_path / "artifacts"
+    # Exécute la découverte sur un dossier absent
+    runs = aggregate_experience_scores._discover_runs(missing_dir)
+    # Vérifie que la liste est vide
+    assert runs == []
+
+
+# Vérifie le formatage du tableau texte avec une ligne globale
+def test_format_experience_table_renders_global_and_na() -> None:
+    # Définit les moyennes par expérience pour le sujet complet
+    means_complete = {
+        # Fournit la moyenne pour l'expérience T1
+        "T1": 0.5,
+        # Fournit la moyenne pour l'expérience T2
+        "T2": 0.6,
+        # Fournit la moyenne pour l'expérience T3
+        "T3": 0.7,
+        # Fournit la moyenne pour l'expérience T4
+        "T4": 0.8,
+    }
+    # Construit l'entrée complète pour le sujet S001
+    subject_complete = {
+        # Renseigne l'identifiant du sujet complet
+        "subject": "S001",
+        # Fournit les moyennes par expérience pour S001
+        "means": means_complete,
+        # Indique que le sujet est éligible
+        "eligible": True,
+        # Stocke la moyenne des moyennes pour S001
+        "mean_of_means": 0.65,
+    }
+    # Définit les moyennes absentes pour le sujet incomplet
+    means_incomplete = {
+        # Marque l'absence de moyenne pour T1
+        "T1": None,
+        # Marque l'absence de moyenne pour T2
+        "T2": None,
+        # Marque l'absence de moyenne pour T3
+        "T3": None,
+        # Marque l'absence de moyenne pour T4
+        "T4": None,
+    }
+    # Construit l'entrée incomplète pour le sujet S002
+    subject_incomplete = {
+        # Renseigne l'identifiant du sujet incomplet
+        "subject": "S002",
+        # Fournit des moyennes absentes pour S002
+        "means": means_incomplete,
+        # Indique que le sujet est inéligible
+        "eligible": False,
+        # Marque l'absence de moyenne globale pour S002
+        "mean_of_means": None,
+    }
+    # Construit un rapport minimal avec un sujet complet et un incomplet
+    report = {
+        # Fournit les lignes sujet pour le tableau
+        "subjects": [subject_complete, subject_incomplete],
+        # Définit la moyenne globale attendue
+        "global_mean": 0.65,
+        # Définit le nombre de sujets éligibles
+        "eligible_subjects": 1,
+        # Définit un bonus arbitraire
+        "bonus_points": 2,
+    }
+    # Formate le tableau texte à partir du rapport
+    table = aggregate_experience_scores.format_experience_table(report)
+    # Vérifie que la ligne globale est incluse
+    assert "Global" in table
+    # Vérifie que les valeurs absentes affichent n/a
+    assert "n/a" in table
+
+
+# Vérifie l'écriture CSV des moyennes par expérience
+def test_write_csv_outputs_expected_rows(tmp_path) -> None:
+    # Définit les moyennes par expérience pour le sujet complet
+    means_entry = {
+        # Fournit la moyenne pour l'expérience T1
+        "T1": 0.1,
+        # Fournit la moyenne pour l'expérience T2
+        "T2": 0.2,
+        # Fournit la moyenne pour l'expérience T3
+        "T3": 0.3,
+        # Fournit la moyenne pour l'expérience T4
+        "T4": 0.4,
+    }
+    # Construit l'entrée complète pour le sujet S001
+    subject_entry = {
+        # Renseigne l'identifiant du sujet complet
+        "subject": "S001",
+        # Fournit les moyennes par expérience pour S001
+        "means": means_entry,
+        # Indique que le sujet est éligible
+        "eligible": True,
+        # Stocke la moyenne des moyennes pour S001
+        "mean_of_means": 0.25,
+    }
+    # Construit un rapport minimal avec un sujet complet
+    report = {
+        # Fournit les lignes sujet pour le tableau
+        "subjects": [subject_entry],
+        # Définit la moyenne globale attendue
+        "global_mean": 0.25,
+        # Définit le nombre de sujets éligibles
+        "eligible_subjects": 1,
+        # Définit un bonus arbitraire
+        "bonus_points": 0,
+    }
+    # Définit le chemin de sortie CSV
+    csv_path = tmp_path / "report.csv"
+    # Écrit le fichier CSV via le helper de prod
+    aggregate_experience_scores.write_csv(report, csv_path)
+    # Lit le contenu du fichier généré
+    content = csv_path.read_text(encoding="utf-8")
+    # Vérifie que l'en-tête contient les colonnes attendues
+    assert "subject,T1_mean,T2_mean,T3_mean,T4_mean,mean_of_means,eligible" in content
+    # Vérifie que la ligne sujet contient la moyenne formatée
+    assert "S001,0.100000,0.200000,0.300000,0.400000,0.250000,True" in content

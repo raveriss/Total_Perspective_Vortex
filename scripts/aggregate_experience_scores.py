@@ -4,14 +4,27 @@ import argparse
 # Garantit l'écriture CSV pour le reporting par expérience
 import csv
 
+# Garantit un import dynamique sans dépendance de l'ordre sys.path
+import importlib
+
+# Garantit l'accès aux modules locaux même via un appel direct
+import sys
+
 # Garantit la manipulation de chemins indépendants du système
 from pathlib import Path
 
 # Assure des moyennes numériques stables pour les agrégations
 import numpy as np
 
-# Réutilise l'évaluation existante pour relire les artefacts sauvegardés
-from scripts import predict as predict_cli
+# Localise la racine du dépôt pour construire un sys.path stable
+REPO_ROOT = Path(__file__).resolve().parents[1]
+# Évite les doublons pour stabiliser l'ordre de résolution
+if str(REPO_ROOT) not in sys.path:
+    # Priorise la résolution locale des modules du repo
+    sys.path.insert(0, str(REPO_ROOT))
+
+# Charge le module predict après l'insertion du repo dans sys.path
+predict_cli = importlib.import_module("scripts.predict")
 
 # Définit le répertoire par défaut où chercher les jeux de données
 DEFAULT_DATA_DIR = Path("data")
