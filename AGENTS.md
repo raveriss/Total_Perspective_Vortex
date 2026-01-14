@@ -50,12 +50,39 @@ tant qu’il n’a pas, dans **cette réponse précise** :
 
 Dans ce cas, l’agent doit :
 
-- **refuser** toute proposition de message de commit ou de `git push`,
-- limiter la fin de sa réponse à :
-  - un plan de modifications,
-  - un patch (diff),
-  - la checklist 2) à exécuter,
-  - les tests supplémentaires à ajouter.
+- **ne pas** proposer de commit/push ni de message de commit,
+- **entrer en boucle de remédiation** (fail → fix → re-run) jusqu’à ce que
+  2.2 + 2.3 soient ✅, *ou* jusqu’à atteindre une limite d’itérations.
+
+### 🔁 Boucle de remédiation obligatoire (fail → fix → re-run)
+
+But : un échec de check **déclenche une itération de correction**.
+Un agent autonome (ex: Codex) n’a pas le droit de “s’arrêter au fail”
+si un correctif est possible dans le dépôt.
+
+Règles :
+1) L’agent exécute la séquence “MODE DEV” (diagnostic rapide) :
+   - `poetry run pre-commit run --all-files --show-diff-on-failure`
+2) Si KO :
+   - il **isole** le/les hooks en échec,
+   - il applique un **patch minimal**,
+   - il re-run **uniquement** le/les hooks KO,
+   - il répète jusqu’au vert.
+3) Ensuite, avant tout commit, l’agent exécute le “MODE AVANT COMMIT (gate)” :
+   - 2.2 complet + 2.3 complet (mirroir strict CI)
+4) Si le gate est vert :
+   - il peut committer.
+5) Limite anti-boucle :
+   - maximum **5 itérations**.
+   - au-delà : l’agent explique la cause racine probable, propose 2 options
+     (ex: ajuster un test flaky, corriger typing, corriger un contrat I/O),
+     et demande les logs manquants si nécessaire.
+
+Interdictions (anti-contournement) :
+- pas de `--no-verify`
+- pas de désactivation/suppression de hooks
+- pas de “skip” d’un job CI
+- pas de modification de seuils (coverage, etc.) pour “faire passer”
 
 Si une étape est **KO** ou non mentionnée, la réponse doit se terminer par :
 
@@ -85,12 +112,19 @@ mutants survivent ailleurs.
   * si 2.3 ne sont pas verts (ou inconnus) :
     `→ Commit autorisé : ❌` reste obligatoire.
 
+* Comportement attendu :
+  * si un hook échoue en DEV, l’agent **corrige et re-run** (boucle) au lieu de s’arrêter sur l’échec.
+
 **MODE AVANT COMMIT (gate)** — objectif : miroir strict du CI.
 
 * Obligatoire avant toute suggestion de commit/push :
   * exécuter et valider **2.2 + 2.3 (section 2),
   * afficher le bloc **CHECKLIST 2) – état AVANT COMMIT**,
   * et n’autoriser le commit que si tout est ✅.
+
+* Comportement attendu :
+  * si 2.2 ou 2.3 échoue, l’agent **revient en boucle de remédiation**
+    (patch → re-run) jusqu’au vert, puis rejoue le gate complet.
 
 ### ✅ `pre-commit` autorisé en MODE DEV (diagnostic)
 
@@ -668,6 +702,9 @@ Avant **tout `git commit` ou proposition de commit message**, l’agent doit :
    exécuter lui-même les commandes.
 4. **Refuser le commit** si une étape n’est pas verte ou inconnue.
 
+Ajout : si une étape est KO, l’agent ne se contente pas de refuser le commit :
+il **propose/applique un patch minimal** puis **demande ou exécute** le re-run
+jusqu’au vert (boucle de remédiation).
 Cette section est le miroir local des jobs CI :
 
 * `pre-commit` (incluant `check yaml/toml`, `fix end of files`,
@@ -709,10 +746,13 @@ Règles :
   `ruff`, `mypy`, etc.) :
 
   * l’agent doit :
-
     * expliquer brièvement l’erreur,
-    * proposer un **patch minimal**,
-    * redemander à relancer **toute** la séquence 2.2.
+    * appliquer/proposer un **patch minimal**,
+    * re-run **d’abord** le(s) hook(s) KO,
+    * puis re-run **toute** la séquence 2.2 pour valider le retour au vert.
+
+  * si l’agent a la capacité d’exécuter (ex: Codex), il **doit** re-run lui-même
+    et inclure les logs. Sinon, il **demande** les logs au user.
 * Tant qu’une commande de 2.2 est **KO** ou non exécutée :
 
   * l’agent ne doit pas proposer de message de commit,
@@ -737,6 +777,10 @@ Si `make cov` est **KO**, la réponse doit :
 * pointer les fichiers sous-couverts,
 * proposer **au moins un test** supplémentaire pour remonter la couverture,
 * rappeler de relancer `make cov` jusqu’à obtention de 90 %.
+
+Ajout (boucle) :
+- l’agent doit itérer : corriger → re-run `make cov` jusqu’au vert,
+  ou s’arrêter après 5 itérations avec diagnostic + options.
 
 ### 2.4 Mutation testing (miroir Mutmut)
 
@@ -945,6 +989,13 @@ Toute réponse qui propose **du code ou un changement de fichier** doit
    * L’agent doit **expliquer** pourquoi il met ✅ ou ❌
      (logs vus, échec, inconnu).
 
+   * Si ❌ :
+     - l’agent doit inclure un sous-bloc “BOUCLE DE REMÉDIATION” :
+       1) LOG du fail
+       2) patch minimal
+       3) commandes de re-run (hook KO puis gate complet)
+       4) itération N (max 5)
+
 4. **Patch proposé**
 
    * Diff formaté (un seul patch cohérent).
@@ -963,6 +1014,15 @@ Toute réponse qui propose **du code ou un changement de fichier** doit
 
      > « ❌ CI potentiellement en échec : commit interdit tant que la
      > checklist 2) n’est pas entièrement verte. »
+
+### 9.3 Exemple attendu (agent autonome : fail → patch → re-run → commit)
+
+Le pattern doit ressembler à :
+1) RUN DEV : `pre-commit` KO → log inclus
+2) Patch minimal
+3) Re-run hook KO → OK
+4) RUN AVANT COMMIT : 2.2 + 2.3 → OK
+5) Bloc CHECKLIST 2) : ✅ → Commit autorisé ✅ → commit
 
 Toute réponse qui ne suit pas ce format doit être considérée comme **non
 conforme** au blueprint AGENTS.
