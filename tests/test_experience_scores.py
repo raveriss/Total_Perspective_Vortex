@@ -57,6 +57,7 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
             "R05": 0.60,
         },
     }
+
     # Définit un faux evaluate_run pour éviter l'I/O de données EEG
     def fake_evaluate_run(subject: str, run: str, data_dir, artifacts_dir):
         # Retourne un dictionnaire aligné sur l'API attendue
@@ -97,7 +98,9 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
     # Récupère l'entrée pour S001
     subject_entry = next(
         # Filtre sur le sujet S001
-        entry for entry in report["subjects"] if entry["subject"] == "S001"
+        entry
+        for entry in report["subjects"]
+        if entry["subject"] == "S001"
     )
     # Vérifie que S001 est éligible avec quatre moyennes
     assert subject_entry["eligible"] is True
@@ -106,7 +109,9 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
     # Récupère l'entrée pour S002
     incomplete_entry = next(
         # Filtre sur le sujet S002
-        entry for entry in report["subjects"] if entry["subject"] == "S002"
+        entry
+        for entry in report["subjects"]
+        if entry["subject"] == "S002"
     )
     # Vérifie que S002 est inéligible sans quatre types
     assert incomplete_entry["eligible"] is False

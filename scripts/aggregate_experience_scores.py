@@ -185,9 +185,11 @@ def _build_subject_entries(
         # Calcule les moyennes par type dans l'ordre défini
         means_by_experience = {
             # Calcule la moyenne uniquement si des scores sont présents
-            experience: float(np.mean(experience_scores.get(experience, [])))
-            if experience_scores.get(experience)
-            else None
+            experience: (
+                float(np.mean(experience_scores.get(experience, [])))
+                if experience_scores.get(experience)
+                else None
+            )
             # Itère sur l'ordre standard pour un affichage stable
             for experience in EXPERIENCE_ORDER
         }

@@ -94,6 +94,7 @@ DEFAULT_MOTOR_ROI = (
     "CP4",
 )
 
+
 # Uniformise le style des séries temporelles pour une lecture plus rapide
 def _style_timeseries_axis(axis: Axes) -> None:
     """Applique un style cohérent aux axes des séries temporelles."""
@@ -114,8 +115,6 @@ def _style_timeseries_axis(axis: Axes) -> None:
     axis.spines["right"].set_visible(False)
     # Harmonise les ticks pour une lecture plus propre
     axis.tick_params(which="both", direction="out", length=3, width=0.6)
-
-
 
 
 # Calcule le nombre de colonnes pour afficher toutes les entrées de légende
