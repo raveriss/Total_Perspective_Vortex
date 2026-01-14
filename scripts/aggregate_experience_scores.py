@@ -195,10 +195,14 @@ def _build_subject_entries(
         }
         # Vérifie si toutes les expériences sont disponibles
         eligible = all(value is not None for value in means_by_experience.values())
+        # Filtre les moyennes présentes pour satisfaire mypy
+        present_means = [
+            value for value in means_by_experience.values() if value is not None
+        ]
         # Calcule la moyenne des quatre moyennes si toutes sont présentes
         mean_of_means = (
             # Calcule la moyenne sur les quatre types attendus
-            float(np.mean(list(means_by_experience.values())))
+            float(np.mean(present_means))
             if eligible
             else None
         )
