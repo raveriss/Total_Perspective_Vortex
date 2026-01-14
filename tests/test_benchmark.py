@@ -124,3 +124,58 @@ def test_save_reports_writes_markdown_and_json(tmp_path):
     assert (tmp_path / "benchmark_results.json").exists()
     # Vérifie que le fichier Markdown est présent
     assert (tmp_path / "benchmark_results.md").exists()
+
+
+# Valide la génération synthétique pour couvrir le helper interne
+def test_generate_dataset_shapes_and_labels_are_balanced() -> None:
+    # Importe le module benchmark pour accéder à l'helper interne
+    bench = importlib.import_module("scripts.benchmark")
+    # Demande un petit dataset synthétique pour vérifier les formes
+    X, y = bench._generate_dataset(n_samples=4, sfreq=64.0)
+    # Vérifie la forme attendue (n_samples, n_channels, n_times)
+    assert X.shape == (4, 2, 64)
+    # Vérifie que les labels couvrent bien deux classes
+    assert set(y.tolist()) == {0, 1}
+    # Vérifie l'équilibre attendu sur un échantillonnage pair
+    assert int((y == 0).sum()) == int((y == 1).sum())
+
+
+# Valide le parser et le flux main pour couvrir la CLI benchmark
+def test_build_parser_defaults_and_main_flow(monkeypatch, tmp_path) -> None:
+    # Importe le module benchmark pour tester le parser et main
+    bench = importlib.import_module("scripts.benchmark")
+    # Construit le parser pour inspecter les defaults
+    parser = bench.build_parser()
+    # Parse sans arguments pour vérifier les valeurs par défaut
+    args = parser.parse_args([])
+    # Vérifie la valeur par défaut de n_samples
+    assert args.n_samples == 120
+    # Vérifie la valeur par défaut de sfreq
+    assert args.sfreq == 128.0
+    # Vérifie que le output_dir pointe vers docs/project par défaut
+    assert args.output_dir == Path("docs/project")
+
+    # Prépare un DataFrame vide pour contrôler les colonnes explicitement
+    dummy_df = pd.DataFrame()
+    # Remplit la colonne feature_strategy pour simuler un résultat minimal
+    dummy_df["feature_strategy"] = ["fft"]
+    # Remplit la colonne classifier pour simuler un résultat minimal
+    dummy_df["classifier"] = ["lda"]
+    # Remplit la colonne accuracy avec une valeur cohérente
+    dummy_df["accuracy"] = [1.0]
+    # Remplit la colonne train_seconds avec un temps d'entraînement factice
+    dummy_df["train_seconds"] = [0.01]
+    # Remplit la colonne predict_seconds avec une latence factice
+    dummy_df["predict_seconds"] = [0.001]
+
+    # Remplace le benchmark synthétique pour éviter le coût réel
+    monkeypatch.setattr(bench, "run_synthetic_benchmark", lambda **_: dummy_df)
+    # Remplace la sauvegarde pour éviter d'écrire hors du tmp_path
+    monkeypatch.setattr(bench, "_save_reports", lambda *_args, **_kwargs: None)
+
+    # Prépare les arguments CLI pour la fonction main
+    main_args = ["--n-samples", "2", "--sfreq", "64", "--output-dir", str(tmp_path)]
+    # Exécute main avec un output_dir temporaire
+    exit_code = bench.main(main_args)
+    # Vérifie que le code de sortie signale le succès
+    assert exit_code == 0

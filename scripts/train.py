@@ -92,6 +92,54 @@ DEFAULT_RAW_DIR = Path("data")
 # Fige la fréquence d'échantillonnage par défaut utilisée pour les features
 DEFAULT_SAMPLING_RATE = 50.0
 
+
+# Résout une fréquence d'échantillonnage fiable pour un sujet/run donné
+def resolve_sampling_rate(
+    subject: str,
+    run: str,
+    raw_dir: Path,
+    requested_sfreq: float,
+) -> float:
+    """Retourne la fréquence d'échantillonnage détectée ou la valeur demandée."""
+
+    # Préserve la fréquence explicitement demandée lorsqu'elle diffère du défaut
+    if requested_sfreq != DEFAULT_SAMPLING_RATE:
+        # Retourne la valeur explicite pour respecter la volonté utilisateur
+        return requested_sfreq
+    # Construit le chemin du fichier EDF brut pour la détection auto
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Renvoie la valeur demandée si l'EDF n'est pas disponible
+    if not raw_path.exists():
+        # Retourne la valeur par défaut en l'absence de fichier exploitable
+        return requested_sfreq
+    # Encadre la lecture MNE pour éviter un crash si l'EDF est invalide
+    try:
+        # Charge l'EDF et récupère les métadonnées utiles
+        raw, metadata = preprocessing.load_physionet_raw(raw_path)
+        # Extrait la valeur brute de la fréquence depuis les métadonnées
+        sampling_rate_value = metadata.get("sampling_rate")
+        # Convertit la valeur si possible pour préserver une fréquence cohérente
+        if isinstance(sampling_rate_value, (int, float, str)):
+            # Convertit explicitement pour accepter str/int/float
+            sampling_rate = float(sampling_rate_value)
+        else:
+            # Préserve la valeur demandée si la conversion est impossible
+            sampling_rate = requested_sfreq
+        # Ferme explicitement le Raw pour libérer la mémoire
+        raw.close()
+    except (FileNotFoundError, OSError, ValueError) as error:
+        # Signale la détection impossible sans interrompre l'entraînement
+        print(
+            "INFO: lecture EDF impossible pour "
+            f"{subject} {run} ({error}), "
+            "sfreq par défaut conservée."
+        )
+        # Retourne la valeur demandée en cas d'échec de lecture
+        return requested_sfreq
+    # Retourne la fréquence détectée pour aligner les features
+    return sampling_rate
+
+
 # Déclare le nombre cible de splits utilisé pour la validation croisée
 DEFAULT_CV_SPLITS = 10
 
@@ -921,9 +969,16 @@ def main(argv: list[str] | None = None) -> int:
     normalize = not args.no_normalize_features
     # Récupère le paramètre n_components s'il est fourni
     n_components = getattr(args, "n_components", None)
+    # Résout la fréquence d'échantillonnage en s'appuyant sur l'EDF si possible
+    resolved_sfreq = resolve_sampling_rate(
+        args.subject,
+        args.run,
+        args.raw_dir,
+        args.sfreq,
+    )
     # Construit la configuration de pipeline alignée sur mybci
     config = PipelineConfig(
-        sfreq=args.sfreq,
+        sfreq=resolved_sfreq,
         feature_strategy=args.feature_strategy,
         normalize_features=normalize,
         dim_method=args.dim_method,

@@ -1808,3 +1808,99 @@ def test_run_training_dumps_scaler_step_when_present(
 
     assert dumped.get("obj") is scaler_sentinel
     assert str(dumped.get("path")) == str(report["scaler_path"])
+
+
+# Valide la résolution de la fréquence via métadonnées EDF
+def test_resolve_sampling_rate_prefers_metadata_when_default_requested(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    # Définit un identifiant de sujet pour préparer le chemin EDF
+    subject = "S001"
+    # Définit un run cohérent avec la logique de naming
+    run = "R03"
+    # Construit le répertoire racine simulant data/
+    raw_dir = tmp_path
+    # Construit le dossier du sujet pour y déposer un EDF fictif
+    subject_dir = raw_dir / subject
+    # Crée l'arborescence du sujet pour satisfaire .exists()
+    subject_dir.mkdir(parents=True, exist_ok=True)
+    # Compose le chemin EDF attendu par la résolution automatique
+    raw_path = subject_dir / f"{subject}{run}.edf"
+    # Crée un fichier EDF vide pour activer la branche de lecture
+    raw_path.write_text("", encoding="utf-8")
+
+    # Prépare un faux objet Raw compatible avec raw.close()
+    class DummyRaw:
+        # Autorise un close() no-op pour simuler MNE Raw
+        def close(self) -> None:
+            # Simule la libération des ressources sans effet secondaire
+            return None
+
+    # Définit un loader factice renvoyant une fréquence de 160 Hz
+    def fake_loader(path: Path) -> tuple[DummyRaw, dict[str, object]]:
+        # Vérifie que le chemin transmis est celui attendu
+        assert path == raw_path
+        # Retourne un Raw simulé et des métadonnées cohérentes
+        return DummyRaw(), {"sampling_rate": 160.0}
+
+    # Remplace load_physionet_raw pour éviter une lecture EDF réelle
+    monkeypatch.setattr(train.preprocessing, "load_physionet_raw", fake_loader)
+
+    # Demande la résolution avec la fréquence par défaut
+    resolved = train.resolve_sampling_rate(
+        subject,
+        run,
+        raw_dir,
+        train.DEFAULT_SAMPLING_RATE,
+    )
+
+    # Vérifie que la fréquence détectée est utilisée
+    assert resolved == 160.0
+
+
+# Valide le fallback lorsque la fréquence lue est invalide
+def test_resolve_sampling_rate_falls_back_on_invalid_metadata(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    # Définit un identifiant de sujet pour préparer le chemin EDF
+    subject = "S002"
+    # Définit un run cohérent avec la logique de naming
+    run = "R04"
+    # Construit le répertoire racine simulant data/
+    raw_dir = tmp_path
+    # Construit le dossier du sujet pour y déposer un EDF fictif
+    subject_dir = raw_dir / subject
+    # Crée l'arborescence du sujet pour satisfaire .exists()
+    subject_dir.mkdir(parents=True, exist_ok=True)
+    # Compose le chemin EDF attendu par la résolution automatique
+    raw_path = subject_dir / f"{subject}{run}.edf"
+    # Crée un fichier EDF vide pour activer la branche de lecture
+    raw_path.write_text("", encoding="utf-8")
+
+    # Prépare un faux objet Raw compatible avec raw.close()
+    class DummyRaw:
+        # Autorise un close() no-op pour simuler MNE Raw
+        def close(self) -> None:
+            # Simule la libération des ressources sans effet secondaire
+            return None
+
+    # Définit un loader factice renvoyant une fréquence invalide
+    def fake_loader(path: Path) -> tuple[DummyRaw, dict[str, object]]:
+        # Vérifie que le chemin transmis est celui attendu
+        assert path == raw_path
+        # Retourne un Raw simulé et une valeur non convertible
+        return DummyRaw(), {"sampling_rate": {"invalid": True}}
+
+    # Remplace load_physionet_raw pour éviter une lecture EDF réelle
+    monkeypatch.setattr(train.preprocessing, "load_physionet_raw", fake_loader)
+
+    # Demande la résolution avec une fréquence explicite
+    resolved = train.resolve_sampling_rate(
+        subject,
+        run,
+        raw_dir,
+        123.0,
+    )
+
+    # Vérifie que la fréquence demandée est conservée
+    assert resolved == 123.0

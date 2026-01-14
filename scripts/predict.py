@@ -21,7 +21,7 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 
 # Expose l'entraînement programmatique pour générer un modèle manquant
-from scripts.train import DEFAULT_SAMPLING_RATE, TrainingRequest, run_training
+import scripts.train as train_module
 
 # Centralise le parsing et le contrôle qualité des fichiers EDF
 from tpv import preprocessing
@@ -351,9 +351,16 @@ def _train_missing_pipeline(
 ) -> None:
     """Construit un pipeline FFT/PCA/LDA lorsque le modèle manque."""
 
+    # Résout la fréquence d'échantillonnage à partir de l'EDF si disponible
+    resolved_sfreq = train_module.resolve_sampling_rate(
+        subject,
+        run,
+        raw_dir,
+        train_module.DEFAULT_SAMPLING_RATE,
+    )
     # Utilise la fréquence de référence pour aligner extraction et entraînement
     pipeline_config = PipelineConfig(
-        sfreq=DEFAULT_SAMPLING_RATE,
+        sfreq=resolved_sfreq,
         feature_strategy="fft",
         normalize_features=True,
         dim_method="pca",
@@ -362,7 +369,7 @@ def _train_missing_pipeline(
         scaler=None,
     )
     # Prépare la requête pour déléguer l'entraînement à scripts.train
-    request = TrainingRequest(
+    request = train_module.TrainingRequest(
         subject=subject,
         run=run,
         pipeline_config=pipeline_config,
@@ -371,7 +378,7 @@ def _train_missing_pipeline(
         raw_dir=raw_dir,
     )
     # Lance l'entraînement pour matérialiser model.joblib et w_matrix.joblib
-    run_training(request)
+    train_module.run_training(request)
 
 
 # Évalue un run donné et produit un rapport structuré
