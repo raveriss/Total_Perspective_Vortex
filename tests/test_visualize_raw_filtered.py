@@ -265,7 +265,8 @@ def test_pick_channels_returns_copied_and_picked_raw() -> None:
     assert picked.picked_with == ["C3"]
 
 
-# Vérifie que filter_recording forwarde strictement les paramètres vers apply_bandpass_filter
+# Vérifie que filter_recording forwarde les paramètres attendus
+# vers apply_bandpass_filter sans altération
 def test_filter_recording_forwards_expected_kwargs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
