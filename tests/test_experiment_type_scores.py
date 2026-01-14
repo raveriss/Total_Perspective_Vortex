@@ -54,6 +54,8 @@ def test_compute_experiment_type_report_meets_target() -> None:
     assert report["overall_mean"] == pytest.approx(0.75)
     # Vérifie que le seuil cible est atteint
     assert report["meets_target"] is True
+    # Vérifie que le bonus est nul au seuil
+    assert report["bonus_points"] == 0
 
 
 # Vérifie le parsing d'une liste explicite de sujets
@@ -333,3 +335,15 @@ def test_main_writes_reports_and_uses_cache(
     assert csv_path.exists()
     # Vérifie que le JSON a été écrit
     assert json_path.exists()
+
+
+# Vérifie le calcul des points bonus
+def test_compute_bonus_points_counts_steps() -> None:
+    """Le bonus doit compter chaque tranche complète de 3 %."""
+
+    # Calcule le bonus juste sous le seuil
+    assert experiment_type_scores.compute_bonus_points(0.74) == 0
+    # Calcule le bonus à un incrément complet
+    assert experiment_type_scores.compute_bonus_points(0.78) == 1
+    # Calcule le bonus à deux incréments complets
+    assert experiment_type_scores.compute_bonus_points(0.81) == 2

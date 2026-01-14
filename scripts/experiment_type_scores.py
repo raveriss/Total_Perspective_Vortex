@@ -33,6 +33,12 @@ from tpv.pipeline import PipelineConfig
 # Définit le seuil cible imposé pour les moyennes par expérience
 TARGET_ACCURACY = 0.75
 
+# Définit le seuil de bonus en points au-delà de 75 %
+BONUS_THRESHOLD = 0.75
+
+# Définit l'incrément de points par tranche de bonus
+BONUS_STEP = 0.03
+
 # Définit le répertoire par défaut des données prétraitées
 DEFAULT_DATA_DIR = Path("data")
 
@@ -55,6 +61,8 @@ class ExperimentTypeReport(TypedDict):
     overall_mean: float
     # Indique si le seuil cible est atteint
     meets_target: bool
+    # Stocke le nombre de points bonus calculés
+    bonus_points: int
 
 
 # Regroupe les paramètres d'entraînement pour tous les sujets
@@ -117,6 +125,22 @@ def safe_mean(values: Iterable[float]) -> float:
         return 0.0
     # Calcule la moyenne arithmétique des mesures fournies
     return mean(measurements)
+
+
+# Calcule les points bonus à partir de la moyenne globale
+def compute_bonus_points(overall_mean: float) -> int:
+    """Retourne le nombre de points bonus au-delà de 75 %."""
+
+    # Retourne zéro si le seuil de bonus n'est pas atteint
+    if overall_mean < BONUS_THRESHOLD:
+        # Renvoie zéro pour signaler l'absence de bonus
+        return 0
+    # Calcule l'écart au-dessus du seuil de bonus
+    bonus_delta = overall_mean - BONUS_THRESHOLD
+    # Calcule le nombre de tranches complètes de 3 %
+    bonus_steps = int(bonus_delta // BONUS_STEP)
+    # Retourne le nombre de points bonus
+    return bonus_steps
 
 
 # Construit le parser CLI pour la commande
@@ -374,12 +398,15 @@ def compute_experiment_type_report(
     }
     # Calcule la moyenne globale des quatre types
     overall_mean = safe_mean(type_means.values())
+    # Calcule les points bonus au-delà de 75 %
+    bonus_points = compute_bonus_points(overall_mean)
     # Retourne le rapport agrégé avec indicateur de seuil
     return {
         "subjects": subject_means,
         "by_type": type_means,
         "overall_mean": overall_mean,
         "meets_target": overall_mean >= TARGET_ACCURACY,
+        "bonus_points": bonus_points,
     }
 
 
@@ -489,6 +516,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Moyenne globale (4 types): {report['overall_mean']:.4f}")
     # Affiche l'état du seuil cible
     print(f"Seuil {TARGET_ACCURACY:.2f} atteint: {report['meets_target']}")
+    # Affiche les points bonus calculés
+    print(f"Points bonus (>=75% +3%): {report['bonus_points']}")
     # Écrit le CSV si demandé par l'utilisateur
     if args.csv_output is not None:
         # Sérialise le rapport au format CSV
