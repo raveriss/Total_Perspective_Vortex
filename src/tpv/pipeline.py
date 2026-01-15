@@ -165,8 +165,8 @@ def _build_classifier(option: str) -> object:
         return LogisticRegression(max_iter=LOGISTIC_MAX_ITER)
     # Retourne un SVM linéaire pour des marges maximales
     if normalized == "svm":
-        # Utilise LinearSVC pour des données tabulaires haute dimension
-        return LinearSVC()
+        # Augmente max_iter pour limiter les warnings de convergence liblinear
+        return LinearSVC(max_iter=5000)
     # Retourne le classifieur léger personnalisé pour des prototypes rapides
     if normalized == "centroid":
         # Utilise un classifieur basé sur les centroïdes pour limiter la variance

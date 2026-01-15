@@ -867,8 +867,8 @@ def _build_grid_search_grid(
         classifier_grid.append(LinearDiscriminantAnalysis())
     # Ajoute une régression logistique pour des décisions régularisées
     classifier_grid.append(LogisticRegression(max_iter=1000))
-    # Ajoute un SVM linéaire pour capturer des marges simples
-    classifier_grid.append(LinearSVC())
+    # Augmente max_iter pour limiter les warnings de convergence liblinear
+    classifier_grid.append(LinearSVC(max_iter=5000))
     # Ajoute un classifieur centroïde pour les petits échantillons
     classifier_grid.append(CentroidClassifier())
     # Déclare des scalers optionnels, dont passthrough pour désactiver
