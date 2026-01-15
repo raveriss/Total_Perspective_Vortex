@@ -821,8 +821,10 @@ def _write_manifest(
         manifest["hyperparam_search"] = search_summary
     # Définit le chemin de sortie du manifeste JSON à côté des artefacts
     manifest_json_path = target_dir / "manifest.json"
+    # Prépare un JSON tolérant les objets non sérialisables du manifeste
+    manifest_json = json.dumps(manifest, ensure_ascii=False, indent=2, default=str)
     # Écrit le manifeste JSON sur disque en UTF-8 pour la portabilité
-    manifest_json_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+    manifest_json_path.write_text(manifest_json)
     # Aplati les hyperparamètres pour faciliter la lecture dans un tableur
     flattened_hyperparams = _flatten_hyperparams(hyperparams)
     # Construit une ligne CSV unique regroupant toutes les informations
