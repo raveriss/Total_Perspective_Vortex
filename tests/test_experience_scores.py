@@ -80,6 +80,10 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
         model_path.parent.mkdir(parents=True, exist_ok=True)
         # Écrit un fichier factice pour activer le run
         model_path.write_text("stub")
+        # Construit le chemin de la matrice W simulée
+        w_matrix_path = tmp_path / "artifacts" / "S001" / run / "w_matrix.joblib"
+        # Écrit un fichier factice pour activer la matrice W
+        w_matrix_path.write_text("stub")
     # Crée un dossier d'artefacts incomplet pour S002
     for run in scores["S002"].keys():
         # Construit le chemin du modèle simulé
@@ -88,12 +92,18 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
         model_path.parent.mkdir(parents=True, exist_ok=True)
         # Écrit un fichier factice pour activer le run
         model_path.write_text("stub")
+        # Construit le chemin de la matrice W simulée
+        w_matrix_path = tmp_path / "artifacts" / "S002" / run / "w_matrix.joblib"
+        # Écrit un fichier factice pour activer la matrice W
+        w_matrix_path.write_text("stub")
     # Calcule le rapport en utilisant le dossier temporaire
     report = aggregate_experience_scores.aggregate_experience_scores(
         # Passe un répertoire data factice
         tmp_path / "data",
         # Passe le répertoire d'artefacts préparé
         tmp_path / "artifacts",
+        # Désactive l'auto-train pour stabiliser le test
+        False,
     )
     # Récupère l'entrée pour S001
     subject_entry = next(
@@ -146,7 +156,11 @@ def test_discover_runs_returns_empty_when_dir_missing(tmp_path) -> None:
     # Construit un chemin data inexistant pour le fallback
     missing_data_dir = tmp_path / "data"
     # Exécute la découverte sur un dossier absent
-    runs = aggregate_experience_scores._discover_runs(missing_data_dir, missing_dir)
+    runs = aggregate_experience_scores._discover_runs(
+        missing_data_dir,
+        missing_dir,
+        False,
+    )
     # Vérifie que la liste est vide
     assert runs == []
 
@@ -261,3 +275,61 @@ def test_write_csv_outputs_expected_rows(tmp_path) -> None:
     assert "subject,T1_mean,T2_mean,T3_mean,T4_mean,mean_of_means,eligible" in content
     # Vérifie que la ligne sujet contient la moyenne formatée
     assert "S001,0.100000,0.200000,0.300000,0.400000,0.250000,True" in content
+
+
+# Vérifie que les chemins d'artefacts sont construits correctement
+def test_artifact_paths_returns_expected_paths(tmp_path) -> None:
+    # Définit un sujet et un run de référence
+    subject = "S001"
+    # Définit un run de référence
+    run = "R03"
+    # Calcule les chemins d'artefacts via l'utilitaire
+    model_path, w_matrix_path = aggregate_experience_scores._artifact_paths(
+        tmp_path, subject, run
+    )
+    # Vérifie que le chemin du modèle respecte la convention attendue
+    assert model_path == tmp_path / subject / run / "model.joblib"
+    # Vérifie que le chemin de la matrice W respecte la convention attendue
+    assert w_matrix_path == tmp_path / subject / run / "w_matrix.joblib"
+
+
+# Vérifie que l'accuracy est extraite d'un rapport JSON
+def test_load_cached_accuracy_returns_value(tmp_path) -> None:
+    # Définit un sujet et un run pour le cache
+    subject = "S001"
+    # Définit un run pour le cache
+    run = "R03"
+    # Construit le dossier d'artefacts cible
+    target_dir = tmp_path / subject / run
+    # Crée l'arborescence des artefacts
+    target_dir.mkdir(parents=True, exist_ok=True)
+    # Prépare un rapport JSON minimal avec une accuracy
+    (target_dir / "report.json").write_text('{"accuracy": 0.85}', encoding="utf-8")
+    # Charge l'accuracy via la fonction utilitaire
+    accuracy = aggregate_experience_scores._load_cached_accuracy(tmp_path, subject, run)
+    # Vérifie que l'accuracy est bien lue et convertie
+    assert accuracy == 0.85
+
+
+# Vérifie que l'absence de rapport retourne None
+def test_load_cached_accuracy_returns_none_when_missing(tmp_path) -> None:
+    # Définit un sujet et un run pour le cache
+    subject = "S001"
+    # Définit un run pour le cache
+    run = "R03"
+    # Charge l'accuracy sans rapport présent
+    accuracy = aggregate_experience_scores._load_cached_accuracy(tmp_path, subject, run)
+    # Vérifie que l'absence de rapport retourne None
+    assert accuracy is None
+
+
+# Vérifie l'append d'une accuracy dans la structure agrégée
+def test_append_subject_score_accumulates_values() -> None:
+    # Initialise un conteneur vide
+    subject_scores: dict[str, dict[str, list[float]]] = {}
+    # Ajoute une première valeur pour un sujet et une expérience
+    aggregate_experience_scores._append_subject_score(subject_scores, "S001", "T1", 0.7)
+    # Ajoute une seconde valeur pour le même sujet et expérience
+    aggregate_experience_scores._append_subject_score(subject_scores, "S001", "T1", 0.8)
+    # Vérifie que les deux valeurs sont conservées
+    assert subject_scores["S001"]["T1"] == [0.7, 0.8]

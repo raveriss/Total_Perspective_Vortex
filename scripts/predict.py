@@ -414,9 +414,9 @@ def _train_missing_pipeline(
         artifacts_dir=artifacts_dir,
         # Transmet le répertoire des EDF bruts pour les métadonnées
         raw_dir=raw_dir,
-        # Active la recherche d'hyperparamètres pour booster l'accuracy
-        enable_grid_search=True,
-        # Fixe un nombre de splits raisonnable pour limiter le coût
+        # Désactive la recherche exhaustive pour accélérer l'auto-train
+        enable_grid_search=False,
+        # Fixe un nombre de splits raisonnable si la recherche est réactivée
         grid_search_splits=5,
     )
     # Lance l'entraînement pour matérialiser model.joblib et w_matrix.joblib

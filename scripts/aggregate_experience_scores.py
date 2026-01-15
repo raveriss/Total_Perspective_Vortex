@@ -7,6 +7,9 @@ import csv
 # Garantit un import dynamique sans dépendance de l'ordre sys.path
 import importlib
 
+# Garantit la lecture JSON des rapports persistés pour accélérer le scoring
+import json
+
 # Garantit l'accès aux modules locaux même via un appel direct
 import sys
 
@@ -85,6 +88,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Chemin de sortie du rapport CSV par sujet",
     )
+    # Ajoute un flag pour autoriser l'auto-train en l'absence d'artefacts
+    parser.add_argument(
+        "--auto-train-missing",
+        action="store_true",
+        help="Autorise le scan data/ et l'auto-train des runs manquants",
+    )
     # Retourne le parser prêt à interpréter les arguments utilisateur
     return parser
 
@@ -162,7 +171,11 @@ def _discover_runs_from_data(data_dir: Path) -> list[tuple[str, str]]:
 
 
 # Sélectionne l'origine des runs en priorisant les artefacts existants
-def _discover_runs(data_dir: Path, artifacts_dir: Path) -> list[tuple[str, str]]:
+def _discover_runs(
+    data_dir: Path,
+    artifacts_dir: Path,
+    allow_data_scan: bool,
+) -> list[tuple[str, str]]:
     """Liste les couples (sujet, run) via artefacts ou dataset."""
 
     # Tente d'abord de réutiliser les artefacts persistés
@@ -171,6 +184,15 @@ def _discover_runs(data_dir: Path, artifacts_dir: Path) -> list[tuple[str, str]]
     if runs:
         # Préserve le chemin rapide pour éviter un scan lourd des données
         return runs
+    # Refuse le scan des données si l'auto-train est désactivé
+    if not allow_data_scan:
+        # Informe l'utilisateur que seuls les artefacts existants sont évalués
+        print(
+            "INFO: aucun artefact trouvé, "
+            "scan data désactivé (utilisez --auto-train-missing pour activer)."
+        )
+        # Retourne une liste vide pour éviter un entraînement coûteux
+        return []
     # Bascule vers un scan des données pour déclencher l'auto-train
     return _discover_runs_from_data(data_dir)
 
@@ -207,11 +229,71 @@ def compute_bonus_points(mean_score: float | None) -> int:
     return int(delta // BONUS_STEP) + 1
 
 
+# Construit les chemins d'artefacts attendus pour un run
+def _artifact_paths(artifacts_dir: Path, subject: str, run: str) -> tuple[Path, Path]:
+    """Retourne les chemins du modèle et de la matrice W attendus."""
+
+    # Calcule le dossier d'artefacts pour accéder aux fichiers
+    target_dir = artifacts_dir / subject / run
+    # Construit le chemin du modèle sérialisé attendu
+    model_path = target_dir / "model.joblib"
+    # Construit le chemin de la matrice W attendue
+    w_matrix_path = target_dir / "w_matrix.joblib"
+    # Retourne les deux chemins pour vérification
+    return model_path, w_matrix_path
+
+
+# Charge une accuracy persistée si un rapport JSON existe
+def _load_cached_accuracy(artifacts_dir: Path, subject: str, run: str) -> float | None:
+    """Retourne l'accuracy du rapport JSON si disponible."""
+
+    # Calcule le dossier d'artefacts pour accéder au rapport éventuel
+    target_dir = artifacts_dir / subject / run
+    # Détermine le chemin d'un rapport déjà généré
+    report_path = target_dir / "report.json"
+    # Retourne None si aucun rapport n'est présent
+    if not report_path.exists():
+        # Signale l'absence de cache pour déclencher un calcul
+        return None
+    # Charge le contenu JSON du rapport persisté
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    # Récupère l'accuracy du rapport si elle existe
+    accuracy = report.get("accuracy")
+    # Retourne une accuracy typée si elle est valide
+    if isinstance(accuracy, (float, int)):
+        # Convertit explicitement en float pour homogénéiser le type
+        return float(accuracy)
+    # Retourne None si la clé est absente ou invalide
+    return None
+
+
+# Ajoute une accuracy au conteneur par sujet et par expérience
+def _append_subject_score(
+    subject_scores: dict[str, dict[str, list[float]]],
+    subject: str,
+    experience: str,
+    accuracy: float,
+) -> None:
+    """Enregistre une accuracy dans le dictionnaire d'agrégation."""
+
+    # Initialise le dictionnaire du sujet si nécessaire
+    if subject not in subject_scores:
+        # Crée un conteneur dédié pour les scores du sujet
+        subject_scores[subject] = {}
+    # Initialise la liste de scores pour l'expérience si nécessaire
+    if experience not in subject_scores[subject]:
+        # Crée la liste des scores pour le type courant
+        subject_scores[subject][experience] = []
+    # Empile l'accuracy pour la moyenne par expérience
+    subject_scores[subject][experience].append(accuracy)
+
+
 # Agrège les scores par sujet en parcourant les runs disponibles
 def _collect_subject_scores(
     runs: list[tuple[str, str]],
     data_dir: Path,
     artifacts_dir: Path,
+    allow_auto_train: bool,
 ) -> dict[str, dict[str, list[float]]]:
     """Regroupe les accuracies par sujet et type d'expérience."""
 
@@ -225,18 +307,28 @@ def _collect_subject_scores(
         if experience is None:
             # Passe au run suivant pour éviter les fausses moyennes
             continue
+        # Charge une accuracy persistée si disponible
+        cached_accuracy = _load_cached_accuracy(artifacts_dir, subject, run)
+        # Ajoute la valeur persistée si elle existe
+        if cached_accuracy is not None:
+            # Enregistre l'accuracy dans l'agrégation par sujet
+            _append_subject_score(subject_scores, subject, experience, cached_accuracy)
+            # Passe au run suivant pour éviter un recalcul
+            continue
+        # Résout les chemins d'artefacts nécessaires à l'évaluation
+        model_path, w_matrix_path = _artifact_paths(artifacts_dir, subject, run)
+        # Saute l'auto-train si les artefacts sont incomplets et interdits
+        if not allow_auto_train and (
+            not model_path.exists() or not w_matrix_path.exists()
+        ):
+            # Informe l'utilisateur que le run est ignoré par manque d'artefact
+            print("INFO: modèle absent pour " f"{subject} {run}, auto-train désactivé.")
+            # Passe au run suivant sans entraîner
+            continue
         # Calcule l'accuracy en rechargeant le modèle et les données
         result = predict_cli.evaluate_run(subject, run, data_dir, artifacts_dir)
-        # Initialise le dictionnaire du sujet si nécessaire
-        if subject not in subject_scores:
-            # Crée un conteneur dédié pour les scores du sujet
-            subject_scores[subject] = {}
-        # Initialise la liste de scores pour l'expérience si nécessaire
-        if experience not in subject_scores[subject]:
-            # Crée la liste des scores pour le type courant
-            subject_scores[subject][experience] = []
-        # Empile l'accuracy pour la moyenne par expérience
-        subject_scores[subject][experience].append(result["accuracy"])
+        # Ajoute l'accuracy résultante pour l'expérience
+        _append_subject_score(subject_scores, subject, experience, result["accuracy"])
     # Retourne le regroupement par sujet
     return subject_scores
 
@@ -304,13 +396,19 @@ def _extract_eligible_means(subject_entries: list[dict]) -> list[float]:
 
 
 # Calcule les moyennes par type d'expérience pour chaque sujet
-def aggregate_experience_scores(data_dir: Path, artifacts_dir: Path) -> dict:
+def aggregate_experience_scores(
+    data_dir: Path,
+    artifacts_dir: Path,
+    allow_auto_train: bool,
+) -> dict:
     """Produit un rapport agrégé par sujet et type d'expérience (WBS 7.4)."""
 
     # Récupère la liste des runs éligibles à l'agrégation
-    runs = _discover_runs(data_dir, artifacts_dir)
+    runs = _discover_runs(data_dir, artifacts_dir, allow_auto_train)
     # Regroupe les accuracies par sujet et type d'expérience
-    subject_scores = _collect_subject_scores(runs, data_dir, artifacts_dir)
+    subject_scores = _collect_subject_scores(
+        runs, data_dir, artifacts_dir, allow_auto_train
+    )
     # Construit les entrées prêtes pour affichage ou export
     subject_entries = _build_subject_entries(subject_scores)
     # Extrait les moyennes valides pour le score global
@@ -437,7 +535,11 @@ def main(argv: list[str] | None = None) -> int:
     # Parse les arguments utilisateurs pour récupérer les chemins
     args = parser.parse_args(argv)
     # Calcule le rapport d'accuracy par expérience
-    report = aggregate_experience_scores(args.data_dir, args.artifacts_dir)
+    report = aggregate_experience_scores(
+        args.data_dir,
+        args.artifacts_dir,
+        args.auto_train_missing,
+    )
     # Formate le tableau lisible pour l'utilisateur CLI
     table = format_experience_table(report)
     # Imprime le tableau pour inspection ou redirection
