@@ -177,12 +177,28 @@ def _build_npy_from_edf(
     # Découpe le signal filtré en epochs exploitables
     epochs = preprocessing.create_epochs_from_raw(filtered_raw, events, event_id)
     # Applique un rejet d'artefacts pour limiter les essais aberrants
-    cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
-        epochs,
-        motor_labels,
-        (subject, run),
-        max_peak_to_peak=DEFAULT_MAX_PEAK_TO_PEAK,
-    )
+    try:
+        # Utilise le filtrage par qualité pour supprimer les segments cassés
+        cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
+            epochs,
+            motor_labels,
+            (subject, run),
+            max_peak_to_peak=DEFAULT_MAX_PEAK_TO_PEAK,
+        )
+    except ValueError as error:
+        # Détecte l'absence de classe après filtrage pour éviter un crash
+        if "Missing labels" not in str(error):
+            # Relance l'erreur originale si elle ne concerne pas les labels
+            raise
+        # Signale un fallback pour préserver l'inférence sur ce run
+        print(
+            "AVERTISSEMENT: filtrage QC a supprimé une classe pour "
+            f"{subject} {run}, fallback sans QC."
+        )
+        # Conserve les epochs filtrées par annotations uniquement
+        cleaned_epochs = epochs
+        # Conserve les labels moteurs initiaux pour aligner les données
+        cleaned_labels = motor_labels
     # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
     epochs_data = cleaned_epochs.get_data(copy=True)
     # Définit un mapping stable label → entier
