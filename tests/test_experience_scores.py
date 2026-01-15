@@ -212,7 +212,8 @@ def test_format_experience_table_renders_global_and_na() -> None:
         "mean_of_means": None,
     }
     # Construit un rapport minimal avec un sujet complet et un incomplet
-    report = {
+    # Annote explicitement le type pour satisfaire mypy
+    report: dict[str, object] = {
         # Fournit les lignes sujet pour le tableau
         "subjects": [subject_complete, subject_incomplete],
         # Définit la moyenne globale attendue
@@ -228,6 +229,28 @@ def test_format_experience_table_renders_global_and_na() -> None:
     assert "Global" in table
     # Vérifie que les valeurs absentes affichent n/a
     assert "n/a" in table
+
+
+# Vérifie la ligne globale même sans moyenne calculée
+def test_format_experience_table_renders_global_without_scores() -> None:
+    # Construit un rapport sans sujets ni moyenne globale
+    # Annote explicitement le type pour satisfaire mypy
+    report: dict[str, object] = {
+        # Laisse la liste des sujets vide pour simuler l'absence d'artefacts
+        "subjects": [],
+        # Indique qu'aucune moyenne globale n'est calculée
+        "global_mean": None,
+        # Fixe le nombre de sujets éligibles à zéro
+        "eligible_subjects": 0,
+        # Fixe le bonus à zéro en l'absence de score
+        "bonus_points": 0,
+    }
+    # Formate le tableau texte à partir du rapport vide
+    table = aggregate_experience_scores.format_experience_table(report)
+    # Vérifie que la ligne globale est incluse
+    assert "Global" in table
+    # Vérifie que la moyenne globale absente affiche n/a
+    assert "\tn/a\t" in table
 
 
 # Vérifie l'écriture CSV des moyennes par expérience
