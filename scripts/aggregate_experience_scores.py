@@ -395,6 +395,42 @@ def _extract_eligible_means(subject_entries: list[dict]) -> list[float]:
     ]
 
 
+# Calcule les moyennes globales par type d'expérience
+def _build_global_experience_means(
+    subject_scores: dict[str, dict[str, list[float]]],
+) -> dict[str, float | None]:
+    """Retourne la moyenne par expérience sur tous les sujets."""
+
+    # Initialise un conteneur vide pour agréger les scores par expérience
+    aggregated_scores: dict[str, list[float]] = {}
+    # Parcourt les expériences attendues pour initialiser les listes
+    for experience in EXPERIENCE_ORDER:
+        # Prépare une liste vide pour chaque expérience attendue
+        aggregated_scores[experience] = []
+    # Parcourt les scores par sujet pour accumuler les valeurs disponibles
+    for experience_scores in subject_scores.values():
+        # Parcourt chaque expérience attendue pour préserver l'ordre
+        for experience in EXPERIENCE_ORDER:
+            # Récupère les scores du sujet pour l'expérience courante
+            scores = experience_scores.get(experience, [])
+            # Ignore les expériences sans score pour éviter des moyennes vides
+            if not scores:
+                # Passe à l'expérience suivante pour préserver les données fiables
+                continue
+            # Ajoute les scores pour construire la moyenne globale
+            aggregated_scores[experience].extend(scores)
+    # Initialise le dictionnaire des moyennes par expérience
+    experience_means: dict[str, float | None] = {}
+    # Parcourt les expériences agrégées pour calculer les moyennes
+    for experience, scores in aggregated_scores.items():
+        # Calcule la moyenne sur tous les sujets si la liste n'est pas vide
+        mean_value = float(np.mean(scores)) if scores else None
+        # Stocke la moyenne calculée pour l'expérience
+        experience_means[experience] = mean_value
+    # Retourne les moyennes globales par expérience
+    return experience_means
+
+
 # Calcule les moyennes par type d'expérience pour chaque sujet
 def aggregate_experience_scores(
     data_dir: Path,
@@ -413,6 +449,29 @@ def aggregate_experience_scores(
     subject_entries = _build_subject_entries(subject_scores)
     # Extrait les moyennes valides pour le score global
     eligible_means = _extract_eligible_means(subject_entries)
+    # Calcule les moyennes globales par expérience sur tous les sujets
+    global_experience_means = _build_global_experience_means(subject_scores)
+    # Initialise la liste des moyennes disponibles pour le calcul global
+    experience_mean_values: list[float] = []
+    # Initialise un indicateur pour vérifier la disponibilité des moyennes
+    has_all_experience_means = True
+    # Parcourt les moyennes par expérience pour collecter les valeurs
+    for mean_value in global_experience_means.values():
+        # Bascule l'indicateur si une moyenne manque
+        if mean_value is None:
+            # Marque l'absence d'une moyenne d'expérience
+            has_all_experience_means = False
+            # Continue la collecte pour conserver les valeurs présentes
+            continue
+        # Ajoute la moyenne disponible pour calculer la moyenne globale
+        experience_mean_values.append(mean_value)
+    # Calcule la moyenne des quatre moyennes si elles sont toutes disponibles
+    global_experience_mean = (
+        # Calcule la moyenne globale des quatre types d'expérience
+        float(np.mean(experience_mean_values))
+        if has_all_experience_means
+        else None
+    )
     # Calcule la moyenne globale sur les sujets complets
     global_mean = float(np.mean(eligible_means)) if eligible_means else None
     # Calcule les points bonus associés à la moyenne globale
@@ -420,6 +479,8 @@ def aggregate_experience_scores(
     # Retourne la structure complète prête pour l'affichage ou export
     return {
         "subjects": subject_entries,
+        "global_experience_means": global_experience_means,
+        "global_experience_mean": global_experience_mean,
         "global_mean": global_mean,
         "eligible_subjects": len(eligible_means),
         "bonus_points": bonus_points,
@@ -464,10 +525,26 @@ def format_experience_table(report: dict) -> str:
             )
         )
     # Prépare l'affichage de la moyenne globale même si elle est absente
+    global_experience_means = report.get("global_experience_means", {})
+    # Initialise le conteneur des valeurs formatées par expérience
+    global_experience_values: list[str] = []
+    # Parcourt les expériences dans l'ordre pour l'affichage global
+    for experience in EXPERIENCE_ORDER:
+        # Récupère la moyenne globale pour l'expérience courante
+        experience_mean = global_experience_means.get(experience)
+        # Prépare la valeur formatée ou le placeholder
+        formatted_mean = (
+            "{:.3f}".format(experience_mean) if experience_mean is not None else "n/a"
+        )
+        # Ajoute la valeur formatée à la liste d'affichage
+        global_experience_values.append(formatted_mean)
+    # Récupère la moyenne des quatre moyennes pour l'affichage
+    global_experience_mean = report.get("global_experience_mean")
+    # Prépare l'affichage de la moyenne des quatre moyennes
     global_mean_label = (
         # Formate la moyenne globale si elle est disponible
-        "{:.3f}".format(report["global_mean"])
-        if report["global_mean"] is not None
+        "{:.3f}".format(global_experience_mean)
+        if isinstance(global_experience_mean, (float, int))
         # Rend explicite l'absence de moyenne globale
         else "n/a"
     )
@@ -481,7 +558,7 @@ def format_experience_table(report: dict) -> str:
         "\t".join(
             [
                 "Global",
-                *["-" for _ in EXPERIENCE_ORDER],
+                *global_experience_values,
                 global_mean_label,
                 global_meta,
             ]

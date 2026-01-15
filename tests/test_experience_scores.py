@@ -127,6 +127,8 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
     assert incomplete_entry["eligible"] is False
     # Vérifie que la moyenne globale ne considère qu'un sujet complet
     assert report["eligible_subjects"] == 1
+    # Vérifie que la moyenne globale par expérience est calculée
+    assert report["global_experience_mean"] is not None
     # Vérifie que le bonus est calculé pour la moyenne globale
     assert report["bonus_points"] >= 1
 
@@ -216,7 +218,11 @@ def test_format_experience_table_renders_global_and_na() -> None:
     report: dict[str, object] = {
         # Fournit les lignes sujet pour le tableau
         "subjects": [subject_complete, subject_incomplete],
-        # Définit la moyenne globale attendue
+        # Définit les moyennes globales par expérience attendues
+        "global_experience_means": means_complete,
+        # Définit la moyenne des quatre moyennes attendue
+        "global_experience_mean": 0.65,
+        # Définit la moyenne globale attendue pour les sujets complets
         "global_mean": 0.65,
         # Définit le nombre de sujets éligibles
         "eligible_subjects": 1,
@@ -238,7 +244,11 @@ def test_format_experience_table_renders_global_without_scores() -> None:
     report: dict[str, object] = {
         # Laisse la liste des sujets vide pour simuler l'absence d'artefacts
         "subjects": [],
-        # Indique qu'aucune moyenne globale n'est calculée
+        # Indique qu'aucune moyenne globale par expérience n'est calculée
+        "global_experience_means": {},
+        # Indique qu'aucune moyenne des quatre moyennes n'est calculée
+        "global_experience_mean": None,
+        # Indique qu'aucune moyenne globale des sujets complets n'est calculée
         "global_mean": None,
         # Fixe le nombre de sujets éligibles à zéro
         "eligible_subjects": 0,
