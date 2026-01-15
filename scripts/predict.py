@@ -402,12 +402,22 @@ def _train_missing_pipeline(
     )
     # Prépare la requête pour déléguer l'entraînement à scripts.train
     request = train_module.TrainingRequest(
+        # Renseigne le sujet pour associer les artefacts au bon dossier
         subject=subject,
+        # Renseigne le run pour distinguer les expérimentations
         run=run,
+        # Transmet la configuration du pipeline de base
         pipeline_config=pipeline_config,
+        # Utilise le répertoire de données fourni par l'appelant
         data_dir=data_dir,
+        # Utilise le répertoire d'artefacts pour stocker le modèle
         artifacts_dir=artifacts_dir,
+        # Transmet le répertoire des EDF bruts pour les métadonnées
         raw_dir=raw_dir,
+        # Active la recherche d'hyperparamètres pour booster l'accuracy
+        enable_grid_search=True,
+        # Fixe un nombre de splits raisonnable pour limiter le coût
+        grid_search_splits=5,
     )
     # Lance l'entraînement pour matérialiser model.joblib et w_matrix.joblib
     train_module.run_training(request)

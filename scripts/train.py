@@ -154,6 +154,44 @@ MIN_CV_SPLITS = 3
 DEFAULT_RANDOM_STATE = 42
 
 
+# Adapte la configuration pour éviter les classifieurs instables en très bas n
+def _adapt_pipeline_config_for_samples(
+    config: PipelineConfig, y: np.ndarray
+) -> PipelineConfig:
+    """Adapte la configuration si l'effectif est trop faible pour LDA."""
+
+    # Calcule le nombre de classes présentes dans les labels
+    class_count = int(np.unique(y).size)
+    # Calcule le nombre total d'échantillons disponibles
+    sample_count = int(y.shape[0])
+    # Conserve la configuration si LDA n'est pas utilisé
+    if config.classifier != "lda":
+        # Retourne la configuration d'origine sans modification
+        return config
+    # Conserve LDA lorsque l'effectif dépasse strictement le nombre de classes
+    if sample_count > class_count:
+        # Retourne la configuration d'origine dans le cas valide
+        return config
+    # Bascule vers un classifieur plus robuste aux petits effectifs
+    # Retourne une nouvelle configuration alignée avec le fallback
+    return PipelineConfig(
+        # Conserve la fréquence d'échantillonnage identique
+        sfreq=config.sfreq,
+        # Conserve la stratégie de features pour la comparabilité
+        feature_strategy=config.feature_strategy,
+        # Conserve la normalisation pour éviter les dérives d'échelle
+        normalize_features=config.normalize_features,
+        # Conserve la méthode de réduction pour limiter l'écart de pipeline
+        dim_method=config.dim_method,
+        # Conserve le nombre de composantes initialement demandé
+        n_components=config.n_components,
+        # Remplace LDA par un classifieur stable sur petits échantillons
+        classifier="centroid",
+        # Conserve le scaler optionnel demandé par la configuration
+        scaler=config.scaler,
+    )
+
+
 # Regroupe toutes les informations nécessaires à un run d'entraînement
 @dataclass
 class TrainingRequest:
@@ -812,16 +850,25 @@ def _write_manifest(
 
 
 # Construit la grille d'hyperparamètres par défaut pour l'optimisation
-def _build_grid_search_grid(config: PipelineConfig) -> dict[str, list[object]]:
+# Construit la grille d'hyperparamètres pour la recherche d'optimisation
+def _build_grid_search_grid(
+    config: PipelineConfig, allow_lda: bool
+) -> dict[str, list[object]]:
     """Retourne une grille raisonnable pour la recherche d'hyperparamètres."""
 
     # Déclare un ensemble restreint de classifieurs pour limiter la complexité
-    classifier_grid = [
-        LinearDiscriminantAnalysis(),
-        LogisticRegression(max_iter=1000),
-        LinearSVC(),
-        CentroidClassifier(),
-    ]
+    # Initialise la grille de classifieurs candidates
+    classifier_grid: list[object] = []
+    # Ajoute LDA uniquement lorsque l'effectif le permet
+    if allow_lda:
+        # Utilise LDA pour les effectifs suffisants
+        classifier_grid.append(LinearDiscriminantAnalysis())
+    # Ajoute une régression logistique pour des décisions régularisées
+    classifier_grid.append(LogisticRegression(max_iter=1000))
+    # Ajoute un SVM linéaire pour capturer des marges simples
+    classifier_grid.append(LinearSVC())
+    # Ajoute un classifieur centroïde pour les petits échantillons
+    classifier_grid.append(CentroidClassifier())
     # Déclare des scalers optionnels, dont passthrough pour désactiver
     scaler_grid: list[object] = ["passthrough", StandardScaler(), RobustScaler()]
     # Déclare une plage compacte de composantes pour PCA/SVD
@@ -867,8 +914,14 @@ def run_training(request: TrainingRequest) -> dict:
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
     X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Adapte la configuration au niveau d'effectif pour stabiliser l'entraînement
+    adapted_config = _adapt_pipeline_config_for_samples(request.pipeline_config, y)
     # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(request.pipeline_config)
+    pipeline = build_pipeline(adapted_config)
+    # Calcule le nombre total d'échantillons disponibles
+    sample_count = int(y.shape[0])
+    # Calcule le nombre de classes distinctes pour l'évaluation LDA
+    class_count = int(np.unique(y).size)
     # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
     min_class_count = int(np.bincount(y).min())
     # Déclare le nombre de splits cible imposé par la consigne (10)
@@ -896,9 +949,11 @@ def run_training(request: TrainingRequest) -> dict:
         # Lance une recherche systématique des hyperparamètres si demandée
         if request.enable_grid_search:
             # Construit la pipeline dédiée au grid search
-            search_pipeline = build_search_pipeline(request.pipeline_config)
+            search_pipeline = build_search_pipeline(adapted_config)
+            # Détermine si LDA est autorisé par le ratio effectif/classes
+            allow_lda = sample_count > class_count
             # Construit la grille d'hyperparamètres à explorer
-            param_grid = _build_grid_search_grid(request.pipeline_config)
+            param_grid = _build_grid_search_grid(adapted_config, allow_lda)
             # Détermine le nombre de splits spécifique si fourni
             search_splits = request.grid_search_splits or n_splits
             # S'assure que la recherche respecte les bornes disponibles
