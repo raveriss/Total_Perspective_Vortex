@@ -44,6 +44,9 @@ DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 # Définit le répertoire par défaut pour les fichiers EDF bruts
 DEFAULT_RAW_DIR = Path("data")
 
+# Définit un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
+DEFAULT_MAX_PEAK_TO_PEAK = 200e-6
+
 
 # Construit un argument parser aligné sur l'appel mybci
 def build_parser() -> argparse.ArgumentParser:
@@ -165,16 +168,45 @@ def _build_npy_from_edf(
     features_path.parent.mkdir(parents=True, exist_ok=True)
     # Charge l'EDF en conservant les métadonnées essentielles
     raw, _ = preprocessing.load_physionet_raw(raw_path)
-    # Mappe les annotations en événements moteurs
-    events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(raw)
-    # Découpe le signal en epochs exploitables
-    epochs = preprocessing.create_epochs_from_raw(raw, events, event_id)
+    # Applique le filtrage bande-passante pour stabiliser les bandes MI
+    filtered_raw = preprocessing.apply_bandpass_filter(raw)
+    # Mappe les annotations en événements moteurs après filtrage
+    events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
+        filtered_raw
+    )
+    # Découpe le signal filtré en epochs exploitables
+    epochs = preprocessing.create_epochs_from_raw(filtered_raw, events, event_id)
+    # Applique un rejet d'artefacts pour limiter les essais aberrants
+    try:
+        # Utilise le filtrage par qualité pour supprimer les segments cassés
+        cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
+            epochs,
+            motor_labels,
+            (subject, run),
+            max_peak_to_peak=DEFAULT_MAX_PEAK_TO_PEAK,
+        )
+    except ValueError as error:
+        # Détecte l'absence de classe après filtrage pour éviter un crash
+        if "Missing labels" not in str(error):
+            # Relance l'erreur originale si elle ne concerne pas les labels
+            raise
+        # Signale un fallback pour préserver l'inférence sur ce run
+        print(
+            "AVERTISSEMENT: filtrage QC a supprimé une classe pour "
+            f"{subject} {run}, fallback sans QC."
+        )
+        # Conserve les epochs filtrées par annotations uniquement
+        cleaned_epochs = epochs
+        # Conserve les labels moteurs initiaux pour aligner les données
+        cleaned_labels = motor_labels
     # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
-    epochs_data = epochs.get_data(copy=True)
+    epochs_data = cleaned_epochs.get_data(copy=True)
     # Définit un mapping stable label → entier
-    label_mapping = {label: idx for idx, label in enumerate(sorted(set(motor_labels)))}
+    label_mapping = {
+        label: idx for idx, label in enumerate(sorted(set(cleaned_labels)))
+    }
     # Convertit les labels symboliques en entiers
-    numeric_labels = np.array([label_mapping[label] for label in motor_labels])
+    numeric_labels = np.array([label_mapping[label] for label in cleaned_labels])
     # Persiste les epochs brutes pour déléguer l'extraction des features
     np.save(features_path, epochs_data)
     # Persiste les labels alignés
