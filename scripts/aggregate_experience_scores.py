@@ -463,22 +463,30 @@ def format_experience_table(report: dict) -> str:
                 ]
             )
         )
-    # Ajoute une ligne de synthèse globale si disponible
-    if report["global_mean"] is not None:
-        # Ajoute la moyenne globale alignée sur les sujets complets
-        lines.append(
-            "\t".join(
-                [
-                    "Global",
-                    *["-" for _ in EXPERIENCE_ORDER],
-                    "{:.3f}".format(report["global_mean"]),
-                    (
-                        f"{report['eligible_subjects']} subjects,"
-                        f" bonus {report['bonus_points']}"
-                    ),
-                ]
-            )
+    # Prépare l'affichage de la moyenne globale même si elle est absente
+    global_mean_label = (
+        # Formate la moyenne globale si elle est disponible
+        "{:.3f}".format(report["global_mean"])
+        if report["global_mean"] is not None
+        # Rend explicite l'absence de moyenne globale
+        else "n/a"
+    )
+    # Prépare le libellé du nombre de sujets éligibles et du bonus
+    global_meta = (
+        # Concatène les métadonnées pour garder un format stable
+        f"{report['eligible_subjects']} subjects, bonus {report['bonus_points']}"
+    )
+    # Ajoute la ligne globale même sans moyenne pour la transparence du rapport
+    lines.append(
+        "\t".join(
+            [
+                "Global",
+                *["-" for _ in EXPERIENCE_ORDER],
+                global_mean_label,
+                global_meta,
+            ]
         )
+    )
     # Retourne la table formatée prête pour l'impression
     return "\n".join(lines)
 
