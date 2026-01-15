@@ -92,6 +92,9 @@ DEFAULT_RAW_DIR = Path("data")
 # Fige la fréquence d'échantillonnage par défaut utilisée pour les features
 DEFAULT_SAMPLING_RATE = 50.0
 
+# Définit un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
+DEFAULT_MAX_PEAK_TO_PEAK = 200e-6
+
 
 # Résout une fréquence d'échantillonnage fiable pour un sujet/run donné
 def resolve_sampling_rate(
@@ -352,20 +355,35 @@ def _build_npy_from_edf(
     # Charge l'EDF en conservant les métadonnées essentielles
     raw, _ = preprocessing.load_physionet_raw(raw_path)
 
-    # Mappe les annotations en événements moteurs
-    events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(raw)
+    # Applique le filtrage bande-passante pour stabiliser les bandes MI
+    filtered_raw = preprocessing.apply_bandpass_filter(raw)
 
-    # Découpe le signal en epochs exploitables
-    epochs = preprocessing.create_epochs_from_raw(raw, events, event_id)
+    # Mappe les annotations en événements moteurs après filtrage
+    events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
+        filtered_raw
+    )
+
+    # Découpe le signal filtré en epochs exploitables
+    epochs = preprocessing.create_epochs_from_raw(filtered_raw, events, event_id)
+
+    # Applique un rejet d'artefacts pour limiter les essais aberrants
+    cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
+        epochs,
+        motor_labels,
+        (subject, run),
+        max_peak_to_peak=DEFAULT_MAX_PEAK_TO_PEAK,
+    )
 
     # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
-    epochs_data = epochs.get_data(copy=True)
+    epochs_data = cleaned_epochs.get_data(copy=True)
 
     # Définit un mapping stable label → entier
-    label_mapping = {label: idx for idx, label in enumerate(sorted(set(motor_labels)))}
+    label_mapping = {
+        label: idx for idx, label in enumerate(sorted(set(cleaned_labels)))
+    }
 
     # Convertit les labels symboliques en entiers
-    numeric_labels = np.array([label_mapping[label] for label in motor_labels])
+    numeric_labels = np.array([label_mapping[label] for label in cleaned_labels])
 
     # Persiste les epochs brutes
     np.save(features_path, epochs_data)
