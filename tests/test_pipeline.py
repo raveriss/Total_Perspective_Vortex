@@ -46,8 +46,8 @@ def test_pipeline_pickling_roundtrip(tmp_path):
 
     # Génère des données EEG synthétiques pour l'entraînement
     X = np.random.randn(12, 2, 50)
-    # Génère des labels binaires aléatoires pour le test
-    y = np.random.randint(0, 2, size=12)
+    # Génère des labels équilibrés pour garantir deux classes
+    y = np.array([0, 1] * 6)
     # Construit un pipeline complet avec scaler et PCA
     pipeline = build_pipeline(
         PipelineConfig(

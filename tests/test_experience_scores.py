@@ -1,5 +1,10 @@
+# Centralise l'aide de cast pour les tests typés mypy
+from typing import cast
+
+# Expose le type TrainingRequest pour les casts mypy
 # Valide le mapping run -> expérience pour le scoring global
 from scripts import aggregate_experience_scores
+from scripts import train as train_module
 
 
 # Vérifie que les runs sont correctement associés aux types attendus
@@ -59,7 +64,7 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
     }
 
     # Définit un faux evaluate_run pour éviter l'I/O de données EEG
-    def fake_evaluate_run(subject: str, run: str, data_dir, artifacts_dir):
+    def fake_evaluate_run(subject: str, run: str, data_dir, artifacts_dir, raw_dir):
         # Retourne un dictionnaire aligné sur l'API attendue
         return {"accuracy": scores[subject][run]}
 
@@ -102,8 +107,14 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
         tmp_path / "data",
         # Passe le répertoire d'artefacts préparé
         tmp_path / "artifacts",
-        # Désactive l'auto-train pour stabiliser le test
-        False,
+        # Transmet des options explicites pour l'agrégation
+        aggregate_experience_scores.AggregationOptions(
+            allow_auto_train=False,
+            force_retrain=False,
+            enable_grid_search=False,
+            grid_search_splits=None,
+            raw_dir=tmp_path / "data",
+        ),
     )
     # Récupère l'entrée pour S001
     subject_entry = next(
@@ -165,6 +176,117 @@ def test_discover_runs_returns_empty_when_dir_missing(tmp_path) -> None:
     )
     # Vérifie que la liste est vide
     assert runs == []
+
+
+# Vérifie que _train_run construit une requête alignée sur les options
+def test_train_run_builds_training_request(tmp_path, monkeypatch) -> None:
+    # Prépare une liste pour capturer la requête d'entraînement
+    captured: list[object] = []
+
+    # Définit un resolve_sampling_rate déterministe pour le test
+    def fake_resolve_sampling_rate(subject, run, raw_dir, requested_sfreq):
+        # Retourne une fréquence factice pour vérifier l'appel
+        return 128.0
+
+    # Définit un run_training factice pour capturer la requête
+    def fake_run_training(request):
+        # Stocke la requête pour inspection
+        captured.append(request)
+        # Retourne un rapport minimal pour satisfaire l'appelant
+        return {"cv_scores": []}
+
+    # Remplace la résolution de fréquence pour isoler le test
+    monkeypatch.setattr(
+        aggregate_experience_scores.train_cli,
+        "resolve_sampling_rate",
+        fake_resolve_sampling_rate,
+    )
+    # Remplace l'entraînement pour éviter l'I/O
+    monkeypatch.setattr(
+        aggregate_experience_scores.train_cli,
+        "run_training",
+        fake_run_training,
+    )
+    # Prépare les options d'entraînement pour la simulation
+    options = aggregate_experience_scores.AggregationOptions(
+        allow_auto_train=True,
+        force_retrain=False,
+        enable_grid_search=True,
+        grid_search_splits=3,
+        raw_dir=tmp_path / "raw",
+    )
+    # Prépare le contexte d'entraînement complet
+    context = aggregate_experience_scores.TrainingContext(
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+        options=options,
+    )
+    # Lance l'entraînement factice pour couvrir _train_run
+    aggregate_experience_scores._train_run("S001", "R03", context)
+    # Vérifie qu'une requête a été capturée
+    assert len(captured) == 1
+    # Récupère la requête capturée pour valider les champs
+    request = cast(train_module.TrainingRequest, captured[0])
+    # Vérifie le sujet de la requête
+    assert request.subject == "S001"
+    # Vérifie le run de la requête
+    assert request.run == "R03"
+    # Vérifie le drapeau grid search dans la requête
+    assert request.enable_grid_search is True
+    # Vérifie le nombre de splits configuré
+    assert request.grid_search_splits == 3
+    # Vérifie le chemin des données dans la requête
+    assert request.data_dir == tmp_path / "data"
+    # Vérifie le chemin des artefacts dans la requête
+    assert request.artifacts_dir == tmp_path / "artifacts"
+    # Vérifie le chemin raw transmis
+    assert request.raw_dir == tmp_path / "raw"
+
+
+# Vérifie que _collect_subject_scores déclenche le réentraînement forcé
+def test_collect_subject_scores_force_retrain_triggers_train(
+    tmp_path, monkeypatch
+) -> None:
+    # Prépare une liste pour suivre les appels d'entraînement
+    called: list[tuple[str, str]] = []
+
+    # Définit un faux _train_run pour marquer l'appel
+    def fake_train_run(subject, run, context):
+        # Enregistre le couple sujet/run pour validation
+        called.append((subject, run))
+
+    # Définit un evaluate_run factice pour retourner un score fixe
+    def fake_evaluate_run(subject, run, data_dir, artifacts_dir, raw_dir):
+        # Retourne une accuracy stable pour l'agrégation
+        return {"accuracy": 0.8}
+
+    # Remplace _train_run pour éviter l'entraînement réel
+    monkeypatch.setattr(aggregate_experience_scores, "_train_run", fake_train_run)
+    # Remplace evaluate_run pour éviter l'I/O
+    monkeypatch.setattr(
+        aggregate_experience_scores.predict_cli,
+        "evaluate_run",
+        fake_evaluate_run,
+    )
+    # Prépare des options qui forcent le réentraînement
+    options = aggregate_experience_scores.AggregationOptions(
+        allow_auto_train=True,
+        force_retrain=True,
+        enable_grid_search=False,
+        grid_search_splits=None,
+        raw_dir=tmp_path / "raw",
+    )
+    # Exécute la collecte sur un run simulé
+    result = aggregate_experience_scores._collect_subject_scores(
+        runs=[("S001", "R03")],
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+        options=options,
+    )
+    # Vérifie que l'entraînement forcé a été déclenché
+    assert called == [("S001", "R03")]
+    # Vérifie que l'accuracy est bien enregistrée
+    assert result["S001"]["T1"] == [0.8]
 
 
 # Vérifie le formatage du tableau texte avec une ligne globale
