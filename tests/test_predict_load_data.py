@@ -1,5 +1,6 @@
 """Tests ciblés sur scripts.predict._load_data pour sécuriser la reconstruction."""
 
+import json
 import sys
 from pathlib import Path
 
@@ -197,3 +198,85 @@ def test_predict_load_data_rebuilds_when_one_numpy_file_missing(tmp_path, monkey
     assert calls == [(subject, run, raw_dir)]
     assert np.array_equal(X, rebuilt_X)
     assert np.array_equal(y, rebuilt_y)
+
+
+# Vérifie la reconstruction EDF en respectant la fenêtre persistée
+def test_build_npy_from_edf_uses_epoch_window_metadata(tmp_path, monkeypatch) -> None:
+    """Valide l'usage de la fenêtre persistée pour l'epoching."""
+
+    subject = "S999"
+    run = "R03"
+    data_dir = tmp_path / "data"
+    raw_dir = tmp_path / "raw"
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_text("stub")
+
+    # Persiste une fenêtre custom pour ce run
+    window_path = data_dir / subject / f"{run}_epoch_window.json"
+    window_path.parent.mkdir(parents=True, exist_ok=True)
+    window_path.write_text(json.dumps({"tmin": 0.5, "tmax": 2.5}))
+
+    # Définit un Raw factice sans logique MNE
+    class DummyRaw:
+        info = {"sfreq": 100.0}
+
+    dummy_raw = DummyRaw()
+
+    # Stub l'entrée EDF
+    monkeypatch.setattr(
+        predict.preprocessing,
+        "load_physionet_raw",
+        lambda *_args, **_kwargs: (dummy_raw, {}),
+    )
+    # Stub le notch et le bandpass
+    monkeypatch.setattr(
+        predict.preprocessing, "apply_notch_filter", lambda raw, **_kwargs: raw
+    )
+    monkeypatch.setattr(
+        predict.preprocessing, "apply_bandpass_filter", lambda raw, **_kwargs: raw
+    )
+
+    # Capture la fenêtre utilisée pour l'epoching
+    captured: dict[str, float] = {}
+
+    # Définit une classe d'epochs factice pour le test
+    class DummyEpochs:
+        def get_data(self, copy=True):
+            return np.zeros((2, 2, 2))
+
+    dummy_epochs = DummyEpochs()
+
+    # Stub l'epoching pour valider la fenêtre reçue
+    def _fake_create_epochs(*_args, **kwargs):
+        captured["tmin"] = kwargs["tmin"]
+        captured["tmax"] = kwargs["tmax"]
+        return dummy_epochs
+
+    monkeypatch.setattr(
+        predict.preprocessing, "create_epochs_from_raw", _fake_create_epochs
+    )
+    # Stub le mapping d'événements
+    monkeypatch.setattr(
+        predict.preprocessing,
+        "map_events_to_motor_labels",
+        lambda *_args, **_kwargs: (np.array([]), {"A": 1}, ["A", "B"]),
+    )
+    # Stub le QC pour éviter les dépendances MNE
+    monkeypatch.setattr(
+        predict.preprocessing,
+        "summarize_epoch_quality",
+        lambda *_args, **_kwargs: (dummy_epochs, {}, ["A", "B"]),
+    )
+
+    # Exécute la reconstruction depuis l'EDF
+    features_path, labels_path = predict._build_npy_from_edf(
+        subject, run, data_dir, raw_dir
+    )
+
+    # Vérifie que la fenêtre persistée est bien utilisée
+    assert captured["tmin"] == 0.5
+    assert captured["tmax"] == 2.5
+    # Vérifie que les fichiers sont générés
+    assert features_path.exists()
+    assert labels_path.exists()

@@ -348,13 +348,22 @@ pipeline = Pipeline([
 | Item checklist TPV | WBS / livrable | Test ou commande reproductible |
 | --- | --- | --- |
 | Visualisation raw vs filtré | 3.3.1–3.3.4 | `poetry run python scripts/visualize_raw_filtered.py data/S001` ; `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
-| Filtre 8–40 Hz maintenu | 3.1.1–3.1.3 | `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
+| Filtre 8–30 Hz + notch 50 Hz | 3.1.1–3.1.3 | `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
 | Réduction dimension (PCA/CSP) | 5.2.1–5.2.4 | `poetry run pytest tests/test_dimensionality.py::test_csp_returns_log_variances_and_orthogonality` |
 | Pipeline sklearn (BaseEstimator/TransformerMixin) | 5.3.1–5.3.4 | `poetry run pytest tests/test_pipeline.py::test_pipeline_pickling_roundtrip` |
 | Train + score via CLI | 6.3.x & 7.1.x | `poetry run pytest tests/test_classifier.py::test_training_cli_main_covers_parser_and_paths` |
 | Predict renvoie l’ID de classe | 1.2.x & 6.2.x | `poetry run pytest tests/test_classifier.py::test_predict_cli_main_covers_parser_and_report` |
 | Temps réel < 2 s | 8.2.x–8.3.x | `poetry run pytest tests/test_realtime.py::test_realtime_latency_threshold_enforced` |
 | Score ≥ 75 % (agrégation) | 7.2.x | `poetry run pytest tests/test_classifier.py::test_aggregate_scores_exports_files_and_thresholds` |
+
+### Définition du score global (scripts/aggregate_experience_scores.py)
+
+* **Eligible** = sujet disposant des 4 types d’expérience (T1..T4).
+* **Mean** (par sujet) = moyenne des 4 moyennes d’expérience.
+* **MeetsThreshold_0p75** = `Mean >= 0.75`.
+* **GlobalMean** = `(mean(T1) + mean(T2) + mean(T3) + mean(T4)) / 4`.
+* Le script affiche les **10 pires sujets** par `Mean` et retourne **exit code 1**
+  si `GlobalMean < 0.75`.
 
 La version complète et maintenable de cette matrice, incluant les références aux risques Murphy, est disponible dans [`docs/project/checklist_wbs_matrix.md`](docs/project/checklist_wbs_matrix.md).
 

@@ -46,6 +46,12 @@ DEFAULT_RAW_DIR = Path("data")
 
 # Définit un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
 DEFAULT_MAX_PEAK_TO_PEAK = 200e-6
+# Fixe la bande passante MI recommandée pour la tâche motrice
+DEFAULT_BANDPASS_BAND = (8.0, 30.0)
+# Fixe la fréquence de notch pour supprimer la pollution secteur
+DEFAULT_NOTCH_FREQ = 50.0
+# Fixe la fenêtre d'epochs par défaut côté prédiction
+DEFAULT_EPOCH_WINDOW = (0.5, 2.5)
 
 
 # Construit un argument parser aligné sur l'appel mybci
@@ -147,6 +153,41 @@ def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, P
     return features_path, labels_path
 
 
+# Construit le chemin du fichier de fenêtre d'epochs pour un run
+def _resolve_epoch_window_path(subject: str, run: str, data_dir: Path) -> Path:
+    """Retourne le chemin du JSON décrivant la fenêtre d'epochs."""
+
+    # Localise le sous-dossier spécifique au sujet
+    base_dir = data_dir / subject
+    # Construit le chemin du fichier de fenêtre pour ce run
+    window_path = base_dir / f"{run}_epoch_window.json"
+    # Retourne le chemin du fichier de fenêtre
+    return window_path
+
+
+# Charge la fenêtre d'epochs persistée par l'entraînement
+def _read_epoch_window_metadata(
+    subject: str,
+    run: str,
+    data_dir: Path,
+) -> tuple[float, float]:
+    """Retourne la fenêtre d'epochs à utiliser en prédiction."""
+
+    # Construit le chemin du fichier de fenêtre pour ce run
+    window_path = _resolve_epoch_window_path(subject, run, data_dir)
+    # Utilise la fenêtre par défaut si aucun fichier n'est trouvé
+    if not window_path.exists():
+        return DEFAULT_EPOCH_WINDOW
+    # Charge le contenu JSON pour récupérer la fenêtre
+    payload = json.loads(window_path.read_text())
+    # Extrait tmin du JSON en float
+    tmin = float(payload.get("tmin", DEFAULT_EPOCH_WINDOW[0]))
+    # Extrait tmax du JSON en float
+    tmax = float(payload.get("tmax", DEFAULT_EPOCH_WINDOW[1]))
+    # Retourne la fenêtre reconstruite
+    return (tmin, tmax)
+
+
 # Construit des matrices numpy à partir d'un EDF lorsque nécessaire
 def _build_npy_from_edf(
     subject: str,
@@ -168,14 +209,27 @@ def _build_npy_from_edf(
     features_path.parent.mkdir(parents=True, exist_ok=True)
     # Charge l'EDF en conservant les métadonnées essentielles
     raw, _ = preprocessing.load_physionet_raw(raw_path)
+    # Résout la fenêtre d'epochs alignée avec l'entraînement
+    epoch_window = _read_epoch_window_metadata(subject, run, data_dir)
+    # Applique un notch pour supprimer la pollution secteur
+    notched_raw = preprocessing.apply_notch_filter(raw, freq=DEFAULT_NOTCH_FREQ)
     # Applique le filtrage bande-passante pour stabiliser les bandes MI
-    filtered_raw = preprocessing.apply_bandpass_filter(raw)
+    filtered_raw = preprocessing.apply_bandpass_filter(
+        notched_raw,
+        freq_band=DEFAULT_BANDPASS_BAND,
+    )
     # Mappe les annotations en événements moteurs après filtrage
     events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
         filtered_raw
     )
     # Découpe le signal filtré en epochs exploitables
-    epochs = preprocessing.create_epochs_from_raw(filtered_raw, events, event_id)
+    epochs = preprocessing.create_epochs_from_raw(
+        filtered_raw,
+        events,
+        event_id,
+        tmin=epoch_window[0],
+        tmax=epoch_window[1],
+    )
     # Applique un rejet d'artefacts pour limiter les essais aberrants
     try:
         # Utilise le filtrage par qualité pour supprimer les segments cassés
@@ -381,7 +435,7 @@ def _train_missing_pipeline(
     artifacts_dir: Path,
     raw_dir: Path,
 ) -> None:
-    """Construit un pipeline FFT/PCA/LDA lorsque le modèle manque."""
+    """Construit un pipeline CSP/LDA shrinkage lorsque le modèle manque."""
 
     # Résout la fréquence d'échantillonnage à partir de l'EDF si disponible
     resolved_sfreq = train_module.resolve_sampling_rate(
@@ -395,10 +449,11 @@ def _train_missing_pipeline(
         sfreq=resolved_sfreq,
         feature_strategy="fft",
         normalize_features=True,
-        dim_method="pca",
-        n_components=None,
+        dim_method="csp",
+        n_components=train_module.DEFAULT_CSP_COMPONENTS,
         classifier="lda",
         scaler=None,
+        csp_regularization=0.1,
     )
     # Prépare la requête pour déléguer l'entraînement à scripts.train
     request = train_module.TrainingRequest(
