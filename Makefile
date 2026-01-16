@@ -164,12 +164,12 @@ bench: ensure-venv
 # Affiche la commande pour activer le venv
 activate:
 	@echo "Pour activer manuellement cet environnement :"
-	@echo "  source $$(poetry env info -p)/bin/activate"
+	@echo "source $$(poetry env info -p)/bin/activate"
 
 # Affiche la commande pour désactiver le venv
 deactivate:
 	@echo "Pour quitter l'environnement :"
-	@echo "  deactivate"
+	@echo "deactivate"
 
 clean: clean-artifacts clean-npy
 
