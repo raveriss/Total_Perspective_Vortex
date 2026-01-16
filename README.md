@@ -61,7 +61,7 @@ Il implémente un pipeline complet :
 * 🤖 **lassification supervisée**
 * ⏱️ **Prediction < 2 secondes** (lecture pseudo temps réel)
 * 📈 **Validation croisée (cross_val_score)**
-* 🧪 **Accuracy ≥ 60 % sur sujets non vus – métrique obligatoire**
+* 🧪 **Accuracy ≥ 75 % sur sujets non vus – métrique obligatoire**
 
 Le travail final ne contient **que le code Python** ; le dataset EEG Physionet n’est pas versionné.
 

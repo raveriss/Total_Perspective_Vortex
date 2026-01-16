@@ -10,7 +10,7 @@
 - **Accuracy par run** : `pipeline.score(X, y)` exécuté sur le run ciblé, sans mélange inter-run. La matrice W est rechargée pour valider la complétude des artefacts.
 - **Accuracy par sujet** : moyenne arithmétique des accuracies des runs d'un même sujet.
 - **Accuracy globale** : moyenne des accuracies de tous les runs découverts.
-- **Cible** : score attendu ≥ 0,60 (cible 0,75) sur les données réelles. Les tests synthétiques vérifient ≥ 0,90 pour garantir la cohérence de la pipeline.
+- **Cible** : score attendu ≥ 0,75 sur les données réelles. Les tests synthétiques vérifient ≥ 0,90 pour garantir la cohérence de la pipeline.
 
 ## Commande d'agrégation
 - **Script** : `scripts/aggregate_accuracy.py` (WBS 7.1/7.4).

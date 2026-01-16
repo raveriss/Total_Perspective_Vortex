@@ -228,7 +228,7 @@ _Risque Murphy (section 7.3) : à lier à TPV-XXX… (Phase: Score global / Clas
 ### 7.4 Score global & contraintes de réussite
 
 * **7.4.1** Implémenter le script global “tous sujets / toutes expériences”
-* **7.4.2** Calculer la mean accuracy par expérience, puis moyenne des 6 expériences sur données jamais vues, et **garantir ≥ 60 %** (exigence minimale du sujet)
+* **7.4.2** Calculer la mean accuracy par expérience, puis moyenne des 6 expériences sur données jamais vues, et **garantir ≥75 %** (exigence minimale du sujet)
 * **7.4.3** Définir une tâche d’optimisation dédiée pour viser **≥ 75 % de mean accuracy** (exigence du scale pour notation max + bonus)
 * **7.4.4** Ajouter un rapport texte/CSV avec ces scores (par sujet, par expérience, global)
 * **7.4.5** Ajouter tests `test_realtime.py` / `test_classifier.py` pour la stabilité du score sur dataset jouet

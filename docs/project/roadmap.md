@@ -7,7 +7,7 @@
 
 ## Prochaines étapes (alignées sur le WBS)
 1. **Stratégie Train/Val/Test et score global** (WBS 7.1, 7.4)
-   - Documenter dans `docs/project/` la politique de splits sujet/run, seeds et métriques exigées (≥60 % / cible 75 %).
+   - Documenter dans `docs/project/` la politique de splits sujet/run, seeds et métriques exigées (≥75 %).
    - Ajouter un script/commande pour agréger les accuracies par run, sujet et globale à partir des artefacts sauvegardés.
    - Étendre les tests `test_classifier.py`/`test_realtime.py` avec un scénario d'agrégation sur dataset jouet.
 
