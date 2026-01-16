@@ -879,8 +879,9 @@ def _build_grid_search_grid(
     if config.n_components is not None and config.n_components not in n_components_grid:
         n_components_grid.append(config.n_components)
     # Construit la grille finale en couvrant features + réduction + classif
+    # Étend la grille aux familles Welch et mixte pour enrichir les features
     return {
-        "features__feature_strategy": ["fft", "wavelet"],
+        "features__feature_strategy": ["fft", "welch", ("fft", "welch"), "wavelet"],
         "features__normalize": [True, False],
         "dimensionality__method": ["pca", "svd"],
         "dimensionality__n_components": n_components_grid,
