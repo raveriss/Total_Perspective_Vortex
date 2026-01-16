@@ -684,7 +684,7 @@ def test_score_run_applies_thresholds(monkeypatch, tmp_path):
 
     # Capture les appels evaluate_run pour valider la propagation des chemins
     calls: list[tuple[str, str, object, object]] = []
-    # Prépare deux accuracies sous seuil et au-dessus de la cible
+    # Prépare deux accuracies sous seuil et sous la cible
     accuracies = [0.5, 0.8]
 
     # Déclare un stub evaluate_run pour renvoyer des accuracies maîtrisées
@@ -710,14 +710,14 @@ def test_score_run_applies_thresholds(monkeypatch, tmp_path):
     assert below_entry["meets_minimum"] is False
     # Vérifie que le drapeau cible est désactivé sous la cible ambitieuse
     assert below_entry["meets_target"] is False
-    # Évalue un second run avec une accuracy dépassant la cible
+    # Évalue un second run avec une accuracy au-dessus du minimum
     above_entry = aggregate_scores_cli._score_run("S10", "R02", data_dir, artifacts_dir)
     # Vérifie que l'accuracy reflète la deuxième valeur injectée
     assert above_entry["accuracy"] == 0.8
     # Vérifie que le drapeau minimum se déclenche dès le seuil atteint
     assert above_entry["meets_minimum"] is True
-    # Vérifie que le drapeau cible se déclenche dès la cible atteinte
-    assert above_entry["meets_target"] is True
+    # Vérifie que le drapeau cible reste faux sous le seuil cible
+    assert above_entry["meets_target"] is False
     # Vérifie que evaluate_run reçoit les deux appels avec les bons chemins
     assert calls == [
         ("S10", "R01", data_dir, artifacts_dir),
@@ -803,12 +803,12 @@ def test_aggregate_scores_aggregates_stubbed_runs(monkeypatch, tmp_path):
         "S10": pytest.approx(0.6),
         "S11": pytest.approx(0.6),
     }
-    # Vérifie que les drapeaux reflètent les seuils 0.60 / 0.75
-    assert all(entry["meets_minimum"] for entry in report["subjects"])
+    # Vérifie que les drapeaux reflètent les seuils du module agrégateur
+    assert all(entry["meets_minimum"] is False for entry in report["subjects"])
     assert all(entry["meets_target"] is False for entry in report["subjects"])
     # Vérifie la moyenne globale sur l'ensemble des runs
     assert report["global"]["accuracy"] == pytest.approx(0.6)
-    assert report["global"]["meets_minimum"] is True
+    assert report["global"]["meets_minimum"] is False
     assert report["global"]["meets_target"] is False
 
 
