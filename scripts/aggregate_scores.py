@@ -18,9 +18,9 @@ import numpy as np
 from scripts import predict as predict_cli
 
 # Fige le seuil d'acceptation minimal des runs
-MINIMUM_ACCURACY = 0.60
+MINIMUM_ACCURACY = 0.75
 # Fige la cible ambitieuse pour les livrables WBS
-TARGET_ACCURACY = 0.75
+TARGET_ACCURACY = 0.81
 # Définit le répertoire par défaut où chercher les jeux de données
 DEFAULT_DATA_DIR = Path("data")
 # Définit le répertoire par défaut où lire les artefacts d'entraînement

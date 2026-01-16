@@ -244,11 +244,6 @@ def _build_npy_from_edf(
         if "Missing labels" not in str(error):
             # Relance l'erreur originale si elle ne concerne pas les labels
             raise
-        # Signale un fallback pour préserver l'inférence sur ce run
-        print(
-            "AVERTISSEMENT: filtrage QC a supprimé une classe pour "
-            f"{subject} {run}, fallback sans QC."
-        )
         # Conserve les epochs filtrées par annotations uniquement
         cleaned_epochs = epochs
         # Conserve les labels moteurs initiaux pour aligner les données

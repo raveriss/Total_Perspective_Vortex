@@ -434,11 +434,6 @@ def _collect_subject_scores(
             continue
         # Lance l'auto-train si requis par l'absence ou le retrain forcé
         if needs_training:
-            # Informe l'utilisateur que l'entraînement est déclenché pour ce run
-            print(
-                "INFO: entraînement déclenché pour "
-                f"{subject} {run} (force={options.force_retrain})."
-            )
             # Lance l'entraînement piloté pour assurer un modèle à jour
             _train_run(
                 subject,
