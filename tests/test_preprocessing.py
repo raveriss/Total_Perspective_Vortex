@@ -763,7 +763,7 @@ def test_apply_bandpass_filter_defaults_to_fir(monkeypatch: pytest.MonkeyPatch) 
     assert kwargs.get("filter_length") == "auto"
     # Vérifie que les bornes de bande sont correctement transmises
     assert kwargs.get("l_freq") == pytest.approx(8.0)
-    assert kwargs.get("h_freq") == pytest.approx(40.0)
+    assert kwargs.get("h_freq") == pytest.approx(30.0)
     # Contrôle que le filtrage se fait en mode silencieux pour les tests
     assert kwargs.get("verbose") is False
 

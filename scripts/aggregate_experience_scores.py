@@ -495,12 +495,15 @@ def _build_subject_entries(
             if eligible
             else None
         )
+        # Détermine si la moyenne atteint le seuil de 0.75
+        meets_threshold = mean_of_means is not None and mean_of_means >= BONUS_THRESHOLD
         # Ajoute l'entrée structurée pour ce sujet
         subject_entries.append(
             {
                 "subject": subject,
                 "means": means_by_experience,
                 "eligible": eligible,
+                "meets_threshold": meets_threshold,
                 "mean_of_means": mean_of_means,
             }
         )
@@ -557,6 +560,78 @@ def _build_global_experience_means(
     return experience_means
 
 
+# Calcule la moyenne globale à partir des moyennes par expérience
+def _compute_global_mean(
+    global_experience_means: dict[str, float | None],
+) -> float | None:
+    """Calcule la moyenne des quatre moyennes T1..T4."""
+
+    # Construit la liste des moyennes par expérience dans l'ordre attendu
+    experience_values = [global_experience_means.get(exp) for exp in EXPERIENCE_ORDER]
+    # Retourne None si une moyenne est manquante
+    if any(value is None for value in experience_values):
+        # Signale l'impossibilité de calculer une moyenne globale
+        return None
+    # Convertit les valeurs en float pour la moyenne
+    numeric_values = [float(value) for value in experience_values if value is not None]
+    # Retourne la moyenne globale des quatre expériences
+    return float(np.mean(numeric_values))
+
+
+# Sélectionne les sujets les moins performants selon la moyenne
+def _build_worst_subjects(
+    subject_entries: list[dict],
+    limit: int = 10,
+) -> list[dict]:
+    """Retourne les sujets les plus faibles selon la moyenne des expériences."""
+
+    # Filtre les sujets disposant d'une moyenne calculable
+    scored_entries = [
+        entry for entry in subject_entries if entry["mean_of_means"] is not None
+    ]
+    # Trie les sujets par moyenne croissante pour isoler les pires
+    scored_entries.sort(key=lambda entry: float(entry["mean_of_means"]))
+    # Retourne uniquement les sujets dans la limite demandée
+    return scored_entries[:limit]
+
+
+# Construit un rapport agrégé à partir des scores par sujet
+def build_report_from_scores(subject_scores: dict[str, dict[str, list[float]]]) -> dict:
+    """Construit le rapport d'agrégation à partir des scores par sujet."""
+
+    # Construit les entrées prêtes pour affichage ou export
+    subject_entries = _build_subject_entries(subject_scores)
+    # Calcule les moyennes globales par expérience sur tous les sujets
+    global_experience_means = _build_global_experience_means(subject_scores)
+    # Calcule la moyenne globale conformément à la checklist TPV
+    global_mean = _compute_global_mean(global_experience_means)
+    # Calcule le bonus associé à la moyenne globale
+    bonus_points = compute_bonus_points(global_mean)
+    # Compte les sujets disposant des quatre expériences
+    eligible_subjects = sum(1 for entry in subject_entries if entry["eligible"])
+    # Sélectionne les pires sujets pour l'affichage CLI
+    worst_subjects = _build_worst_subjects(subject_entries)
+    # Regroupe les données dans une structure de rapport dédiée
+    report = {
+        # Fournit les entrées par sujet pour l'affichage
+        "subjects": subject_entries,
+        # Fournit les moyennes globales par expérience
+        "global_experience_means": global_experience_means,
+        # Fournit la moyenne globale pour compatibilité historique
+        "global_experience_mean": global_mean,
+        # Fournit la moyenne globale basée sur T1..T4
+        "global_mean": global_mean,
+        # Fournit le nombre de sujets éligibles (4/4 expériences)
+        "eligible_subjects": eligible_subjects,
+        # Fournit le bonus calculé sur la moyenne globale
+        "bonus_points": bonus_points,
+        # Fournit la liste des pires sujets pour l'affichage CLI
+        "worst_subjects": worst_subjects,
+    }
+    # Retourne la structure complète prête pour l'affichage ou export
+    return report
+
+
 # Calcule les moyennes par type d'expérience pour chaque sujet
 def aggregate_experience_scores(
     data_dir: Path,
@@ -569,46 +644,108 @@ def aggregate_experience_scores(
     runs = _discover_runs(data_dir, artifacts_dir, options.allow_auto_train)
     # Regroupe les accuracies par sujet et type d'expérience
     subject_scores = _collect_subject_scores(runs, data_dir, artifacts_dir, options)
-    # Construit les entrées prêtes pour affichage ou export
-    subject_entries = _build_subject_entries(subject_scores)
-    # Extrait les moyennes valides pour le score global
-    eligible_means = _extract_eligible_means(subject_entries)
-    # Calcule les moyennes globales par expérience sur tous les sujets
-    global_experience_means = _build_global_experience_means(subject_scores)
-    # Initialise la liste des moyennes disponibles pour le calcul global
-    experience_mean_values: list[float] = []
-    # Initialise un indicateur pour vérifier la disponibilité des moyennes
-    has_all_experience_means = True
-    # Parcourt les moyennes par expérience pour collecter les valeurs
-    for mean_value in global_experience_means.values():
-        # Bascule l'indicateur si une moyenne manque
-        if mean_value is None:
-            # Marque l'absence d'une moyenne d'expérience
-            has_all_experience_means = False
-            # Continue la collecte pour conserver les valeurs présentes
-            continue
-        # Ajoute la moyenne disponible pour calculer la moyenne globale
-        experience_mean_values.append(mean_value)
-    # Calcule la moyenne des quatre moyennes si elles sont toutes disponibles
-    global_experience_mean = (
-        # Calcule la moyenne globale des quatre types d'expérience
-        float(np.mean(experience_mean_values))
-        if has_all_experience_means
-        else None
+    # Construit le rapport agrégé à partir des scores collectés
+    return build_report_from_scores(subject_scores)
+
+
+# Formate une moyenne optionnelle en chaîne lisible
+def _format_mean_value(value: float | None) -> str:
+    """Retourne une moyenne formatée ou 'n/a' si absente."""
+
+    # Retourne n/a si la valeur est absente
+    if value is None:
+        return "n/a"
+    # Formate la moyenne sur trois décimales
+    return "{:.3f}".format(value)
+
+
+# Formate les moyennes par expérience pour une ligne donnée
+def _format_experience_values(means: dict[str, float | None]) -> list[str]:
+    """Retourne les valeurs formatées par expérience."""
+
+    # Prépare la liste des valeurs formatées
+    values: list[str] = []
+    # Parcourt les expériences dans l'ordre attendu
+    for experience in EXPERIENCE_ORDER:
+        # Ajoute la moyenne formatée pour l'expérience courante
+        values.append(_format_mean_value(means.get(experience)))
+    # Retourne les valeurs formatées
+    return values
+
+
+# Construit la ligne d'un sujet pour le tableau d'agrégation
+def _format_subject_row(entry: dict) -> str:
+    """Construit une ligne tabulée pour un sujet."""
+
+    # Récupère les moyennes formatées par expérience
+    values = _format_experience_values(entry["means"])
+    # Formate la moyenne globale du sujet
+    mean_of_means = _format_mean_value(entry["mean_of_means"])
+    # Détermine le libellé d'éligibilité
+    eligible_label = "yes" if entry["eligible"] else "no"
+    # Détermine le libellé de seuil
+    threshold_label = "yes" if entry["meets_threshold"] else "no"
+    # Assemble la ligne tabulée pour le sujet
+    return "\t".join(
+        [
+            entry["subject"],
+            *values,
+            mean_of_means,
+            eligible_label,
+            threshold_label,
+        ]
     )
-    # Calcule la moyenne globale sur les sujets complets
-    global_mean = float(np.mean(eligible_means)) if eligible_means else None
-    # Calcule les points bonus associés à la moyenne globale
-    bonus_points = compute_bonus_points(global_mean)
-    # Retourne la structure complète prête pour l'affichage ou export
-    return {
-        "subjects": subject_entries,
-        "global_experience_means": global_experience_means,
-        "global_experience_mean": global_experience_mean,
-        "global_mean": global_mean,
-        "eligible_subjects": len(eligible_means),
-        "bonus_points": bonus_points,
-    }
+
+
+# Calcule le libellé de seuil global pour la ligne de synthèse
+def _format_global_threshold_label(global_mean_value: float | None) -> str:
+    """Retourne yes/no/n/a pour le seuil global."""
+
+    # Retourne n/a si la moyenne globale est absente
+    if global_mean_value is None:
+        return "n/a"
+    # Retourne yes si la moyenne atteint le seuil
+    if global_mean_value >= BONUS_THRESHOLD:
+        return "yes"
+    # Retourne no si la moyenne est disponible mais insuffisante
+    return "no"
+
+
+# Construit la ligne globale du tableau d'agrégation
+def _format_global_row(report: dict) -> str:
+    """Construit la ligne globale pour le tableau d'agrégation."""
+
+    # Récupère les moyennes globales par expérience
+    global_experience_means = report.get("global_experience_means", {})
+    # Récupère les valeurs formatées par expérience
+    global_experience_values = _format_experience_values(global_experience_means)
+    # Récupère la moyenne globale depuis le rapport
+    global_mean_value = report.get("global_mean")
+    # Normalise la moyenne globale si elle n'est pas numérique
+    if not isinstance(global_mean_value, (float, int)):
+        global_mean_value = None
+    # Prépare l'affichage de la moyenne globale
+    global_mean_label = _format_mean_value(
+        float(global_mean_value) if global_mean_value is not None else None
+    )
+    # Prépare le libellé du nombre de sujets éligibles et du bonus
+    eligible_label = (
+        f"{report['eligible_subjects']} subjects, bonus {report['bonus_points']}"
+    )
+    # Détermine le libellé de seuil global
+    global_threshold_label = _format_global_threshold_label(
+        float(global_mean_value) if global_mean_value is not None else None
+    )
+    # Assemble la ligne globale tabulée
+    return "\t".join(
+        [
+            "Global",
+            *global_experience_values,
+            global_mean_label,
+            eligible_label,
+            global_threshold_label,
+        ]
+    )
 
 
 # Formate un tableau texte des moyennes par expérience
@@ -616,78 +753,26 @@ def format_experience_table(report: dict) -> str:
     """Construit un tableau lisible des moyennes par type d'expérience."""
 
     # Définit l'en-tête du tableau pour l'affichage CLI
-    header = ["Subject", *EXPERIENCE_ORDER, "Mean", "Eligible"]
+    header = [
+        # Ajoute la colonne du sujet pour identifier la ligne
+        "Subject",
+        # Insère les expériences dans l'ordre standardisé
+        *EXPERIENCE_ORDER,
+        # Ajoute la colonne de moyenne par sujet
+        "Mean",
+        # Ajoute la colonne d'éligibilité (4/4 expériences)
+        "Eligible(4/4)",
+        # Ajoute la colonne de seuil global pour chaque sujet
+        "MeetsThreshold_0p75",
+    ]
     # Initialise les lignes avec l'en-tête tabulé
     lines = ["\t".join(header)]
     # Parcourt les entrées pour chaque sujet
     for entry in report["subjects"]:
-        # Prépare les valeurs formatées par type d'expérience
-        values = []
-        # Parcourt les types pour afficher les moyennes dans l'ordre
-        for experience in EXPERIENCE_ORDER:
-            # Récupère la moyenne ou None pour ce type
-            mean_value = entry["means"][experience]
-            # Ajoute une valeur formatée ou un placeholder
-            values.append(
-                "{:.3f}".format(mean_value) if mean_value is not None else "n/a"
-            )
-        # Formate la moyenne des quatre moyennes si disponible
-        mean_of_means = (
-            "{:.3f}".format(entry["mean_of_means"])
-            if entry["mean_of_means"] is not None
-            else "n/a"
-        )
-        # Ajoute la ligne complète pour le sujet courant
-        lines.append(
-            "\t".join(
-                [
-                    entry["subject"],
-                    *values,
-                    mean_of_means,
-                    "yes" if entry["eligible"] else "no",
-                ]
-            )
-        )
-    # Prépare l'affichage de la moyenne globale même si elle est absente
-    global_experience_means = report.get("global_experience_means", {})
-    # Initialise le conteneur des valeurs formatées par expérience
-    global_experience_values: list[str] = []
-    # Parcourt les expériences dans l'ordre pour l'affichage global
-    for experience in EXPERIENCE_ORDER:
-        # Récupère la moyenne globale pour l'expérience courante
-        experience_mean = global_experience_means.get(experience)
-        # Prépare la valeur formatée ou le placeholder
-        formatted_mean = (
-            "{:.3f}".format(experience_mean) if experience_mean is not None else "n/a"
-        )
-        # Ajoute la valeur formatée à la liste d'affichage
-        global_experience_values.append(formatted_mean)
-    # Récupère la moyenne des quatre moyennes pour l'affichage
-    global_experience_mean = report.get("global_experience_mean")
-    # Prépare l'affichage de la moyenne des quatre moyennes
-    global_mean_label = (
-        # Formate la moyenne globale si elle est disponible
-        "{:.3f}".format(global_experience_mean)
-        if isinstance(global_experience_mean, (float, int))
-        # Rend explicite l'absence de moyenne globale
-        else "n/a"
-    )
-    # Prépare le libellé du nombre de sujets éligibles et du bonus
-    global_meta = (
-        # Concatène les métadonnées pour garder un format stable
-        f"{report['eligible_subjects']} subjects, bonus {report['bonus_points']}"
-    )
-    # Ajoute la ligne globale même sans moyenne pour la transparence du rapport
-    lines.append(
-        "\t".join(
-            [
-                "Global",
-                *global_experience_values,
-                global_mean_label,
-                global_meta,
-            ]
-        )
-    )
+        # Ajoute la ligne formatée pour le sujet courant
+        lines.append(_format_subject_row(entry))
+    # Ajoute la ligne globale pour la transparence du rapport
+    lines.append(_format_global_row(report))
     # Retourne la table formatée prête pour l'impression
     return "\n".join(lines)
 
@@ -706,6 +791,7 @@ def write_csv(report: dict, csv_path: Path) -> None:
             *[f"{experience}_mean" for experience in EXPERIENCE_ORDER],
             "mean_of_means",
             "eligible",
+            "meets_threshold_0p75",
         ]
         # Construit le writer CSV avec l'en-tête défini
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -722,6 +808,7 @@ def write_csv(report: dict, csv_path: Path) -> None:
                     else ""
                 ),
                 "eligible": entry["eligible"],
+                "meets_threshold_0p75": entry["meets_threshold"],
             }
             # Remplit les colonnes des types d'expérience
             for experience in EXPERIENCE_ORDER:
@@ -761,10 +848,36 @@ def main(argv: list[str] | None = None) -> int:
     table = format_experience_table(report)
     # Imprime le tableau pour inspection ou redirection
     print(table)
+    # Récupère la liste des pires sujets pour l'affichage
+    worst_subjects = report.get("worst_subjects", [])
+    # Affiche les pires sujets si la liste est disponible
+    if worst_subjects:
+        # Ajoute un titre pour la lisibilité du rapport
+        print("Worst subjects by Mean (mean_of_means):")
+        # Parcourt les sujets triés par moyenne croissante
+        for entry in worst_subjects:
+            # Récupère la moyenne calculée pour le sujet
+            mean_of_means = entry.get("mean_of_means")
+            # Ignore les sujets sans moyenne calculable
+            if mean_of_means is None:
+                # Passe au sujet suivant si la moyenne est absente
+                continue
+            # Affiche le sujet et sa moyenne formatée
+            print(f"- {entry['subject']}: {float(mean_of_means):.3f}")
     # Sérialise le CSV si demandé
     if args.csv_output:
         # Écrit le rapport CSV dans le chemin fourni
         write_csv(report, args.csv_output)
+    # Récupère la moyenne globale pour vérifier le seuil
+    global_mean = report.get("global_mean")
+    # Retourne un code d'erreur si la moyenne globale est sous le seuil
+    if isinstance(global_mean, (float, int)) and global_mean < BONUS_THRESHOLD:
+        # Signale explicitement l'échec de la contrainte de score
+        print(
+            "ERROR: GlobalMean inférieur au seuil 0.75 " f"({float(global_mean):.3f})."
+        )
+        # Retourne un code d'erreur pour signaler l'échec
+        return 1
     # Retourne 0 pour signaler un succès standard
     return 0
 

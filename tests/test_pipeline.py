@@ -282,7 +282,7 @@ def test_build_pipeline_omits_scaler_when_none():
 
     # Construit le pipeline sans scaler explicite
     pipeline = build_pipeline(
-        PipelineConfig(sfreq=128.0, scaler=None, classifier="lda", dim_method="csp")
+        PipelineConfig(sfreq=128.0, scaler=None, classifier="lda", dim_method="pca")
     )
     # Vérifie l'absence de scaler dans les étapes
     assert "scaler" not in pipeline.named_steps
@@ -318,7 +318,7 @@ def test_build_pipeline_uses_configured_strategies():
             sfreq=256.0,
             scaler="robust",
             classifier="logistic",
-            dim_method="csp",
+            dim_method="pca",
             n_components=CSP_COMPONENTS,
             feature_strategy="wavelet",
         )
@@ -326,6 +326,29 @@ def test_build_pipeline_uses_configured_strategies():
     # Vérifie la stratégie d'extraction de features
     assert pipeline.named_steps["features"].feature_strategy == "wavelet"
     # Vérifie la méthode du réducteur de dimension
-    assert pipeline.named_steps["dimensionality"].method == "csp"
+    assert pipeline.named_steps["dimensionality"].method == "pca"
     # Vérifie le nombre de composantes configuré
     assert pipeline.named_steps["dimensionality"].n_components == CSP_COMPONENTS
+
+
+# Vérifie que CSP saute l'extracteur de features et garde la régularisation
+def test_build_pipeline_csp_skips_features_and_sets_regularization():
+    """Confirme que CSP utilise la régularisation et évite les features."""
+
+    # Construit un pipeline CSP avec régularisation explicite
+    pipeline = build_pipeline(
+        PipelineConfig(
+            sfreq=128.0,
+            scaler=None,
+            classifier="lda",
+            dim_method="csp",
+            n_components=CSP_COMPONENTS,
+            csp_regularization=0.25,
+        )
+    )
+    # Vérifie que l'extracteur de features est absent en mode CSP
+    assert "features" not in pipeline.named_steps
+    # Vérifie que le réducteur de dimension est bien CSP
+    assert pipeline.named_steps["dimensionality"].method == "csp"
+    # Vérifie que la régularisation CSP est correctement propagée
+    assert pipeline.named_steps["dimensionality"].regularization == 0.25

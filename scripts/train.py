@@ -18,7 +18,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 # Expose cast pour documenter les conversions de types
-from typing import cast
+# Expose Sequence pour typer les fenêtres temporelles
+from typing import Sequence, cast
 
 # Offre la persistance dédiée aux objets scikit-learn pour inspection séparée
 import joblib
@@ -30,6 +31,9 @@ import numpy as np
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_score
+
+# Fournit le type Pipeline pour typer les helpers de scoring
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.svm import LinearSVC
 
@@ -94,6 +98,23 @@ DEFAULT_SAMPLING_RATE = 50.0
 
 # Définit un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
 DEFAULT_MAX_PEAK_TO_PEAK = 200e-6
+# Fixe la bande passante MI recommandée pour la tâche motrice
+DEFAULT_BANDPASS_BAND = (8.0, 30.0)
+# Fixe la fréquence de notch pour supprimer la pollution secteur
+DEFAULT_NOTCH_FREQ = 50.0
+# Définit des fenêtres post-cue candidates pour la sélection d'epochs
+DEFAULT_EPOCH_WINDOWS: Sequence[tuple[float, float]] = (
+    # Cible une fenêtre courte centrée sur l'ERD/ERS initial
+    (0.5, 2.5),
+    # Cible une fenêtre plus tardive pour les sujets lents
+    (1.0, 3.0),
+    # Cible une fenêtre plus proche du cue pour capturer l'initiation
+    (0.0, 2.0),
+)
+# Fixe la fenêtre par défaut utilisée en absence de sélection
+DEFAULT_EPOCH_WINDOW = DEFAULT_EPOCH_WINDOWS[0]
+# Fixe le nombre de composantes CSP pour la sélection de fenêtre
+DEFAULT_CSP_COMPONENTS = 4
 
 
 # Résout une fréquence d'échantillonnage fiable pour un sujet/run donné
@@ -189,6 +210,8 @@ def _adapt_pipeline_config_for_samples(
         classifier="centroid",
         # Conserve le scaler optionnel demandé par la configuration
         scaler=config.scaler,
+        # Conserve la régularisation CSP pour stabiliser les covariances
+        csp_regularization=config.csp_regularization,
     )
 
 
@@ -213,6 +236,25 @@ class TrainingRequest:
     enable_grid_search: bool = False
     # Fixe un nombre de splits spécifique pour la recherche si fourni
     grid_search_splits: int | None = None
+
+
+# Regroupe les entrées nécessaires à la sélection de fenêtre d'epochs
+@dataclass
+class EpochWindowContext:
+    """Agrège les données requises pour sélectionner une fenêtre d'epochs."""
+
+    # Porte l'enregistrement brut filtré pour l'epoching
+    filtered_raw: preprocessing.mne.io.BaseRaw
+    # Porte les événements détectés pour l'epoching
+    events: np.ndarray
+    # Porte le mapping d'événements vers labels
+    event_id: dict[str, int]
+    # Porte la liste des labels moteurs alignés
+    motor_labels: list[str]
+    # Identifie le sujet pour les logs et erreurs
+    subject: str
+    # Identifie le run pour les logs et erreurs
+    run: str
 
 
 # Centralise les ressources partagées entre plusieurs entraînements
@@ -271,8 +313,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dim-method",
         choices=("pca", "csp", "svd"),
-        default="pca",
+        default="csp",
         help="Méthode de réduction de dimension pour la pipeline",
+    )
+    # Ajoute la régularisation CSP pour stabiliser les covariances
+    parser.add_argument(
+        "--csp-regularization",
+        type=float,
+        default=0.1,
+        help="Régularisation diagonale appliquée aux covariances CSP",
     )
     # Ajoute le nombre de composantes cible pour la réduction
     parser.add_argument(
@@ -358,6 +407,232 @@ def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, P
     return features_path, labels_path
 
 
+# Construit le chemin du fichier de fenêtre d'epochs pour un run
+def _resolve_epoch_window_path(subject: str, run: str, data_dir: Path) -> Path:
+    """Retourne le chemin du JSON décrivant la fenêtre d'epochs sélectionnée."""
+
+    # Localise le sous-dossier spécifique au sujet
+    base_dir = data_dir / subject
+    # Construit le chemin du fichier de fenêtre pour ce run
+    window_path = base_dir / f"{run}_epoch_window.json"
+    # Retourne le chemin du fichier de fenêtre
+    return window_path
+
+
+# Écrit la fenêtre d'epochs sélectionnée pour usage futur
+def _write_epoch_window_metadata(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    window: tuple[float, float],
+) -> None:
+    """Enregistre la fenêtre d'epochs sélectionnée pour ce run."""
+
+    # Construit le chemin du fichier de fenêtre pour ce run
+    window_path = _resolve_epoch_window_path(subject, run, data_dir)
+    # Assure l'existence du dossier cible pour éviter une erreur d'écriture
+    window_path.parent.mkdir(parents=True, exist_ok=True)
+    # Prépare la structure JSON pour la persistance
+    payload = {"tmin": window[0], "tmax": window[1]}
+    # Sérialise la fenêtre dans un fichier JSON dédié
+    window_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+# Charge la fenêtre d'epochs persistée pour un run si disponible
+def _read_epoch_window_metadata(
+    subject: str,
+    run: str,
+    data_dir: Path,
+) -> tuple[float, float] | None:
+    """Retourne la fenêtre d'epochs persistée ou None si absente."""
+
+    # Construit le chemin du fichier de fenêtre pour ce run
+    window_path = _resolve_epoch_window_path(subject, run, data_dir)
+    # Retourne None si le fichier n'existe pas
+    if not window_path.exists():
+        return None
+    # Charge le contenu JSON pour récupérer la fenêtre
+    payload = json.loads(window_path.read_text())
+    # Extrait tmin du JSON en float
+    tmin = float(payload.get("tmin", DEFAULT_EPOCH_WINDOW[0]))
+    # Extrait tmax du JSON en float
+    tmax = float(payload.get("tmax", DEFAULT_EPOCH_WINDOW[1]))
+    # Retourne la fenêtre reconstruite
+    return (tmin, tmax)
+
+
+# Construit un pipeline léger pour scorer les fenêtres temporelles
+def _build_window_search_pipeline(sfreq: float) -> Pipeline:
+    """Construit un pipeline CSP+LDA shrinkage pour la sélection de fenêtre."""
+
+    # Instancie une configuration dédiée à la sélection de fenêtre
+    search_config = PipelineConfig(
+        # Aligne la fréquence d'échantillonnage avec les epochs
+        sfreq=sfreq,
+        # Fixe une stratégie de features stable pour la sélection
+        feature_strategy="fft",
+        # Garde la normalisation interne pour la robustesse
+        normalize_features=True,
+        # Active CSP pour scorer les fenêtres sur les signaux bruts
+        dim_method="csp",
+        # Fixe un nombre de composantes CSP équilibré
+        n_components=DEFAULT_CSP_COMPONENTS,
+        # Active LDA shrinkage pour l'évaluation
+        classifier="lda",
+        # Désactive les scalers explicites pour garder CSP natif
+        scaler=None,
+        # Fixe la régularisation CSP pour stabiliser les covariances
+        csp_regularization=0.1,
+    )
+    # Retourne un pipeline complet pour le scoring cross-val
+    return build_pipeline(search_config)
+
+
+# Évalue une fenêtre temporelle via validation croisée stratifiée
+def _score_epoch_window(
+    X: np.ndarray,
+    y: np.ndarray,
+    sfreq: float,
+) -> float | None:
+    """Retourne la moyenne CV d'une fenêtre ou None si CV impossible."""
+
+    # Calcule le nombre d'échantillons disponibles
+    sample_count = int(y.shape[0])
+    # Retourne None si moins d'échantillons que la CV minimale
+    if sample_count == 0:
+        return None
+    # Calcule le nombre minimal d'échantillons par classe
+    min_class_count = int(np.bincount(y).min())
+    # Déduit le nombre de splits admissibles
+    n_splits = min(DEFAULT_CV_SPLITS, min_class_count)
+    # Ignore les fenêtres trop petites pour une CV robuste
+    if n_splits < MIN_CV_SPLITS:
+        return None
+    # Prépare une CV stratifiée pour éviter les fuites de labels
+    cv = StratifiedKFold(
+        n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
+    )
+    # Construit le pipeline CSP+LDA shrinkage pour le scoring
+    pipeline = _build_window_search_pipeline(sfreq)
+    # Calcule les scores cross-val pour la fenêtre
+    scores = cross_val_score(pipeline, X, y, cv=cv)
+    # Retourne la moyenne des scores obtenus
+    return float(np.mean(scores))
+
+
+# Construit les epochs et labels pour une fenêtre temporelle donnée
+def _build_epochs_for_window(
+    context: EpochWindowContext,
+    window: tuple[float, float],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Construit les epochs et labels alignés pour une fenêtre donnée."""
+
+    # Découpe le signal filtré en epochs exploitables pour la fenêtre
+    epochs = preprocessing.create_epochs_from_raw(
+        context.filtered_raw,
+        context.events,
+        context.event_id,
+        tmin=window[0],
+        tmax=window[1],
+    )
+
+    # Applique un rejet d'artefacts pour limiter les essais aberrants
+    try:
+        # Utilise le filtrage par qualité pour supprimer les segments cassés
+        cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
+            epochs,
+            context.motor_labels,
+            (context.subject, context.run),
+            max_peak_to_peak=DEFAULT_MAX_PEAK_TO_PEAK,
+        )
+    except ValueError as error:
+        # Détecte l'absence de classe après filtrage pour éviter un crash
+        if "Missing labels" not in str(error):
+            # Relance l'erreur originale si elle ne concerne pas les labels
+            raise
+        # Signale un fallback pour préserver l'entraînement sur ce run
+        print(
+            "AVERTISSEMENT: filtrage QC a supprimé une classe pour "
+            f"{context.subject} {context.run} (fenêtre {window}), fallback sans QC."
+        )
+        # Conserve les epochs filtrées par annotations uniquement
+        cleaned_epochs = epochs
+        # Conserve les labels moteurs initiaux pour aligner les données
+        cleaned_labels = context.motor_labels
+
+    # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
+    epochs_data = cleaned_epochs.get_data(copy=True)
+    # Définit un mapping stable label → entier
+    label_mapping = {
+        label: idx for idx, label in enumerate(sorted(set(cleaned_labels)))
+    }
+    # Convertit les labels symboliques en entiers
+    numeric_labels = np.array([label_mapping[label] for label in cleaned_labels])
+    # Retourne les données et labels alignés pour la fenêtre
+    return epochs_data, numeric_labels
+
+
+# Sélectionne la meilleure fenêtre selon un score cross-val
+def _select_best_epoch_window(
+    context: EpochWindowContext,
+) -> tuple[tuple[float, float], np.ndarray, np.ndarray]:
+    """Retourne la fenêtre optimale et les données associées."""
+
+    # Initialise la meilleure fenêtre par défaut
+    best_window = DEFAULT_EPOCH_WINDOW
+    # Initialise le score de fenêtre à None pour détecter l'absence de CV
+    best_score: float | None = None
+    # Initialise les données d'epochs pour la fenêtre retenue
+    best_epochs_data: np.ndarray | None = None
+    # Initialise les labels numériques pour la fenêtre retenue
+    best_labels: np.ndarray | None = None
+
+    # Parcourt les fenêtres candidates pour sélectionner la plus robuste
+    for window in DEFAULT_EPOCH_WINDOWS:
+        # Construit les epochs et labels pour la fenêtre courante
+        epochs_data, numeric_labels = _build_epochs_for_window(context, window)
+        # Calcule le score cross-val pour cette fenêtre si possible
+        window_score = _score_epoch_window(
+            epochs_data,
+            numeric_labels,
+            float(context.filtered_raw.info["sfreq"]),
+        )
+        # Initialise la fenêtre par défaut lorsqu'aucune n'est retenue
+        if best_epochs_data is None:
+            # Stocke les données de référence pour éviter un fallback vide
+            best_epochs_data = epochs_data
+            # Stocke les labels de référence pour éviter un fallback vide
+            best_labels = numeric_labels
+            # Conserve la fenêtre courante comme valeur par défaut
+            best_window = window
+        # Ignore les fenêtres sans score si une meilleure est déjà connue
+        if window_score is None and best_score is not None:
+            continue
+        # Met à jour la meilleure fenêtre si un score supérieur est trouvé
+        if window_score is not None and (
+            best_score is None or window_score > best_score
+        ):
+            # Conserve le score de la fenêtre retenue
+            best_score = window_score
+            # Conserve les données de la fenêtre retenue
+            best_epochs_data = epochs_data
+            # Conserve les labels de la fenêtre retenue
+            best_labels = numeric_labels
+            # Conserve la fenêtre retenue pour usage ultérieur
+            best_window = window
+
+    # Garantit que les données retenues existent avant la sauvegarde
+    if best_epochs_data is None or best_labels is None:
+        # Signale une absence complète de données après sélection
+        raise ValueError(
+            f"Aucune epoch valide pour {context.subject} {context.run} "
+            "après sélection de fenêtre."
+        )
+
+    # Retourne la fenêtre retenue et les données associées
+    return best_window, best_epochs_data, best_labels
+
+
 # Construit des matrices numpy à partir d'un EDF lorsqu'elles manquent
 def _build_npy_from_edf(
     subject: str,
@@ -393,56 +668,39 @@ def _build_npy_from_edf(
     # Charge l'EDF en conservant les métadonnées essentielles
     raw, _ = preprocessing.load_physionet_raw(raw_path)
 
+    # Applique un notch pour supprimer la pollution secteur
+    notched_raw = preprocessing.apply_notch_filter(raw, freq=DEFAULT_NOTCH_FREQ)
     # Applique le filtrage bande-passante pour stabiliser les bandes MI
-    filtered_raw = preprocessing.apply_bandpass_filter(raw)
+    filtered_raw = preprocessing.apply_bandpass_filter(
+        notched_raw,
+        freq_band=DEFAULT_BANDPASS_BAND,
+    )
 
     # Mappe les annotations en événements moteurs après filtrage
     events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
         filtered_raw
     )
 
-    # Découpe le signal filtré en epochs exploitables
-    epochs = preprocessing.create_epochs_from_raw(filtered_raw, events, event_id)
+    # Construit le contexte nécessaire à la sélection de fenêtre
+    window_context = EpochWindowContext(
+        filtered_raw=filtered_raw,
+        events=events,
+        event_id=event_id,
+        motor_labels=motor_labels,
+        subject=subject,
+        run=run,
+    )
+    # Sélectionne la meilleure fenêtre et ses données associées
+    best_window, best_epochs_data, best_labels = _select_best_epoch_window(
+        window_context
+    )
 
-    # Applique un rejet d'artefacts pour limiter les essais aberrants
-    try:
-        # Utilise le filtrage par qualité pour supprimer les segments cassés
-        cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
-            epochs,
-            motor_labels,
-            (subject, run),
-            max_peak_to_peak=DEFAULT_MAX_PEAK_TO_PEAK,
-        )
-    except ValueError as error:
-        # Détecte l'absence de classe après filtrage pour éviter un crash
-        if "Missing labels" not in str(error):
-            # Relance l'erreur originale si elle ne concerne pas les labels
-            raise
-        # Signale un fallback pour préserver l'entraînement sur ce run
-        print(
-            "AVERTISSEMENT: filtrage QC a supprimé une classe pour "
-            f"{subject} {run}, fallback sans QC."
-        )
-        # Conserve les epochs filtrées par annotations uniquement
-        cleaned_epochs = epochs
-        # Conserve les labels moteurs initiaux pour aligner les données
-        cleaned_labels = motor_labels
-
-    # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
-    epochs_data = cleaned_epochs.get_data(copy=True)
-
-    # Définit un mapping stable label → entier
-    label_mapping = {
-        label: idx for idx, label in enumerate(sorted(set(cleaned_labels)))
-    }
-
-    # Convertit les labels symboliques en entiers
-    numeric_labels = np.array([label_mapping[label] for label in cleaned_labels])
-
-    # Persiste les epochs brutes
-    np.save(features_path, epochs_data)
-    # Persiste les labels alignés
-    np.save(labels_path, numeric_labels)
+    # Persiste les epochs brutes sélectionnées
+    np.save(features_path, best_epochs_data)
+    # Persiste les labels alignés sur la fenêtre retenue
+    np.save(labels_path, best_labels)
+    # Écrit la fenêtre retenue pour la réutiliser en prédiction
+    _write_epoch_window_metadata(subject, run, data_dir, best_window)
 
     # Retourne les chemins nouvellement générés
     return features_path, labels_path
@@ -784,11 +1042,18 @@ def _write_manifest(
 ) -> dict[str, Path]:
     """Écrit des manifestes JSON et CSV décrivant le run d'entraînement."""
 
+    # Charge la fenêtre d'epochs persistée pour l'inclure au manifeste
+    epoch_window = _read_epoch_window_metadata(
+        request.subject,
+        request.run,
+        request.data_dir,
+    )
     # Prépare la section dataset pour identifier les entrées de données
     dataset = {
         "subject": request.subject,
         "run": request.run,
         "data_dir": str(request.data_dir),
+        "epoch_window": epoch_window,
     }
     # Convertit la configuration de pipeline en dictionnaire sérialisable
     hyperparams = asdict(request.pipeline_config)
@@ -858,13 +1123,49 @@ def _build_grid_search_grid(
 ) -> dict[str, list[object]]:
     """Retourne une grille raisonnable pour la recherche d'hyperparamètres."""
 
+    # Retourne une grille réduite si CSP est utilisé (pas de features/scaler amont)
+    if config.dim_method == "csp":
+        # Déclare un ensemble restreint de classifieurs pour CSP
+        csp_classifier_grid: list[object] = []
+        # Ajoute LDA uniquement lorsque l'effectif le permet
+        if allow_lda:
+            # Utilise LDA shrinkage pour stabilité des covariances
+            csp_classifier_grid.append(
+                LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")
+            )
+        # Ajoute une régression logistique pour des décisions régularisées
+        csp_classifier_grid.append(LogisticRegression(max_iter=1000))
+        # Augmente max_iter pour limiter les warnings de convergence liblinear
+        csp_classifier_grid.append(LinearSVC(max_iter=5000))
+        # Ajoute un classifieur centroïde pour les petits échantillons
+        csp_classifier_grid.append(CentroidClassifier())
+        # Prépare une liste de composantes CSP sans doublons
+        csp_n_components_grid: list[object] = (
+            [config.n_components]
+            if config.n_components is not None
+            else [None, DEFAULT_CSP_COMPONENTS]
+        )
+        # Ajoute la valeur explicite si absente de la grille
+        if (
+            config.n_components is not None
+            and config.n_components not in csp_n_components_grid
+        ):
+            csp_n_components_grid.append(config.n_components)
+        # Retourne une grille compatible avec la pipeline CSP réduite
+        return {
+            "dimensionality__n_components": csp_n_components_grid,
+            "classifier": csp_classifier_grid,
+        }
+
     # Déclare un ensemble restreint de classifieurs pour limiter la complexité
     # Initialise la grille de classifieurs candidates
     classifier_grid: list[object] = []
     # Ajoute LDA uniquement lorsque l'effectif le permet
     if allow_lda:
         # Utilise LDA pour les effectifs suffisants
-        classifier_grid.append(LinearDiscriminantAnalysis())
+        classifier_grid.append(
+            LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")
+        )
     # Ajoute une régression logistique pour des décisions régularisées
     classifier_grid.append(LogisticRegression(max_iter=1000))
     # Augmente max_iter pour limiter les warnings de convergence liblinear
@@ -1077,6 +1378,7 @@ def main(argv: list[str] | None = None) -> int:
         n_components=n_components,
         classifier=args.classifier,
         scaler=scaler,
+        csp_regularization=args.csp_regularization,
     )
     # Déclenche l'entraînement massif si le flag est activé
     if args.train_all:

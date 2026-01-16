@@ -144,11 +144,11 @@ def _rename_channels_for_montage(
 def apply_bandpass_filter(
     raw: mne.io.BaseRaw,
     method: str = DEFAULT_FILTER_METHOD,
-    freq_band: Tuple[float, float] = (8.0, 40.0),
+    freq_band: Tuple[float, float] = (8.0, 30.0),
     order: int | str | None = None,
     pad_duration: float = 0.5,
 ) -> mne.io.BaseRaw:
-    """Apply a padded 8–40 Hz band-pass filter using FIR or IIR designs."""
+    """Apply a padded 8–30 Hz band-pass filter using FIR or IIR designs."""
 
     # Clone the raw object to avoid mutating caller buffers during filtering
     filtered_raw = raw.copy().load_data()
@@ -210,6 +210,33 @@ def apply_bandpass_filter(
     # Assign the filtered samples back into the cloned Raw object for return
     filtered_raw._data = filtered_data
     # Return the filtered recording to feed downstream epoching and features
+    return filtered_raw
+
+
+def apply_notch_filter(
+    raw: mne.io.BaseRaw,
+    freq: float = 50.0,
+    notch_width: float | None = None,
+) -> mne.io.BaseRaw:
+    """Apply a notch filter to remove line noise around a target frequency."""
+
+    # Clone les données pour éviter de muter l'appelant
+    filtered_raw = raw.copy().load_data()
+    # Convertit la fréquence en float pour fiabiliser le filtrage
+    target_freq = float(freq)
+    # Définit la largeur de bande si l'appelant ne fournit rien
+    width = float(notch_width) if notch_width is not None else None
+    # Applique le notch sur les données complètes pour supprimer la pollution
+    filtered_data = mne.filter.notch_filter(
+        filtered_raw.get_data(),
+        Fs=float(filtered_raw.info["sfreq"]),
+        freqs=[target_freq],
+        notch_widths=width,
+        verbose=False,
+    )
+    # Réinjecte les données filtrées dans l'objet Raw cloné
+    filtered_raw._data = filtered_data
+    # Retourne l'enregistrement filtré pour la suite du pipeline
     return filtered_raw
 
 

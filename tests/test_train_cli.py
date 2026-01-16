@@ -64,6 +64,7 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
     feature_action = _get_action(parser, "feature_strategy")
     dim_action = _get_action(parser, "dim_method")
     n_components_action = _get_action(parser, "n_components")
+    csp_reg_action = _get_action(parser, "csp_regularization")
     build_all_action = _get_action(parser, "build_all")
     train_all_action = _get_action(parser, "train_all")
     sfreq_action = _get_action(parser, "sfreq")
@@ -81,9 +82,10 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
     assert feature_action.default == "fft"
     assert dim_action.choices is not None
     assert tuple(dim_action.choices) == ("pca", "csp", "svd")
-    assert dim_action.default == "pca"
+    assert dim_action.default == "csp"
     assert n_components_action.default is argparse.SUPPRESS
     assert n_components_action.type is int
+    assert csp_reg_action.default == 0.1
     assert build_all_action.default is False
     assert build_all_action.option_strings == ["--build-all"]
     assert train_all_action.default is False
@@ -105,13 +107,14 @@ def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
     assert args.classifier == "lda"
     assert args.scaler == "none"
     assert args.feature_strategy == "fft"
-    assert args.dim_method == "pca"
+    assert args.dim_method == "csp"
     assert args.build_all is False
     assert args.train_all is False
     assert args.grid_search is False
     assert args.grid_search_splits is None
     assert "n_components" not in vars(args)
     assert args.sfreq == train.DEFAULT_SAMPLING_RATE
+    assert args.csp_regularization == 0.1
 
 
 def test_build_parser_help_texts_and_flags_are_stable() -> None:
@@ -120,6 +123,7 @@ def test_build_parser_help_texts_and_flags_are_stable() -> None:
     feature_action = _get_action(parser, "feature_strategy")
     dim_action = _get_action(parser, "dim_method")
     n_components_action = _get_action(parser, "n_components")
+    csp_reg_action = _get_action(parser, "csp_regularization")
     no_norm_action = _get_action(parser, "no_normalize_features")
     data_dir_action = _get_action(parser, "data_dir")
     artifacts_dir_action = _get_action(parser, "artifacts_dir")
@@ -137,6 +141,10 @@ def test_build_parser_help_texts_and_flags_are_stable() -> None:
     # Verrouille l'aide de --n-components (tue help retiré / variantes)
     assert (
         n_components_action.help == "Nombre de composantes conservées par le réducteur"
+    )
+    # Verrouille l'aide de --csp-regularization (tue help retiré / variantes)
+    assert (
+        csp_reg_action.help == "Régularisation diagonale appliquée aux covariances CSP"
     )
 
     # Verrouille l'aide de --no-normalize-features (tue help retiré / variantes)

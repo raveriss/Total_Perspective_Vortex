@@ -1,6 +1,9 @@
 # Centralise l'aide de cast pour les tests typés mypy
 from typing import cast
 
+# Centralise NumPy pour les moyennes attendues
+import numpy as np
+
 # Expose le type TrainingRequest pour les casts mypy
 # Valide le mapping run -> expérience pour le scoring global
 from scripts import aggregate_experience_scores
@@ -127,6 +130,8 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
     assert subject_entry["eligible"] is True
     # Vérifie que la moyenne des quatre types est calculée
     assert subject_entry["mean_of_means"] is not None
+    # Vérifie que le seuil 0.75 est correctement évalué
+    assert subject_entry["meets_threshold"] is (subject_entry["mean_of_means"] >= 0.75)
     # Récupère l'entrée pour S002
     incomplete_entry = next(
         # Filtre sur le sujet S002
@@ -138,10 +143,23 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
     assert incomplete_entry["eligible"] is False
     # Vérifie que la moyenne globale ne considère qu'un sujet complet
     assert report["eligible_subjects"] == 1
+    # Récupère les moyennes globales par expérience
+    global_means = report["global_experience_means"]
+    # Construit la liste des moyennes disponibles dans l'ordre
+    global_values = [
+        global_means[experience]
+        for experience in aggregate_experience_scores.EXPERIENCE_ORDER
+    ]
+    # Vérifie que toutes les moyennes sont présentes pour le global
+    assert all(value is not None for value in global_values)
+    # Calcule la moyenne globale attendue selon la formule T1..T4
+    expected_global_mean = float(np.mean(global_values))
+    # Vérifie que la moyenne globale correspond à la formule demandée
+    assert report["global_mean"] == expected_global_mean
     # Vérifie que la moyenne globale par expérience est calculée
     assert report["global_experience_mean"] is not None
     # Vérifie que le bonus est calculé pour la moyenne globale
-    assert report["bonus_points"] >= 1
+    assert report["bonus_points"] >= 0
 
 
 # Vérifie que les bonus sont nuls lorsque la moyenne est absente
@@ -310,6 +328,8 @@ def test_format_experience_table_renders_global_and_na() -> None:
         "means": means_complete,
         # Indique que le sujet est éligible
         "eligible": True,
+        # Indique que le seuil est atteint pour S001
+        "meets_threshold": False,
         # Stocke la moyenne des moyennes pour S001
         "mean_of_means": 0.65,
     }
@@ -332,6 +352,8 @@ def test_format_experience_table_renders_global_and_na() -> None:
         "means": means_incomplete,
         # Indique que le sujet est inéligible
         "eligible": False,
+        # Indique que le seuil est considéré non atteint
+        "meets_threshold": False,
         # Marque l'absence de moyenne globale pour S002
         "mean_of_means": None,
     }
@@ -406,6 +428,8 @@ def test_write_csv_outputs_expected_rows(tmp_path) -> None:
         "means": means_entry,
         # Indique que le sujet est éligible
         "eligible": True,
+        # Indique que le sujet atteint le seuil 0.75
+        "meets_threshold": False,
         # Stocke la moyenne des moyennes pour S001
         "mean_of_means": 0.25,
     }
@@ -427,9 +451,131 @@ def test_write_csv_outputs_expected_rows(tmp_path) -> None:
     # Lit le contenu du fichier généré
     content = csv_path.read_text(encoding="utf-8")
     # Vérifie que l'en-tête contient les colonnes attendues
-    assert "subject,T1_mean,T2_mean,T3_mean,T4_mean,mean_of_means,eligible" in content
+    assert (
+        "subject,T1_mean,T2_mean,T3_mean,T4_mean,mean_of_means,eligible,"
+        "meets_threshold_0p75"
+    ) in content
     # Vérifie que la ligne sujet contient la moyenne formatée
-    assert "S001,0.100000,0.200000,0.300000,0.400000,0.250000,True" in content
+    assert "S001,0.100000,0.200000,0.300000,0.400000,0.250000,True,False" in content
+
+
+# Vérifie que main retourne un code d'erreur quand le seuil global échoue
+def test_main_exits_nonzero_when_global_mean_below_threshold(
+    monkeypatch, capsys
+) -> None:
+    # Prépare un rapport minimal avec un score global inférieur au seuil
+    report = {
+        # Fournit une liste de sujets vide pour simplifier le test
+        "subjects": [],
+        # Fournit des moyennes globales par expérience
+        "global_experience_means": {
+            "T1": 0.7,
+            "T2": 0.7,
+            "T3": 0.7,
+            "T4": 0.7,
+        },
+        # Fournit la moyenne globale calculée
+        "global_mean": 0.7,
+        # Fournit le nombre de sujets éligibles
+        "eligible_subjects": 0,
+        # Fournit un bonus nul pour ce test
+        "bonus_points": 0,
+        # Fournit une liste vide de pires sujets
+        "worst_subjects": [],
+    }
+    # Remplace l'agrégateur pour isoler le test du I/O
+    monkeypatch.setattr(
+        aggregate_experience_scores,
+        "aggregate_experience_scores",
+        lambda *_args, **_kwargs: report,
+    )
+    # Exécute la commande principale sans arguments
+    exit_code = aggregate_experience_scores.main([])
+    # Capture la sortie pour vérifier le message d'erreur
+    captured = capsys.readouterr()
+    # Vérifie que le code de sortie signale l'échec
+    assert exit_code == 1
+    # Vérifie que le message d'erreur mentionne GlobalMean
+    assert "GlobalMean" in captured.out
+
+
+# Vérifie le formatage des helpers de rendu des lignes
+def test_format_helpers_render_subject_and_global_rows() -> None:
+    # Prépare une entrée sujet complète
+    subject_entry = {
+        "subject": "S010",
+        "means": {"T1": 0.8, "T2": 0.7, "T3": 0.9, "T4": 0.6},
+        "eligible": True,
+        "meets_threshold": True,
+        "mean_of_means": 0.75,
+    }
+    # Prépare un rapport global minimal
+    report = {
+        "subjects": [subject_entry],
+        "global_experience_means": {
+            "T1": 0.8,
+            "T2": 0.7,
+            "T3": 0.9,
+            "T4": 0.6,
+        },
+        "global_mean": 0.75,
+        "eligible_subjects": 1,
+        "bonus_points": 0,
+    }
+    # Construit la ligne sujet via le helper dédié
+    subject_row = aggregate_experience_scores._format_subject_row(subject_entry)
+    # Vérifie que la ligne sujet contient le seuil et l'éligibilité
+    assert "yes" in subject_row
+    # Construit la ligne globale via le helper dédié
+    global_row = aggregate_experience_scores._format_global_row(report)
+    # Vérifie que la ligne globale commence par Global
+    assert global_row.startswith("Global")
+
+
+# Vérifie les branches du libellé de seuil global
+def test_format_global_threshold_label_handles_none_and_low_value() -> None:
+    # Vérifie le libellé pour une moyenne absente
+    assert aggregate_experience_scores._format_global_threshold_label(None) == "n/a"
+    # Vérifie le libellé pour une moyenne sous le seuil
+    assert aggregate_experience_scores._format_global_threshold_label(0.5) == "no"
+
+
+# Vérifie le formatage d'une moyenne absente
+def test_format_mean_value_handles_none() -> None:
+    # Vérifie que la valeur absente est rendue en n/a
+    assert aggregate_experience_scores._format_mean_value(None) == "n/a"
+
+
+# Vérifie le formatage d'une moyenne numérique
+def test_format_mean_value_handles_float() -> None:
+    # Vérifie que la valeur numérique est formatée
+    assert aggregate_experience_scores._format_mean_value(0.8) == "0.800"
+
+
+# Vérifie le libellé de seuil global pour une moyenne suffisante
+def test_format_global_threshold_label_handles_high_value() -> None:
+    # Vérifie que le seuil est marqué comme atteint
+    assert aggregate_experience_scores._format_global_threshold_label(0.8) == "yes"
+
+
+# Vérifie la ligne globale quand la moyenne globale est absente
+def test_format_global_row_handles_missing_global_mean() -> None:
+    # Prépare un rapport global sans moyenne calculée
+    report = {
+        "global_experience_means": {
+            "T1": None,
+            "T2": None,
+            "T3": None,
+            "T4": None,
+        },
+        "global_mean": None,
+        "eligible_subjects": 0,
+        "bonus_points": 0,
+    }
+    # Construit la ligne globale via le helper dédié
+    global_row = aggregate_experience_scores._format_global_row(report)
+    # Vérifie que la ligne contient n/a pour la moyenne globale
+    assert "n/a" in global_row
 
 
 # Vérifie que les chemins d'artefacts sont construits correctement

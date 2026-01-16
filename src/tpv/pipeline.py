@@ -55,10 +55,16 @@ class PipelineConfig:
     classifier: str = "lda"
     # Scaler optionnel appliqué après l'extraction des features
     scaler: str | None = None
+    # Fixe la régularisation CSP pour stabiliser les covariances
+    csp_regularization: float = 0.1
 
 
 # Fixe le nombre d'itérations de la régression logistique pour la stabilité
 LOGISTIC_MAX_ITER = 1000
+# Fixe le solver LDA shrinkage pour une covariance stable (Ledoit-Wolf)
+LDA_SOLVER = "lsqr"
+# Active le shrinkage automatique pour stabiliser la covariance LDA
+LDA_SHRINKAGE = "auto"
 
 
 # Construit une pipeline complète incluant préprocessing, features et classification
@@ -69,30 +75,44 @@ def build_pipeline(
 
     # Prépare la liste des étapes en partant d'éventuels préprocesseurs
     steps: List[Tuple[str, object]] = list(preprocessors or [])
-    # Ajoute l'extracteur de features pour convertir les signaux en tabulaire
-    steps.append(
-        (
-            "features",
-            ExtractFeatures(
-                sfreq=config.sfreq,
-                feature_strategy=config.feature_strategy,
-                normalize=config.normalize_features,
-            ),
+    # Indique si CSP est utilisé pour éviter les incompatibilités de forme
+    uses_csp = config.dim_method == "csp"
+    # Ajoute l'extracteur de features lorsque CSP n'est pas utilisé
+    if not uses_csp:
+        # Convertit les signaux bruts en vecteurs tabulaires
+        steps.append(
+            (
+                "features",
+                ExtractFeatures(
+                    sfreq=config.sfreq,
+                    feature_strategy=config.feature_strategy,
+                    normalize=config.normalize_features,
+                ),
+            )
         )
-    )
-    # Insère un scaler optionnel pour stabiliser la variance des features
+        # Insère un scaler optionnel pour stabiliser la variance des features
+        scaler_instance = _build_scaler(config.scaler)
+        # Ajoute le scaler uniquement lorsqu'il est explicitement demandé
+        if scaler_instance is not None:
+            # Sécurise la position du scaler juste après les features tabulaires
+            steps.append(("scaler", scaler_instance))
+    # Prépare le scaler pour un usage éventuel après CSP
     scaler_instance = _build_scaler(config.scaler)
-    # Ajoute le scaler uniquement lorsqu'il est explicitement demandé
-    if scaler_instance is not None:
-        # Sécurise la position du scaler juste après les features tabulaires
-        steps.append(("scaler", scaler_instance))
     # Ajoute la réduction de dimension pour compacter les représentations
     steps.append(
         (
             "dimensionality",
-            TPVDimReducer(method=config.dim_method, n_components=config.n_components),
+            TPVDimReducer(
+                method=config.dim_method,
+                n_components=config.n_components,
+                regularization=config.csp_regularization,
+            ),
         )
     )
+    # Place un scaler après CSP uniquement si demandé
+    if uses_csp and scaler_instance is not None:
+        # Stabilise la variance des composantes CSP avant la classification
+        steps.append(("scaler", scaler_instance))
     # Construit le classifieur final selon la stratégie choisie
     classifier_instance = _build_classifier(config.classifier)
     # Ajoute le classifieur au pipeline pour la prédiction finale
@@ -105,24 +125,45 @@ def build_pipeline(
 def build_search_pipeline(config: PipelineConfig) -> Pipeline:
     """Assemble une pipeline avec des étapes paramétrables pour GridSearch."""
 
+    # Signale l'usage de CSP pour adapter les étapes de pipeline
+    uses_csp = config.dim_method == "csp"
     # Prépare les étapes fixes de la pipeline
-    steps: List[Tuple[str, object]] = [
-        (
-            "features",
-            ExtractFeatures(
-                sfreq=config.sfreq,
-                feature_strategy=config.feature_strategy,
-                normalize=config.normalize_features,
+    if not uses_csp:
+        # Construit une pipeline classique avec extracteur et scaler configurable
+        steps: List[Tuple[str, object]] = [
+            (
+                "features",
+                ExtractFeatures(
+                    sfreq=config.sfreq,
+                    feature_strategy=config.feature_strategy,
+                    normalize=config.normalize_features,
+                ),
             ),
-        ),
-        # Utilise passthrough pour autoriser la sélection de scaler en grid search
-        ("scaler", "passthrough"),
-        (
-            "dimensionality",
-            TPVDimReducer(method=config.dim_method, n_components=config.n_components),
-        ),
-        ("classifier", _build_classifier(config.classifier)),
-    ]
+            # Utilise passthrough pour autoriser la sélection de scaler en grid search
+            ("scaler", "passthrough"),
+            (
+                "dimensionality",
+                TPVDimReducer(
+                    method=config.dim_method,
+                    n_components=config.n_components,
+                    regularization=config.csp_regularization,
+                ),
+            ),
+            ("classifier", _build_classifier(config.classifier)),
+        ]
+    else:
+        # Construit une pipeline réduite pour CSP afin d'éviter les shapes invalides
+        steps = [
+            (
+                "dimensionality",
+                TPVDimReducer(
+                    method=config.dim_method,
+                    n_components=config.n_components,
+                    regularization=config.csp_regularization,
+                ),
+            ),
+            ("classifier", _build_classifier(config.classifier)),
+        ]
     # Retourne la pipeline prête pour GridSearchCV
     return Pipeline(steps)
 
@@ -157,8 +198,11 @@ def _build_classifier(option: str) -> object:
     normalized = option.lower()
     # Retourne une analyse discriminante linéaire pour la simplicité
     if normalized == "lda":
-        # Utilise LDA avec solution automatique de covariance
-        return LinearDiscriminantAnalysis()
+        # Utilise LDA avec shrinkage Ledoit-Wolf pour stabiliser la covariance
+        return LinearDiscriminantAnalysis(
+            solver=LDA_SOLVER,
+            shrinkage=LDA_SHRINKAGE,
+        )
     # Retourne une régression logistique pour des décisions probabilistes
     if normalized == "logistic":
         # Configure la régularisation l2 avec solver lbfgs stable
