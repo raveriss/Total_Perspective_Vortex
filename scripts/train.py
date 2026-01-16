@@ -855,6 +855,20 @@ def _needs_rebuild_from_shapes(
         # Demande une régénération pour retrouver la forme attendue
         return True
 
+    # Cas 2 bis : caches vides → reconstruction
+    if candidate_X.shape[0] == 0 or candidate_y.shape[0] == 0:
+        # Informe l'utilisateur qu'aucun essai n'est disponible
+        print(
+            # Prépare l'entête de message pour contextualiser le run
+            "INFO: cache vide détecté pour "
+            # Ajoute le couple sujet/run et la taille de X
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
+            # Ajoute la taille de y pour diagnostiquer le décalage
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
+        )
+        # Demande une reconstruction pour obtenir des epochs exploitables
+        return True
+
     # Cas 3 : désalignement entre n_samples de X et y → reconstruction
     if candidate_X.shape[0] != candidate_y.shape[0]:
         # Signale l'incohérence de longueur entre X et y
@@ -1233,6 +1247,12 @@ def run_training(request: TrainingRequest) -> dict:
     search_summary: dict[str, object] | None = None
     # Vérifie si l'effectif autorise une validation croisée exploitable
     if n_splits < MIN_CV_SPLITS:
+        # Informe que la CV est ignorée faute d'effectif suffisant
+        print(
+            # Message stable attendu par les tests CLI
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
         # Ajuste la pipeline sur toutes les données malgré l'absence de CV
         pipeline.fit(X, y)
     else:
