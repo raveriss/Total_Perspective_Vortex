@@ -13,6 +13,9 @@ import json
 # Garantit l'accès aux modules locaux même via un appel direct
 import sys
 
+# Rassemble les structures de configuration sans mutabilité implicite
+from dataclasses import dataclass
+
 # Garantit la manipulation de chemins indépendants du système
 from pathlib import Path
 
@@ -58,6 +61,36 @@ EXPERIENCE_ORDER = ("T1", "T2", "T3", "T4")
 BONUS_THRESHOLD = 0.75
 # Définit le pas de progression des points bonus au-delà du seuil
 BONUS_STEP = 0.03
+
+
+# Regroupe les options de scoring pour limiter les signatures trop longues
+@dataclass
+class AggregationOptions:
+    """Configure l'entraînement et l'agrégation des scores par expérience."""
+
+    # Autorise l'auto-train si des runs manquent
+    allow_auto_train: bool
+    # Force le ré-entraînement même si un modèle est présent
+    force_retrain: bool
+    # Active la grid search pendant les auto-train
+    enable_grid_search: bool
+    # Fixe le nombre de splits pour la grid search
+    grid_search_splits: int | None
+    # Renseigne le répertoire des EDF bruts pour l'auto-train
+    raw_dir: Path
+
+
+# Regroupe les informations nécessaires à l'auto-train
+@dataclass
+class TrainingContext:
+    """Encapsule les chemins et options pour l'entraînement automatique."""
+
+    # Porte le répertoire de données numpy
+    data_dir: Path
+    # Porte le répertoire d'artefacts cibles
+    artifacts_dir: Path
+    # Porte les options d'agrégation pour l'auto-train
+    options: AggregationOptions
 
 
 # Construit un argument parser pour exposer l'agrégation en CLI
@@ -274,22 +307,14 @@ def _artifact_paths(artifacts_dir: Path, subject: str, run: str) -> tuple[Path, 
 
 
 # Lance l'entraînement d'un run avec configuration contrôlée
-def _train_run(
-    subject: str,
-    run: str,
-    data_dir: Path,
-    artifacts_dir: Path,
-    raw_dir: Path,
-    enable_grid_search: bool,
-    grid_search_splits: int | None,
-) -> None:
+def _train_run(subject: str, run: str, context: TrainingContext) -> None:
     """Entraîne un run en construisant une requête alignée sur scripts.train."""
 
     # Résout la fréquence d'échantillonnage à partir des EDF si disponibles
     resolved_sfreq = train_cli.resolve_sampling_rate(
         subject,
         run,
-        raw_dir,
+        context.options.raw_dir,
         train_cli.DEFAULT_SAMPLING_RATE,
     )
     # Construit une configuration de pipeline cohérente pour l'auto-train
@@ -307,11 +332,11 @@ def _train_run(
         subject=subject,
         run=run,
         pipeline_config=pipeline_config,
-        data_dir=data_dir,
-        artifacts_dir=artifacts_dir,
-        raw_dir=raw_dir,
-        enable_grid_search=enable_grid_search,
-        grid_search_splits=grid_search_splits,
+        data_dir=context.data_dir,
+        artifacts_dir=context.artifacts_dir,
+        raw_dir=context.options.raw_dir,
+        enable_grid_search=context.options.enable_grid_search,
+        grid_search_splits=context.options.grid_search_splits,
     )
     # Déclenche l'entraînement et la persistance des artefacts
     train_cli.run_training(request)
@@ -367,16 +392,18 @@ def _collect_subject_scores(
     runs: list[tuple[str, str]],
     data_dir: Path,
     artifacts_dir: Path,
-    allow_auto_train: bool,
-    force_retrain: bool,
-    enable_grid_search: bool,
-    grid_search_splits: int | None,
-    raw_dir: Path,
+    options: AggregationOptions,
 ) -> dict[str, dict[str, list[float]]]:
     """Regroupe les accuracies par sujet et type d'expérience."""
 
     # Initialise le conteneur des scores par sujet et par type
     subject_scores: dict[str, dict[str, list[float]]] = {}
+    # Prépare le contexte d'entraînement partagé pour les runs
+    training_context = TrainingContext(
+        data_dir=data_dir,
+        artifacts_dir=artifacts_dir,
+        options=options,
+    )
     # Parcourt chaque run détecté pour calculer l'accuracy associée
     for subject, run in runs:
         # Associe le run au type d'expérience attendu
@@ -388,7 +415,7 @@ def _collect_subject_scores(
         # Charge une accuracy persistée si disponible
         cached_accuracy = _load_cached_accuracy(artifacts_dir, subject, run)
         # Ajoute la valeur persistée si elle existe et si aucun retrain n'est forcé
-        if cached_accuracy is not None and not force_retrain:
+        if cached_accuracy is not None and not options.force_retrain:
             # Enregistre l'accuracy dans l'agrégation par sujet
             _append_subject_score(subject_scores, subject, experience, cached_accuracy)
             # Passe au run suivant pour éviter un recalcul
@@ -396,11 +423,11 @@ def _collect_subject_scores(
         # Résout les chemins d'artefacts nécessaires à l'évaluation
         model_path, w_matrix_path = _artifact_paths(artifacts_dir, subject, run)
         # Détermine si un entraînement est requis pour ce run
-        needs_training = force_retrain or (
+        needs_training = options.force_retrain or (
             not model_path.exists() or not w_matrix_path.exists()
         )
         # Saute l'auto-train si les artefacts sont incomplets et interdits
-        if not allow_auto_train and needs_training:
+        if not options.allow_auto_train and needs_training:
             # Informe l'utilisateur que le run est ignoré par manque d'artefact
             print("INFO: modèle absent pour " f"{subject} {run}, auto-train désactivé.")
             # Passe au run suivant sans entraîner
@@ -410,17 +437,13 @@ def _collect_subject_scores(
             # Informe l'utilisateur que l'entraînement est déclenché pour ce run
             print(
                 "INFO: entraînement déclenché pour "
-                f"{subject} {run} (force={force_retrain})."
+                f"{subject} {run} (force={options.force_retrain})."
             )
             # Lance l'entraînement piloté pour assurer un modèle à jour
             _train_run(
                 subject,
                 run,
-                data_dir,
-                artifacts_dir,
-                raw_dir,
-                enable_grid_search,
-                grid_search_splits,
+                training_context,
             )
         # Calcule l'accuracy en rechargeant le modèle et les données
         result = predict_cli.evaluate_run(
@@ -428,7 +451,7 @@ def _collect_subject_scores(
             run,
             data_dir,
             artifacts_dir,
-            raw_dir,
+            options.raw_dir,
         )
         # Ajoute l'accuracy résultante pour l'expérience
         _append_subject_score(subject_scores, subject, experience, result["accuracy"])
@@ -538,27 +561,14 @@ def _build_global_experience_means(
 def aggregate_experience_scores(
     data_dir: Path,
     artifacts_dir: Path,
-    allow_auto_train: bool,
-    force_retrain: bool,
-    enable_grid_search: bool,
-    grid_search_splits: int | None,
-    raw_dir: Path,
+    options: AggregationOptions,
 ) -> dict:
     """Produit un rapport agrégé par sujet et type d'expérience (WBS 7.4)."""
 
     # Récupère la liste des runs éligibles à l'agrégation
-    runs = _discover_runs(data_dir, artifacts_dir, allow_auto_train)
+    runs = _discover_runs(data_dir, artifacts_dir, options.allow_auto_train)
     # Regroupe les accuracies par sujet et type d'expérience
-    subject_scores = _collect_subject_scores(
-        runs,
-        data_dir,
-        artifacts_dir,
-        allow_auto_train,
-        force_retrain,
-        enable_grid_search,
-        grid_search_splits,
-        raw_dir,
-    )
+    subject_scores = _collect_subject_scores(runs, data_dir, artifacts_dir, options)
     # Construit les entrées prêtes pour affichage ou export
     subject_entries = _build_subject_entries(subject_scores)
     # Extrait les moyennes valides pour le score global
@@ -734,14 +744,18 @@ def main(argv: list[str] | None = None) -> int:
     # Parse les arguments utilisateurs pour récupérer les chemins
     args = parser.parse_args(argv)
     # Calcule le rapport d'accuracy par expérience
+    # Rassemble les options pour éviter de multiplier les arguments
+    options = AggregationOptions(
+        allow_auto_train=args.auto_train_missing,
+        force_retrain=args.force_retrain,
+        enable_grid_search=args.auto_train_grid_search,
+        grid_search_splits=args.grid_search_splits,
+        raw_dir=args.raw_dir,
+    )
     report = aggregate_experience_scores(
         args.data_dir,
         args.artifacts_dir,
-        args.auto_train_missing,
-        args.force_retrain,
-        args.auto_train_grid_search,
-        args.grid_search_splits,
-        args.raw_dir,
+        options,
     )
     # Formate le tableau lisible pour l'utilisateur CLI
     table = format_experience_table(report)
