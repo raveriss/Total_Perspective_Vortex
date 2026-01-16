@@ -61,10 +61,10 @@ class PipelineConfig:
 
 # Fixe le nombre d'itérations de la régression logistique pour la stabilité
 LOGISTIC_MAX_ITER = 1000
-# Fixe le solver LDA shrinkage pour une covariance stable (Ledoit-Wolf)
-LDA_SOLVER = "lsqr"
-# Active le shrinkage automatique pour stabiliser la covariance LDA
-LDA_SHRINKAGE = "auto"
+# Privilégie le solver SVD pour éviter les covariances instables en petit n
+LDA_SOLVER = "svd"
+# Désactive le shrinkage pour rester compatible avec le solver SVD
+LDA_SHRINKAGE = None
 
 
 # Construit une pipeline complète incluant préprocessing, features et classification
@@ -198,7 +198,7 @@ def _build_classifier(option: str) -> object:
     normalized = option.lower()
     # Retourne une analyse discriminante linéaire pour la simplicité
     if normalized == "lda":
-        # Utilise LDA avec shrinkage Ledoit-Wolf pour stabiliser la covariance
+        # Utilise LDA en mode SVD pour éviter les covariances instables
         return LinearDiscriminantAnalysis(
             solver=LDA_SOLVER,
             shrinkage=LDA_SHRINKAGE,
