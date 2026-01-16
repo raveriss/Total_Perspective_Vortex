@@ -495,11 +495,6 @@ def evaluate_run(
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Déclenche un entraînement si le modèle ou la matrice sont manquants
     if not model_path.exists() or not w_matrix_path.exists():
-        # Informe l'utilisateur qu'un auto-train est lancé pour ce couple
-        print(
-            "INFO: modèle absent pour "
-            f"{subject} {run}, entraînement automatique en cours..."
-        )
         # Génère les artefacts de base pour permettre l'évaluation
         _train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
     # Charge la pipeline entraînée depuis le joblib sauvegardé

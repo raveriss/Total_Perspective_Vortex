@@ -347,11 +347,6 @@ def _evaluate_experiments(
                     progress.update(1)
             # Stocke l'accuracy pour le calcul des moyennes
             per_experiment_scores[experiment.index].append(accuracy)
-            # Affiche l'accuracy du sujet au format imposé
-            print(
-                f"experiment {experiment.index}: "
-                f"subject {subject_index:03d}: accuracy = {accuracy:.4f}"
-            )
     # Retourne les résultats et les expériences ignorées
     return per_experiment_scores, missing_entries, skipped_experiments
 

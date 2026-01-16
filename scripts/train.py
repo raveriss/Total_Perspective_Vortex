@@ -1233,11 +1233,6 @@ def run_training(request: TrainingRequest) -> dict:
     search_summary: dict[str, object] | None = None
     # Vérifie si l'effectif autorise une validation croisée exploitable
     if n_splits < MIN_CV_SPLITS:
-        # Signale la désactivation de la validation croisée par manque d'échantillons
-        print(
-            "AVERTISSEMENT: effectif par classe insuffisant pour la "
-            "validation croisée, cross-val ignorée"
-        )
         # Ajuste la pipeline sur toutes les données malgré l'absence de CV
         pipeline.fit(X, y)
     else:
