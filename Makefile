@@ -149,12 +149,20 @@ PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
 PREDICT_RUN ?= $(TRAIN_RUN)
 
 # Entraînement du modèle : exemple minimal avec sujet et run de démonstration
+train: CLI_ARGS := $(filter-out $@,$(MAKECMDGOALS))
 train: ensure-venv
-	$(POETRY) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train
+	$(POETRY) python mybci.py \
+		$(or $(word 1,$(CLI_ARGS)),$(TRAIN_SUBJECT)) \
+		$(or $(word 2,$(CLI_ARGS)),$(TRAIN_RUN)) \
+		train
 
 # Prédiction : exemple minimal réutilisant les identifiants ci-dessus
+predict: CLI_ARGS := $(filter-out $@,$(MAKECMDGOALS))
 predict: ensure-venv
-	$(POETRY) python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict
+	$(POETRY) python mybci.py \
+		$(or $(word 1,$(CLI_ARGS)),$(PREDICT_SUBJECT)) \
+		$(or $(word 2,$(CLI_ARGS)),$(PREDICT_RUN)) \
+		predict
 
 # Évaluation globale : équivalent à `python mybci.py` du sujet
 bench: ensure-venv
