@@ -30,7 +30,13 @@ import numpy as np
 # Fournit la validation croisée pour évaluer la pipeline complète
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_score
+
+# Fournit la validation croisée pour évaluer la pipeline complète
+from sklearn.model_selection import (
+    GridSearchCV,
+    StratifiedShuffleSplit,
+    cross_val_score,
+)
 
 # Fournit le type Pipeline pour typer les helpers de scoring
 from sklearn.pipeline import Pipeline
@@ -216,9 +222,52 @@ DEFAULT_CV_SPLITS = 10
 # Fixe le nombre minimal de splits pour déclencher la validation croisée
 MIN_CV_SPLITS = 3
 
+# Fixe la taille minimale du test pour stabiliser les splits CV
+DEFAULT_CV_TEST_SIZE = 0.2
+
+# Fixe le nombre minimal de classes pour activer la CV
+MIN_CV_CLASS_COUNT = 2
+
 
 # Stabilise la reproductibilité des splits de cross-validation
 DEFAULT_RANDOM_STATE = 42
+
+
+# Construit un split stratifié reproductible avec un nombre fixe d'itérations
+def _build_cv_splitter(
+    y: np.ndarray,
+    requested_splits: int,
+) -> StratifiedShuffleSplit | None:
+    """Construit un splitter stratifié ou None si la CV est impossible."""
+
+    # Calcule le nombre de classes disponibles
+    class_count = int(np.unique(y).size)
+    # Refuse la CV si une seule classe est présente
+    if class_count < MIN_CV_CLASS_COUNT:
+        # Signale l'impossibilité de construire une CV binaire
+        return None
+    # Calcule la plus petite classe pour garantir un split valide
+    min_class_count = int(np.bincount(y).min())
+    # Refuse la CV si l'effectif minimal est trop faible
+    if min_class_count < MIN_CV_SPLITS:
+        # Signale l'absence de données suffisantes pour une CV stable
+        return None
+    # Calcule la taille de test minimale pour garder au moins un essai par classe
+    min_test_size = 1.0 / float(min_class_count)
+    # Choisit un test_size sûr pour maintenir l'équilibre des classes
+    test_size = max(DEFAULT_CV_TEST_SIZE, min_test_size)
+    # Calcule la borne max de test_size pour garder un essai en train
+    max_test_size = (min_class_count - 1) / float(min_class_count)
+    # Refuse la CV si le split ne peut pas conserver deux ensembles valides
+    if test_size > max_test_size:
+        # Signale l'impossibilité de faire un split stratifié cohérent
+        return None
+    # Construit un splitter shuffle stratifié pour obtenir 10 scores stables
+    return StratifiedShuffleSplit(
+        n_splits=requested_splits,
+        test_size=test_size,
+        random_state=DEFAULT_RANDOM_STATE,
+    )
 
 
 # Adapte la configuration pour éviter les classifieurs instables en très bas n
@@ -552,20 +601,16 @@ def _score_epoch_window(
 
     # Calcule le nombre d'échantillons disponibles
     sample_count = int(y.shape[0])
-    # Retourne None si moins d'échantillons que la CV minimale
+    # Retourne None si aucun échantillon n'est disponible
     if sample_count == 0:
+        # Signale l'impossibilité de calculer un score CV
         return None
-    # Calcule le nombre minimal d'échantillons par classe
-    min_class_count = int(np.bincount(y).min())
-    # Déduit le nombre de splits admissibles
-    n_splits = min(DEFAULT_CV_SPLITS, min_class_count)
-    # Ignore les fenêtres trop petites pour une CV robuste
-    if n_splits < MIN_CV_SPLITS:
+    # Construit un splitter stratifié pour estimer la fenêtre
+    cv = _build_cv_splitter(y, DEFAULT_CV_SPLITS)
+    # Ignore la fenêtre si aucun splitter CV n'est possible
+    if cv is None:
+        # Indique que la fenêtre est inexploitable pour la CV
         return None
-    # Prépare une CV stratifiée pour éviter les fuites de labels
-    cv = StratifiedKFold(
-        n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
-    )
     # Construit le pipeline CSP+LDA shrinkage pour le scoring
     pipeline = _build_window_search_pipeline(sfreq)
     # Calcule les scores cross-val pour la fenêtre
@@ -1289,18 +1334,14 @@ def run_training(request: TrainingRequest) -> dict:
     sample_count = int(y.shape[0])
     # Calcule le nombre de classes distinctes pour l'évaluation LDA
     class_count = int(np.unique(y).size)
-    # Calcule le nombre minimal d'échantillons par classe pour calibrer la CV
-    min_class_count = int(np.bincount(y).min())
-    # Déclare le nombre de splits cible imposé par la consigne (10)
-    requested_splits = DEFAULT_CV_SPLITS
-    # Calcule le nombre de splits atteignable avec la classe minoritaire
-    n_splits = min(requested_splits, min_class_count)
+    # Construit un splitter pour obtenir un nombre fixe de scores
+    cv = _build_cv_splitter(y, DEFAULT_CV_SPLITS)
     # Initialise un tableau vide lorsque la validation croisée est impossible
     cv_scores = np.array([])
     # Prépare un résumé de recherche d'hyperparamètres si besoin
     search_summary: dict[str, object] | None = None
     # Vérifie si l'effectif autorise une validation croisée exploitable
-    if n_splits < MIN_CV_SPLITS:
+    if cv is None:
         # Informe que la CV est ignorée faute d'effectif suffisant
         print(
             # Message stable attendu par les tests CLI
@@ -1310,10 +1351,8 @@ def run_training(request: TrainingRequest) -> dict:
         # Ajuste la pipeline sur toutes les données malgré l'absence de CV
         pipeline.fit(X, y)
     else:
-        # Configure une StratifiedKFold stable sur le nombre de splits calculé
-        cv = StratifiedKFold(
-            n_splits=n_splits, shuffle=True, random_state=DEFAULT_RANDOM_STATE
-        )
+        # Conserve le splitter construit pour la suite de la procédure
+        cv = cast(StratifiedShuffleSplit, cv)
         # Lance une recherche systématique des hyperparamètres si demandée
         if request.enable_grid_search:
             # Construit la pipeline dédiée au grid search
@@ -1323,35 +1362,43 @@ def run_training(request: TrainingRequest) -> dict:
             # Construit la grille d'hyperparamètres à explorer
             param_grid = _build_grid_search_grid(adapted_config, allow_lda)
             # Détermine le nombre de splits spécifique si fourni
-            search_splits = request.grid_search_splits or n_splits
-            # S'assure que la recherche respecte les bornes disponibles
-            search_splits = min(search_splits, min_class_count)
-            search_splits = max(search_splits, MIN_CV_SPLITS)
-            # Prépare la CV pour la recherche avec splits contrôlés
-            search_cv = StratifiedKFold(
-                n_splits=search_splits,
-                shuffle=True,
-                random_state=DEFAULT_RANDOM_STATE,
-            )
-            # Instancie la recherche exhaustive pour maximiser l'accuracy
-            search = GridSearchCV(
-                search_pipeline,
-                param_grid,
-                cv=search_cv,
-                scoring="accuracy",
-                refit=True,
-            )
-            # Lance l'optimisation des hyperparamètres
-            search.fit(X, y)
-            # Extrait les scores par split pour l'entrée de manifeste
-            cv_scores = _extract_grid_search_scores(search, search_splits)
-            # Capture un résumé des meilleurs paramètres
-            search_summary = {
-                "best_params": search.best_params_,
-                "best_score": float(search.best_score_),
-            }
-            # Récupère l'estimateur entraîné sur tous les échantillons
-            pipeline = search.best_estimator_
+            search_splits = request.grid_search_splits or DEFAULT_CV_SPLITS
+            # Construit un splitter dédié pour la recherche d'hyperparamètres
+            search_cv = _build_cv_splitter(y, search_splits)
+            # Désactive la recherche si la CV est impossible
+            if search_cv is None:
+                # Informe que la CV est ignorée faute d'effectif suffisant
+                print(
+                    # Message stable attendu par les tests CLI
+                    "AVERTISSEMENT: effectif par classe insuffisant pour la "
+                    "validation croisée, cross-val ignorée"
+                )
+                # Ajuste la pipeline sur toutes les données malgré l'absence de CV
+                pipeline.fit(X, y)
+                # Prépare la sortie en signalant l'absence de CV
+                search_summary = None
+                # Retourne les artefacts sans scores de validation
+                cv_scores = np.array([])
+            else:
+                # Instancie la recherche exhaustive pour maximiser l'accuracy
+                search = GridSearchCV(
+                    search_pipeline,
+                    param_grid,
+                    cv=search_cv,
+                    scoring="accuracy",
+                    refit=True,
+                )
+                # Lance l'optimisation des hyperparamètres
+                search.fit(X, y)
+                # Extrait les scores par split pour l'entrée de manifeste
+                cv_scores = _extract_grid_search_scores(search, search_splits)
+                # Capture un résumé des meilleurs paramètres
+                search_summary = {
+                    "best_params": search.best_params_,
+                    "best_score": float(search.best_score_),
+                }
+                # Récupère l'estimateur entraîné sur tous les échantillons
+                pipeline = search.best_estimator_
         else:
             # Calcule les scores de validation croisée sur l'ensemble du pipeline
             cv_scores = cross_val_score(pipeline, X, y, cv=cv)
