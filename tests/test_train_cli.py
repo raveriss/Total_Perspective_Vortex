@@ -1521,30 +1521,49 @@ def test_run_training_prints_exact_warning_when_cross_validation_is_disabled(
     ) in stdout
 
 
-def test_run_training_builds_stratified_kfold_with_stable_random_state(
+# Vérifie que le splitter stratifié conserve une seed stable
+def test_run_training_builds_stratified_shuffle_split_with_stable_random_state(
+    # Reçoit le chemin temporaire pour simuler les artefacts
     tmp_path: Path,
+    # Reçoit le monkeypatch pour injecter les doubles
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Définit un loader factice pour maîtriser les labels
     def fake_load_data(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+        # Prépare un tenseur minimal compatible pipeline
         X = np.zeros((6, 1, 4), dtype=float)
+        # Déclare deux classes équilibrées pour la CV
         y = np.array([0, 0, 0, 1, 1, 1], dtype=int)
+        # Retourne les données factices pour l'entraînement
         return X, y
 
+    # Injecte le loader factice dans le module train
     monkeypatch.setattr(train, "_load_data", fake_load_data)
 
+    # Déclare un réducteur factice pour respecter l'API save
     class FakeDimReducer:
+        # Fournit un save no-op pour éviter l'I/O réelle
         def save(self, _path: Path) -> None:
+            # Retourne None pour garder une API stable
             return None
 
+    # Déclare une pipeline factice pour contrôler l'appel fit
     class FakePipeline:
+        # Construit la pipeline factice avec l'étape requise
         def __init__(self) -> None:
+            # Expose l'étape de réduction attendue par run_training
             self.named_steps = {"dimensionality": FakeDimReducer()}
 
+        # Simule l'entraînement en renvoyant self
         def fit(self, _X: np.ndarray, _y: np.ndarray) -> "FakePipeline":
+            # Retourne l'instance pour coller au contrat sklearn
             return self
 
+    # Injecte la pipeline factice pour éviter un vrai fit
     monkeypatch.setattr(train, "build_pipeline", lambda _cfg: FakePipeline())
+    # Neutralise la sauvegarde du modèle pour accélérer le test
     monkeypatch.setattr(train, "save_pipeline", lambda _p, _path: None)
+    # Force un manifeste factice pour ne pas écrire sur disque
     monkeypatch.setattr(
         train,
         "_write_manifest",
@@ -1554,23 +1573,37 @@ def test_run_training_builds_stratified_kfold_with_stable_random_state(
         },
     )
 
+    # Prépare un dictionnaire pour capturer l'instanciation CV
     captured: dict[str, object] = {}
 
-    class SpyStratifiedKFold:
+    # Déclare un spy pour capturer les arguments du splitter
+    class SpyStratifiedShuffleSplit:
+        # Capture args/kwargs pour assertions ultérieures
         def __init__(self, *args: object, **kwargs: object) -> None:
+            # Mémorise les args pour inspection
             captured["args"] = args
+            # Mémorise les kwargs pour inspection
             captured["kwargs"] = kwargs
 
+    # Déclare une version contrôlée de cross_val_score
     def fake_cross_val_score(_pipeline: object, _X: object, _y: object, cv: object):
+        # Capture l'objet CV construit par run_training
         captured["cv"] = cv
+        # Retourne un score fixe pour stabiliser le test
         return np.array([0.5], dtype=float)
 
-    monkeypatch.setattr(train, "StratifiedKFold", SpyStratifiedKFold)
+    # Injecte le spy sur le splitter stratifié shuffle
+    monkeypatch.setattr(train, "StratifiedShuffleSplit", SpyStratifiedShuffleSplit)
+    # Injecte la fonction cross_val_score factice
     monkeypatch.setattr(train, "cross_val_score", fake_cross_val_score)
 
+    # Prépare une requête d'entraînement minimale
     request = train.TrainingRequest(
+        # Définit un sujet fictif pour le test
         subject="S01",
+        # Définit un run fictif pour le test
         run="R01",
+        # Fournit une config pipeline valide
         pipeline_config=train.PipelineConfig(
             sfreq=50.0,
             feature_strategy="fft",
@@ -1580,19 +1613,49 @@ def test_run_training_builds_stratified_kfold_with_stable_random_state(
             classifier="lda",
             scaler=None,
         ),
+        # Injecte un data_dir factice
         data_dir=tmp_path / "data",
+        # Injecte un artifacts_dir factice
         artifacts_dir=tmp_path / "artifacts",
+        # Injecte un raw_dir factice
         raw_dir=tmp_path / "raw",
     )
 
+    # Exécute l'entraînement pour déclencher la création du splitter
     train.run_training(request)
 
+    # Vérifie que les kwargs du splitter sont présents
     assert "kwargs" in captured
+    # Récupère les kwargs capturés pour inspection
     kwargs = cast(dict[str, object], captured["kwargs"])
-    assert kwargs.get("n_splits") == train.MIN_CV_SPLITS
-    assert kwargs.get("shuffle") is True
+    # Vérifie que le nombre de splits respecte la consigne 10
+    assert kwargs.get("n_splits") == train.DEFAULT_CV_SPLITS
+    # Vérifie que la taille de test suit la contrainte minimale
+    assert kwargs.get("test_size") == pytest.approx(1 / 3)
+    # Vérifie la présence de random_state pour la reproductibilité
     assert "random_state" in kwargs
+    # Vérifie la valeur du random_state pour stabilité
     assert kwargs["random_state"] == train.DEFAULT_RANDOM_STATE
+
+
+# Vérifie que le splitter retourne None quand une seule classe est présente
+def test_build_cv_splitter_returns_none_with_single_class() -> None:
+    # Prépare un vecteur de labels avec une seule classe
+    y = np.array([0, 0, 0], dtype=int)
+    # Construit le splitter avec les paramètres par défaut
+    splitter = train._build_cv_splitter(y, train.DEFAULT_CV_SPLITS)
+    # Vérifie que le splitter est None en cas de classe unique
+    assert splitter is None
+
+
+# Vérifie que le splitter refuse les effectifs trop faibles
+def test_build_cv_splitter_returns_none_below_min_splits() -> None:
+    # Prépare un vecteur de labels avec deux occurrences par classe
+    y = np.array([0, 0, 1, 1], dtype=int)
+    # Construit le splitter avec les paramètres par défaut
+    splitter = train._build_cv_splitter(y, train.DEFAULT_CV_SPLITS)
+    # Vérifie que le splitter est None si min_class_count < MIN_CV_SPLITS
+    assert splitter is None
 
 
 def test_run_training_uses_grid_search_and_captures_best_scores(

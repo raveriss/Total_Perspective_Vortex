@@ -19,8 +19,9 @@ from scripts import train
 # Importe evaluate_run pour vérifier la génération des rapports prédictifs
 from scripts.predict import evaluate_run
 
-# Importe _get_git_commit pour couvrir les branches de repli git
+# Importe les constantes CV et helpers pour couvrir l'entraînement
 from scripts.train import (
+    DEFAULT_CV_SPLITS,
     MIN_CV_SPLITS,
     TrainingRequest,
     _get_git_commit,
@@ -261,7 +262,7 @@ def test_run_training_aligns_cv_splits_with_min_class_count(tmp_path):
     subject_dir.mkdir(parents=True)
     # Initialise un générateur aléatoire pour des données stables
     rng = np.random.default_rng(7)
-    # Génère quatorze échantillons pour permettre sept splits stratifiés
+    # Génère quatorze échantillons pour permettre la CV stratifiée
     X = rng.normal(size=(14, 2, 20))
     # Construit des labels en bornant la classe minoritaire au compteur dédié
     y = np.array([0] * minority_class_count + [1] * minority_class_count)
@@ -286,12 +287,12 @@ def test_run_training_aligns_cv_splits_with_min_class_count(tmp_path):
     )
     # Lance l'entraînement pour générer le modèle et le manifeste
     result = run_training(request)
-    # Vérifie que le nombre de scores reflète bien les sept occurrences minoritaires
-    assert result["cv_scores"].size == minority_class_count
+    # Vérifie que le nombre de scores suit la consigne de dix splits
+    assert result["cv_scores"].size == DEFAULT_CV_SPLITS
     # Charge le manifeste pour inspecter les valeurs sérialisées
     manifest = json.loads(result["manifest_path"].read_text())
-    # Vérifie que la longueur des scores dans le manifeste correspond aux splits
-    assert len(manifest["scores"]["cv_scores"]) == minority_class_count
+    # Vérifie que la longueur des scores dans le manifeste suit la consigne
+    assert len(manifest["scores"]["cv_scores"]) == DEFAULT_CV_SPLITS
 
 
 def test_run_training_logs_skip_message_when_below_min_splits(
@@ -377,7 +378,7 @@ def test_run_training_persists_artifacts_and_scores(tmp_path, monkeypatch):
     assert result["scaler_path"] is not None and result["scaler_path"].exists()
 
     # Vérifie que la validation croisée a produit le nombre de splits attendu
-    assert result["cv_scores"].size == MIN_CV_SPLITS
+    assert result["cv_scores"].size == DEFAULT_CV_SPLITS
     assert all(0.0 <= score <= 1.0 for score in result["cv_scores"])
 
     # Charge le manifeste pour vérifier la cohérence des chemins et des scores
@@ -385,7 +386,7 @@ def test_run_training_persists_artifacts_and_scores(tmp_path, monkeypatch):
     assert manifest["artifacts"]["model"] == str(result["model_path"])
     assert manifest["artifacts"]["w_matrix"] == str(result["w_matrix_path"])
     assert manifest["artifacts"]["scaler"] == str(result["scaler_path"])
-    assert len(manifest["scores"]["cv_scores"]) == MIN_CV_SPLITS
+    assert len(manifest["scores"]["cv_scores"]) == DEFAULT_CV_SPLITS
     assert manifest["scores"]["cv_mean"] == pytest.approx(
         float(np.mean(result["cv_scores"]))
     )
