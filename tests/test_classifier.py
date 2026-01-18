@@ -227,8 +227,8 @@ def test_training_cli_main_covers_parser_and_paths(tmp_path):
     sfreq = 120.0
     # Génère des données jouets linéairement séparables
     X, y = _build_toy_dataset(sfreq)
-    # Construit le répertoire des données pour le sujet S03
-    data_dir = tmp_path / "data" / "S03"
+    # Construit le répertoire des données pour le sujet normalisé S003
+    data_dir = tmp_path / "data" / "S003"
     # Assure la création du répertoire cible avant sauvegarde
     data_dir.mkdir(parents=True)
     # Sauvegarde les features au format attendu par la CLI
@@ -239,8 +239,8 @@ def test_training_cli_main_covers_parser_and_paths(tmp_path):
     artifacts_dir = tmp_path / "artifacts"
     # Construit la liste d'arguments simulant un appel mybci
     argv = [
-        "S03",
-        "R03",
+        "3",
+        "3",
         "--classifier",
         "lda",
         "--feature-strategy",
@@ -263,7 +263,7 @@ def test_training_cli_main_covers_parser_and_paths(tmp_path):
     # Vérifie que la CLI retourne un succès standard
     assert exit_code == 0
     # Construit le chemin du modèle pour valider la création d'artefacts
-    model_path = artifacts_dir / "S03" / "R03" / "model.joblib"
+    model_path = artifacts_dir / "S003" / "R03" / "model.joblib"
     # Confirme que le modèle joblib est bien présent après l'appel CLI
     assert model_path.exists()
 
@@ -274,14 +274,22 @@ def test_predict_cli_main_covers_parser_and_report(tmp_path):
     sfreq = 120.0
     # Génère des données jouets linéairement séparables
     X, y = _build_toy_dataset(sfreq)
-    # Construit le répertoire des données pour le sujet S04
-    data_dir = tmp_path / "data" / "S04"
+    # Construit le sujet numérique pour valider la normalisation CLI
+    subject = "4"
+    # Construit le run numérique pour valider la normalisation CLI
+    run = "4"
+    # Calcule l'identifiant normalisé du sujet pour les chemins disque
+    normalized_subject = "S004"
+    # Calcule l'identifiant normalisé du run pour les chemins disque
+    normalized_run = "R04"
+    # Construit le répertoire des données pour le sujet normalisé
+    data_dir = tmp_path / "data" / normalized_subject
     # Assure la création du répertoire cible avant sauvegarde
     data_dir.mkdir(parents=True)
     # Sauvegarde les features au format attendu par la CLI
-    np.save(data_dir / "R04_X.npy", X)
+    np.save(data_dir / f"{normalized_run}_X.npy", X)
     # Sauvegarde les labels au format attendu par la CLI
-    np.save(data_dir / "R04_y.npy", y)
+    np.save(data_dir / f"{normalized_run}_y.npy", y)
     # Construit le répertoire d'artefacts isolé pour le test
     artifacts_dir = tmp_path / "artifacts"
     # Construit la configuration alignée sur la CLI pour l'entraînement
@@ -296,8 +304,8 @@ def test_predict_cli_main_covers_parser_and_report(tmp_path):
     )
     # Regroupe les paramètres d'entraînement dans une requête dédiée
     request = train_cli.TrainingRequest(
-        subject="S04",
-        run="R04",
+        subject=normalized_subject,
+        run=normalized_run,
         pipeline_config=config,
         data_dir=tmp_path / "data",
         artifacts_dir=artifacts_dir,
@@ -306,8 +314,8 @@ def test_predict_cli_main_covers_parser_and_report(tmp_path):
     train_cli.run_training(request)
     # Construit la liste d'arguments simulant un appel mybci
     argv = [
-        "S04",
-        "R04",
+        subject,
+        run,
         "--data-dir",
         str(tmp_path / "data"),
         "--artifacts-dir",

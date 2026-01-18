@@ -127,16 +127,20 @@ def test_train_and_predict_produce_manifests_and_reports(tmp_path):
 def test_train_main_produces_manifest_and_scaler(tmp_path, monkeypatch):
     """Couvre le chemin CLI avec scaler explicite et manifeste attendu."""
 
-    # Fige le sujet simulé pour préparer les chemins attendus
-    subject = "S99"
-    # Fige le run simulé pour contrôler le nommage des fichiers
-    run = "R09"
+    # Fige le sujet simulé au format numérique pour la normalisation CLI
+    subject = "99"
+    # Fige le run simulé au format numérique pour la normalisation CLI
+    run = "9"
+    # Calcule l'identifiant normalisé attendu pour le sujet
+    normalized_subject = "S099"
+    # Calcule l'identifiant normalisé attendu pour le run
+    normalized_run = "R09"
     # Prépare le répertoire de données isolé pour le scénario CLI
     data_dir = tmp_path / "data"
     # Prépare le répertoire d'artefacts isolé pour vérifier la sortie
     artifacts_dir = tmp_path / "artifacts"
     # Construit l'arborescence du sujet pour placer les fichiers numpy
-    subject_dir = data_dir / subject
+    subject_dir = data_dir / normalized_subject
     # Crée les dossiers pour accueillir les matrices synthétiques
     subject_dir.mkdir(parents=True)
     # Initialise un générateur déterministe pour stabiliser la CV
@@ -146,9 +150,9 @@ def test_train_main_produces_manifest_and_scaler(tmp_path, monkeypatch):
     # Alterne les étiquettes pour forcer la stratification tripartite
     y = np.array([0, 1, 0, 1, 0, 1])
     # Sauvegarde les features dans la structure attendue par la CLI
-    np.save(subject_dir / f"{run}_X.npy", X)
+    np.save(subject_dir / f"{normalized_run}_X.npy", X)
     # Sauvegarde les labels alignés pour déclencher la CV
-    np.save(subject_dir / f"{run}_y.npy", y)
+    np.save(subject_dir / f"{normalized_run}_y.npy", y)
     # Construit les arguments CLI en forçant un scaler explicite
     argv = [
         subject,
@@ -171,14 +175,16 @@ def test_train_main_produces_manifest_and_scaler(tmp_path, monkeypatch):
     # Exécute le main CLI et vérifie le code retour de succès
     assert train.main(argv) == 0
     # Construit le chemin attendu du manifeste pour l'assertion
-    manifest_path = artifacts_dir / subject / run / "manifest.json"
+    manifest_path = (
+        artifacts_dir / normalized_subject / normalized_run / "manifest.json"
+    )
     # Vérifie que le manifeste CLI est bien présent sur disque
     assert manifest_path.exists()
     # Charge le JSON pour inspecter la section des artefacts
     manifest = json.loads(manifest_path.read_text())
     # Vérifie que le scaler sérialisé correspond exactement au chemin attendu
     assert manifest["artifacts"]["scaler"] == str(
-        artifacts_dir / subject / run / "scaler.joblib"
+        artifacts_dir / normalized_subject / normalized_run / "scaler.joblib"
     )
 
 

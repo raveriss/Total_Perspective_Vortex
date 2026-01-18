@@ -31,8 +31,8 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> (
     artifacts_dir_action = _get_action(parser, "artifacts_dir")
     raw_dir_action = _get_action(parser, "raw_dir")
 
-    assert subject_action.help == "Identifiant du sujet (ex: S001)"
-    assert run_action.help == "Identifiant du run (ex: R01)"
+    assert subject_action.help == "Identifiant du sujet (ex: 4)"
+    assert run_action.help == "Identifiant du run (ex: 14)"
 
     assert classifier_action.choices is not None
     assert tuple(classifier_action.choices) == (
@@ -124,8 +124,10 @@ def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
 
 
 def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
-    subject = "S10"
-    run = "R20"
+    subject = "10"
+    run = "20"
+    expected_subject = "S010"
+    expected_run = "R20"
     data_dir = tmp_path / "data"
     artifacts_dir = tmp_path / "artifacts"
     captured_result: dict[str, object] = {}
@@ -183,14 +185,14 @@ def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
     assert exit_code == 0
     assert zip_strict_values == [True]
     assert captured_result == {
-        "subject": subject,
-        "run": run,
+        "subject": expected_subject,
+        "run": expected_run,
         "data_dir": data_dir,
         "artifacts_dir": artifacts_dir,
         "raw_dir": predict.DEFAULT_RAW_DIR,
         "report_input": {
-            "subject": subject,
-            "run": run,
+            "subject": expected_subject,
+            "run": expected_run,
             "predictions": y_pred,
             "y_true": y_true,
             "accuracy": 0.5,

@@ -37,9 +37,9 @@ def test_build_parser_description_and_help_texts_are_stable() -> None:
     run_action = _get_action(parser, "run")
 
     # Verrouille l'aide exacte de l'argument subject
-    assert subject_action.help == "Identifiant du sujet (ex: S001)"
+    assert subject_action.help == "Identifiant du sujet (ex: 4)"
     # Verrouille l'aide exacte de l'argument run
-    assert run_action.help == "Identifiant du run (ex: R01)"
+    assert run_action.help == "Identifiant du run (ex: 14)"
 
     # Récupère les actions optionnelles attendues
     classifier_action = _get_action(parser, "classifier")

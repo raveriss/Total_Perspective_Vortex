@@ -200,8 +200,8 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 | Tests | `make test` | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest -vv` |
 | Coverage | `make cov` | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run coverage run -m pytest ...` |
 | Mutation | `make mut` | `MUTMUT_USE_COVERAGE=1 ... poetry run mutmut run` |
-| Entraîner | `make train` | `poetry run python mybci.py S109 R03 train` *(par défaut)* |
-| Prédire | `make predict` | `poetry run python mybci.py S109 R03 predict` *(par défaut)* |
+| Entraîner | `make train` | `poetry run python mybci.py 109 3 train` *(par défaut)* |
+| Prédire | `make predict` | `poetry run python mybci.py 109 3 predict` *(par défaut)* |
 | Benchmark global | `make bench` | `poetry run python mybci.py` |
 | Nettoyer | `make clean` | supprime `./artifacts` + les `*.npy` (hors `.venv`, `.git`, `artifacts`) |
 
@@ -210,21 +210,21 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 ### 📦 Générer les artefacts manquants avant l'évaluation globale
 
 L'exécution de `poetry run python mybci.py` sans arguments déclenche
-l'évaluation des 6 expériences (R03 → R14) sur 109 sujets. Pour éviter
+l'évaluation des 6 expériences (3 → 14) sur 109 sujets. Pour éviter
 les avertissements "aucun modèle disponible", assurez-vous que
 `artifacts/<subject>/<run>/model.joblib` existe pour chaque run visé.
 
 *Entraîner un modèle manquant pour un couple sujet/run* :
 
 ```bash
-poetry run python scripts/train.py S001 R04
+poetry run python scripts/train.py 1 4
 ```
 
-*Boucler sur tous les runs avec un sujet donné (exemple S001)* :
+*Boucler sur tous les runs avec un sujet donné (exemple 1)* :
 
 ```bash
-for run in R03 R04 R05 R06 R07 R08 R09 R10 R11 R12 R13 R14; do
-  poetry run python scripts/train.py S001 "${run}" --feature-strategy fft --dim-method pca
+for run in 3 4 5 6 7 8 9 10 11 12 13 14; do
+  poetry run python scripts/train.py 1 "${run}" --feature-strategy fft --dim-method pca
 done
 ```
 
