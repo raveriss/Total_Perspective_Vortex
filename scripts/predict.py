@@ -54,6 +54,52 @@ DEFAULT_NOTCH_FREQ = 50.0
 DEFAULT_EPOCH_WINDOW = (0.5, 2.5)
 
 
+# Normalise un identifiant brut en appliquant un préfixe standard
+def _normalize_identifier(value: str, prefix: str, width: int, label: str) -> str:
+    """Normalise un identifiant pour respecter le format Physionet."""
+
+    # Nettoie la valeur reçue pour éviter des espaces parasites
+    cleaned_value = value.strip()
+    # Refuse une valeur vide pour éviter un identifiant incomplet
+    if not cleaned_value:
+        # Signale une valeur vide pour forcer la correction côté CLI
+        raise argparse.ArgumentTypeError(f"{label} vide")
+    # Récupère le premier caractère pour détecter un préfixe explicite
+    first_char = cleaned_value[0]
+    # Déduit si l'utilisateur a fourni le préfixe attendu
+    has_prefix = first_char.upper() == prefix.upper()
+    # Extrait la portion numérique selon la présence du préfixe
+    numeric_part = cleaned_value[1:] if has_prefix else cleaned_value
+    # Refuse les valeurs non numériques pour garantir un ID valide
+    if not numeric_part.isdigit():
+        # Signale l'identifiant invalide pour guider l'utilisateur
+        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
+    # Convertit en entier pour normaliser les zéros initiaux
+    numeric_value = int(numeric_part)
+    # Refuse les index non positifs pour respecter la base Physionet
+    if numeric_value < 1:
+        # Signale l'identifiant non valide pour arrêter le parsing
+        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
+    # Reconstruit l'identifiant normalisé avec le padding attendu
+    return f"{prefix}{numeric_value:0{width}d}"
+
+
+# Normalise un identifiant de sujet pour la CLI de prédiction
+def _parse_subject(value: str) -> str:
+    """Normalise un identifiant de sujet en format Sxxx."""
+
+    # Délègue la normalisation au helper générique
+    return _normalize_identifier(value=value, prefix="S", width=3, label="Sujet")
+
+
+# Normalise un identifiant de run pour la CLI de prédiction
+def _parse_run(value: str) -> str:
+    """Normalise un identifiant de run en format Rxx."""
+
+    # Délègue la normalisation au helper générique
+    return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
+
+
 # Construit un argument parser aligné sur l'appel mybci
 def build_parser() -> argparse.ArgumentParser:
     """Construit le parser CLI pour la prédiction TPV."""
@@ -63,9 +109,17 @@ def build_parser() -> argparse.ArgumentParser:
         description="Charge une pipeline TPV entraînée et produit un rapport",
     )
     # Ajoute l'argument positionnel du sujet pour cibler les artefacts
-    parser.add_argument("subject", help="Identifiant du sujet (ex: S001)")
+    parser.add_argument(
+        "subject",
+        type=_parse_subject,
+        help="Identifiant du sujet (ex: 4)",
+    )
     # Ajoute l'argument positionnel du run pour cibler la session
-    parser.add_argument("run", help="Identifiant du run (ex: R01)")
+    parser.add_argument(
+        "run",
+        type=_parse_run,
+        help="Identifiant du run (ex: 14)",
+    )
 
     # ------------------------------------------------------------------
     # Options de compatibilité avec la CLI mybci (train/predict)

@@ -142,8 +142,8 @@ mut: ensure-venv clean-mutants cov
 # Commandes liées au modèle (Poetry)
 # ----------------------------------------------------------------------------------------
 
-TRAIN_SUBJECT ?= S001
-TRAIN_RUN ?= R05
+TRAIN_SUBJECT ?= 1
+TRAIN_RUN ?= 5
 TRAIN_ALL ?= true
 PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
 PREDICT_RUN ?= $(TRAIN_RUN)

@@ -227,8 +227,8 @@ def test_training_cli_main_covers_parser_and_paths(tmp_path):
     sfreq = 120.0
     # Génère des données jouets linéairement séparables
     X, y = _build_toy_dataset(sfreq)
-    # Construit le répertoire des données pour le sujet S03
-    data_dir = tmp_path / "data" / "S03"
+    # Construit le répertoire des données pour le sujet normalisé S003
+    data_dir = tmp_path / "data" / "S003"
     # Assure la création du répertoire cible avant sauvegarde
     data_dir.mkdir(parents=True)
     # Sauvegarde les features au format attendu par la CLI
@@ -239,8 +239,8 @@ def test_training_cli_main_covers_parser_and_paths(tmp_path):
     artifacts_dir = tmp_path / "artifacts"
     # Construit la liste d'arguments simulant un appel mybci
     argv = [
-        "S03",
-        "R03",
+        "3",
+        "3",
         "--classifier",
         "lda",
         "--feature-strategy",
@@ -263,7 +263,7 @@ def test_training_cli_main_covers_parser_and_paths(tmp_path):
     # Vérifie que la CLI retourne un succès standard
     assert exit_code == 0
     # Construit le chemin du modèle pour valider la création d'artefacts
-    model_path = artifacts_dir / "S03" / "R03" / "model.joblib"
+    model_path = artifacts_dir / "S003" / "R03" / "model.joblib"
     # Confirme que le modèle joblib est bien présent après l'appel CLI
     assert model_path.exists()
 

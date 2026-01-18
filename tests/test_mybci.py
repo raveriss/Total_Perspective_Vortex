@@ -208,10 +208,13 @@ def test_main_defaults_to_sys_argv_and_routes_train(monkeypatch):
 
 
 def test_parse_args_returns_expected_namespace():
-    args = mybci.parse_args(["S001", "R01", "train"])
+    # Lance le parsing sur des identifiants numériques comme dans le sujet
+    args = mybci.parse_args(["4", "14", "train"])
 
-    assert args.subject == "S001"
-    assert args.run == "R01"
+    # Vérifie que le sujet est normalisé au format Sxxx
+    assert args.subject == "S004"
+    # Vérifie que le run est normalisé au format Rxx
+    assert args.run == "R14"
     assert args.mode == "train"
 
 
@@ -236,8 +239,11 @@ def test_build_parser_defines_expected_arguments():
     run_arg = get_action("run")
     mode_arg = get_action("mode")
 
-    assert subject_arg.help == "Identifiant du sujet (ex: S001)"
-    assert run_arg.help == "Identifiant du run (ex: R01)"
+    # Vérifie que l'aide du sujet mentionne l'exemple numérique attendu
+    assert subject_arg.help == "Identifiant du sujet (ex: 4)"
+    # Vérifie que l'aide du run mentionne l'exemple numérique attendu
+    assert run_arg.help == "Identifiant du run (ex: 14)"
+    # Vérifie que l'aide du mode reste inchangée
     assert mode_arg.help == "Choix du pipeline à lancer"
     assert tuple(mode_arg.choices) == ("train", "predict")
 
@@ -286,11 +292,16 @@ def test_main_invokes_predict_pipeline(monkeypatch):
 
     monkeypatch.setattr(mybci, "_call_module", fake_call)
 
-    exit_code = mybci.main(["S02", "R03", "predict"])
+    # Lance mybci avec des identifiants numériques pour valider la normalisation
+    exit_code = mybci.main(["2", "3", "predict"])
 
+    # Vérifie que l'exécution renvoie un succès
     assert exit_code == 0
+    # Vérifie que le module de prédiction est sélectionné
     assert called["args"][0] == "tpv.predict"
-    assert called["args"][1].subject == "S02"
+    # Vérifie la normalisation du sujet au format Sxxx
+    assert called["args"][1].subject == "S002"
+    # Vérifie la normalisation du run au format Rxx
     assert called["args"][1].run == "R03"
 
 
