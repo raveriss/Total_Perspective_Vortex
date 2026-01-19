@@ -247,6 +247,64 @@ def run_realtime_inference(
     }
 
 
+# Normalise un identifiant brut en appliquant un préfixe standard
+def _normalize_identifier(value: str, prefix: str, width: int, label: str) -> str:
+    """Normalise un identifiant pour respecter le format Physionet."""
+
+    # Nettoie la valeur reçue pour éviter des espaces parasites
+    cleaned_value = value.strip()
+    # Refuse une valeur vide pour éviter un identifiant incomplet
+    if not cleaned_value:
+        # Signale une valeur vide pour forcer la correction côté CLI
+        raise argparse.ArgumentTypeError(f"{label} vide")
+    # Récupère le premier caractère pour détecter un préfixe explicite
+    first_char = cleaned_value[0]
+    # Déduit si l'utilisateur a fourni le préfixe attendu
+    has_prefix = first_char.upper() == prefix.upper()
+    # Extrait la portion numérique selon la présence du préfixe
+    numeric_part = cleaned_value[1:] if has_prefix else cleaned_value
+    # Refuse les valeurs non numériques pour garantir un ID valide
+    if not numeric_part.isdigit():
+        # Signale l'identifiant invalide pour guider l'utilisateur
+        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
+    # Convertit en entier pour normaliser les zéros initiaux
+    numeric_value = int(numeric_part)
+    # Refuse les index non positifs pour respecter la base Physionet
+    if numeric_value < 1:
+        # Signale l'identifiant non valide pour arrêter le parsing
+        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
+    # Reconstruit l'identifiant normalisé avec le padding attendu
+    return f"{prefix}{numeric_value:0{width}d}"
+
+
+# Normalise un identifiant de sujet pour la CLI temps réel
+def _parse_subject(value: str) -> str:
+    """Normalise un identifiant de sujet en format Sxxx."""
+
+    # Délègue la normalisation au helper générique
+    return _normalize_identifier(value=value, prefix="S", width=3, label="Sujet")
+
+
+# Normalise un identifiant de run pour la CLI temps réel
+def _parse_run(value: str) -> str:
+    """Normalise un identifiant de run en format Rxx."""
+
+    # Délègue la normalisation au helper générique
+    return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
+
+
+# Normalise le couple sujet/run avant de construire les chemins disque
+def _normalize_subject_run(subject: str, run: str) -> tuple[str, str]:
+    """Retourne les identifiants normalisés pour les chemins disques."""
+
+    # Normalise le sujet pour assurer un format Sxxx stable
+    normalized_subject = _parse_subject(subject)
+    # Normalise le run pour assurer un format Rxx stable
+    normalized_run = _parse_run(run)
+    # Retourne les identifiants normalisés pour usage interne
+    return normalized_subject, normalized_run
+
+
 # Construit un argument parser aligné avec le mode realtime de mybci
 def build_parser() -> argparse.ArgumentParser:
     """Construit le parser CLI pour l'inférence temps réel."""
@@ -256,9 +314,17 @@ def build_parser() -> argparse.ArgumentParser:
         description="Applique un modèle entraîné sur un flux fenêtré",
     )
     # Ajoute l'argument positionnel du sujet pour cibler les artefacts
-    parser.add_argument("subject", help="Identifiant du sujet (ex: S001)")
+    parser.add_argument(
+        "subject",
+        type=_parse_subject,
+        help="Identifiant du sujet (ex: 1 ou S001)",
+    )
     # Ajoute l'argument positionnel du run pour cibler la session
-    parser.add_argument("run", help="Identifiant du run (ex: R01)")
+    parser.add_argument(
+        "run",
+        type=_parse_run,
+        help="Identifiant du run (ex: 3 ou R03)",
+    )
     # Ajoute une option pour cibler un répertoire de données spécifique
     parser.add_argument(
         "--data-dir",
@@ -412,7 +478,7 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
             # Liste explicitement les fichiers attendus pour l'utilisateur
             f"- Attendus: {missing_list}\n"
             # Indique la commande de train requise pour générer les artefacts
-            "- Action 1: Lancez `python mybci.py <Sxxx> <Rxx> train`.\n"
+            "- Action 1: Lancez `python mybci.py <subject> <run> train`.\n"
             # Invite à vérifier le répertoire de données cible
             f"- Action 2: Vérifiez le dossier {data_root}.\n"
             # Rappelle l'option de surcharge pour un autre emplacement
@@ -438,14 +504,20 @@ def run_realtime_session(
 ) -> RealtimeResult:
     """Charge le modèle entraîné et lance l'inférence fenêtrée."""
 
+    # Normalise les identifiants pour aligner les chemins disque
+    normalized_subject, normalized_run = _normalize_subject_run(subject, run)
     # Résout les chemins des fichiers de données pour le sujet/run
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    features_path, labels_path = _resolve_data_paths(
+        normalized_subject, normalized_run, data_dir
+    )
     # Charge le flux et les labels pour simuler une session continue
     X, _ = _load_data(features_path, labels_path)
     # Construit un flux continu en concaténant les essais successifs
     stream = np.concatenate(list(X), axis=1)
     # Charge la pipeline entraînée depuis le joblib sauvegardé
-    pipeline = load_pipeline(str(artifacts_dir / subject / run / "model.joblib"))
+    pipeline = load_pipeline(
+        str(artifacts_dir / normalized_subject / normalized_run / "model.joblib")
+    )
     # Lance la boucle temps réel et retourne les métriques associées
     return run_realtime_inference(
         pipeline=pipeline,
