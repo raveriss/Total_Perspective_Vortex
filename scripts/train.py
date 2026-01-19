@@ -246,8 +246,10 @@ def _build_cv_splitter(
     if class_count < MIN_CV_CLASS_COUNT:
         # Signale l'impossibilité de construire une CV binaire
         return None
-    # Calcule la plus petite classe pour garantir un split valide
-    min_class_count = int(np.bincount(y).min())
+    # Récupère les effectifs observés pour éviter les classes absentes
+    _labels, class_counts = np.unique(y, return_counts=True)
+    # Calcule l'effectif minimal réel pour valider un split
+    min_class_count = int(class_counts.min())
     # Refuse la CV si l'effectif minimal est trop faible
     if min_class_count < MIN_CV_SPLITS:
         # Signale l'absence de données suffisantes pour une CV stable
@@ -286,8 +288,10 @@ def _describe_cv_unavailability(y: np.ndarray, requested_splits: int) -> str:
     if class_count < MIN_CV_CLASS_COUNT:
         # Explique le blocage lié à une seule classe observée
         return "une seule classe présente, CV binaire impossible"
-    # Calcule l'effectif minimum par classe pour valider la CV
-    min_class_count = int(np.bincount(y).min())
+    # Récupère les effectifs observés pour éviter les classes absentes
+    _labels, class_counts = np.unique(y, return_counts=True)
+    # Calcule l'effectif minimal réel pour valider la CV
+    min_class_count = int(class_counts.min())
     # Signale un effectif insuffisant par classe pour la CV demandée
     if min_class_count < MIN_CV_SPLITS:
         # Détaille la contrainte de taille minimale par classe
