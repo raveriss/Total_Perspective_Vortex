@@ -342,9 +342,9 @@ def test_run_training_persists_artifacts_and_scores(tmp_path, monkeypatch):
 
     # Prépare un jeu de données équilibré autorisant la validation croisée
     rng = np.random.default_rng(303)
-    X = rng.normal(size=(MIN_CV_SPLITS * 2, 2, 12))
-    # Alterne les labels pour obtenir exactement MIN_CV_SPLITS observations par classe
-    y = np.array([0] * MIN_CV_SPLITS + [1] * MIN_CV_SPLITS)
+    X = rng.normal(size=(DEFAULT_CV_SPLITS * 2, 2, 12))
+    # Alterne les labels pour obtenir exactement DEFAULT_CV_SPLITS observations par classe
+    y = np.array([0] * DEFAULT_CV_SPLITS + [1] * DEFAULT_CV_SPLITS)
     # Injecte les données synthétiques directement dans run_training
     monkeypatch.setattr(train, "_load_data", lambda *_: (X, y))
     # Construit une configuration avec scaler pour vérifier la sérialisation dédiée

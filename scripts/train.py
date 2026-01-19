@@ -220,7 +220,7 @@ def resolve_sampling_rate(
 DEFAULT_CV_SPLITS = 10
 
 # Fixe le nombre minimal de splits pour déclencher la validation croisée
-MIN_CV_SPLITS = 3
+MIN_CV_SPLITS = 2
 
 # Fixe la taille minimale du test pour stabiliser les splits CV
 DEFAULT_CV_TEST_SIZE = 0.2
