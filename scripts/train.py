@@ -1342,12 +1342,6 @@ def run_training(request: TrainingRequest) -> dict:
     search_summary: dict[str, object] | None = None
     # Vérifie si l'effectif autorise une validation croisée exploitable
     if cv is None:
-        # Informe que la CV est ignorée faute d'effectif suffisant
-        print(
-            # Message stable attendu par les tests CLI
-            "AVERTISSEMENT: effectif par classe insuffisant pour la "
-            "validation croisée, cross-val ignorée"
-        )
         # Ajuste la pipeline sur toutes les données malgré l'absence de CV
         pipeline.fit(X, y)
     else:

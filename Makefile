@@ -171,7 +171,7 @@ deactivate:
 	@echo "Pour quitter l'environnement :"
 	@echo "deactivate"
 
-clean: clean-artifacts clean-npy
+clean: clean-artifacts clean-npy clean-epoch-json
 
 clean-artifacts:
 	@rm -rf ./artifacts ./data/benchmarks
@@ -182,6 +182,12 @@ clean-npy:
 		-not -path './.git/*' \
 		-not -path './artifacts/*' \
 		-delete
+
+clean-epoch-json:
+	@find ./data -type f \( \
+		-name '*_epoch_window.json' -o \
+		-name '*_epoch_windows.json' \
+	\) -delete
 
 # ----------------------------------------------------------------------------------------
 # Règle générique pour ignorer les cibles numériques (ex. make predict-nocheck 23000)

@@ -723,14 +723,17 @@ def _format_global_row(report: dict) -> str:
     global_mean_label = _format_mean_value(
         float(global_mean_value) if global_mean_value is not None else None
     )
+    
     # Prépare le libellé du nombre de sujets éligibles et du bonus
     eligible_label = (
         f"{report['eligible_subjects']} subjects, bonus {report['bonus_points']}"
     )
+
     # Détermine le libellé de seuil global
     global_threshold_label = _format_global_threshold_label(
         float(global_mean_value) if global_mean_value is not None else None
     )
+
     # Assemble la ligne globale tabulée
     return "\t".join(
         [
@@ -844,6 +847,7 @@ def main(argv: list[str] | None = None) -> int:
     # Imprime le tableau pour inspection ou redirection
     print(table)
     # Récupère la liste des pires sujets pour l'affichage
+
     worst_subjects = report.get("worst_subjects", [])
     # Affiche les pires sujets si la liste est disponible
     if worst_subjects:
