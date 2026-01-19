@@ -723,7 +723,7 @@ def _format_global_row(report: dict) -> str:
     global_mean_label = _format_mean_value(
         float(global_mean_value) if global_mean_value is not None else None
     )
-    
+
     # Prépare le libellé du nombre de sujets éligibles et du bonus
     eligible_label = (
         f"{report['eligible_subjects']} subjects, bonus {report['bonus_points']}"
