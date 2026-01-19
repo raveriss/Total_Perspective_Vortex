@@ -89,9 +89,9 @@ def test_realtime_build_parser_defines_cli_contract():
     # Vérifie que la description reflète l'usage streaming documenté
     assert parser.description == "Applique un modèle entraîné sur un flux fenêtré"
     # Vérifie que l'argument subject reste positionnel et documenté
-    assert actions["subject"].help == "Identifiant du sujet (ex: S001)"
+    assert actions["subject"].help == "Identifiant du sujet (ex: 1 ou S001)"
     # Vérifie que l'argument run reste positionnel et documenté
-    assert actions["run"].help == "Identifiant du run (ex: R01)"
+    assert actions["run"].help == "Identifiant du run (ex: 3 ou R03)"
     # Vérifie que le répertoire de données accepte des chemins Path
     assert actions["data_dir"].type is Path
     # Vérifie que le répertoire de données pointe vers data par défaut
@@ -213,6 +213,8 @@ def test_load_data_raises_with_missing_files(tmp_path):
     assert str(labels_path) in message
     # Vérifie que la commande de train suggérée est explicitement mentionnée
     assert "python mybci.py" in message
+    # Vérifie que la consigne d'arguments utilise la forme générique
+    assert "<subject> <run>" in message
     # Vérifie que l'action data-dir est proposée pour un chemin alternatif
     assert "--data-dir" in message
 
@@ -264,8 +266,8 @@ def test_realtime_parser_parses_custom_cli_values():
     # Parse une ligne de commande complète pour inspecter les conversions
     args = parser.parse_args(
         [
-            "S42",
-            "R99",
+            "42",
+            "99",
             "--data-dir",
             "custom_data",
             "--artifacts-dir",
@@ -284,6 +286,10 @@ def test_realtime_parser_parses_custom_cli_values():
             "left-right",
         ]
     )
+    # Vérifie que le sujet est normalisé en format Sxxx
+    assert args.subject == "S042"
+    # Vérifie que le run est normalisé en format Rxx
+    assert args.run == "R99"
     # Vérifie la conversion automatique en Path pour data_dir
     assert args.data_dir == Path("custom_data")
     # Vérifie la conversion automatique en Path pour artifacts_dir
@@ -833,15 +839,15 @@ def test_run_realtime_session_streams_saved_data(monkeypatch, tmp_path):
     # Prépare l'arborescence artifacts/subject pour simuler le modèle
     artifacts_dir = tmp_path / "artifacts"
     # Crée les répertoires nécessaires pour les sauvegardes
-    (data_dir / "S55").mkdir(parents=True)
-    (artifacts_dir / "S55" / "R02").mkdir(parents=True)
+    (data_dir / "S055").mkdir(parents=True)
+    (artifacts_dir / "S055" / "R02").mkdir(parents=True)
     # Sauvegarde les features et labels au format numpy attendu
-    np.save(data_dir / "S55" / "R02_X.npy", X)
-    np.save(data_dir / "S55" / "R02_y.npy", y)
+    np.save(data_dir / "S055" / "R02_X.npy", X)
+    np.save(data_dir / "S055" / "R02_y.npy", y)
 
     # Lance la session realtime pour parcourir le flux sauvegardé
     result = realtime.run_realtime_session(
-        subject="S55",
+        subject="55",
         run="R02",
         data_dir=data_dir,
         artifacts_dir=artifacts_dir,
@@ -859,7 +865,7 @@ def test_run_realtime_session_streams_saved_data(monkeypatch, tmp_path):
 
     # Vérifie que la pipeline chargée provient du chemin attendu
     assert captured["model_path"].endswith(
-        str(Path("artifacts") / "S55" / "R02" / "model.joblib")
+        str(Path("artifacts") / "S055" / "R02" / "model.joblib")
     )
     # Vérifie que le flux a généré deux événements séquentiels
     assert [event.window_index for event in result["events"]] == [0, 1]
@@ -891,8 +897,8 @@ def test_realtime_main_invokes_session(monkeypatch, tmp_path):
     # Exécute le main avec des paramètres explicites
     exit_code = realtime.main(
         [
-            "S77",
-            "R03",
+            "77",
+            "3",
             "--data-dir",
             str(data_dir),
             "--artifacts-dir",
@@ -914,7 +920,7 @@ def test_realtime_main_invokes_session(monkeypatch, tmp_path):
     assert exit_code == 0
     # Vérifie que la session simulée a reçu les bons arguments
     assert captured == {
-        "subject": "S77",
+        "subject": "S077",
         "run": "R03",
         "data_dir": data_dir,
         "artifacts_dir": artifacts_dir,
