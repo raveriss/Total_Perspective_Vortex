@@ -1250,96 +1250,169 @@ def test_main_passes_raw_dir_to_request_and_prints_cv_scores_with_expected_forma
     tmp_path,
     capsys,
 ):
+    # Prépare un conteneur pour capturer la requête
     captured: dict[str, object] = {}
 
+    # Définit un run_training factice pour injecter des scores CV
     def fake_run_training(request):
+        # Capture la requête afin de vérifier les options
         captured["request"] = request
+        # Retourne un tableau de scores pour l'affichage CLI
         return {"cv_scores": np.array([0.1, 0.2], dtype=float)}
 
+    # Remplace run_training pour isoler la logique CLI
     monkeypatch.setattr(train, "run_training", fake_run_training)
 
+    # Sauvegarde array2string pour restaurer l'appel réel
     real_array2string = train.np.array2string
 
+    # Définit un spy pour contrôler le séparateur choisi
     def spy_array2string(*args, **kwargs):
+        # Récupère le séparateur via kwargs si présent
         separator = kwargs.get("separator", "__missing__")
+        # Récupère le séparateur positionnel si absent
         if separator == "__missing__" and len(args) >= 5:
+            # Extrait le séparateur depuis les arguments positionnels
             separator = args[4]
+        # Vérifie que l'espace est bien utilisé comme séparateur
         assert separator == " "
+        # Délègue à la fonction réelle pour formater
         return real_array2string(*args, **kwargs)
 
+    # Remplace array2string par le spy pour ce test
     monkeypatch.setattr(train.np, "array2string", spy_array2string)
 
+    # Définit un répertoire raw explicite pour la requête
     raw_dir = tmp_path / "raw_custom"
-    exit_code = train.main(
-        [
-            "S001",
-            "R01",
-            "--data-dir",
-            str(tmp_path / "data"),
-            "--artifacts-dir",
-            str(tmp_path / "artifacts"),
-            "--raw-dir",
-            str(raw_dir),
-        ]
-    )
+    # Prépare les arguments CLI pour l'appel train
+    args = [
+        # Fournit le sujet attendu par le parser
+        "S001",
+        # Fournit le run attendu par le parser
+        "R01",
+        # Active l'option data-dir
+        "--data-dir",
+        # Fournit le chemin data dédié au test
+        str(tmp_path / "data"),
+        # Active l'option artifacts-dir
+        "--artifacts-dir",
+        # Fournit le chemin artifacts dédié au test
+        str(tmp_path / "artifacts"),
+        # Active l'option raw-dir
+        "--raw-dir",
+        # Fournit le chemin raw dédié au test
+        str(raw_dir),
+    ]
+    # Exécute la CLI avec les arguments préparés
+    exit_code = train.main(args)
 
+    # Vérifie un code de sortie nominal
     assert exit_code == 0
+    # Récupère la requête capturée pour inspection
     request = cast(train.TrainingRequest, captured["request"])
+    # Vérifie que le répertoire raw est bien propagé
     assert request.raw_dir == raw_dir
 
+    # Capture la sortie standard pour l'analyse
     stdout_lines = capsys.readouterr().out.splitlines()
-    assert stdout_lines == [
+    # Prépare la sortie attendue avec CV_SPLITS et scores
+    expected = [
+        # Vérifie la ligne des splits CV affichés
+        "CV_SPLITS: 10 (scores: 2)",
+        # Vérifie l'affichage des scores formatés
         "[0.1000 0.2000]",
+        # Vérifie l'affichage du score moyen
         "cross_val_score: 0.1500",
     ]
+    # Compare la sortie observée avec l'attendu
+    assert stdout_lines == expected
 
 
 def test_main_falls_back_when_cv_scores_is_not_an_ndarray(monkeypatch, capsys):
+    # Définit un run_training factice renvoyant un type inattendu
     def fake_run_training(_request):
+        # Retourne une valeur non-numpy pour déclencher le fallback
         return {"cv_scores": "not-an-array"}
 
+    # Remplace run_training pour isoler la sortie CLI
     monkeypatch.setattr(train, "run_training", fake_run_training)
 
+    # Exécute la CLI avec les arguments minimaux
     exit_code = train.main(["S001", "R01"])
 
+    # Vérifie un code de sortie nominal malgré le fallback
     assert exit_code == 0
+    # Capture la sortie standard pour inspection
     stdout_lines = capsys.readouterr().out.splitlines()
-    assert stdout_lines == [
+    # Définit la sortie attendue pour le fallback
+    expected = [
+        # Vérifie l'affichage systématique des splits
+        "CV_SPLITS: 10 (scores: 0)",
+        # Vérifie le tableau vide attendu
         "[]",
+        # Vérifie le score moyen nul affiché
         "cross_val_score: 0.0",
     ]
+    # Compare la sortie observée avec l'attendu
+    assert stdout_lines == expected
 
 
 def test_main_falls_back_for_empty_cv_scores_array(monkeypatch, capsys):
+    # Définit un run_training factice avec un tableau vide
     def fake_run_training(_request):
+        # Retourne un tableau vide pour simuler l'absence de CV
         return {"cv_scores": np.array([])}
 
+    # Remplace run_training pour contrôler la sortie CLI
     monkeypatch.setattr(train, "run_training", fake_run_training)
 
+    # Exécute la CLI avec les arguments minimaux
     exit_code = train.main(["S001", "R01"])
 
+    # Vérifie un code de sortie nominal malgré l'absence de scores
     assert exit_code == 0
+    # Capture la sortie standard pour validation
     stdout_lines = capsys.readouterr().out.splitlines()
-    assert stdout_lines == [
+    # Définit la sortie attendue en absence de scores
+    expected = [
+        # Vérifie l'affichage systématique des splits
+        "CV_SPLITS: 10 (scores: 0)",
+        # Vérifie le tableau vide attendu
         "[]",
+        # Vérifie le score moyen nul affiché
         "cross_val_score: 0.0",
     ]
+    # Compare la sortie observée avec l'attendu
+    assert stdout_lines == expected
 
 
 def test_main_prints_scores_for_singleton_cv_scores_array(monkeypatch, capsys):
+    # Définit un run_training factice avec un score unique
     def fake_run_training(_request):
+        # Retourne un score unique pour vérifier l'affichage
         return {"cv_scores": np.array([0.5], dtype=float)}
 
+    # Remplace run_training pour isoler l'output CLI
     monkeypatch.setattr(train, "run_training", fake_run_training)
 
+    # Exécute la CLI avec les arguments minimaux
     exit_code = train.main(["S001", "R01"])
 
+    # Vérifie un code de sortie nominal
     assert exit_code == 0
+    # Capture la sortie standard pour inspection
     stdout_lines = capsys.readouterr().out.splitlines()
-    assert stdout_lines == [
+    # Définit la sortie attendue pour un seul score
+    expected = [
+        # Vérifie l'affichage des splits demandés
+        "CV_SPLITS: 10 (scores: 1)",
+        # Vérifie l'affichage du score unique
         "[0.5000]",
+        # Vérifie la moyenne correspondant au score unique
         "cross_val_score: 0.5000",
     ]
+    # Compare la sortie observée avec l'attendu
+    assert stdout_lines == expected
 
 
 def test_main_returns_error_code_when_training_files_missing(monkeypatch, capsys):
@@ -1656,6 +1729,94 @@ def test_build_cv_splitter_returns_none_below_min_splits() -> None:
     splitter = train._build_cv_splitter(y, train.DEFAULT_CV_SPLITS)
     # Vérifie que le splitter est None si min_class_count < MIN_CV_SPLITS
     assert splitter is None
+
+
+def test_describe_cv_unavailability_reports_single_class() -> None:
+    # Prépare un vecteur de labels à classe unique
+    y = np.array([0, 0, 0], dtype=int)
+    # Exécute le diagnostic pour la CV indisponible
+    message = train._describe_cv_unavailability(y, train.DEFAULT_CV_SPLITS)
+    # Vérifie que le message mentionne l'unicité de classe
+    assert "une seule classe" in message
+
+
+def test_describe_cv_unavailability_reports_empty_samples() -> None:
+    # Prépare un vecteur vide pour simuler l'absence d'échantillons
+    y = np.array([], dtype=int)
+    # Exécute le diagnostic pour la CV indisponible
+    message = train._describe_cv_unavailability(y, train.DEFAULT_CV_SPLITS)
+    # Vérifie que le message mentionne l'absence d'échantillons
+    assert "aucun échantillon" in message
+
+
+def test_main_prints_cv_unavailability_reason(monkeypatch, capsys):
+    # Définit un run_training factice avec une raison explicite
+    def fake_run_training(_request):
+        # Retourne un rapport minimal avec une raison d'indisponibilité
+        return {
+            "cv_scores": np.array([]),
+            "cv_splits_requested": 5,
+            "cv_unavailability_reason": "raison test",
+        }
+
+    # Remplace run_training pour isoler l'output CLI
+    monkeypatch.setattr(train, "run_training", fake_run_training)
+
+    # Exécute la CLI avec les arguments minimaux
+    exit_code = train.main(["S001", "R01"])
+
+    # Vérifie un code de sortie nominal
+    assert exit_code == 0
+    # Capture la sortie standard pour validation
+    stdout_lines = capsys.readouterr().out.splitlines()
+    # Définit la sortie attendue avec la raison CV
+    expected = [
+        # Vérifie l'affichage des splits demandés
+        "CV_SPLITS: 5 (scores: 0)",
+        # Vérifie l'affichage de la raison d'indisponibilité
+        "INFO: CV indisponible (raison test)",
+        # Vérifie le tableau vide attendu
+        "[]",
+        # Vérifie le score moyen nul affiché
+        "cross_val_score: 0.0",
+    ]
+    # Compare la sortie observée avec l'attendu
+    assert stdout_lines == expected
+
+
+def test_main_prints_cv_error_warning(monkeypatch, capsys):
+    # Définit un run_training factice avec une erreur CV
+    def fake_run_training(_request):
+        # Retourne un rapport minimal avec un message d'erreur CV
+        return {
+            "cv_scores": np.array([]),
+            "cv_splits_requested": 3,
+            "cv_error": "erreur CV",
+        }
+
+    # Remplace run_training pour isoler l'output CLI
+    monkeypatch.setattr(train, "run_training", fake_run_training)
+
+    # Exécute la CLI avec les arguments minimaux
+    exit_code = train.main(["S001", "R01"])
+
+    # Vérifie un code de sortie nominal
+    assert exit_code == 0
+    # Capture la sortie standard pour validation
+    stdout_lines = capsys.readouterr().out.splitlines()
+    # Définit la sortie attendue avec l'alerte CV
+    expected = [
+        # Vérifie l'affichage des splits demandés
+        "CV_SPLITS: 3 (scores: 0)",
+        # Vérifie l'affichage de l'alerte d'erreur CV
+        "AVERTISSEMENT: cross_val_score échoué (erreur CV)",
+        # Vérifie le tableau vide attendu
+        "[]",
+        # Vérifie le score moyen nul affiché
+        "cross_val_score: 0.0",
+    ]
+    # Compare la sortie observée avec l'attendu
+    assert stdout_lines == expected
 
 
 def test_run_training_uses_grid_search_and_captures_best_scores(

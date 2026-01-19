@@ -270,6 +270,51 @@ def _build_cv_splitter(
     )
 
 
+# Formate un diagnostic explicite lorsque la CV est impossible
+def _describe_cv_unavailability(y: np.ndarray, requested_splits: int) -> str:
+    """Explique pourquoi la validation croisée est indisponible."""
+
+    # Calcule le nombre d'échantillons pour le diagnostic
+    sample_count = int(y.shape[0])
+    # Renvoie un message dédié si aucun échantillon n'est disponible
+    if sample_count == 0:
+        # Signale l'absence de données pour éviter un message ambigu
+        return "aucun échantillon disponible pour la validation croisée"
+    # Calcule le nombre de classes pour détecter une CV binaire impossible
+    class_count = int(np.unique(y).size)
+    # Signale l'absence de classe multiple pour la CV binaire
+    if class_count < MIN_CV_CLASS_COUNT:
+        # Explique le blocage lié à une seule classe observée
+        return "une seule classe présente, CV binaire impossible"
+    # Calcule l'effectif minimum par classe pour valider la CV
+    min_class_count = int(np.bincount(y).min())
+    # Signale un effectif insuffisant par classe pour la CV demandée
+    if min_class_count < MIN_CV_SPLITS:
+        # Détaille la contrainte de taille minimale par classe
+        return (
+            "effectif minimal par classe insuffisant "
+            f"({min_class_count} < {MIN_CV_SPLITS})"
+        )
+    # Calcule la taille de test minimale pour un split stratifié stable
+    min_test_size = 1.0 / float(min_class_count)
+    # Garde un test_size stable pour respecter les classes rares
+    test_size = max(DEFAULT_CV_TEST_SIZE, min_test_size)
+    # Calcule la taille max autorisée pour conserver un train non vide
+    max_test_size = (min_class_count - 1) / float(min_class_count)
+    # Signale une incompatibilité entre la taille test et les données
+    if test_size > max_test_size:
+        # Fournit un diagnostic d'impossibilité de split stratifié
+        return (
+            "split stratifié impossible "
+            f"(test_size={test_size:.3f} > max={max_test_size:.3f})"
+        )
+    # Signale un fallback générique si aucune règle ne correspond
+    return (
+        "validation croisée indisponible pour une raison inconnue "
+        f"(splits demandés={requested_splits})"
+    )
+
+
 # Adapte la configuration pour éviter les classifieurs instables en très bas n
 def _adapt_pipeline_config_for_samples(
     config: PipelineConfig, y: np.ndarray
@@ -1320,19 +1365,19 @@ def _extract_grid_search_scores(search: GridSearchCV, n_splits: int) -> np.ndarr
     return np.array(split_scores, dtype=float)
 
 
-# Exécute la validation croisée et l'entraînement final
-def run_training(request: TrainingRequest) -> dict:
-    """Entraîne la pipeline et sauvegarde ses artefacts."""
+# Gère l'entraînement et la CV optionnelle pour un dataset donné
+def _train_with_optional_cv(
+    request: TrainingRequest,
+    X: np.ndarray,
+    y: np.ndarray,
+    pipeline: Pipeline,
+    adapted_config: PipelineConfig,
+) -> tuple[np.ndarray, Pipeline, dict[str, object] | None, str | None, str | None]:
+    """Retourne la pipeline entraînée et les scores CV si disponibles."""
 
-    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
-    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
-    # Adapte la configuration au niveau d'effectif pour stabiliser l'entraînement
-    adapted_config = _adapt_pipeline_config_for_samples(request.pipeline_config, y)
-    # Construit la pipeline complète sans préprocesseur amont
-    pipeline = build_pipeline(adapted_config)
     # Calcule le nombre total d'échantillons disponibles
     sample_count = int(y.shape[0])
-    # Calcule le nombre de classes distinctes pour l'évaluation LDA
+    # Calcule le nombre de classes distinctes pour l'évaluation
     class_count = int(np.unique(y).size)
     # Construit un splitter pour obtenir un nombre fixe de scores
     cv = _build_cv_splitter(y, DEFAULT_CV_SPLITS)
@@ -1340,10 +1385,22 @@ def run_training(request: TrainingRequest) -> dict:
     cv_scores = np.array([])
     # Prépare un résumé de recherche d'hyperparamètres si besoin
     search_summary: dict[str, object] | None = None
+    # Prépare un message de diagnostic sur la CV si nécessaire
+    cv_unavailability_reason: str | None = None
+    # Prépare un message d'erreur si cross_val_score échoue
+    cv_error: str | None = None
     # Vérifie si l'effectif autorise une validation croisée exploitable
     if cv is None:
+        # Informe l'utilisateur que la CV est désactivée
+        print(
+            # Message stable attendu par les tests CLI
+            "AVERTISSEMENT: effectif par classe insuffisant pour la "
+            "validation croisée, cross-val ignorée"
+        )
         # Ajuste la pipeline sur toutes les données malgré l'absence de CV
         pipeline.fit(X, y)
+        # Mémorise la cause d'absence de CV pour l'UX CLI
+        cv_unavailability_reason = _describe_cv_unavailability(y, DEFAULT_CV_SPLITS)
     else:
         # Conserve le splitter construit pour la suite de la procédure
         cv = cast(StratifiedShuffleSplit, cv)
@@ -1373,6 +1430,8 @@ def run_training(request: TrainingRequest) -> dict:
                 search_summary = None
                 # Retourne les artefacts sans scores de validation
                 cv_scores = np.array([])
+                # Prépare un diagnostic explicite pour expliquer l'absence de CV
+                cv_unavailability_reason = _describe_cv_unavailability(y, search_splits)
             else:
                 # Instancie la recherche exhaustive pour maximiser l'accuracy
                 search = GridSearchCV(
@@ -1395,9 +1454,50 @@ def run_training(request: TrainingRequest) -> dict:
                 pipeline = search.best_estimator_
         else:
             # Calcule les scores de validation croisée sur l'ensemble du pipeline
-            cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+            try:
+                # Lance la cross-validation pour mesurer la performance
+                cv_scores = cross_val_score(pipeline, X, y, cv=cv)
+            except ValueError as error:
+                # Capture l'erreur pour un diagnostic CLI explicite
+                cv_error = str(error)
+                # Déclare un score vide pour conserver le flux nominal
+                cv_scores = np.array([])
             # Ajuste la pipeline sur toutes les données après évaluation
             pipeline.fit(X, y)
+    # Retourne les informations calculées pour l'entraînement
+    return (
+        cv_scores,
+        pipeline,
+        search_summary,
+        cv_unavailability_reason,
+        cv_error,
+    )
+
+
+# Exécute la validation croisée et l'entraînement final
+def run_training(request: TrainingRequest) -> dict:
+    """Entraîne la pipeline et sauvegarde ses artefacts."""
+
+    # Charge ou génère les tableaux numpy nécessaires à l'entraînement
+    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    # Adapte la configuration au niveau d'effectif pour stabiliser l'entraînement
+    adapted_config = _adapt_pipeline_config_for_samples(request.pipeline_config, y)
+    # Construit la pipeline complète sans préprocesseur amont
+    pipeline = build_pipeline(adapted_config)
+    # Lance la procédure CV et récupère les artefacts d'entraînement
+    (
+        cv_scores,
+        pipeline,
+        search_summary,
+        cv_unavailability_reason,
+        cv_error,
+    ) = _train_with_optional_cv(
+        request,
+        X,
+        y,
+        pipeline,
+        adapted_config,
+    )
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Assure l'existence du parent pour stabiliser la création du dossier cible
@@ -1441,6 +1541,9 @@ def run_training(request: TrainingRequest) -> dict:
     # Retourne un rapport synthétique pour les tests et la CLI
     return {
         "cv_scores": cv_scores,
+        "cv_splits_requested": DEFAULT_CV_SPLITS,
+        "cv_unavailability_reason": cv_unavailability_reason,
+        "cv_error": cv_error,
         "model_path": model_path,
         "scaler_path": scaler_path,
         "w_matrix_path": w_matrix_path,
@@ -1518,6 +1621,24 @@ def main(argv: list[str] | None = None) -> int:
 
     # Récupère les scores de validation croisée depuis le rapport
     cv_scores = result["cv_scores"]
+    # Récupère le nombre de splits demandé si le rapport le fournit
+    cv_splits_requested = int(result.get("cv_splits_requested", DEFAULT_CV_SPLITS))
+    # Récupère la raison d'absence de CV si disponible
+    cv_unavailability_reason = result.get("cv_unavailability_reason")
+    # Récupère un éventuel message d'erreur CV pour l'affichage
+    cv_error = result.get("cv_error")
+    # Calcule le nombre de scores réellement obtenus
+    cv_scores_count = int(cv_scores.size) if isinstance(cv_scores, np.ndarray) else 0
+    # Informe toujours l'utilisateur du nombre de splits attendus
+    print("CV_SPLITS: " f"{cv_splits_requested} (scores: {cv_scores_count})")
+    # Informe si cross_val_score a échoué malgré un splitter valide
+    if cv_error:
+        # Expose une alerte concise sans trace pour l'utilisateur
+        print(f"AVERTISSEMENT: cross_val_score échoué ({cv_error})")
+    # Informe si la CV est indisponible pour l'utilisateur
+    if cv_unavailability_reason:
+        # Expose une raison explicite pour éviter un silence UX
+        print(f"INFO: CV indisponible ({cv_unavailability_reason})")
 
     # Si des scores ont été calculés, on les affiche au format attendu
     if isinstance(cv_scores, np.ndarray) and cv_scores.size > 0:
