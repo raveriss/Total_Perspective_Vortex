@@ -698,6 +698,28 @@ def _build_epochs_for_window(
         cleaned_epochs = epochs
         # Conserve les labels moteurs initiaux pour aligner les données
         cleaned_labels = context.motor_labels
+    # Calcule les comptes par label pour détecter un rejet trop strict
+    label_counts = {
+        # Calcule le nombre d'occurrences du label courant
+        label: cleaned_labels.count(label)
+        # Itère sur chaque label unique détecté
+        for label in set(cleaned_labels)
+    }
+    # Calcule l'effectif minimal observé après rejet
+    min_label_count = min(label_counts.values()) if label_counts else 0
+    # Détermine si la CV deviendrait impossible après rejet
+    reject_too_aggressive = (
+        # Vérifie si le nombre de classes restantes est insuffisant
+        len(label_counts) < MIN_CV_CLASS_COUNT
+        # Vérifie si l'effectif minimal par classe est trop bas
+        or min_label_count < MIN_CV_SPLITS
+    )
+    # Allège le rejet en conservant toutes les epochs pour les runs faibles
+    if reject_too_aggressive:
+        # Conserve les epochs brutes pour éviter un sous-effectif
+        cleaned_epochs = epochs
+        # Conserve les labels d'origine pour garder l'effectif complet
+        cleaned_labels = context.motor_labels
 
     # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
     epochs_data = cleaned_epochs.get_data(copy=True)
