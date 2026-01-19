@@ -1470,7 +1470,7 @@ def test_run_training_passes_raw_dir_to_load_data_and_reports_scaler_path_none(
     def fake_load_data(subject: str, run: str, data_dir: Path, raw_dir: Path):
         captured["args"] = (subject, run, data_dir, raw_dir)
         X = np.zeros((2, 1, 4), dtype=float)
-        y = np.array([0, 1], dtype=int)
+        y = np.array([0, 0], dtype=int)
         return X, y
 
     # Force un chargement contrôlé sans dépendre du FS
@@ -1723,8 +1723,8 @@ def test_build_cv_splitter_returns_none_with_single_class() -> None:
 
 # Vérifie que le splitter refuse les effectifs trop faibles
 def test_build_cv_splitter_returns_none_below_min_splits() -> None:
-    # Prépare un vecteur de labels avec deux occurrences par classe
-    y = np.array([0, 0, 1, 1], dtype=int)
+    # Prépare un vecteur de labels avec une occurrence par classe
+    y = np.array([0, 1], dtype=int)
     # Construit le splitter avec les paramètres par défaut
     splitter = train._build_cv_splitter(y, train.DEFAULT_CV_SPLITS)
     # Vérifie que le splitter est None si min_class_count < MIN_CV_SPLITS
