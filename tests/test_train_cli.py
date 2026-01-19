@@ -1722,13 +1722,13 @@ def test_build_cv_splitter_returns_none_with_single_class() -> None:
 
 
 # Vérifie que le splitter refuse les effectifs trop faibles
-def test_build_cv_splitter_returns_none_below_min_splits() -> None:
-    # Prépare un vecteur de labels avec une occurrence par classe
-    y = np.array([0, 1], dtype=int)
+def test_build_cv_splitter_returns_shuffle_for_low_class_counts() -> None:
+    # Prépare un vecteur de labels avec une classe rare
+    y = np.array([0, 0, 0, 1], dtype=int)
     # Construit le splitter avec les paramètres par défaut
     splitter = train._build_cv_splitter(y, train.DEFAULT_CV_SPLITS)
-    # Vérifie que le splitter est None si min_class_count < MIN_CV_SPLITS
-    assert splitter is None
+    # Vérifie que le splitter bascule sur un shuffle non stratifié
+    assert isinstance(splitter, train.ShuffleSplit)
 
 
 def test_describe_cv_unavailability_reports_single_class() -> None:

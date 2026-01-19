@@ -32,11 +32,20 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression
 
 # Fournit la validation croisée pour évaluer la pipeline complète
-from sklearn.model_selection import (
-    GridSearchCV,
-    StratifiedShuffleSplit,
-    cross_val_score,
-)
+# isort: off
+# Expose la grille de recherche pour optimiser les hyperparamètres
+from sklearn.model_selection import GridSearchCV
+
+# Offre un splitter non stratifié pour les petits effectifs
+from sklearn.model_selection import ShuffleSplit
+
+# Offre un splitter stratifié pour préserver l'équilibre des classes
+from sklearn.model_selection import StratifiedShuffleSplit
+
+# Calcule les scores de validation croisée de la pipeline
+from sklearn.model_selection import cross_val_score
+
+# isort: on
 
 # Fournit le type Pipeline pour typer les helpers de scoring
 from sklearn.pipeline import Pipeline
@@ -237,39 +246,58 @@ DEFAULT_RANDOM_STATE = 42
 def _build_cv_splitter(
     y: np.ndarray,
     requested_splits: int,
-) -> StratifiedShuffleSplit | None:
+) -> StratifiedShuffleSplit | ShuffleSplit | None:
     """Construit un splitter stratifié ou None si la CV est impossible."""
 
     # Calcule le nombre de classes disponibles
     class_count = int(np.unique(y).size)
-    # Refuse la CV si une seule classe est présente
-    if class_count < MIN_CV_CLASS_COUNT:
-        # Signale l'impossibilité de construire une CV binaire
-        return None
-    # Récupère les effectifs observés pour éviter les classes absentes
-    _labels, class_counts = np.unique(y, return_counts=True)
-    # Calcule l'effectif minimal réel pour valider un split
-    min_class_count = int(class_counts.min())
-    # Refuse la CV si l'effectif minimal est trop faible
-    if min_class_count < MIN_CV_SPLITS:
-        # Signale l'absence de données suffisantes pour une CV stable
-        return None
-    # Calcule la taille de test minimale pour garder au moins un essai par classe
-    min_test_size = 1.0 / float(min_class_count)
-    # Choisit un test_size sûr pour maintenir l'équilibre des classes
-    test_size = max(DEFAULT_CV_TEST_SIZE, min_test_size)
-    # Calcule la borne max de test_size pour garder un essai en train
-    max_test_size = (min_class_count - 1) / float(min_class_count)
-    # Refuse la CV si le split ne peut pas conserver deux ensembles valides
-    if test_size > max_test_size:
-        # Signale l'impossibilité de faire un split stratifié cohérent
-        return None
-    # Construit un splitter shuffle stratifié pour obtenir 10 scores stables
-    return StratifiedShuffleSplit(
-        n_splits=requested_splits,
-        test_size=test_size,
-        random_state=DEFAULT_RANDOM_STATE,
-    )
+    # Calcule le nombre total d'échantillons disponibles
+    sample_count = int(y.shape[0])
+    # Prépare un splitter nul pour refléter une CV impossible
+    splitter: StratifiedShuffleSplit | ShuffleSplit | None = None
+    # Vérifie que la CV binaire est envisageable
+    if class_count >= MIN_CV_CLASS_COUNT and sample_count >= MIN_CV_SPLITS:
+        # Récupère les effectifs observés pour éviter les classes absentes
+        _labels, class_counts = np.unique(y, return_counts=True)
+        # Calcule l'effectif minimal réel pour valider un split
+        min_class_count = int(class_counts.min())
+        # Permet un split non stratifié si l'effectif par classe est trop faible
+        if min_class_count < MIN_CV_SPLITS:
+            # Calcule le seuil minimal pour former train et test non vides
+            minimum_samples = MIN_CV_CLASS_COUNT * MIN_CV_SPLITS
+            # Vérifie que l'effectif global est suffisant pour un split relâché
+            if sample_count >= minimum_samples:
+                # Calcule la taille de test minimale pour un split non stratifié
+                min_test_size = 1.0 / float(sample_count)
+                # Choisit un test_size sûr pour garder un train non vide
+                test_size = max(DEFAULT_CV_TEST_SIZE, min_test_size)
+                # Calcule la borne max pour garantir un échantillon train
+                max_test_size = (sample_count - 1) / float(sample_count)
+                # Construit le splitter non stratifié si le split est viable
+                if test_size <= max_test_size:
+                    # Active la CV shuffle malgré l'imbalance des classes
+                    splitter = ShuffleSplit(
+                        n_splits=requested_splits,
+                        test_size=test_size,
+                        random_state=DEFAULT_RANDOM_STATE,
+                    )
+        else:
+            # Calcule la taille de test minimale pour garder un essai par classe
+            min_test_size = 1.0 / float(min_class_count)
+            # Choisit un test_size sûr pour maintenir l'équilibre des classes
+            test_size = max(DEFAULT_CV_TEST_SIZE, min_test_size)
+            # Calcule la borne max de test_size pour garder un essai en train
+            max_test_size = (min_class_count - 1) / float(min_class_count)
+            # Construit le splitter stratifié si le split est viable
+            if test_size <= max_test_size:
+                # Active la CV stratifiée pour stabiliser l'évaluation
+                splitter = StratifiedShuffleSplit(
+                    n_splits=requested_splits,
+                    test_size=test_size,
+                    random_state=DEFAULT_RANDOM_STATE,
+                )
+    # Retourne le splitter résolu pour la CV ou None
+    return splitter
 
 
 # Formate un diagnostic explicite lorsque la CV est impossible
@@ -1429,7 +1457,7 @@ def _train_with_optional_cv(
         cv_unavailability_reason = _describe_cv_unavailability(y, DEFAULT_CV_SPLITS)
     else:
         # Conserve le splitter construit pour la suite de la procédure
-        cv = cast(StratifiedShuffleSplit, cv)
+        cv = cast(StratifiedShuffleSplit | ShuffleSplit, cv)
         # Lance une recherche systématique des hyperparamètres si demandée
         if request.enable_grid_search:
             # Construit la pipeline dédiée au grid search
