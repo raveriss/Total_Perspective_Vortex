@@ -218,6 +218,48 @@ def test_parse_args_returns_expected_namespace():
     assert args.mode == "train"
 
 
+# Vérifie que l'évaluation globale affiche une ligne par sujet évalué
+def test_evaluate_experiments_reports_subject_accuracy(capsys, monkeypatch):
+    # Prépare une expérience unique pour limiter la sortie à vérifier
+    experiments = [mybci.ExperimentDefinition(index=0, run="R03")]
+    # Prépare une table de sujets disponibles pour l'expérience ciblée
+    available_subjects_by_run = {"R03": [1, 2]}
+
+    # Simule le calcul d'accuracy pour éviter des dépendances lourdes
+    def fake_evaluate(*_args, **_kwargs) -> float:
+        # Retourne une accuracy fixe pour un affichage déterministe
+        return 0.5
+
+    # Remplace la fonction d'évaluation par un double contrôlé
+    monkeypatch.setattr(mybci, "_evaluate_experiment_subject", fake_evaluate)
+
+    # Prépare le répertoire data pour la construction des chemins
+    data_root = mybci.Path("data")
+    # Prépare le répertoire artifacts pour l'évaluation simulée
+    artifacts_root = mybci.Path("artifacts")
+    # Prépare le répertoire raw pour la construction des chemins
+    raw_root = mybci.Path("data")
+    # Construit l'objet de chemins attendu par l'évaluation
+    paths = mybci.EvaluationPaths(
+        # Associe le répertoire data pour la lecture des features
+        data_root=data_root,
+        # Associe le répertoire artifacts pour les modèles simulés
+        artifacts_root=artifacts_root,
+        # Associe le répertoire raw pour compléter les chemins EDF
+        raw_root=raw_root,
+    )
+
+    # Lance l'évaluation sur les sujets factices sans barre de progression
+    mybci._evaluate_experiments(experiments, available_subjects_by_run, paths, None)
+
+    # Capture la sortie pour vérifier les lignes par sujet
+    stdout = capsys.readouterr().out
+    # Vérifie l'affichage de l'accuracy pour le sujet 1
+    assert "experiment 0: subject 001: accuracy = 0.5000" in stdout
+    # Vérifie l'affichage de l'accuracy pour le sujet 2
+    assert "experiment 0: subject 002: accuracy = 0.5000" in stdout
+
+
 def test_build_parser_metadata():
     parser = mybci.build_parser()
 
