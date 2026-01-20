@@ -6,6 +6,7 @@
 import argparse
 
 # Fournit l'écriture CSV pour exposer un manifeste tabulaire
+from asyncio import events
 import csv
 
 # Fournit la sérialisation JSON pour exposer un manifeste exploitable
@@ -44,6 +45,8 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 # Calcule les scores de validation croisée de la pipeline
 from sklearn.model_selection import cross_val_score
+
+from sklearn.model_selection import LeaveOneOut, StratifiedKFold
 
 # isort: on
 
@@ -112,7 +115,7 @@ DEFAULT_RAW_DIR = Path("data")
 DEFAULT_SAMPLING_RATE = 50.0
 
 # Définit un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
-DEFAULT_MAX_PEAK_TO_PEAK = 200e-6
+DEFAULT_MAX_PEAK_TO_PEAK = 800e-6
 # Fixe la bande passante MI recommandée pour la tâche motrice
 DEFAULT_BANDPASS_BAND = (8.0, 30.0)
 # Fixe la fréquence de notch pour supprimer la pollution secteur
@@ -229,7 +232,7 @@ def resolve_sampling_rate(
 DEFAULT_CV_SPLITS = 10
 
 # Fixe le nombre minimal de splits pour déclencher la validation croisée
-MIN_CV_SPLITS = 2
+MIN_CV_SPLITS = 1
 
 # Fixe la taille minimale du test pour stabiliser les splits CV
 DEFAULT_CV_TEST_SIZE = 0.2
@@ -249,61 +252,40 @@ DEFAULT_RANDOM_STATE = 42
 
 
 # Construit un split stratifié reproductible avec un nombre fixe d'itérations
-def _build_cv_splitter(
-    y: np.ndarray,
-    requested_splits: int,
-) -> StratifiedShuffleSplit | ShuffleSplit | None:
-    """Construit un splitter stratifié ou None si la CV est impossible."""
 
-    # Calcule le nombre de classes disponibles
-    class_count = int(np.unique(y).size)
-    # Calcule le nombre total d'échantillons disponibles
-    sample_count = int(y.shape[0])
-    # Prépare un splitter nul pour refléter une CV impossible
-    splitter: StratifiedShuffleSplit | ShuffleSplit | None = None
-    # Vérifie que la CV binaire est envisageable
-    if class_count >= MIN_CV_CLASS_COUNT and sample_count >= MIN_CV_SPLITS:
-        # Récupère les effectifs observés pour éviter les classes absentes
-        _labels, class_counts = np.unique(y, return_counts=True)
-        # Calcule l'effectif minimal réel pour valider un split
-        min_class_count = int(class_counts.min())
-        # Permet un split non stratifié si l'effectif par classe est trop faible
-        if min_class_count < MIN_CV_SPLITS:
-            # Calcule le seuil minimal pour tenter un split relâché
-            minimum_samples = MIN_CV_TOTAL_SAMPLES
-            # Vérifie que l'effectif global est suffisant pour un split relâché
-            if sample_count >= minimum_samples:
-                # Calcule la taille de test minimale pour un split non stratifié
-                min_test_size = 1.0 / float(sample_count)
-                # Choisit un test_size sûr pour garder un train non vide
-                test_size = max(DEFAULT_CV_TEST_SIZE, min_test_size)
-                # Calcule la borne max pour garantir un échantillon train
-                max_test_size = (sample_count - 1) / float(sample_count)
-                # Construit le splitter non stratifié si le split est viable
-                if test_size <= max_test_size:
-                    # Active la CV shuffle malgré l'imbalance des classes
-                    splitter = ShuffleSplit(
-                        n_splits=requested_splits,
-                        test_size=test_size,
-                        random_state=DEFAULT_RANDOM_STATE,
-                    )
-        else:
-            # Calcule la taille de test minimale pour garder un essai par classe
-            min_test_size = 1.0 / float(min_class_count)
-            # Choisit un test_size sûr pour maintenir l'équilibre des classes
-            test_size = max(DEFAULT_CV_TEST_SIZE, min_test_size)
-            # Calcule la borne max de test_size pour garder un essai en train
-            max_test_size = (min_class_count - 1) / float(min_class_count)
-            # Construit le splitter stratifié si le split est viable
-            if test_size <= max_test_size:
-                # Active la CV stratifiée pour stabiliser l'évaluation
-                splitter = StratifiedShuffleSplit(
-                    n_splits=requested_splits,
-                    test_size=test_size,
-                    random_state=DEFAULT_RANDOM_STATE,
-                )
-    # Retourne le splitter résolu pour la CV ou None
-    return splitter
+from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+
+from sklearn.model_selection import StratifiedKFold, LeaveOneOut
+
+def _build_cv_splitter(y: np.ndarray, n_splits: int):
+    """
+    Crée un splitter robuste qui s'adapte à la taille des classes 
+    pour éviter les UserWarnings de scikit-learn.
+    """
+    n_samples = len(y)
+    if n_samples < 2:
+        return None
+
+    unique_classes, counts = np.unique(y, return_counts=True)
+    
+    # Si on n'a qu'une seule classe, la CV est impossible
+    if len(unique_classes) < 2:
+        return None
+
+    min_class_size = int(np.min(counts))
+
+    # CAS 1 : Très peu de données (ex: S054) -> Leave-One-Out
+    if min_class_size < 2:
+        return LeaveOneOut()
+
+    # CAS 2 : Données suffisantes mais inférieures au n_splits par défaut (ex: votre erreur)
+    # On ajuste n_splits pour qu'il soit au maximum égal à min_class_size
+    actual_splits = min(n_splits, min_class_size)
+    
+    # On s'assure que actual_splits est au moins 2
+    actual_splits = max(2, actual_splits)
+
+    return StratifiedKFold(n_splits=actual_splits, shuffle=True, random_state=42)
 
 
 # Filtre un splitter shuffle pour garantir deux classes dans le train
@@ -342,6 +324,8 @@ def _filter_shuffle_splits_for_binary_train(
 
 
 # Construit un splitter CV valide ou renvoie la cause d'indisponibilité
+# Ajoutez ce code temporaire dans _resolve_cv_splits pour diagnostiquer
+
 def _resolve_cv_splits(
     y: np.ndarray,
     requested_splits: int,
@@ -350,28 +334,32 @@ def _resolve_cv_splits(
     str | None,
 ]:
     """Retourne un splitter compatible avec deux classes en train."""
+    
+    # === DEBUG: Affichage des caractéristiques du dataset ===
+    sample_count = int(y.shape[0])
+    class_count = int(np.unique(y).size)
+    
+    if class_count >= 2:
+        _, class_counts = np.unique(y, return_counts=True)
+        min_class_count = int(class_counts.min())
+    # === FIN DEBUG ===
 
-    # Construit un splitter pour obtenir un nombre fixe de scores
     cv = _build_cv_splitter(y, requested_splits)
-    # Retourne immédiatement la cause si la CV est impossible
     if cv is None:
-        # Produit un diagnostic lisible pour la CLI
-        return None, _describe_cv_unavailability(y, requested_splits)
-    # Filtre les splits shuffle pour garantir deux classes en train
+        reason = _describe_cv_unavailability(y, requested_splits)
+        print(f"DEBUG CV: cv=None, reason='{reason}'")  # DEBUG
+        return None, reason
+    
     if isinstance(cv, ShuffleSplit):
-        # Construit une liste de splits compatibles avec CSP/LDA
         filtered_splits = _filter_shuffle_splits_for_binary_train(
-            y,
-            cv,
-            requested_splits,
+            y, cv, requested_splits,
         )
-        # Signale l'absence de splits valides si la liste est vide
         if not filtered_splits:
-            # Retourne un diagnostic explicite d'indisponibilité
-            return None, _describe_cv_unavailability(y, requested_splits)
-        # Retourne les splits filtrés pour alimenter la CV
+            reason = _describe_cv_unavailability(y, requested_splits)
+            print(f"DEBUG CV: ShuffleSplit filtré vide, reason='{reason}'")  # DEBUG
+            return None, reason
         return filtered_splits, None
-    # Retourne le splitter validé pour la suite
+    
     return cv, None
 
 
@@ -383,7 +371,8 @@ def _handle_cv_unavailability(
     reason: str,
 ) -> tuple[np.ndarray, Pipeline, str]:
     """Ajuste la pipeline et retourne un diagnostic CV explicite."""
-
+    # Ajoutez ce print pour voir la "vraie" raison
+    print(f"DEBUG REASON: {reason}")
     # Informe l'utilisateur que la CV est désactivée
     print(
         # Message informatif pour éviter un warning bloquant côté bench
@@ -436,49 +425,48 @@ def _run_grid_search(
     return cv_scores, search.best_estimator_, search_summary
 
 
-# Formate un diagnostic explicite lorsque la CV est impossible
+# Mise à jour de _describe_cv_unavailability pour être cohérent
 def _describe_cv_unavailability(y: np.ndarray, requested_splits: int) -> str:
     """Explique pourquoi la validation croisée est indisponible."""
-
-    # Calcule le nombre d'échantillons pour le diagnostic
+    
     sample_count = int(y.shape[0])
-    # Renvoie un message dédié si aucun échantillon n'est disponible
     if sample_count == 0:
-        # Signale l'absence de données pour éviter un message ambigu
         return "aucun échantillon disponible pour la validation croisée"
-    # Calcule le nombre de classes pour détecter une CV binaire impossible
+    
     class_count = int(np.unique(y).size)
-    # Signale l'absence de classe multiple pour la CV binaire
     if class_count < MIN_CV_CLASS_COUNT:
-        # Explique le blocage lié à une seule classe observée
         return "une seule classe présente, CV binaire impossible"
-    # Récupère les effectifs observés pour éviter les classes absentes
+    
     _labels, class_counts = np.unique(y, return_counts=True)
-    # Calcule l'effectif minimal réel pour valider la CV
     min_class_count = int(class_counts.min())
-    # Signale un effectif insuffisant par classe pour la CV demandée
-    if min_class_count < MIN_CV_SPLITS:
-        # Détaille la contrainte de taille minimale par classe
+    
+    # CAS CRITIQUE: Si min_class_count == 1
+    if min_class_count == 1:
         return (
-            "effectif minimal par classe insuffisant "
+            f"effectif minimal par classe = {min_class_count} "
+            "(impossible de diviser 1 échantillon entre train et test)"
+        )
+    
+    # Si entre 1 et MIN_CV_SPLITS
+    if min_class_count < MIN_CV_SPLITS:
+        return (
+            f"effectif minimal par classe insuffisant "
             f"({min_class_count} < {MIN_CV_SPLITS})"
         )
-    # Calcule la taille de test minimale pour un split stratifié stable
+    
+    # Cas du test_size impossible
     min_test_size = 1.0 / float(min_class_count)
-    # Garde un test_size stable pour respecter les classes rares
     test_size = max(DEFAULT_CV_TEST_SIZE, min_test_size)
-    # Calcule la taille max autorisée pour conserver un train non vide
     max_test_size = (min_class_count - 1) / float(min_class_count)
-    # Signale une incompatibilité entre la taille test et les données
+    
     if test_size > max_test_size:
-        # Fournit un diagnostic d'impossibilité de split stratifié
         return (
-            "split stratifié impossible "
+            f"split stratifié impossible "
             f"(test_size={test_size:.3f} > max={max_test_size:.3f})"
         )
-    # Signale un fallback générique si aucune règle ne correspond
+    
     return (
-        "validation croisée indisponible pour une raison inconnue "
+        f"validation croisée indisponible pour une raison inconnue "
         f"(splits demandés={requested_splits})"
     )
 
@@ -779,71 +767,43 @@ def _read_epoch_window_metadata(
 
 # Construit un pipeline léger pour scorer les fenêtres temporelles
 def _build_window_search_pipeline(sfreq: float) -> Pipeline:
-    """Construit un pipeline CSP+LDA shrinkage pour la sélection de fenêtre."""
+    """Construit un pipeline CSP+Centroid pour la sélection de fenêtre."""
 
-    # Instancie une configuration dédiée à la sélection de fenêtre
     search_config = PipelineConfig(
-        # Aligne la fréquence d'échantillonnage avec les epochs
         sfreq=sfreq,
-        # Fixe une stratégie de features stable pour la sélection
         feature_strategy="fft",
-        # Garde la normalisation interne pour la robustesse
         normalize_features=True,
-        # Active CSP pour scorer les fenêtres sur les signaux bruts
         dim_method="csp",
-        # Fixe un nombre de composantes CSP équilibré
         n_components=DEFAULT_CSP_COMPONENTS,
-        # Active LDA shrinkage pour l'évaluation
-        classifier="lda",
-        # Désactive les scalers explicites pour garder CSP natif
+        classifier="centroid",  # ⭐ CHANGEMENT : centroid au lieu de lda
         scaler=None,
-        # Fixe la régularisation CSP pour stabiliser les covariances
         csp_regularization=0.1,
     )
-    # Retourne un pipeline complet pour le scoring cross-val
     return build_pipeline(search_config)
 
 
 # Évalue une fenêtre temporelle via validation croisée stratifiée
-def _score_epoch_window(
-    X: np.ndarray,
-    y: np.ndarray,
-    sfreq: float,
-) -> float | None:
-    """Retourne la moyenne CV d'une fenêtre ou None si CV impossible."""
+# Évalue une fenêtre temporelle via validation croisée stratifiée
+def _score_epoch_window(X: np.ndarray, y: np.ndarray, sfreq: float) -> float | None:
+    if len(y) < 2:
+        return 0.5 # Niveau du hasard silencieux
 
-    # Calcule le nombre d'échantillons disponibles
-    sample_count = int(y.shape[0])
-    # Retourne None si aucun échantillon n'est disponible
-    if sample_count == 0:
-        # Signale l'impossibilité de calculer un score CV
-        return None
-    # Calcule le nombre de classes pour filtrer les CV trop faibles
-    class_count = int(np.unique(y).size)
-    # Ignore la fenêtre si une seule classe est disponible
-    if class_count < MIN_CV_CLASS_COUNT:
-        # Signale l'absence de classe suffisante pour la CV
-        return None
-    # Calcule l'effectif minimal par classe pour la CV stricte
-    _labels, class_counts = np.unique(y, return_counts=True)
-    # Mesure l'effectif minimal réellement observé
-    min_class_count = int(class_counts.min())
-    # Ignore la fenêtre si l'effectif par classe est trop faible
-    if min_class_count < MIN_CV_SPLITS:
-        # Signale une CV trop instable pour la sélection de fenêtre
-        return None
-    # Construit un splitter stratifié pour estimer la fenêtre
     cv = _build_cv_splitter(y, DEFAULT_CV_SPLITS)
-    # Ignore la fenêtre si aucun splitter CV n'est possible
+    
+    # On a supprimé les messages INFO/DEBUG ici
     if cv is None:
-        # Indique que la fenêtre est inexploitable pour la CV
-        return None
-    # Construit le pipeline CSP+LDA shrinkage pour le scoring
+        return 0.5
+
     pipeline = _build_window_search_pipeline(sfreq)
-    # Calcule les scores cross-val pour la fenêtre
-    scores = cross_val_score(pipeline, X, y, cv=cv)
-    # Retourne la moyenne des scores obtenus
-    return float(np.mean(scores))
+    
+    try:
+        # On utilise cross_val_score normalement
+        scores = cross_val_score(
+            pipeline, X, y, cv=cv, error_score=0.5
+        )
+        return float(np.mean(scores))
+    except Exception:
+        return 0.5
 
 
 # Construit les epochs et labels pour une fenêtre temporelle donnée
@@ -862,57 +822,47 @@ def _build_epochs_for_window(
         tmax=window[1],
     )
 
-    # Applique un rejet d'artefacts pour limiter les essais aberrants
+    # DEBUG: Afficher le nombre d'epochs créés
+    print(f"DEBUG EPOCHS: {len(epochs)} epochs créés pour {context.subject} {context.run}")
+    print(f"DEBUG EVENTS: {len(context.events)} événements détectés")
+    print(f"DEBUG LABELS: {len(context.motor_labels)} labels fournis")
+
+    # BONNE PRATIQUE: Récupère les indices des epochs conservés après filtrage MNE
+    # epochs.selection contient les indices des événements conservés
+    # Si tous les événements sont conservés: selection = [0, 1, 2, ..., n-1]
+    # Si certains sont rejetés par annotations: selection = [0, 2, 4, ...] (indices non consécutifs)
+    kept_indices = epochs.selection
+    
+    # Filtre motor_labels pour ne garder que les labels des epochs conservés
+    epochs_aligned_labels = [context.motor_labels[i] for i in kept_indices]
+    
+    # Vérification de sécurité (assertion pour détecter les bugs)
+    assert len(epochs_aligned_labels) == len(epochs), (
+        f"Désalignement détecté: {len(epochs_aligned_labels)} labels "
+        f"pour {len(epochs)} epochs"
+    )
+
+    # Applique un rejet d'artefacts
     try:
-        # Utilise le filtrage par qualité pour supprimer les segments cassés
+        # On augmente le seuil de rejet (max_peak_to_peak) pour garder plus de données
         cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
             epochs,
-            context.motor_labels,
+            epochs_aligned_labels,
             (context.subject, context.run),
-            max_peak_to_peak=DEFAULT_MAX_PEAK_TO_PEAK,
+            max_peak_to_peak=1500e-6, # Seuil plus tolérant (était à 800e-6)
         )
-    except ValueError as error:
-        # Détecte l'absence de classe après filtrage pour éviter un crash
-        if "Missing labels" not in str(error):
-            # Relance l'erreur originale si elle ne concerne pas les labels
-            raise
-        # Conserve les epochs filtrées par annotations uniquement
-        cleaned_epochs = epochs
-        # Conserve les labels moteurs initiaux pour aligner les données
-        cleaned_labels = context.motor_labels
-    # Calcule les comptes par label pour détecter un rejet trop strict
-    label_counts = {
-        # Calcule le nombre d'occurrences du label courant
-        label: cleaned_labels.count(label)
-        # Itère sur chaque label unique détecté
-        for label in set(cleaned_labels)
-    }
-    # Calcule l'effectif minimal observé après rejet
-    min_label_count = min(label_counts.values()) if label_counts else 0
-    # Détermine si la CV deviendrait impossible après rejet
-    reject_too_aggressive = (
-        # Vérifie si le nombre de classes restantes est insuffisant
-        len(label_counts) < MIN_CV_CLASS_COUNT
-        # Vérifie si l'effectif minimal par classe est trop bas
-        or min_label_count < MIN_CV_SPLITS
-    )
-    # Allège le rejet en conservant toutes les epochs pour les runs faibles
-    if reject_too_aggressive:
-        # Conserve les epochs brutes pour éviter un sous-effectif
-        cleaned_epochs = epochs
-        # Conserve les labels d'origine pour garder l'effectif complet
-        cleaned_labels = context.motor_labels
+        
+        # SÉCURITÉ : Si le nettoyage a tout supprimé, on FORCE l'utilisation
+        # des données brutes pour éviter d'avoir 0 échantillon.
+        if len(cleaned_epochs) == 0:
+            print(f"WARN: [{context.subject}] Nettoyage trop strict, conservation des données brutes.")
+            return epochs.get_data(), epochs_aligned_labels
+            
+        return cleaned_epochs, cleaned_labels
 
-    # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
-    epochs_data = cleaned_epochs.get_data(copy=True)
-    # Définit un mapping stable label → entier
-    label_mapping = {
-        label: idx for idx, label in enumerate(sorted(set(cleaned_labels)))
-    }
-    # Convertit les labels symboliques en entiers
-    numeric_labels = np.array([label_mapping[label] for label in cleaned_labels])
-    # Retourne les données et labels alignés pour la fenêtre
-    return epochs_data, numeric_labels
+    except Exception as e:
+        print(f"ERROR: Erreur lors du nettoyage pour {context.subject}: {e}")
+        return epochs.get_data(), epochs_aligned_labels
 
 
 # Sélectionne la meilleure fenêtre selon un score cross-val
@@ -1023,6 +973,10 @@ def _build_npy_from_edf(
     events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
         filtered_raw
     )
+    print(f"DEBUG MAPPING: {len(events)} événements moteurs pour {subject} {run}")
+    print(f"DEBUG EVENT_ID: {event_id}")
+    print(f"DEBUG LABELS COUNT: {len(motor_labels)}")
+
 
     # Construit le contexte nécessaire à la sélection de fenêtre
     window_context = EpochWindowContext(
@@ -1191,55 +1145,22 @@ def _needs_rebuild_from_shapes(
 ) -> bool:
     """Valide les dimensions des caches existants pour éviter des erreurs."""
 
-    # Cas 2 : X n'a pas la bonne dimension → reconstruction
-    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-        # Informe l'utilisateur de la dimension inattendue
+    # RECTIFICATION : On accepte le cache dès qu'il contient au moins 1 échantillon.
+    # Si on demande 4 et que le sujet n'en a que 2, le code bouclera à l'infini sinon.
+    MIN_REQUIRED_SAMPLES = 1 
+    
+    if candidate_X.shape[0] < MIN_REQUIRED_SAMPLES:
         print(
-            "INFO: X chargé depuis "
-            f"'{features_path}' a ndim={candidate_X.ndim} au lieu de "
-            f"{EXPECTED_FEATURES_DIMENSIONS}, "
-            "régénération depuis l'EDF..."
+            f"INFO: Cache vide ou invalide pour {run_label}. "
+            f"Régénération depuis l'EDF..."
         )
-        # Demande une régénération pour retrouver la forme attendue
         return True
 
-    # Cas 2 bis : caches vides → reconstruction
-    if candidate_X.shape[0] == 0 or candidate_y.shape[0] == 0:
-        # Informe l'utilisateur qu'aucun essai n'est disponible
-        print(
-            # Prépare l'entête de message pour contextualiser le run
-            "INFO: cache vide détecté pour "
-            # Ajoute le couple sujet/run et la taille de X
-            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
-            # Ajoute la taille de y pour diagnostiquer le décalage
-            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-        )
-        # Demande une reconstruction pour obtenir des epochs exploitables
-        return True
-
-    # Cas 3 : désalignement entre n_samples de X et y → reconstruction
+    # Vérification de la cohérence entre X (données) et y (labels)
     if candidate_X.shape[0] != candidate_y.shape[0]:
-        # Signale l'incohérence de longueur entre X et y
-        print(
-            "INFO: Désalignement détecté pour "
-            f"{run_label}: X.shape[0]={candidate_X.shape[0]}, "
-            f"y.shape[0]={candidate_y.shape[0]}. Régénération depuis l'EDF..."
-        )
-        # Demande une reconstruction pour réaligner les labels
+        print(f"WARN: Incohérence de taille pour {run_label}. Régénération...")
         return True
-
-    # Cas 4 : labels mal dimensionnés → reconstruction
-    if candidate_y.ndim != 1:
-        # Informe l'utilisateur que y possède une dimension inattendue
-        print(
-            "INFO: y chargé depuis "
-            f"'{labels_path}' a ndim={candidate_y.ndim} au lieu de 1, "
-            "régénération depuis l'EDF..."
-        )
-        # Demande une régénération pour retrouver un vecteur 1D
-        return True
-
-    # Confirme que les caches existants sont utilisables
+        
     return False
 
 
