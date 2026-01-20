@@ -237,6 +237,9 @@ DEFAULT_CV_TEST_SIZE = 0.2
 # Fixe le nombre minimal de classes pour activer la CV
 MIN_CV_CLASS_COUNT = 2
 
+# Fixe le nombre maximal de tentatives pour filtrer les splits CV
+MAX_CV_SPLIT_ATTEMPTS_FACTOR = 10
+
 
 # Stabilise la reproductibilité des splits de cross-validation
 DEFAULT_RANDOM_STATE = 42
@@ -298,6 +301,136 @@ def _build_cv_splitter(
                 )
     # Retourne le splitter résolu pour la CV ou None
     return splitter
+
+
+# Filtre un splitter shuffle pour garantir deux classes dans le train
+def _filter_shuffle_splits_for_binary_train(
+    y: np.ndarray,
+    splitter: ShuffleSplit,
+    requested_splits: int,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Construit des splits qui conservent deux classes dans le train."""
+
+    # Prépare une liste de splits validés pour cross_val_score
+    valid_splits: list[tuple[np.ndarray, np.ndarray]] = []
+    # Calcule le nombre total d'échantillons pour générer un X fictif
+    sample_count = int(y.shape[0])
+    # Prépare un tableau factice pour piloter splitter.split
+    placeholder_X = np.zeros((sample_count, 1))
+    # Définit une limite de tentatives pour éviter les boucles infinies
+    max_attempts = max(1, requested_splits * MAX_CV_SPLIT_ATTEMPTS_FACTOR)
+    # Parcourt les splits générés par ShuffleSplit
+    for attempt_index, (train_idx, test_idx) in enumerate(
+        splitter.split(placeholder_X, y)
+    ):
+        # Stoppe la recherche lorsque la limite est atteinte
+        if attempt_index >= max_attempts:
+            break
+        # Évite les splits qui ne contiennent pas les deux classes en train
+        if np.unique(y[train_idx]).size < MIN_CV_CLASS_COUNT:
+            continue
+        # Conserve le split valide pour la CV
+        valid_splits.append((train_idx, test_idx))
+        # Stoppe dès que le nombre de splits demandé est atteint
+        if len(valid_splits) >= requested_splits:
+            break
+    # Retourne la liste finale des splits valides
+    return valid_splits
+
+
+# Construit un splitter CV valide ou renvoie la cause d'indisponibilité
+def _resolve_cv_splits(
+    y: np.ndarray,
+    requested_splits: int,
+) -> tuple[
+    StratifiedShuffleSplit | ShuffleSplit | list[tuple[np.ndarray, np.ndarray]] | None,
+    str | None,
+]:
+    """Retourne un splitter compatible avec deux classes en train."""
+
+    # Construit un splitter pour obtenir un nombre fixe de scores
+    cv = _build_cv_splitter(y, requested_splits)
+    # Retourne immédiatement la cause si la CV est impossible
+    if cv is None:
+        # Produit un diagnostic lisible pour la CLI
+        return None, _describe_cv_unavailability(y, requested_splits)
+    # Filtre les splits shuffle pour garantir deux classes en train
+    if isinstance(cv, ShuffleSplit):
+        # Construit une liste de splits compatibles avec CSP/LDA
+        filtered_splits = _filter_shuffle_splits_for_binary_train(
+            y,
+            cv,
+            requested_splits,
+        )
+        # Signale l'absence de splits valides si la liste est vide
+        if not filtered_splits:
+            # Retourne un diagnostic explicite d'indisponibilité
+            return None, _describe_cv_unavailability(y, requested_splits)
+        # Retourne les splits filtrés pour alimenter la CV
+        return filtered_splits, None
+    # Retourne le splitter validé pour la suite
+    return cv, None
+
+
+# Gère le fallback lorsque la validation croisée est impossible
+def _handle_cv_unavailability(
+    pipeline: Pipeline,
+    X: np.ndarray,
+    y: np.ndarray,
+    reason: str,
+) -> tuple[np.ndarray, Pipeline, str]:
+    """Ajuste la pipeline et retourne un diagnostic CV explicite."""
+
+    # Informe l'utilisateur que la CV est désactivée
+    print(
+        # Message stable attendu par les tests CLI
+        "AVERTISSEMENT: effectif par classe insuffisant pour la "
+        "validation croisée, cross-val ignorée"
+    )
+    # Ajuste la pipeline sur toutes les données malgré l'absence de CV
+    pipeline.fit(X, y)
+    # Retourne un tableau vide et la raison d'indisponibilité
+    return np.array([]), pipeline, reason
+
+
+# Lance la recherche d'hyperparamètres et retourne ses scores
+def _run_grid_search(
+    search_pipeline: Pipeline,
+    param_grid: dict[str, list[object]],
+    search_cv: object,
+    X: np.ndarray,
+    y: np.ndarray,
+) -> tuple[np.ndarray, Pipeline, dict[str, object]]:
+    """Exécute GridSearchCV et retourne scores, pipeline et résumé."""
+
+    # Déduit le nombre de splits à partir du splitter fourni
+    if isinstance(search_cv, list):
+        # Utilise la longueur de liste lorsque les splits sont pré-calculés
+        split_count = len(search_cv)
+    else:
+        # Récupère get_n_splits si la méthode est disponible
+        split_count = int(getattr(search_cv, "get_n_splits", lambda: 0)())
+    # Utilise un fallback si le splitter ne rapporte aucun split
+    split_count = split_count or DEFAULT_CV_SPLITS
+    # Instancie la recherche exhaustive pour maximiser l'accuracy
+    search = GridSearchCV(
+        search_pipeline,
+        param_grid,
+        cv=search_cv,
+        scoring="accuracy",
+        refit=True,
+    )
+    # Lance l'optimisation des hyperparamètres
+    search.fit(X, y)
+    # Extrait les scores par split pour l'entrée de manifeste
+    cv_scores = _extract_grid_search_scores(search, split_count)
+    # Capture un résumé des meilleurs paramètres
+    search_summary = {
+        "best_params": search.best_params_,
+        "best_score": float(search.best_score_),
+    }
+    # Retourne les scores, la meilleure pipeline et le résumé
+    return cv_scores, search.best_estimator_, search_summary
 
 
 # Formate un diagnostic explicite lorsque la CV est impossible
@@ -1433,91 +1566,81 @@ def _train_with_optional_cv(
     sample_count = int(y.shape[0])
     # Calcule le nombre de classes distinctes pour l'évaluation
     class_count = int(np.unique(y).size)
-    # Construit un splitter pour obtenir un nombre fixe de scores
-    cv = _build_cv_splitter(y, DEFAULT_CV_SPLITS)
+    # Résout le splitter CV en tenant compte des classes disponibles
+    cv, cv_unavailability_reason = _resolve_cv_splits(y, DEFAULT_CV_SPLITS)
     # Initialise un tableau vide lorsque la validation croisée est impossible
     cv_scores = np.array([])
     # Prépare un résumé de recherche d'hyperparamètres si besoin
     search_summary: dict[str, object] | None = None
-    # Prépare un message de diagnostic sur la CV si nécessaire
-    cv_unavailability_reason: str | None = None
     # Prépare un message d'erreur si cross_val_score échoue
     cv_error: str | None = None
     # Vérifie si l'effectif autorise une validation croisée exploitable
     if cv is None:
-        # Informe l'utilisateur que la CV est désactivée
-        print(
-            # Message stable attendu par les tests CLI
-            "AVERTISSEMENT: effectif par classe insuffisant pour la "
-            "validation croisée, cross-val ignorée"
+        # Prépare la raison finale pour expliquer l'absence de CV
+        cv_unavailability_reason = (
+            cv_unavailability_reason
+            or _describe_cv_unavailability(y, DEFAULT_CV_SPLITS)
         )
-        # Ajuste la pipeline sur toutes les données malgré l'absence de CV
-        pipeline.fit(X, y)
-        # Mémorise la cause d'absence de CV pour l'UX CLI
-        cv_unavailability_reason = _describe_cv_unavailability(y, DEFAULT_CV_SPLITS)
+        # Applique le fallback CV et récupère la pipeline ajustée
+        cv_scores, pipeline, cv_unavailability_reason = _handle_cv_unavailability(
+            pipeline,
+            X,
+            y,
+            cv_unavailability_reason,
+        )
+    # Lance une recherche systématique des hyperparamètres si demandée
+    elif request.enable_grid_search:
+        # Construit la pipeline dédiée au grid search
+        search_pipeline = build_search_pipeline(adapted_config)
+        # Détermine si LDA est autorisé par le ratio effectif/classes
+        allow_lda = sample_count > class_count
+        # Construit la grille d'hyperparamètres à explorer
+        param_grid = _build_grid_search_grid(adapted_config, allow_lda)
+        # Détermine le nombre de splits spécifique si fourni
+        search_splits = request.grid_search_splits or DEFAULT_CV_SPLITS
+        # Construit un splitter dédié pour la recherche d'hyperparamètres
+        search_cv, search_reason = _resolve_cv_splits(y, search_splits)
+        # Désactive la recherche si la CV est impossible
+        if search_cv is None:
+            # Prépare une raison explicite pour l'absence de CV
+            cv_unavailability_reason = search_reason or _describe_cv_unavailability(
+                y, search_splits
+            )
+            # Applique le fallback CV et retourne immédiatement
+            cv_scores, pipeline, cv_unavailability_reason = _handle_cv_unavailability(
+                pipeline,
+                X,
+                y,
+                cv_unavailability_reason,
+            )
+            # Retourne immédiatement les sorties sans grid search
+            return (
+                cv_scores,
+                pipeline,
+                search_summary,
+                cv_unavailability_reason,
+                cv_error,
+            )
+        # Lance la recherche d'hyperparamètres et récupère les scores
+        cv_scores, pipeline, search_summary = _run_grid_search(
+            search_pipeline,
+            param_grid,
+            search_cv,
+            X,
+            y,
+        )
     else:
-        # Conserve le splitter construit pour la suite de la procédure
-        cv = cast(StratifiedShuffleSplit | ShuffleSplit, cv)
-        # Lance une recherche systématique des hyperparamètres si demandée
-        if request.enable_grid_search:
-            # Construit la pipeline dédiée au grid search
-            search_pipeline = build_search_pipeline(adapted_config)
-            # Détermine si LDA est autorisé par le ratio effectif/classes
-            allow_lda = sample_count > class_count
-            # Construit la grille d'hyperparamètres à explorer
-            param_grid = _build_grid_search_grid(adapted_config, allow_lda)
-            # Détermine le nombre de splits spécifique si fourni
-            search_splits = request.grid_search_splits or DEFAULT_CV_SPLITS
-            # Construit un splitter dédié pour la recherche d'hyperparamètres
-            search_cv = _build_cv_splitter(y, search_splits)
-            # Désactive la recherche si la CV est impossible
-            if search_cv is None:
-                # Informe que la CV est ignorée faute d'effectif suffisant
-                print(
-                    # Message stable attendu par les tests CLI
-                    "AVERTISSEMENT: effectif par classe insuffisant pour la "
-                    "validation croisée, cross-val ignorée"
-                )
-                # Ajuste la pipeline sur toutes les données malgré l'absence de CV
-                pipeline.fit(X, y)
-                # Prépare la sortie en signalant l'absence de CV
-                search_summary = None
-                # Retourne les artefacts sans scores de validation
-                cv_scores = np.array([])
-                # Prépare un diagnostic explicite pour expliquer l'absence de CV
-                cv_unavailability_reason = _describe_cv_unavailability(y, search_splits)
-            else:
-                # Instancie la recherche exhaustive pour maximiser l'accuracy
-                search = GridSearchCV(
-                    search_pipeline,
-                    param_grid,
-                    cv=search_cv,
-                    scoring="accuracy",
-                    refit=True,
-                )
-                # Lance l'optimisation des hyperparamètres
-                search.fit(X, y)
-                # Extrait les scores par split pour l'entrée de manifeste
-                cv_scores = _extract_grid_search_scores(search, search_splits)
-                # Capture un résumé des meilleurs paramètres
-                search_summary = {
-                    "best_params": search.best_params_,
-                    "best_score": float(search.best_score_),
-                }
-                # Récupère l'estimateur entraîné sur tous les échantillons
-                pipeline = search.best_estimator_
-        else:
-            # Calcule les scores de validation croisée sur l'ensemble du pipeline
-            try:
-                # Lance la cross-validation pour mesurer la performance
-                cv_scores = cross_val_score(pipeline, X, y, cv=cv)
-            except ValueError as error:
-                # Capture l'erreur pour un diagnostic CLI explicite
-                cv_error = str(error)
-                # Déclare un score vide pour conserver le flux nominal
-                cv_scores = np.array([])
-            # Ajuste la pipeline sur toutes les données après évaluation
-            pipeline.fit(X, y)
+        # Calcule les scores de validation croisée sur l'ensemble du pipeline
+        try:
+            # Lance la cross-validation pour mesurer la performance
+            cv_scores = cross_val_score(pipeline, X, y, cv=cv, error_score="raise")
+        except ValueError as error:
+            # Capture l'erreur pour un diagnostic CLI explicite
+            cv_error = str(error)
+            # Déclare un score vide pour conserver le flux nominal
+            cv_scores = np.array([])
+        # Ajuste la pipeline sur toutes les données après évaluation
+        pipeline.fit(X, y)
     # Retourne les informations calculées pour l'entraînement
     return (
         cv_scores,
