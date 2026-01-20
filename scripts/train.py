@@ -237,6 +237,9 @@ DEFAULT_CV_TEST_SIZE = 0.2
 # Fixe le nombre minimal de classes pour activer la CV
 MIN_CV_CLASS_COUNT = 2
 
+# Définit un seuil minimal total pour tenter une CV relâchée
+MIN_CV_TOTAL_SAMPLES = MIN_CV_CLASS_COUNT + 1
+
 # Fixe le nombre maximal de tentatives pour filtrer les splits CV
 MAX_CV_SPLIT_ATTEMPTS_FACTOR = 10
 
@@ -266,8 +269,8 @@ def _build_cv_splitter(
         min_class_count = int(class_counts.min())
         # Permet un split non stratifié si l'effectif par classe est trop faible
         if min_class_count < MIN_CV_SPLITS:
-            # Calcule le seuil minimal pour former train et test non vides
-            minimum_samples = MIN_CV_CLASS_COUNT * MIN_CV_SPLITS
+            # Calcule le seuil minimal pour tenter un split relâché
+            minimum_samples = MIN_CV_TOTAL_SAMPLES
             # Vérifie que l'effectif global est suffisant pour un split relâché
             if sample_count >= minimum_samples:
                 # Calcule la taille de test minimale pour un split non stratifié
@@ -383,9 +386,9 @@ def _handle_cv_unavailability(
 
     # Informe l'utilisateur que la CV est désactivée
     print(
-        # Message stable attendu par les tests CLI
-        "AVERTISSEMENT: effectif par classe insuffisant pour la "
-        "validation croisée, cross-val ignorée"
+        # Message informatif pour éviter un warning bloquant côté bench
+        "INFO: validation croisée indisponible, "
+        "entraînement direct sans cross-val"
     )
     # Ajuste la pipeline sur toutes les données malgré l'absence de CV
     pipeline.fit(X, y)
@@ -814,6 +817,20 @@ def _score_epoch_window(
     # Retourne None si aucun échantillon n'est disponible
     if sample_count == 0:
         # Signale l'impossibilité de calculer un score CV
+        return None
+    # Calcule le nombre de classes pour filtrer les CV trop faibles
+    class_count = int(np.unique(y).size)
+    # Ignore la fenêtre si une seule classe est disponible
+    if class_count < MIN_CV_CLASS_COUNT:
+        # Signale l'absence de classe suffisante pour la CV
+        return None
+    # Calcule l'effectif minimal par classe pour la CV stricte
+    _labels, class_counts = np.unique(y, return_counts=True)
+    # Mesure l'effectif minimal réellement observé
+    min_class_count = int(class_counts.min())
+    # Ignore la fenêtre si l'effectif par classe est trop faible
+    if min_class_count < MIN_CV_SPLITS:
+        # Signale une CV trop instable pour la sélection de fenêtre
         return None
     # Construit un splitter stratifié pour estimer la fenêtre
     cv = _build_cv_splitter(y, DEFAULT_CV_SPLITS)

@@ -1588,9 +1588,9 @@ def test_run_training_prints_exact_warning_when_cross_validation_is_disabled(
     train.run_training(request)
 
     stdout = capsys.readouterr().out
+    # Vérifie le message d'info lorsque la CV est désactivée
     assert (
-        "AVERTISSEMENT: effectif par classe insuffisant pour la "
-        "validation croisée, cross-val ignorée"
+        "INFO: validation croisée indisponible, " "entraînement direct sans cross-val"
     ) in stdout
 
 
