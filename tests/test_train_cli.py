@@ -1659,7 +1659,13 @@ def test_run_training_builds_stratified_shuffle_split_with_stable_random_state(
             captured["kwargs"] = kwargs
 
     # Déclare une version contrôlée de cross_val_score
-    def fake_cross_val_score(_pipeline: object, _X: object, _y: object, cv: object):
+    def fake_cross_val_score(
+        _pipeline: object,
+        _X: object,
+        _y: object,
+        cv: object,
+        **_kwargs: object,
+    ):
         # Capture l'objet CV construit par run_training
         captured["cv"] = cv
         # Retourne un score fixe pour stabiliser le test
@@ -1729,6 +1735,23 @@ def test_build_cv_splitter_returns_shuffle_for_low_class_counts() -> None:
     splitter = train._build_cv_splitter(y, train.DEFAULT_CV_SPLITS)
     # Vérifie que le splitter bascule sur un shuffle non stratifié
     assert isinstance(splitter, train.ShuffleSplit)
+
+
+def test_filter_shuffle_splits_keeps_two_classes_in_train() -> None:
+    # Prépare un vecteur de labels avec une minorité de classe
+    y = np.array([0, 0, 0, 1], dtype=int)
+    # Crée un splitter shuffle pour simuler le fallback low count
+    splitter = train.ShuffleSplit(
+        n_splits=5,
+        test_size=0.25,
+        random_state=0,
+    )
+    # Exécute le filtrage des splits pour garder deux classes en train
+    filtered = train._filter_shuffle_splits_for_binary_train(y, splitter, 5)
+    # Vérifie que la liste filtrée est non vide pour cette distribution
+    assert filtered
+    # Vérifie que chaque split conserve deux classes en train
+    assert all(np.unique(y[train_idx]).size == 2 for train_idx, _ in filtered)
 
 
 def test_describe_cv_unavailability_reports_single_class() -> None:
