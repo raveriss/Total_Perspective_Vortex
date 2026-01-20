@@ -394,6 +394,14 @@ def _evaluate_experiments(
                 if progress is not None:
                     # Incrémente la progression d'un sujet évalué ou tenté
                     progress.update(1)
+            # Formate l'index sujet en trois chiffres pour la sortie demandée
+            subject_label = f"{subject_index:03d}"
+            # Prépare le préfixe pour éviter une ligne trop longue
+            prefix = f"experiment {experiment.index}: subject {subject_label}: "
+            # Prépare le suffixe avec l'accuracy formatée
+            suffix = f"accuracy = {accuracy:.4f}"
+            # Affiche l'accuracy par expérience et sujet comme dans l'exemple
+            print(f"{prefix}{suffix}")
             # Stocke l'accuracy pour le calcul des moyennes
             per_experiment_scores[experiment.index].append(accuracy)
     # Retourne les résultats et les expériences ignorées
