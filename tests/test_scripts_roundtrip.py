@@ -330,7 +330,7 @@ def test_run_training_logs_skip_message_when_below_min_splits(
     # Vérifie que la validation croisée est bien ignorée
     assert result["cv_scores"].size == 0
     # Vérifie que le message explicite est loggé pour l'utilisateur
-    assert "cross-val ignorée" in captured
+    assert "validation croisée indisponible" in captured
     # Vérifie que les manifestes reflètent l'absence de scores
     manifest = json.loads(result["manifest_path"].read_text())
     assert manifest["scores"]["cv_scores"] == []
