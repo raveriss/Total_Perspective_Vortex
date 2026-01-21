@@ -657,7 +657,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"epoch {idx:02d}: [{pred_value}] [{true_value}] {equal}")
 
     # Affiche l'accuracy avec 4 décimales comme dans l'exemple
-    print(f"Accuracy: {result['accuracy']:.4f}")
+    print(f"\nAccuracy: {result['accuracy']:.4f}")
 
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0

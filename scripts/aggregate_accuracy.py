@@ -138,7 +138,7 @@ def format_accuracy_table(report: dict) -> str:
 # Point d'entrée principal pour l'usage en ligne de commande
 def main(argv: list[str] | None = None) -> int:
     """Parse les arguments puis affiche le tableau d'accuracies."""
-
+    print("\n\naggregate_accuracy.py\n\n")
     # Construit le parser pour interpréter les options fournies
     parser = build_parser()
     # Parse les arguments utilisateurs pour récupérer les chemins
