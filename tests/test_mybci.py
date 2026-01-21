@@ -218,6 +218,18 @@ def test_parse_args_returns_expected_namespace():
     assert args.mode == "train"
 
 
+# Vérifie que la liste des expériences par défaut correspond aux 6 runs attendus
+def test_build_default_experiments_matches_six_runs():
+    # Construit la liste des expériences définies par défaut
+    experiments = mybci._build_default_experiments()
+    # Extrait les runs pour valider l'ordre et la complétude
+    runs = [experiment.run for experiment in experiments]
+    # Valide le nombre d'expériences attendu par la consigne
+    assert len(experiments) == 6
+    # Valide l'ordre strict des runs attendus pour l'évaluation globale
+    assert runs == ["R03", "R04", "R05", "R06", "R07", "R08"]
+
+
 # Vérifie que l'évaluation globale affiche une ligne par sujet évalué
 def test_evaluate_experiments_reports_subject_accuracy(capsys, monkeypatch):
     # Prépare une expérience unique pour limiter la sortie à vérifier

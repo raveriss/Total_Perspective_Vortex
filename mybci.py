@@ -216,18 +216,6 @@ def _build_default_experiments() -> list[ExperimentDefinition]:
         ExperimentDefinition(index=4, run="R07"),
         # Explore le run R08 pour l'expérience 5
         ExperimentDefinition(index=5, run="R08"),
-        # Explore le run R03 pour l'expérience 6
-        ExperimentDefinition(index=0, run="R09"),
-        # Explore le run R04 pour l'expérience 7
-        ExperimentDefinition(index=1, run="R10"),
-        # Explore le run R05 pour l'expérience 8
-        ExperimentDefinition(index=2, run="R11"),
-        # Explore le run R06 pour l'expérience 9
-        ExperimentDefinition(index=3, run="R12"),
-        # Explore le run R07 pour l'expérience 10
-        ExperimentDefinition(index=4, run="R13"),
-        # Explore le run R08 pour l'expérience 11
-        ExperimentDefinition(index=5, run="R14"),
     ]
 
 
