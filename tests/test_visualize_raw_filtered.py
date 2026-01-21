@@ -351,7 +351,7 @@ def test_main_invokes_visualize_run(monkeypatch: pytest.MonkeyPatch) -> None:
     # Exécute main pour déclencher la construction de config
     viz.main()
     # Vérifie que visualize_run a bien été invoqué
-    assert called["subject"] == "S10"
+    assert called["subject"] == "S010"
     # Vérifie que le run transmis correspond à argv
     assert called["run"] == "R03"
     # Vérifie que la configuration passée est une VisualizationConfig
@@ -929,17 +929,17 @@ def test_main_guard_covered(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     # Prépare un répertoire data/root minimal pour satisfaire load_recording
     data_root = tmp_path / "data"
     # Crée le dossier sujet pour respecter la hiérarchie attendue
-    (data_root / "S20").mkdir(parents=True)
+    (data_root / "S020").mkdir(parents=True)
     # Crée un fichier EDF vide pour passer le check d'existence
-    (data_root / "S20" / "R09.edf").write_bytes(b"")
+    (data_root / "S020" / "R09.edf").write_bytes(b"")
     # Configure argv pour pointer vers le dataset factice et un output temporaire
     monkeypatch.setattr(
         sys,
         "argv",
         [
             "prog",
-            "S20",
-            "R09",
+            "20",
+            "9",
             "--data-root",
             str(data_root),
             "--output-dir",
@@ -1159,9 +1159,9 @@ def test_build_parser_description_and_help_texts_are_stable() -> None:
     run_action = _get_action(parser, "run")
 
     # Verrouille l'aide exacte de l'argument subject
-    assert subject_action.help == "Identifiant du sujet ex: S001"
+    assert subject_action.help == "Identifiant du sujet ex: S001 ou 9"
     # Verrouille l'aide exacte de l'argument run
-    assert run_action.help == "Identifiant du run ex: R01"
+    assert run_action.help == "Identifiant du run ex: R01 ou 10"
 
     # Récupère les options dont l'aide est mutée par mutmut
     data_root_action = _get_action(parser, "data_root")
