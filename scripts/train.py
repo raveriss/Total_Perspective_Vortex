@@ -822,11 +822,6 @@ def _build_epochs_for_window(
         tmax=window[1],
     )
 
-    # DEBUG: Afficher le nombre d'epochs créés
-    print(f"DEBUG EPOCHS: {len(epochs)} epochs créés pour {context.subject} {context.run}")
-    print(f"DEBUG EVENTS: {len(context.events)} événements détectés")
-    print(f"DEBUG LABELS: {len(context.motor_labels)} labels fournis")
-
     # BONNE PRATIQUE: Récupère les indices des epochs conservés après filtrage MNE
     # epochs.selection contient les indices des événements conservés
     # Si tous les événements sont conservés: selection = [0, 1, 2, ..., n-1]
@@ -973,10 +968,6 @@ def _build_npy_from_edf(
     events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
         filtered_raw
     )
-    print(f"DEBUG MAPPING: {len(events)} événements moteurs pour {subject} {run}")
-    print(f"DEBUG EVENT_ID: {event_id}")
-    print(f"DEBUG LABELS COUNT: {len(motor_labels)}")
-
 
     # Construit le contexte nécessaire à la sélection de fenêtre
     window_context = EpochWindowContext(
@@ -1745,7 +1736,6 @@ def main(argv: list[str] | None = None) -> int:
     # Calcule le nombre de scores réellement obtenus
     cv_scores_count = int(cv_scores.size) if isinstance(cv_scores, np.ndarray) else 0
     # Informe toujours l'utilisateur du nombre de splits attendus
-    print("CV_SPLITS: " f"{cv_splits_requested} (scores: {cv_scores_count})")
     # Informe si cross_val_score a échoué malgré un splitter valide
     if cv_error:
         # Expose une alerte concise sans trace pour l'utilisateur
