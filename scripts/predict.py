@@ -379,6 +379,22 @@ def _load_w_matrix(path: Path) -> TPVDimReducer:
     return reducer
 
 
+# Normalise un label pour l'écriture des rapports et l'affichage CLI
+def _stringify_label(label: object) -> str:
+    """Retourne une version textuelle stable d'un label de classe."""
+
+    # Garantit un rendu stable pour les entiers numpy ou Python
+    if isinstance(label, (np.integer, int)):
+        # Conserve un affichage entier pour les classes numériques
+        return str(int(label))
+    # Convertit les floats qui représentent un entier logique
+    if isinstance(label, (np.floating, float)) and float(label).is_integer():
+        # Évite d'afficher un suffixe .0 dans les rapports
+        return str(int(label))
+    # Préserve les labels symboliques pour le reporting lisible
+    return str(label)
+
+
 # Sérialise les rapports JSON et CSV pour un run donné
 def _write_reports(
     target_dir: Path,
@@ -456,14 +472,18 @@ def _write_reports(
         for idx, (true_label, pred_label) in enumerate(
             zip(y_true, y_pred, strict=False)
         ):
+            # Normalise la valeur de vérité pour garantir un CSV lisible
+            true_value = _stringify_label(true_label)
+            # Normalise la prédiction pour conserver les classes symboliques
+            pred_value = _stringify_label(pred_label)
             # Écrit la ligne CSV pour l'index courant
             writer.writerow(
                 {
                     "subject": identifiers["subject"],
                     "run": identifiers["run"],
                     "index": idx,
-                    "y_true": int(true_label),
-                    "y_pred": int(pred_label),
+                    "y_true": true_value,
+                    "y_pred": pred_value,
                 }
             )
     # Retourne les chemins créés pour validation amont
@@ -549,6 +569,11 @@ def evaluate_run(
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Déclenche un entraînement si le modèle ou la matrice sont manquants
     if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur du fallback vers un entraînement automatique
+        print(
+            f"INFO: modèle absent pour {subject} {run}, "
+            "entraînement automatique en cours..."
+        )
         # Génère les artefacts de base pour permettre l'évaluation
         _train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
     # Charge la pipeline entraînée depuis le joblib sauvegardé
@@ -628,8 +653,13 @@ def main(argv: list[str] | None = None) -> int:
 
     # Affiche une ligne par epoch : numéro, prédiction, vérité, égalité
     for idx, (pred, true) in enumerate(zip(y_pred, y_true, strict=True)):
+        # Normalise la prédiction pour l'affichage CLI
+        pred_value = _stringify_label(pred)
+        # Normalise la vérité terrain pour l'affichage CLI
+        true_value = _stringify_label(true)
+        # Compare les labels bruts pour garder la logique métier
         equal = bool(pred == true)
-        print(f"epoch {idx:02d}: [{int(pred)}] [{int(true)}] {equal}")
+        print(f"epoch {idx:02d}: [{pred_value}] [{true_value}] {equal}")
 
     # Affiche l'accuracy avec 4 décimales comme dans l'exemple
     print(f"Accuracy: {result['accuracy']:.4f}")

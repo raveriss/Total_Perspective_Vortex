@@ -139,6 +139,48 @@ def test_resolve_sampling_rate_handles_read_error(tmp_path, monkeypatch):
     assert result == 50.0
 
 
+# Vérifie le fallback quand la fréquence détectée n'est pas numérique
+def test_resolve_sampling_rate_falls_back_on_non_numeric_metadata(
+    tmp_path, monkeypatch
+):
+    """Vérifie que les métadonnées invalides conservent la fréquence par défaut."""
+
+    # Crée le dossier sujet pour simuler l'EDF présent
+    subject_dir = tmp_path / "S002"
+    # Assure la présence du dossier pour le chemin attendu
+    subject_dir.mkdir()
+    # Crée un fichier EDF factice pour passer la garde d'existence
+    (subject_dir / "S002R01.edf").write_text("dummy")
+
+    # Prépare un Raw factice pour valider l'appel à close()
+    class DummyRaw:
+        # Initialise un indicateur pour vérifier la fermeture
+        def __init__(self):
+            # Mémorise l'état de fermeture pour l'assertion finale
+            self.closed = False
+
+        # Simule la fermeture pour respecter le contrat MNE
+        def close(self):
+            # Met à jour l'état pour confirmer l'appel à close()
+            self.closed = True
+
+    # Instancie le Raw factice pour le retour du loader
+    dummy_raw = DummyRaw()
+
+    # Force la lecture EDF à retourner une fréquence non numérique
+    monkeypatch.setattr(
+        "scripts.train.preprocessing.load_physionet_raw",
+        lambda *_args, **_kwargs: (dummy_raw, {"sampling_rate": {"bad": "value"}}),
+    )
+
+    # Appelle la résolution pour couvrir le fallback non numérique
+    result = resolve_sampling_rate("S002", "R01", tmp_path, 50.0)
+    # Vérifie que la fréquence demandée est conservée
+    assert result == 50.0
+    # Vérifie que le Raw est bien fermé malgré la valeur invalide
+    assert dummy_raw.closed is True
+
+
 # Vérifie la construction de la pipeline de scoring de fenêtre
 def test_build_window_search_pipeline_builds_expected_config(monkeypatch):
     """Vérifie la configuration utilisée pour la pipeline de scoring."""

@@ -1754,6 +1754,60 @@ def test_filter_shuffle_splits_keeps_two_classes_in_train() -> None:
     assert all(np.unique(y[train_idx]).size == 2 for train_idx, _ in filtered)
 
 
+# Vérifie le stop sur limite max quand aucun split n'est valide
+def test_filter_shuffle_splits_breaks_on_max_attempts_when_no_valid_splits() -> None:
+    # Prépare un vecteur de labels mono-classe pour bloquer la validation
+    y = np.zeros((6,), dtype=int)
+    # Construit un splitter riche en splits pour dépasser la limite
+    splitter = train.ShuffleSplit(n_splits=20, test_size=0.5, random_state=0)
+    # Exécute le filtrage avec un nombre minimal de splits demandés
+    filtered = train._filter_shuffle_splits_for_binary_train(y, splitter, 1)
+    # Vérifie que la liste reste vide lorsque tous les splits sont rejetés
+    assert filtered == []
+
+
+# Vérifie l'arrêt immédiat quand le quota de splits valides est atteint
+def test_filter_shuffle_splits_stops_after_requested_splits() -> None:
+    # Prépare un vecteur de labels équilibré pour générer des splits valides
+    y = np.array([0, 0, 1, 1], dtype=int)
+    # Construit un splitter court pour limiter la boucle
+    splitter = train.ShuffleSplit(n_splits=5, test_size=0.5, random_state=0)
+    # Exécute le filtrage avec un seul split attendu
+    filtered = train._filter_shuffle_splits_for_binary_train(y, splitter, 1)
+    # Vérifie que la liste est tronquée au premier split valide
+    assert len(filtered) == 1
+
+
+# Vérifie le fallback lorsque le filtrage shuffle ne trouve aucun split
+def test_resolve_cv_splits_reports_empty_filtered_shuffle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Prépare un vecteur de labels pour déclencher la branche shuffle
+    y = np.array([0, 0, 1, 1], dtype=int)
+    # Force un splitter ShuffleSplit pour la résolution
+    monkeypatch.setattr(
+        train,
+        "_build_cv_splitter",
+        lambda *_args, **_kwargs: train.ShuffleSplit(
+            n_splits=3,
+            test_size=0.5,
+            random_state=0,
+        ),
+    )
+    # Force un filtrage vide pour simuler l'absence de splits valides
+    monkeypatch.setattr(
+        train,
+        "_filter_shuffle_splits_for_binary_train",
+        lambda *_args, **_kwargs: [],
+    )
+    # Résout le splitter pour couvrir la branche de rejet
+    cv, reason = train._resolve_cv_splits(y, train.DEFAULT_CV_SPLITS)
+    # Vérifie que la CV est signalée indisponible
+    assert cv is None
+    # Vérifie que la raison est bien renseignée
+    assert reason
+
+
 def test_describe_cv_unavailability_reports_single_class() -> None:
     # Prépare un vecteur de labels à classe unique
     y = np.array([0, 0, 0], dtype=int)
