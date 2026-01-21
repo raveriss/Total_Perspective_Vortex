@@ -112,7 +112,7 @@ DEFAULT_RAW_DIR = Path("data")
 DEFAULT_SAMPLING_RATE = 50.0
 
 # Définit un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
-DEFAULT_MAX_PEAK_TO_PEAK = 800e-6
+DEFAULT_MAX_PEAK_TO_PEAK = 3000e-6
 # Fixe la bande passante MI recommandée pour la tâche motrice
 DEFAULT_BANDPASS_BAND = (8.0, 30.0)
 # Fixe la fréquence de notch pour supprimer la pollution secteur
@@ -353,7 +353,6 @@ def _resolve_cv_splits(
     cv = _build_cv_splitter(y, requested_splits)
     if cv is None:
         reason = _describe_cv_unavailability(y, requested_splits)
-        print(f"DEBUG CV: cv=None, reason='{reason}'")  # DEBUG
         return None, reason
 
     if isinstance(cv, ShuffleSplit):
@@ -380,13 +379,7 @@ def _handle_cv_unavailability(
 ) -> tuple[np.ndarray, Pipeline, str]:
     """Ajuste la pipeline et retourne un diagnostic CV explicite."""
     # Ajoutez ce print pour voir la "vraie" raison
-    print(f"DEBUG REASON: {reason}")
     # Informe l'utilisateur que la CV est désactivée
-    print(
-        # Message informatif pour éviter un warning bloquant côté bench
-        "INFO: validation croisée indisponible, "
-        "entraînement direct sans cross-val"
-    )
     # Évite un fit lorsque les données sont absentes pour prévenir une erreur
     if X.size == 0 or y.size == 0:
         # Retourne un score vide sans ajustement lorsque l'échantillon est nul
@@ -858,10 +851,6 @@ def _build_epochs_for_window(
     epochs_data = epochs.get_data(copy=True)
 
     # BONNE PRATIQUE: Récupère les indices des epochs conservés après filtrage MNE
-    # epochs.selection contient les indices des événements conservés
-    # Si tous les événements sont conservés: selection = [0, 1, 2, ..., n-1]
-    # Si certains sont rejetés: selection = [0, 2, 4, ...] non consécutifs
-    # Définit un fallback d'indices si l'attribut selection est absent
     kept_indices = getattr(epochs, "selection", np.arange(epochs_data.shape[0]))
 
     # Filtre motor_labels pour ne garder que les labels des epochs conservés
@@ -871,44 +860,58 @@ def _build_epochs_for_window(
 
     # Vérifie l'alignement pour éviter des labels décalés
     if len(epochs_aligned_array) != epochs_data.shape[0]:
-        # Remonte une erreur explicite pour diagnostiquer le décalage
-        # Déclenche une erreur contrôlée pour stopper la chaîne
         raise ValueError(
             f"Désalignement détecté: {len(epochs_aligned_array)} labels "
             f"pour {len(epochs)} epochs"
         )
 
+    # ============================================================
+    # SEUIL ADAPTATIF + DÉSACTIVATION DU NETTOYAGE SI TROP PEU D'EPOCHS
+    # ============================================================
+    initial_epoch_count = epochs_data.shape[0]
+    
+    # Si on a très peu d'epochs (< 6), on DÉSACTIVE le nettoyage
+    if initial_epoch_count < 6:
+        print(
+            f"INFO: [{context.subject}] Trop peu d'epochs ({initial_epoch_count}), "
+            "nettoyage désactivé pour préserver les données."
+        )
+        return epochs_data, epochs_aligned_array
+    
+    # Sinon, on applique un seuil adaptatif
+    if initial_epoch_count < 10:
+        threshold = 5000e-6
+    elif initial_epoch_count < 20:
+        threshold = 3000e-6
+    else:
+        threshold = 1500e-6
+    # ============================================================
+
     # Applique un rejet d'artefacts
     try:
-        # On augmente le seuil de rejet (max_peak_to_peak) pour garder plus de données
         cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
             epochs,
             epochs_aligned_labels,
             (context.subject, context.run),
-            max_peak_to_peak=1500e-6,  # Seuil plus tolérant (était à 800e-6)
+            max_peak_to_peak=threshold,
         )
 
         # SÉCURITÉ : Si le nettoyage a tout supprimé, on FORCE l'utilisation
         # des données brutes pour éviter d'avoir 0 échantillon.
-        if len(cleaned_epochs) == 0:
-            # Signale une stratégie de repli lorsque tout est supprimé
+        if len(cleaned_epochs) == 0 or len(cleaned_epochs) < MIN_CV_TOTAL_SAMPLES:
             print(
-                f"WARN: [{context.subject}] Nettoyage trop strict, "
+                f"WARN: [{context.subject}] Nettoyage trop strict "
+                f"({len(cleaned_epochs)} epochs restants), "
                 "conservation des données brutes."
             )
-            # Retourne les données brutes pour éviter un ensemble vide
             return epochs_data, epochs_aligned_array
 
         # Retourne les epochs nettoyées pour l'apprentissage
-        # Convertit les labels nettoyés en indices numériques
         cleaned_numeric_labels = _map_motor_labels_to_ints(cleaned_labels)
-        # Retourne les epochs nettoyées pour l'apprentissage
         return cleaned_epochs.get_data(), cleaned_numeric_labels
 
     except Exception as e:
-        # Journalise l'exception pour diagnostiquer le nettoyage
         print(f"ERROR: Erreur lors du nettoyage pour {context.subject}: {e}")
-        # Retourne les données brutes en cas d'échec du nettoyage
         return epochs_data, epochs_aligned_array
 
 
@@ -1814,8 +1817,7 @@ def main(argv: list[str] | None = None) -> int:
     cv_unavailability_reason = result.get("cv_unavailability_reason")
     # Récupère un éventuel message d'erreur CV pour l'affichage
     cv_error = result.get("cv_error")
-    # Informe l'utilisateur du nombre de splits et de scores récupérés
-    print(f"CV_SPLITS: {cv_splits_requested} (scores: {cv_scores_count})")
+
     # Informe toujours l'utilisateur du nombre de splits attendus
     # Informe si cross_val_score a échoué malgré un splitter valide
     if cv_error:

@@ -54,7 +54,7 @@ LEGEND_MAX_CHANNELS = 12
 ELECTRIC_BLUE = "#12127E"
 
 # Fixe la largeur standard des figures pour des snapshots stables
-FIGURE_WIDTH = 10
+FIGURE_WIDTH = 20
 
 # Fixe la hauteur standard des figures pour des snapshots stables
 FIGURE_ROW_HEIGHT = 6

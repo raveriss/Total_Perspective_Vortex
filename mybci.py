@@ -531,21 +531,7 @@ def _run_global_evaluation(
         # Parcourt toutes les expériences à traiter
         for experiment in experiment_definitions
     )
-    # Instancie une barre de progression pour suivre la boucle exhaustive
-    progress = tqdm(
-        # Fixe le nombre total d'itérations attendues
-        total=total_subjects,
-        # Décrit l'étape pour contextualiser la jauge
-        desc="Évaluation globale",
-        # Spécifie l'unité pour l'affichage lisible
-        unit="sujets",
-        # Colore la jauge pour la rendre visible dans le flux INFO
-        colour="cyan",
-        # Contient la largeur pour éviter une jauge interminable
-        ncols=120,
-        # Évite de laisser la barre bloquer la sortie finale
-        leave=False,
-    )
+
     # Exécute les évaluations et collecte les résultats
     per_experiment_scores, missing_entries, skipped_experiments = _evaluate_experiments(
         experiment_definitions,
@@ -558,10 +544,8 @@ def _run_global_evaluation(
             # Fournit le répertoire racine des fichiers EDF bruts
             raw_root=raw_root,
         ),
-        progress,
     )
-    # Termine la barre de progression pour libérer la sortie standard
-    progress.close()
+
     # Calcule et affiche les moyennes par expérience
     _print_experiment_means(experiment_definitions, per_experiment_scores)
     # Émet un récapitulatif des artefacts manquants
