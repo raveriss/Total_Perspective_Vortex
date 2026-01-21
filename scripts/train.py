@@ -4,9 +4,6 @@
 # Expose les primitives d'analyse des arguments CLI
 # Fournit le parsing CLI pour aligner la signature mybci
 import argparse
-
-# Fournit l'écriture CSV pour exposer un manifeste tabulaire
-from asyncio import events
 import csv
 
 # Fournit la sérialisation JSON pour exposer un manifeste exploitable
@@ -46,7 +43,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 # Calcule les scores de validation croisée de la pipeline
 from sklearn.model_selection import cross_val_score
 
-from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 
 # isort: on
 
@@ -252,40 +249,57 @@ DEFAULT_RANDOM_STATE = 42
 
 
 # Construit un split stratifié reproductible avec un nombre fixe d'itérations
-
-from sklearn.model_selection import LeaveOneOut, StratifiedKFold
-
-from sklearn.model_selection import StratifiedKFold, LeaveOneOut
-
 def _build_cv_splitter(y: np.ndarray, n_splits: int):
     """
-    Crée un splitter robuste qui s'adapte à la taille des classes 
+    Crée un splitter robuste qui s'adapte à la taille des classes
     pour éviter les UserWarnings de scikit-learn.
     """
+    # Calcule le nombre total d'échantillons pour valider la CV
     n_samples = len(y)
-    if n_samples < 2:
+    # Refuse la CV si l'échantillon est trop petit pour séparer les classes
+    if n_samples < MIN_CV_TOTAL_SAMPLES:
         return None
 
+    # Calcule les classes et leurs effectifs pour définir la stratégie
     unique_classes, counts = np.unique(y, return_counts=True)
-    
+
     # Si on n'a qu'une seule classe, la CV est impossible
-    if len(unique_classes) < 2:
+    if len(unique_classes) < MIN_CV_CLASS_COUNT:
         return None
 
+    # Mesure la taille minimale pour adapter la stratégie de split
     min_class_size = int(np.min(counts))
 
-    # CAS 1 : Très peu de données (ex: S054) -> Leave-One-Out
-    if min_class_size < 2:
-        return LeaveOneOut()
+    # CAS 1 : Classe rare -> fallback vers un shuffle non stratifié
+    if min_class_size < MIN_CV_CLASS_COUNT:
+        # Retourne un splitter shuffle pour éviter l'instabilité de la CV
+        return ShuffleSplit(
+            n_splits=n_splits,
+            test_size=DEFAULT_CV_TEST_SIZE,
+            random_state=DEFAULT_RANDOM_STATE,
+        )
 
-    # CAS 2 : Données suffisantes mais inférieures au n_splits par défaut (ex: votre erreur)
-    # On ajuste n_splits pour qu'il soit au maximum égal à min_class_size
-    actual_splits = min(n_splits, min_class_size)
-    
-    # On s'assure que actual_splits est au moins 2
-    actual_splits = max(2, actual_splits)
+    # CAS 2 : Peu d'échantillons par classe -> stratified shuffle
+    if min_class_size < n_splits:
+        # Calcule une taille de test alignée sur l'effectif minimal
+        test_size = 1.0 / float(min_class_size)
+        # Retourne un splitter stratifié shuffle pour stabiliser la CV
+        return StratifiedShuffleSplit(
+            n_splits=n_splits,
+            test_size=test_size,
+            random_state=DEFAULT_RANDOM_STATE,
+        )
 
-    return StratifiedKFold(n_splits=actual_splits, shuffle=True, random_state=42)
+    # CAS 3 : Données suffisantes pour la stratification stricte
+    # Fixe le nombre de splits au maximum permis par les classes
+    actual_splits = max(MIN_CV_CLASS_COUNT, n_splits)
+
+    # Retourne un splitter stratifié ajusté pour la taille des classes
+    return StratifiedKFold(
+        n_splits=actual_splits,
+        shuffle=True,
+        random_state=DEFAULT_RANDOM_STATE,
+    )
 
 
 # Filtre un splitter shuffle pour garantir deux classes dans le train
@@ -326,6 +340,7 @@ def _filter_shuffle_splits_for_binary_train(
 # Construit un splitter CV valide ou renvoie la cause d'indisponibilité
 # Ajoutez ce code temporaire dans _resolve_cv_splits pour diagnostiquer
 
+
 def _resolve_cv_splits(
     y: np.ndarray,
     requested_splits: int,
@@ -334,32 +349,25 @@ def _resolve_cv_splits(
     str | None,
 ]:
     """Retourne un splitter compatible avec deux classes en train."""
-    
-    # === DEBUG: Affichage des caractéristiques du dataset ===
-    sample_count = int(y.shape[0])
-    class_count = int(np.unique(y).size)
-    
-    if class_count >= 2:
-        _, class_counts = np.unique(y, return_counts=True)
-        min_class_count = int(class_counts.min())
-    # === FIN DEBUG ===
 
     cv = _build_cv_splitter(y, requested_splits)
     if cv is None:
         reason = _describe_cv_unavailability(y, requested_splits)
         print(f"DEBUG CV: cv=None, reason='{reason}'")  # DEBUG
         return None, reason
-    
+
     if isinstance(cv, ShuffleSplit):
         filtered_splits = _filter_shuffle_splits_for_binary_train(
-            y, cv, requested_splits,
+            y,
+            cv,
+            requested_splits,
         )
         if not filtered_splits:
             reason = _describe_cv_unavailability(y, requested_splits)
             print(f"DEBUG CV: ShuffleSplit filtré vide, reason='{reason}'")  # DEBUG
             return None, reason
         return filtered_splits, None
-    
+
     return cv, None
 
 
@@ -379,6 +387,10 @@ def _handle_cv_unavailability(
         "INFO: validation croisée indisponible, "
         "entraînement direct sans cross-val"
     )
+    # Évite un fit lorsque les données sont absentes pour prévenir une erreur
+    if X.size == 0 or y.size == 0:
+        # Retourne un score vide sans ajustement lorsque l'échantillon est nul
+        return np.array([]), pipeline, reason
     # Ajuste la pipeline sur toutes les données malgré l'absence de CV
     pipeline.fit(X, y)
     # Retourne un tableau vide et la raison d'indisponibilité
@@ -428,43 +440,43 @@ def _run_grid_search(
 # Mise à jour de _describe_cv_unavailability pour être cohérent
 def _describe_cv_unavailability(y: np.ndarray, requested_splits: int) -> str:
     """Explique pourquoi la validation croisée est indisponible."""
-    
+
     sample_count = int(y.shape[0])
     if sample_count == 0:
         return "aucun échantillon disponible pour la validation croisée"
-    
+
     class_count = int(np.unique(y).size)
     if class_count < MIN_CV_CLASS_COUNT:
         return "une seule classe présente, CV binaire impossible"
-    
+
     _labels, class_counts = np.unique(y, return_counts=True)
     min_class_count = int(class_counts.min())
-    
+
     # CAS CRITIQUE: Si min_class_count == 1
     if min_class_count == 1:
         return (
             f"effectif minimal par classe = {min_class_count} "
             "(impossible de diviser 1 échantillon entre train et test)"
         )
-    
+
     # Si entre 1 et MIN_CV_SPLITS
     if min_class_count < MIN_CV_SPLITS:
         return (
             f"effectif minimal par classe insuffisant "
             f"({min_class_count} < {MIN_CV_SPLITS})"
         )
-    
+
     # Cas du test_size impossible
     min_test_size = 1.0 / float(min_class_count)
     test_size = max(DEFAULT_CV_TEST_SIZE, min_test_size)
     max_test_size = (min_class_count - 1) / float(min_class_count)
-    
+
     if test_size > max_test_size:
         return (
             f"split stratifié impossible "
             f"(test_size={test_size:.3f} > max={max_test_size:.3f})"
         )
-    
+
     return (
         f"validation croisée indisponible pour une raison inconnue "
         f"(splits demandés={requested_splits})"
@@ -775,7 +787,7 @@ def _build_window_search_pipeline(sfreq: float) -> Pipeline:
         normalize_features=True,
         dim_method="csp",
         n_components=DEFAULT_CSP_COMPONENTS,
-        classifier="centroid",  # ⭐ CHANGEMENT : centroid au lieu de lda
+        classifier="lda",
         scaler=None,
         csp_regularization=0.1,
     )
@@ -785,25 +797,46 @@ def _build_window_search_pipeline(sfreq: float) -> Pipeline:
 # Évalue une fenêtre temporelle via validation croisée stratifiée
 # Évalue une fenêtre temporelle via validation croisée stratifiée
 def _score_epoch_window(X: np.ndarray, y: np.ndarray, sfreq: float) -> float | None:
-    if len(y) < 2:
-        return 0.5 # Niveau du hasard silencieux
+    # Refuse la CV si le nombre d'échantillons est insuffisant
+    if len(y) < MIN_CV_CLASS_COUNT:
+        return None
 
+    # Calcule le nombre de classes distinctes pour évaluer la faisabilité
+    unique_classes = np.unique(y)
+    # Refuse la CV si une classe est manquante
+    if unique_classes.size < MIN_CV_CLASS_COUNT:
+        return None
+    # Calcule l'effectif minimal pour juger de la stabilité des splits
+    min_class_size = int(np.min([np.sum(y == label) for label in unique_classes]))
+    # Refuse la CV si une classe est trop rare
+    if min_class_size < MIN_CV_CLASS_COUNT:
+        return None
+
+    # Construit un splitter cohérent avec la taille des classes
     cv = _build_cv_splitter(y, DEFAULT_CV_SPLITS)
-    
+
     # On a supprimé les messages INFO/DEBUG ici
     if cv is None:
-        return 0.5
+        return None
 
     pipeline = _build_window_search_pipeline(sfreq)
-    
+
     try:
         # On utilise cross_val_score normalement
-        scores = cross_val_score(
-            pipeline, X, y, cv=cv, error_score=0.5
-        )
+        scores = cross_val_score(pipeline, X, y, cv=cv, error_score=0.5)
         return float(np.mean(scores))
     except Exception:
-        return 0.5
+        return None
+
+
+# Convertit une liste de labels moteurs en indices entiers stables
+def _map_motor_labels_to_ints(labels: Sequence[str]) -> np.ndarray:
+    """Transforme des labels moteurs en indices ordonnés."""
+
+    # Construit un mapping ordonné pour stabiliser les conversions
+    label_mapping = {label: idx for idx, label in enumerate(sorted(set(labels)))}
+    # Convertit chaque label via le mapping pour obtenir un tableau numérique
+    return np.array([label_mapping[label] for label in labels])
 
 
 # Construit les epochs et labels pour une fenêtre temporelle donnée
@@ -821,21 +854,29 @@ def _build_epochs_for_window(
         tmin=window[0],
         tmax=window[1],
     )
+    # Capture les données d'epochs pour contrôler les tailles
+    epochs_data = epochs.get_data(copy=True)
 
     # BONNE PRATIQUE: Récupère les indices des epochs conservés après filtrage MNE
     # epochs.selection contient les indices des événements conservés
     # Si tous les événements sont conservés: selection = [0, 1, 2, ..., n-1]
-    # Si certains sont rejetés par annotations: selection = [0, 2, 4, ...] (indices non consécutifs)
-    kept_indices = epochs.selection
-    
+    # Si certains sont rejetés: selection = [0, 2, 4, ...] non consécutifs
+    # Définit un fallback d'indices si l'attribut selection est absent
+    kept_indices = getattr(epochs, "selection", np.arange(epochs_data.shape[0]))
+
     # Filtre motor_labels pour ne garder que les labels des epochs conservés
     epochs_aligned_labels = [context.motor_labels[i] for i in kept_indices]
-    
-    # Vérification de sécurité (assertion pour détecter les bugs)
-    assert len(epochs_aligned_labels) == len(epochs), (
-        f"Désalignement détecté: {len(epochs_aligned_labels)} labels "
-        f"pour {len(epochs)} epochs"
-    )
+    # Convertit les labels en indices numériques pour le pipeline
+    epochs_aligned_array = _map_motor_labels_to_ints(epochs_aligned_labels)
+
+    # Vérifie l'alignement pour éviter des labels décalés
+    if len(epochs_aligned_array) != epochs_data.shape[0]:
+        # Remonte une erreur explicite pour diagnostiquer le décalage
+        # Déclenche une erreur contrôlée pour stopper la chaîne
+        raise ValueError(
+            f"Désalignement détecté: {len(epochs_aligned_array)} labels "
+            f"pour {len(epochs)} epochs"
+        )
 
     # Applique un rejet d'artefacts
     try:
@@ -844,20 +885,31 @@ def _build_epochs_for_window(
             epochs,
             epochs_aligned_labels,
             (context.subject, context.run),
-            max_peak_to_peak=1500e-6, # Seuil plus tolérant (était à 800e-6)
+            max_peak_to_peak=1500e-6,  # Seuil plus tolérant (était à 800e-6)
         )
-        
+
         # SÉCURITÉ : Si le nettoyage a tout supprimé, on FORCE l'utilisation
         # des données brutes pour éviter d'avoir 0 échantillon.
         if len(cleaned_epochs) == 0:
-            print(f"WARN: [{context.subject}] Nettoyage trop strict, conservation des données brutes.")
-            return epochs.get_data(), epochs_aligned_labels
-            
-        return cleaned_epochs, cleaned_labels
+            # Signale une stratégie de repli lorsque tout est supprimé
+            print(
+                f"WARN: [{context.subject}] Nettoyage trop strict, "
+                "conservation des données brutes."
+            )
+            # Retourne les données brutes pour éviter un ensemble vide
+            return epochs_data, epochs_aligned_array
+
+        # Retourne les epochs nettoyées pour l'apprentissage
+        # Convertit les labels nettoyés en indices numériques
+        cleaned_numeric_labels = _map_motor_labels_to_ints(cleaned_labels)
+        # Retourne les epochs nettoyées pour l'apprentissage
+        return cleaned_epochs.get_data(), cleaned_numeric_labels
 
     except Exception as e:
+        # Journalise l'exception pour diagnostiquer le nettoyage
         print(f"ERROR: Erreur lors du nettoyage pour {context.subject}: {e}")
-        return epochs.get_data(), epochs_aligned_labels
+        # Retourne les données brutes en cas d'échec du nettoyage
+        return epochs_data, epochs_aligned_array
 
 
 # Sélectionne la meilleure fenêtre selon un score cross-val
@@ -1138,8 +1190,8 @@ def _needs_rebuild_from_shapes(
 
     # RECTIFICATION : On accepte le cache dès qu'il contient au moins 1 échantillon.
     # Si on demande 4 et que le sujet n'en a que 2, le code bouclera à l'infini sinon.
-    MIN_REQUIRED_SAMPLES = 1 
-    
+    MIN_REQUIRED_SAMPLES = 1
+
     if candidate_X.shape[0] < MIN_REQUIRED_SAMPLES:
         print(
             f"INFO: Cache vide ou invalide pour {run_label}. "
@@ -1147,11 +1199,32 @@ def _needs_rebuild_from_shapes(
         )
         return True
 
+    # Vérifie que X respecte la dimension attendue pour les epochs
+    if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
+        print(
+            f"INFO: X chargé depuis '{features_path}' a "
+            f"ndim={candidate_X.ndim} au lieu de "
+            f"{EXPECTED_FEATURES_DIMENSIONS}, régénération depuis l'EDF..."
+        )
+        return True
+
+    # Vérifie que y reste un vecteur 1D pour les labels
+    if candidate_y.ndim != 1:
+        print(
+            f"INFO: y chargé depuis '{labels_path}' a "
+            f"ndim={candidate_y.ndim} au lieu de 1, régénération depuis l'EDF..."
+        )
+        return True
+
     # Vérification de la cohérence entre X (données) et y (labels)
     if candidate_X.shape[0] != candidate_y.shape[0]:
-        print(f"WARN: Incohérence de taille pour {run_label}. Régénération...")
+        print(
+            "INFO: Désalignement détecté pour "
+            f"{run_label}: X.shape[0]={candidate_X.shape[0]} != "
+            f"y.shape[0]={candidate_y.shape[0]}. Régénération..."
+        )
         return True
-        
+
     return False
 
 
@@ -1339,7 +1412,7 @@ def _write_manifest(
     artifacts_section = {
         "model": str(artifacts["model"]),
         "scaler": str(artifacts["scaler"]) if artifacts["scaler"] else None,
-        "w_matrix": str(artifacts["w_matrix"]),
+        "w_matrix": str(artifacts["w_matrix"]) if artifacts["w_matrix"] else None,
     }
     # Assemble toutes les sections dans un objet manifeste unique
     manifest = {
@@ -1622,16 +1695,22 @@ def run_training(request: TrainingRequest) -> dict:
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
     dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
-    # Sauvegarde la matrice de projection pour les usages temps-réel
-    dim_reducer.save(target_dir / "w_matrix.joblib")
+    # Prépare un chemin de sauvegarde pour la matrice W si disponible
+    w_matrix_path: Path | None = None
+    # Récupère la matrice W si l'attribut existe sur le réducteur
+    w_matrix = getattr(dim_reducer, "w_matrix", None)
+    # Sauvegarde la matrice de projection seulement si elle existe
+    if w_matrix is not None:
+        # Fixe le chemin cible pour la matrice W sérialisée
+        w_matrix_path = target_dir / "w_matrix.joblib"
+        # Sauvegarde la matrice de projection pour les usages temps-réel
+        dim_reducer.save(w_matrix_path)
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None and scaler_step != "passthrough":
         # Stocke le chemin vers le scaler sauvegardé pour le manifeste
         scaler_path = target_dir / "scaler.joblib"
-    # Calcule le chemin du fichier W pour le référencer dans le manifeste
-    w_matrix_path = target_dir / "w_matrix.joblib"
     # Écrit un manifeste décrivant l'entraînement et ses artefacts
     manifest_paths = _write_manifest(
         request,
@@ -1729,12 +1808,14 @@ def main(argv: list[str] | None = None) -> int:
     cv_scores = result["cv_scores"]
     # Récupère le nombre de splits demandé si le rapport le fournit
     cv_splits_requested = int(result.get("cv_splits_requested", DEFAULT_CV_SPLITS))
+    # Calcule le nombre de scores disponibles pour l'affichage CLI
+    cv_scores_count = int(cv_scores.size) if isinstance(cv_scores, np.ndarray) else 0
     # Récupère la raison d'absence de CV si disponible
     cv_unavailability_reason = result.get("cv_unavailability_reason")
     # Récupère un éventuel message d'erreur CV pour l'affichage
     cv_error = result.get("cv_error")
-    # Calcule le nombre de scores réellement obtenus
-    cv_scores_count = int(cv_scores.size) if isinstance(cv_scores, np.ndarray) else 0
+    # Informe l'utilisateur du nombre de splits et de scores récupérés
+    print(f"CV_SPLITS: {cv_splits_requested} (scores: {cv_scores_count})")
     # Informe toujours l'utilisateur du nombre de splits attendus
     # Informe si cross_val_score a échoué malgré un splitter valide
     if cv_error:
