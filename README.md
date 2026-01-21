@@ -276,7 +276,7 @@ sur un couple **(subject, run)** avant d’enchaîner sur l’extraction de feat
 python scripts/visualize_raw_filtered.py S001 R05
 ```
 <div align="center">
-  <img src="https://github.com/raveriss/Total_Perspective_Vortex/blob/main/docs/viz/raw_vs_filtered_S001_R05.png" alt="scripts visualize">
+  <img src="https://github.com/raveriss/Total_Perspective_Vortex/blob/main/docs/assets/image02.png" alt="scripts visualize">
 </div>
 
 ---
