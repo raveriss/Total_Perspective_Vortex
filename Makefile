@@ -142,19 +142,36 @@ mut: ensure-venv clean-mutants cov
 # Commandes liées au modèle (Poetry)
 # ----------------------------------------------------------------------------------------
 
-TRAIN_SUBJECT ?= 1
-TRAIN_RUN ?= 5
-TRAIN_ALL ?= true
-PREDICT_SUBJECT ?= $(TRAIN_SUBJECT)
-PREDICT_RUN ?= $(TRAIN_RUN)
 
-# Entraînement du modèle : exemple minimal avec sujet et run de démonstration
+# Entraînement : `make train <subject> <run>`
 train: ensure-venv
-	$(POETRY) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train
+	@set -euo pipefail; \
+	subject="$(word 2,$(MAKECMDGOALS))"; \
+	run="$(word 3,$(MAKECMDGOALS))"; \
+	if [[ -z "$$subject" || -z "$$run" ]]; then \
+		echo "Usage: make train <subject> <run>" >&2; \
+		exit 0; \
+	fi; \
+	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
+		echo "❌ <subject> et <run> doivent être des entiers (ex: make train 3 8)" >&2; \
+		exit 0; \
+	fi; \
+	$(POETRY) python mybci.py "$$subject" "$$run" train
 
-# Prédiction : exemple minimal réutilisant les identifiants ci-dessus
+# Prédiction : `make predict <subject> <run>`
 predict: ensure-venv
-	$(POETRY) python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict
+	@set -euo pipefail; \
+	subject="$(word 2,$(MAKECMDGOALS))"; \
+	run="$(word 3,$(MAKECMDGOALS))"; \
+	if [[ -z "$$subject" || -z "$$run" ]]; then \
+		echo "Usage: make predict <subject> <run>" >&2; \
+		exit 0; \
+	fi; \
+	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
+		echo "❌ <subject> et <run> doivent être des entiers (ex: make predict 3 8)" >&2; \
+		exit 0; \
+	fi; \
+	$(POETRY) python mybci.py "$$subject" "$$run" predict
 
 # Évaluation globale : équivalent à `python mybci.py` du sujet
 bench: ensure-venv
