@@ -23,6 +23,9 @@
 	clean \
 	clean-artifacts \
 	ensure-venv \
+	realtime \
+	score \
+	visualizer \
 	clean-npy
 
 # Utilise bash (requis) pour des tests/conditions fiables
@@ -172,6 +175,42 @@ predict: ensure-venv
 		exit 0; \
 	fi; \
 	$(POETRY) python mybci.py "$$subject" "$$run" predict
+
+# realtime : `make realtime <subject> <run>`
+realtime: ensure-venv
+	@set -euo pipefail; \
+	subject="$(word 2,$(MAKECMDGOALS))"; \
+	run="$(word 3,$(MAKECMDGOALS))"; \
+	if [[ -z "$$subject" || -z "$$run" ]]; then \
+		echo "Usage: make realtime <subject> <run>" >&2; \
+		exit 0; \
+	fi; \
+	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
+		echo "❌ <subject> et <run> doivent être des entiers (ex: make predict 3 8)" >&2; \
+		exit 0; \
+	fi; \
+	$(POETRY) python src/tpv/realtime.py "$$subject" "$$run"
+
+# score : `make score`
+score: ensure-venv
+	@set -euo pipefail; \
+	$(POETRY) python scripts/aggregate_experience_scores.py
+
+
+# realtime : `make visualizer <subject> <run>`
+visualizer: ensure-venv
+	@set -euo pipefail; \
+	subject="$(word 2,$(MAKECMDGOALS))"; \
+	run="$(word 3,$(MAKECMDGOALS))"; \
+	if [[ -z "$$subject" || -z "$$run" ]]; then \
+		echo "Usage: make visualizer <subject> <run>" >&2; \
+		exit 0; \
+	fi; \
+	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
+		echo "❌ <subject> et <run> doivent être des entiers (ex: make visualizer 3 8)" >&2; \
+		exit 0; \
+	fi; \
+	$(POETRY) python scripts/visualize_raw_filtered.py "$$subject" "$$run"
 
 # Évaluation globale : équivalent à `python mybci.py` du sujet
 bench: ensure-venv
