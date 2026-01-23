@@ -9,6 +9,9 @@ import csv
 # Fournit la sérialisation JSON pour exposer un manifeste exploitable
 import json
 
+# Accède aux arguments bruts pour détecter les flags fournis
+import sys
+
 # Rassemble la construction de structures immuables orientées données
 from dataclasses import asdict, dataclass
 
@@ -243,6 +246,15 @@ MIN_CV_TOTAL_SAMPLES = MIN_CV_CLASS_COUNT + 1
 # Fixe le nombre maximal de tentatives pour filtrer les splits CV
 MAX_CV_SPLIT_ATTEMPTS_FACTOR = 10
 
+# Fixe le seuil d'epochs sous lequel on désactive le nettoyage
+MIN_EPOCHS_DISABLE_CLEANING = 6
+
+# Fixe le seuil d'epochs pour appliquer un nettoyage plus tolérant
+MIN_EPOCHS_LOW_THRESHOLD = 10
+
+# Fixe le seuil d'epochs pour appliquer un nettoyage intermédiaire
+MIN_EPOCHS_MEDIUM_THRESHOLD = 20
+
 
 # Stabilise la reproductibilité des splits de cross-validation
 DEFAULT_RANDOM_STATE = 42
@@ -378,8 +390,15 @@ def _handle_cv_unavailability(
     reason: str,
 ) -> tuple[np.ndarray, Pipeline, str]:
     """Ajuste la pipeline et retourne un diagnostic CV explicite."""
-    # Ajoutez ce print pour voir la "vraie" raison
-    # Informe l'utilisateur que la CV est désactivée
+    # Prépare un message explicite pour signaler la CV désactivée
+    message = (
+        # Indique le fallback pour éviter la confusion côté CLI
+        "INFO: validation croisée indisponible, entraînement direct sans cross-val "
+        # Ajoute la raison pour aider au diagnostic utilisateur
+        f"({reason})"
+    )
+    # Affiche le message de désactivation de la validation croisée
+    print(message)
     # Évite un fit lorsque les données sont absentes pour prévenir une erreur
     if X.size == 0 or y.size == 0:
         # Retourne un score vide sans ajustement lorsque l'échantillon est nul
@@ -516,6 +535,38 @@ def _adapt_pipeline_config_for_samples(
     )
 
 
+# Résout la méthode de réduction en fonction des features demandées
+def _resolve_dim_method_for_features(
+    feature_strategy: str,
+    dim_method: str,
+    argv: list[str] | None,
+) -> str:
+    """Retourne la méthode de réduction adaptée à la stratégie de features."""
+
+    # Récupère la liste brute d'arguments pour détecter un override explicite
+    raw_args = argv if argv is not None else sys.argv[1:]
+    # Détecte si --dim-method a été fourni par l'utilisateur
+    dim_method_explicit = "--dim-method" in raw_args
+    # Vérifie si la stratégie impose des features tabulaires
+    if feature_strategy in {"wavelet", "welch"} and dim_method == "csp":
+        # Bascule la méthode pour activer l'extraction de features
+        if not dim_method_explicit:
+            # Informe l'utilisateur que CSP ignore les features tabulaires
+            print(
+                "INFO: dim_method='csp' ignore feature_strategy, "
+                "bascule automatique sur 'pca'."
+            )
+            # Retourne la méthode PCA pour activer l'extraction
+            return "pca"
+        # Signale que CSP ignore la stratégie de features
+        print(
+            "AVERTISSEMENT: dim_method='csp' ignore feature_strategy, "
+            "aucune extraction wavelet/welch ne sera effectuée."
+        )
+    # Retourne la méthode inchangée si aucune adaptation n'est requise
+    return dim_method
+
+
 # Regroupe toutes les informations nécessaires à un run d'entraînement
 @dataclass
 class TrainingRequest:
@@ -614,7 +665,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Ajoute la stratégie d'extraction de features pour garder la cohérence
     parser.add_argument(
         "--feature-strategy",
-        choices=("fft", "wavelet"),
+        choices=("fft", "welch", "wavelet"),
         default="fft",
         help="Méthode d'extraction de features spectrales",
     )
@@ -869,19 +920,19 @@ def _build_epochs_for_window(
     # SEUIL ADAPTATIF + DÉSACTIVATION DU NETTOYAGE SI TROP PEU D'EPOCHS
     # ============================================================
     initial_epoch_count = epochs_data.shape[0]
-    
-    # Si on a très peu d'epochs (< 6), on DÉSACTIVE le nettoyage
-    if initial_epoch_count < 6:
+
+    # Si on a très peu d'epochs (< seuil), on DÉSACTIVE le nettoyage
+    if initial_epoch_count < MIN_EPOCHS_DISABLE_CLEANING:
         print(
             f"INFO: [{context.subject}] Trop peu d'epochs ({initial_epoch_count}), "
             "nettoyage désactivé pour préserver les données."
         )
         return epochs_data, epochs_aligned_array
-    
+
     # Sinon, on applique un seuil adaptatif
-    if initial_epoch_count < 10:
+    if initial_epoch_count < MIN_EPOCHS_LOW_THRESHOLD:
         threshold = 5000e-6
-    elif initial_epoch_count < 20:
+    elif initial_epoch_count < MIN_EPOCHS_MEDIUM_THRESHOLD:
         threshold = 3000e-6
     else:
         threshold = 1500e-6
@@ -1765,12 +1816,18 @@ def main(argv: list[str] | None = None) -> int:
         args.raw_dir,
         args.sfreq,
     )
+    # Résout la méthode de réduction en fonction de la stratégie de features
+    dim_method = _resolve_dim_method_for_features(
+        args.feature_strategy,
+        args.dim_method,
+        argv,
+    )
     # Construit la configuration de pipeline alignée sur mybci
     config = PipelineConfig(
         sfreq=resolved_sfreq,
         feature_strategy=args.feature_strategy,
         normalize_features=normalize,
-        dim_method=args.dim_method,
+        dim_method=dim_method,
         n_components=n_components,
         classifier=args.classifier,
         scaler=scaler,
@@ -1819,6 +1876,7 @@ def main(argv: list[str] | None = None) -> int:
     cv_error = result.get("cv_error")
 
     # Informe toujours l'utilisateur du nombre de splits attendus
+    print(f"CV_SPLITS: {cv_splits_requested} (scores: {cv_scores_count})")
     # Informe si cross_val_score a échoué malgré un splitter valide
     if cv_error:
         # Expose une alerte concise sans trace pour l'utilisateur

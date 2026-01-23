@@ -17,8 +17,8 @@ import numpy as np
 # Importe le module predict pour monkeypatcher les dépendances internes
 from scripts import predict as predict_module
 
-# Importe la fonction interne pour produire les rapports de prédiction
-from scripts.predict import _write_reports
+# Importe les utilitaires internes pour la sérialisation des rapports
+from scripts.predict import _stringify_label, _write_reports
 
 
 def test_write_reports_serializes_expected_outputs(
@@ -199,3 +199,12 @@ def test_write_reports_handles_missing_true_class(tmp_path):
         rows = list(csv.DictReader(handle))
     # Vérifie que le support de la classe absente reste nul
     assert rows[1]["support"] == "0"
+
+
+def test_stringify_label_coerces_float_integers() -> None:
+    """Confirme la conversion des floats entiers en chaînes sans décimales."""
+
+    # Vérifie que les floats entiers sont convertis en entiers textuels
+    assert _stringify_label(np.float64(2.0)) == "2"
+    # Vérifie que les labels non numériques restent inchangés
+    assert _stringify_label("left") == "left"

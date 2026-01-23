@@ -1,6 +1,9 @@
 # ruff: noqa: PLR0915
 from pathlib import Path
 
+# Importe cast pour typer explicitement la requête capturée
+from typing import cast
+
 import numpy as np
 
 from scripts import predict as predict_cli
@@ -281,3 +284,59 @@ def test_evaluate_run_skips_training_when_artifacts_present_and_forwards_raw_dir
     assert "truth" in result
     assert np.array_equal(result["truth"], y)
     assert report_calls == [result["accuracy"]]
+
+
+def test_train_missing_pipeline_builds_expected_request(tmp_path, monkeypatch) -> None:
+    """Valide la configuration construite lors de l'auto-entraînement."""
+
+    # Définit un sujet/run pour l'auto-entraînement
+    subject = "S90"
+    # Définit un run pour vérifier la propagation des identifiants
+    run = "R01"
+    # Prépare le répertoire data requis par la requête d'entraînement
+    data_dir = tmp_path / "data"
+    # Prépare le répertoire d'artefacts pour stocker le modèle
+    artifacts_dir = tmp_path / "artifacts"
+    # Prépare un répertoire raw dédié pour la fréquence d'échantillonnage
+    raw_dir = tmp_path / "raw"
+
+    # Capture la requête d'entraînement générée par _train_missing_pipeline
+    captured: dict[str, object] = {}
+
+    # Force une fréquence d'échantillonnage connue pour la configuration
+    monkeypatch.setattr(
+        predict_cli.train_module,
+        "resolve_sampling_rate",
+        lambda *_args, **_kwargs: 128.0,
+    )
+
+    # Capture la requête transmise à run_training sans exécuter de fit réel
+    def fake_run_training(request) -> None:
+        captured["request"] = request
+
+    monkeypatch.setattr(predict_cli.train_module, "run_training", fake_run_training)
+
+    # Lance l'auto-entraînement pour produire la requête
+    predict_cli._train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
+
+    # Vérifie que la requête a bien été capturée
+    assert "request" in captured
+    # Convertit la requête capturée pour aligner le typage mypy
+    request = cast(predict_cli.train_module.TrainingRequest, captured["request"])
+    # Vérifie que les identifiants sont propagés
+    assert request.subject == subject
+    # Vérifie que le run est propagé
+    assert request.run == run
+    # Vérifie que la fréquence d'échantillonnage est propagée
+    assert request.pipeline_config.sfreq == 128.0
+    # Vérifie la stratégie de features par défaut
+    assert request.pipeline_config.feature_strategy == "fft"
+    # Vérifie la normalisation par défaut
+    assert request.pipeline_config.normalize_features is True
+    # Vérifie la méthode de réduction par défaut
+    assert request.pipeline_config.dim_method == "csp"
+    # Vérifie la valeur par défaut des composantes CSP
+    assert (
+        request.pipeline_config.n_components
+        == predict_cli.train_module.DEFAULT_CSP_COMPONENTS
+    )
