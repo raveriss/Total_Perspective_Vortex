@@ -157,6 +157,8 @@ train: ensure-venv
 	if [[ -z "$$subject" || -z "$$run" ]]; then \
 		echo "Usage: make train <subject> <run> [FEATURE_STRATEGY=wavelet]" >&2; \
 		echo "       make train <subject> <run> TRAIN_ARGS='--feature-strategy wavelet'" >&2; \
+		echo "Note : GNU make interprète les flags '--*' comme options." >&2; \
+		echo "       Utiliser FEATURE_STRATEGY=wavelet ou TRAIN_ARGS=... pour passer des flags." >&2; \
 		exit 0; \
 	fi; \
 	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
@@ -178,6 +180,8 @@ predict: ensure-venv
 	if [[ -z "$$subject" || -z "$$run" ]]; then \
 		echo "Usage: make predict <subject> <run> [FEATURE_STRATEGY=wavelet]" >&2; \
 		echo "       make predict <subject> <run> PREDICT_ARGS='--feature-strategy wavelet'" >&2; \
+		echo "Note : GNU make interprète les flags '--*' comme options." >&2; \
+		echo "       Utiliser FEATURE_STRATEGY=wavelet ou PREDICT_ARGS=... pour passer des flags." >&2; \
 		exit 0; \
 	fi; \
 	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
