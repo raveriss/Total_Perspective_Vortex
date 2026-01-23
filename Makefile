@@ -145,6 +145,9 @@ mut: ensure-venv clean-mutants cov
 # Commandes liées au modèle (Poetry)
 # ----------------------------------------------------------------------------------------
 
+FEATURE_STRATEGY ?=
+TRAIN_ARGS ?=
+PREDICT_ARGS ?=
 
 # Entraînement : `make train <subject> <run>`
 train: ensure-venv
@@ -152,14 +155,20 @@ train: ensure-venv
 	subject="$(word 2,$(MAKECMDGOALS))"; \
 	run="$(word 3,$(MAKECMDGOALS))"; \
 	if [[ -z "$$subject" || -z "$$run" ]]; then \
-		echo "Usage: make train <subject> <run>" >&2; \
+		echo "Usage: make train <subject> <run> [FEATURE_STRATEGY=wavelet]" >&2; \
+		echo "       make train <subject> <run> TRAIN_ARGS='--feature-strategy wavelet'" >&2; \
 		exit 0; \
 	fi; \
 	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
 		echo "❌ <subject> et <run> doivent être des entiers (ex: make train 3 8)" >&2; \
 		exit 0; \
 	fi; \
-	$(POETRY) python mybci.py "$$subject" "$$run" train
+	extra_args="$(TRAIN_ARGS)"; \
+	feature_strategy="$(FEATURE_STRATEGY)"; \
+	if [[ -n "$$feature_strategy" ]]; then \
+		extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
+	fi; \
+	$(POETRY) python scripts/train.py "$$subject" "$$run" $$extra_args
 
 # Prédiction : `make predict <subject> <run>`
 predict: ensure-venv
@@ -167,14 +176,20 @@ predict: ensure-venv
 	subject="$(word 2,$(MAKECMDGOALS))"; \
 	run="$(word 3,$(MAKECMDGOALS))"; \
 	if [[ -z "$$subject" || -z "$$run" ]]; then \
-		echo "Usage: make predict <subject> <run>" >&2; \
+		echo "Usage: make predict <subject> <run> [FEATURE_STRATEGY=wavelet]" >&2; \
+		echo "       make predict <subject> <run> PREDICT_ARGS='--feature-strategy wavelet'" >&2; \
 		exit 0; \
 	fi; \
 	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
 		echo "❌ <subject> et <run> doivent être des entiers (ex: make predict 3 8)" >&2; \
 		exit 0; \
 	fi; \
-	$(POETRY) python mybci.py "$$subject" "$$run" predict
+	extra_args="$(PREDICT_ARGS)"; \
+	feature_strategy="$(FEATURE_STRATEGY)"; \
+	if [[ -n "$$feature_strategy" ]]; then \
+		extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
+	fi; \
+	$(POETRY) python scripts/predict.py "$$subject" "$$run" $$extra_args
 
 # realtime : `make realtime <subject> <run>`
 realtime: ensure-venv
