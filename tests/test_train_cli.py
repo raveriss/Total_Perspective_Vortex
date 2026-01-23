@@ -78,7 +78,7 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
     assert tuple(scaler_action.choices) == ("standard", "robust", "none")
     assert scaler_action.default == "none"
     assert feature_action.choices is not None
-    assert tuple(feature_action.choices) == ("fft", "wavelet")
+    assert tuple(feature_action.choices) == ("fft", "welch", "wavelet")
     assert feature_action.default == "fft"
     assert dim_action.choices is not None
     assert tuple(dim_action.choices) == ("pca", "csp", "svd")
@@ -1384,6 +1384,44 @@ def test_main_falls_back_for_empty_cv_scores_array(monkeypatch, capsys):
     ]
     # Compare la sortie observée avec l'attendu
     assert stdout_lines == expected
+
+
+# Vérifie la bascule automatique de dim_method pour wavelet
+def test_main_auto_switches_dim_method_for_wavelet(monkeypatch, capsys):
+    """Vérifie la bascule automatique vers PCA quand wavelet est demandé."""
+
+    # Capture la requête d'entraînement pour inspecter la config finale
+    captured: dict[str, object] = {}
+
+    # Définit un double pour éviter un entraînement réel
+    def fake_run_training(request):
+        # Mémorise la requête pour assertions ultérieures
+        captured["request"] = request
+        # Retourne un rapport minimal pour la CLI
+        return {"cv_scores": np.array([])}
+
+    # Injecte le double dans le module train
+    monkeypatch.setattr(train, "run_training", fake_run_training)
+
+    # Exécute la CLI avec wavelet sans --dim-method explicite
+    exit_code = train.main(["S001", "R01", "--feature-strategy", "wavelet"])
+
+    # Vérifie que l'exécution est nominale
+    assert exit_code == 0
+    # Récupère la requête typée pour inspection
+    request = cast(train.TrainingRequest, captured["request"])
+    # Vérifie que la stratégie wavelet est conservée
+    assert request.pipeline_config.feature_strategy == "wavelet"
+    # Vérifie la bascule automatique vers PCA
+    assert request.pipeline_config.dim_method == "pca"
+
+    # Capture la sortie CLI pour vérifier le message d'info
+    stdout_lines = capsys.readouterr().out.splitlines()
+    # Vérifie que le message d'auto-bascule est affiché
+    assert stdout_lines[0] == (
+        "INFO: dim_method='csp' ignore feature_strategy, "
+        "bascule automatique sur 'pca'."
+    )
 
 
 def test_main_prints_scores_for_singleton_cv_scores_array(monkeypatch, capsys):

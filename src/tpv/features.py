@@ -400,6 +400,8 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
     def _compute_fft_features(self, X: np.ndarray) -> np.ndarray:
         """Calcule les puissances de bandes à partir de la FFT."""
 
+        # Signale la stratégie FFT pour faciliter le diagnostic utilisateur
+        print("\n\n[⚡ TPV] Extracting FFT features...\n\n")
         n_times = X.shape[-1]
         # Centre le signal pour supprimer la composante DC avant la FFT
         centered = X - X.mean(axis=-1, keepdims=True)
@@ -443,6 +445,8 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
     def _compute_wavelet_features(self, X: np.ndarray) -> np.ndarray:
         """Calcule des features à partir de la CWT wavelet."""
 
+        # Signale la stratégie wavelet pour faciliter le diagnostic utilisateur
+        print("\n\n[⚡ TPV] Extracting wavelet features...\n\n")
         expected_bands = len(self._band_items)
         if expected_bands == 0:  # pragma: no cover - defensive
             raise ValueError("Wavelet features require at least one configured band.")
@@ -478,6 +482,8 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
     def _compute_welch_features(self, X: np.ndarray) -> np.ndarray:
         """Calcule des features à partir de la méthode de Welch."""
 
+        # Signale la stratégie Welch pour faciliter le diagnostic utilisateur
+        print("\n\n[⚡ TPV] Extracting Welch features...\n\n")
         stacked = _compute_welch_band_powers(
             X,
             self.sfreq,

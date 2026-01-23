@@ -3,6 +3,9 @@ import argparse
 import builtins
 from pathlib import Path
 
+# Importe pytest pour valider les erreurs de parsing
+import pytest
+
 from scripts import predict
 
 
@@ -55,7 +58,7 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> (
     )
 
     assert feature_action.choices is not None
-    assert tuple(feature_action.choices) == ("fft", "wavelet")
+    assert tuple(feature_action.choices) == ("fft", "welch", "wavelet")
     assert feature_action.default == "fft"
     assert (
         feature_action.help
@@ -206,3 +209,24 @@ def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
         "epoch 01: [0] [1] False",
         "Accuracy: 0.5000",
     ]
+
+
+def test_parse_subject_rejects_empty_value() -> None:
+    # Vérifie que l'ID sujet vide est refusé par la validation
+    with pytest.raises(argparse.ArgumentTypeError):
+        # Fournit une valeur vide pour déclencher l'erreur de parsing
+        predict._parse_subject("   ")
+
+
+def test_parse_run_rejects_non_numeric_value() -> None:
+    # Vérifie que les runs non numériques sont refusés
+    with pytest.raises(argparse.ArgumentTypeError):
+        # Fournit un identifiant non numérique pour déclencher l'erreur
+        predict._parse_run("RXX")
+
+
+def test_parse_run_rejects_zero_value() -> None:
+    # Vérifie que les runs à zéro sont refusés
+    with pytest.raises(argparse.ArgumentTypeError):
+        # Fournit un identifiant zéro pour déclencher l'erreur
+        predict._parse_run("R00")

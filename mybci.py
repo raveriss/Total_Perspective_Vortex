@@ -524,13 +524,6 @@ def _run_global_evaluation(
     available_subjects_by_run, missing_models_by_run = _collect_run_availability(
         experiment_definitions, expected_subjects
     )
-    # Calcule le nombre total de sujets évalués pour calibrer la progression
-    total_subjects = sum(
-        # Calcule le nombre de sujets associés à chaque run
-        len(available_subjects_by_run.get(experiment.run, []))
-        # Parcourt toutes les expériences à traiter
-        for experiment in experiment_definitions
-    )
 
     # Exécute les évaluations et collecte les résultats
     per_experiment_scores, missing_entries, skipped_experiments = _evaluate_experiments(

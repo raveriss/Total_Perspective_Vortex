@@ -6,6 +6,9 @@ from pathlib import Path
 
 import numpy as np
 
+# Importe pytest pour capturer les exceptions attendues
+import pytest
+
 from scripts import predict
 
 
@@ -280,3 +283,135 @@ def test_build_npy_from_edf_uses_epoch_window_metadata(tmp_path, monkeypatch) ->
     # Vérifie que les fichiers sont générés
     assert features_path.exists()
     assert labels_path.exists()
+
+
+# Vérifie le fallback vers la fenêtre par défaut lorsqu'aucun JSON n'existe
+def test_read_epoch_window_metadata_defaults_when_missing(tmp_path) -> None:
+    """Confirme que la fenêtre par défaut est utilisée sans fichier JSON."""
+
+    # Définit un sujet/run fictif pour la lecture de fenêtre
+    subject = "S404"
+    # Définit un run fictif pour isoler le chemin du JSON
+    run = "R04"
+    # Définit un répertoire data vide pour simuler l'absence de JSON
+    data_dir = tmp_path / "data"
+    # Crée le répertoire racine de données sans fichier de fenêtre
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    # Exécute la lecture de fenêtre sans JSON présent
+    window = predict._read_epoch_window_metadata(subject, run, data_dir)
+
+    # Vérifie que la fenêtre par défaut est renvoyée
+    assert window == predict.DEFAULT_EPOCH_WINDOW
+
+
+# Vérifie l'erreur explicite lorsque l'EDF est introuvable
+def test_build_npy_from_edf_raises_when_edf_missing(tmp_path) -> None:
+    """Valide l'exception FileNotFoundError pour un EDF absent."""
+
+    # Définit un sujet/run factice pour construire le chemin EDF
+    subject = "S500"
+    # Définit un run factice pour la reconstruction EDF
+    run = "R05"
+    # Prépare le répertoire data requis par l'API
+    data_dir = tmp_path / "data"
+    # Prépare le répertoire raw vide pour simuler l'absence d'EDF
+    raw_dir = tmp_path / "raw"
+    # Calcule le chemin EDF attendu pour validation du message
+    expected_path = raw_dir / subject / f"{subject}{run}.edf"
+
+    # Vérifie que l'appel échoue proprement quand l'EDF manque
+    with pytest.raises(FileNotFoundError) as exc_info:
+        # Tente de construire les .npy depuis un EDF inexistant
+        predict._build_npy_from_edf(subject, run, data_dir, raw_dir)
+
+    # Vérifie que le message contient le chemin attendu
+    assert str(expected_path) in str(exc_info.value)
+
+
+# Vérifie le fallback lorsque summarize_epoch_quality remonte un Missing labels
+def test_build_npy_from_edf_handles_missing_labels(tmp_path, monkeypatch) -> None:
+    """Valide le fallback quand un ValueError 'Missing labels' survient."""
+
+    # Définit un sujet/run pour isoler les fichiers générés
+    subject = "S600"
+    # Définit un run pour construire le chemin EDF attendu
+    run = "R06"
+    # Prépare les répertoires data/raw nécessaires
+    data_dir = tmp_path / "data"
+    # Prépare le répertoire raw pour déposer un EDF factice
+    raw_dir = tmp_path / "raw"
+    # Construit le chemin EDF attendu par la reconstruction
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Crée l'arborescence du fichier EDF factice
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    # Écrit un contenu factice pour matérialiser l'EDF
+    raw_path.write_text("stub")
+
+    # Définit des données d'epochs factices alignées sur deux labels
+    epochs_data = np.ones((2, 1, 4), dtype=float)
+
+    # Déclare des epochs factices avec un get_data compatible
+    class DummyEpochs:
+        # Fournit la signature attendue par _build_npy_from_edf
+        def get_data(self, copy: bool = True) -> np.ndarray:
+            # Retourne les données factices pour l'écriture des .npy
+            return epochs_data
+
+    # Prépare un Raw factice sans logique interne
+    dummy_raw = object()
+
+    # Force la lecture EDF à retourner un Raw factice
+    monkeypatch.setattr(
+        predict.preprocessing,
+        "load_physionet_raw",
+        lambda *_args, **_kwargs: (dummy_raw, {}),
+    )
+    # Neutralise le notch en renvoyant le Raw inchangé
+    monkeypatch.setattr(
+        predict.preprocessing, "apply_notch_filter", lambda raw, **_kwargs: raw
+    )
+    # Neutralise le filtrage bande-passante pour rester minimal
+    monkeypatch.setattr(
+        predict.preprocessing, "apply_bandpass_filter", lambda raw, **_kwargs: raw
+    )
+    # Fournit un mapping d'événements minimal avec deux labels
+    monkeypatch.setattr(
+        predict.preprocessing,
+        "map_events_to_motor_labels",
+        lambda *_args, **_kwargs: (
+            np.zeros((2, 3), dtype=int),
+            {"left": 1, "right": 2},
+            ["left", "right"],
+        ),
+    )
+    # Retourne des epochs factices pour éviter les dépendances MNE
+    monkeypatch.setattr(
+        predict.preprocessing,
+        "create_epochs_from_raw",
+        lambda *_args, **_kwargs: DummyEpochs(),
+    )
+    # Force un ValueError Missing labels pour couvrir le fallback
+    monkeypatch.setattr(
+        predict.preprocessing,
+        "summarize_epoch_quality",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("Missing labels")),
+    )
+    # Neutralise la lecture de fenêtre pour éviter un fichier JSON
+    monkeypatch.setattr(
+        predict, "_read_epoch_window_metadata", lambda *_args, **_kwargs: (0.0, 1.0)
+    )
+
+    # Construit les .npy en déclenchant le fallback Missing labels
+    features_path, labels_path = predict._build_npy_from_edf(
+        subject, run, data_dir, raw_dir
+    )
+
+    # Vérifie que les fichiers générés existent bien
+    assert features_path.exists()
+    # Vérifie que le fichier des labels a été écrit
+    assert labels_path.exists()
+    # Vérifie que les données d'epochs sont bien persistées
+    assert np.array_equal(np.load(features_path), epochs_data)
+    # Vérifie que les labels sont correctement encodés
+    assert np.array_equal(np.load(labels_path), np.array([0, 1]))

@@ -140,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--feature-strategy",
-        choices=("fft", "wavelet"),
+        choices=("fft", "welch", "wavelet"),
         default="fft",
         help="Stratégie de features utilisée à l'entraînement (ignorée ici)",
     )
@@ -569,6 +569,15 @@ def evaluate_run(
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Déclenche un entraînement si le modèle ou la matrice sont manquants
     if not model_path.exists() or not w_matrix_path.exists():
+        # Prépare le message d'auto-entraînement pour expliciter l'action
+        message = (
+            # Signale l'absence d'artefacts pour contextualiser l'action
+            f"INFO: modèle absent pour {subject} {run}, "
+            # Indique l'entraînement automatique pour éviter la surprise
+            "entraînement automatique en cours..."
+        )
+        # Affiche le message d'auto-entraînement pour l'utilisateur
+        print(message)
         # Génère les artefacts de base pour permettre l'évaluation
         _train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
     # Charge la pipeline entraînée depuis le joblib sauvegardé
@@ -657,7 +666,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"epoch {idx:02d}: [{pred_value}] [{true_value}] {equal}")
 
     # Affiche l'accuracy avec 4 décimales comme dans l'exemple
-    print(f"\nAccuracy: {result['accuracy']:.4f}")
+    print(f"Accuracy: {result['accuracy']:.4f}")
 
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
