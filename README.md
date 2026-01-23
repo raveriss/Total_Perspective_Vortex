@@ -220,6 +220,18 @@ les avertissements "aucun modèle disponible", assurez-vous que
 poetry run python scripts/train.py 1 4
 ```
 
+*Entraîner via Makefile avec une stratégie de features* :
+
+```bash
+make train 1 3 FEATURE_STRATEGY=wavelet
+# ou en passant des flags complets :
+make train 1 3 TRAIN_ARGS="--feature-strategy wavelet --dim-method pca"
+```
+
+> ⚠️ GNU make interprète les options `--*` comme des flags de Make.
+> Utilisez `FEATURE_STRATEGY` / `TRAIN_ARGS` pour transmettre les options
+> vers la CLI d'entraînement.
+
 *Boucler sur tous les runs avec un sujet donné (exemple 1)* :
 
 ```bash
