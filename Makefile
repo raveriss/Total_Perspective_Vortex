@@ -154,11 +154,13 @@ train: ensure-venv
 	@set -euo pipefail; \
 	subject="$(word 2,$(MAKECMDGOALS))"; \
 	run="$(word 3,$(MAKECMDGOALS))"; \
+	positional_strategy="$(word 4,$(MAKECMDGOALS))"; \
 	if [[ -z "$$subject" || -z "$$run" ]]; then \
-		echo "Usage: make train <subject> <run> [FEATURE_STRATEGY=wavelet]" >&2; \
+		echo "Usage: make train <subject> <run> [wavelet|welch]" >&2; \
+		echo "       make train <subject> <run> FEATURE_STRATEGY=wavelet" >&2; \
 		echo "       make train <subject> <run> TRAIN_ARGS='--feature-strategy wavelet'" >&2; \
 		echo "Note : GNU make interprète les flags '--*' comme options." >&2; \
-		echo "       Utiliser FEATURE_STRATEGY=wavelet ou TRAIN_ARGS=... pour passer des flags." >&2; \
+		echo "       Utiliser FEATURE_STRATEGY=... ou TRAIN_ARGS=... pour passer des flags." >&2; \
 		exit 0; \
 	fi; \
 	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
@@ -167,6 +169,9 @@ train: ensure-venv
 	fi; \
 	extra_args="$(TRAIN_ARGS)"; \
 	feature_strategy="$(FEATURE_STRATEGY)"; \
+	if [[ -z "$$feature_strategy" && -n "$$positional_strategy" ]]; then \
+		feature_strategy="$$positional_strategy"; \
+	fi; \
 	if [[ -n "$$feature_strategy" ]]; then \
 		extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
 	fi; \
@@ -177,11 +182,13 @@ predict: ensure-venv
 	@set -euo pipefail; \
 	subject="$(word 2,$(MAKECMDGOALS))"; \
 	run="$(word 3,$(MAKECMDGOALS))"; \
+	positional_strategy="$(word 4,$(MAKECMDGOALS))"; \
 	if [[ -z "$$subject" || -z "$$run" ]]; then \
-		echo "Usage: make predict <subject> <run> [FEATURE_STRATEGY=wavelet]" >&2; \
+		echo "Usage: make predict <subject> <run> [wavelet|welch]" >&2; \
+		echo "       make predict <subject> <run> FEATURE_STRATEGY=wavelet" >&2; \
 		echo "       make predict <subject> <run> PREDICT_ARGS='--feature-strategy wavelet'" >&2; \
 		echo "Note : GNU make interprète les flags '--*' comme options." >&2; \
-		echo "       Utiliser FEATURE_STRATEGY=wavelet ou PREDICT_ARGS=... pour passer des flags." >&2; \
+		echo "       Utiliser FEATURE_STRATEGY=... ou PREDICT_ARGS=... pour passer des flags." >&2; \
 		exit 0; \
 	fi; \
 	if [[ ! "$$subject" =~ ^[0-9]+$$ || ! "$$run" =~ ^[0-9]+$$ ]]; then \
@@ -190,6 +197,9 @@ predict: ensure-venv
 	fi; \
 	extra_args="$(PREDICT_ARGS)"; \
 	feature_strategy="$(FEATURE_STRATEGY)"; \
+	if [[ -z "$$feature_strategy" && -n "$$positional_strategy" ]]; then \
+		feature_strategy="$$positional_strategy"; \
+	fi; \
 	if [[ -n "$$feature_strategy" ]]; then \
 		extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
 	fi; \

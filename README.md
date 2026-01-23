@@ -223,13 +223,16 @@ poetry run python scripts/train.py 1 4
 *Entraîner via Makefile avec une stratégie de features* :
 
 ```bash
+make train 1 3 wavelet
+# ou via variable Make explicite :
 make train 1 3 FEATURE_STRATEGY=wavelet
 # ou en passant des flags complets :
 make train 1 3 TRAIN_ARGS="--feature-strategy wavelet --dim-method pca"
 ```
 
 > ⚠️ GNU make interprète les options `--*` comme des flags de Make.
-> Utilisez `FEATURE_STRATEGY` / `TRAIN_ARGS` pour transmettre les options
+> Utilisez un argument positionnel (`wavelet`/`welch`) ou bien
+> `FEATURE_STRATEGY` / `TRAIN_ARGS` pour transmettre les options
 > vers la CLI d'entraînement.
 
 *Boucler sur tous les runs avec un sujet donné (exemple 1)* :
