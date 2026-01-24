@@ -1,3 +1,6 @@
+# Préserve argparse pour vérifier les valeurs par défaut des options
+import argparse
+
 # Préserve sys pour récupérer l'interpréteur courant dans les assertions
 import sys
 
@@ -216,6 +219,11 @@ def test_parse_args_returns_expected_namespace():
     # Vérifie que le run est normalisé au format Rxx
     assert args.run == "R14"
     assert args.mode == "train"
+    # Vérifie que les options facultatives restent absentes sans override explicite
+    assert not hasattr(args, "feature_strategy")
+    assert not hasattr(args, "dim_method")
+    assert not hasattr(args, "classifier")
+    assert not hasattr(args, "scaler")
 
 
 # Vérifie que la liste des expériences par défaut correspond aux 6 runs attendus
@@ -292,6 +300,8 @@ def test_build_parser_defines_expected_arguments():
     subject_arg = get_action("subject")
     run_arg = get_action("run")
     mode_arg = get_action("mode")
+    feature_arg = get_action("feature_strategy")
+    dim_arg = get_action("dim_method")
 
     # Vérifie que l'aide du sujet mentionne l'exemple numérique attendu
     assert subject_arg.help == "Identifiant du sujet (ex: 4)"
@@ -300,6 +310,12 @@ def test_build_parser_defines_expected_arguments():
     # Vérifie que l'aide du mode reste inchangée
     assert mode_arg.help == "Choix du pipeline à lancer"
     assert tuple(mode_arg.choices) == ("train", "predict")
+    # Vérifie que la stratégie de features expose les choix attendus + l'alias CSP
+    assert tuple(feature_arg.choices) == ("fft", "welch", "wavelet", "csp")
+    assert feature_arg.default is argparse.SUPPRESS
+    # Vérifie que la réduction de dimension reste optionnelle sans override
+    assert tuple(dim_arg.choices) == ("pca", "csp", "svd")
+    assert dim_arg.default is argparse.SUPPRESS
 
 
 def test_parse_args_rejects_invalid_mode(capsys):
@@ -335,6 +351,82 @@ def test_main_invokes_train_pipeline(monkeypatch):
     assert called["args"][0] == "tpv.train"
     assert called["args"][1].subject == "S001"
     assert called["args"][1].run == "R02"
+    assert called["args"][1].module_args == []
+
+
+def test_main_relays_feature_strategy_override(monkeypatch):
+    called: dict[str, Any] = {}
+
+    def fake_call(module_name: str, config: mybci.ModuleCallConfig) -> int:
+        called["args"] = (module_name, config)
+        return 0
+
+    monkeypatch.setattr(mybci, "_call_module", fake_call)
+
+    exit_code = mybci.main(
+        [
+            "S001",
+            "R01",
+            "train",
+            "--feature-strategy",
+            "wavelet",
+            "--scaler",
+            "standard",
+        ]
+    )
+
+    assert exit_code == 0
+    assert called["args"][0] == "tpv.train"
+    assert called["args"][1].module_args == [
+        "--scaler",
+        "standard",
+        "--feature-strategy",
+        "wavelet",
+    ]
+
+
+def test_main_maps_csp_feature_alias_to_dim_method(monkeypatch, capsys):
+    called: dict[str, Any] = {}
+
+    def fake_call(module_name: str, config: mybci.ModuleCallConfig) -> int:
+        called["args"] = (module_name, config)
+        return 0
+
+    monkeypatch.setattr(mybci, "_call_module", fake_call)
+
+    exit_code = mybci.main(["S001", "R01", "train", "--feature-strategy", "CSP"])
+
+    assert exit_code == 0
+    assert called["args"][1].module_args == ["--dim-method", "csp"]
+    stdout = capsys.readouterr().out
+    assert "--feature-strategy csp est interprété comme --dim-method csp" in stdout
+
+
+def test_main_warns_when_csp_alias_conflicts_with_dim_method(monkeypatch, capsys):
+    called: dict[str, Any] = {}
+
+    def fake_call(module_name: str, config: mybci.ModuleCallConfig) -> int:
+        called["args"] = (module_name, config)
+        return 0
+
+    monkeypatch.setattr(mybci, "_call_module", fake_call)
+
+    exit_code = mybci.main(
+        [
+            "S001",
+            "R01",
+            "train",
+            "--feature-strategy",
+            "csp",
+            "--dim-method",
+            "pca",
+        ]
+    )
+
+    assert exit_code == 0
+    assert called["args"][1].module_args == ["--dim-method", "csp"]
+    stdout = capsys.readouterr().out
+    assert "AVERTISSEMENT: --feature-strategy csp force --dim-method csp" in stdout
 
 
 def test_main_invokes_predict_pipeline(monkeypatch):
@@ -377,6 +469,7 @@ def test_call_module_executes_python_module(monkeypatch):
         mybci.ModuleCallConfig(
             subject="S03",
             run="R04",
+            module_args=["--feature-strategy", "welch", "--dim-method", "pca"],
         ),
     )
 
@@ -387,6 +480,10 @@ def test_call_module_executes_python_module(monkeypatch):
         "tpv.train",
         "S03",
         "R04",
+        "--feature-strategy",
+        "welch",
+        "--dim-method",
+        "pca",
     ]
 
 

@@ -17,8 +17,8 @@ import subprocess
 # Préserve sys pour identifier l'interpréteur courant
 import sys
 
-# Préserve dataclass pour regrouper les paramètres du pipeline
-from dataclasses import dataclass
+# Préserve dataclass et field pour regrouper les paramètres du pipeline
+from dataclasses import dataclass, field
 
 # Facilite la gestion portable des chemins de données et artefacts
 from pathlib import Path
@@ -82,6 +82,24 @@ def _parse_run(value: str) -> str:
     return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
 
 
+# Normalise la stratégie de features pour la CLI mybci
+def _parse_feature_strategy(value: str) -> str:
+    """Valide la stratégie de features et accepte l'alias CSP."""
+
+    # Nettoie la valeur fournie pour accepter différentes casses
+    cleaned = value.strip().lower()
+    # Autorise explicitement les stratégies gérées par le pipeline
+    allowed = {"fft", "welch", "wavelet", "csp"}
+    # Interrompt le parsing si la stratégie demandée n'est pas supportée
+    if cleaned not in allowed:
+        raise argparse.ArgumentTypeError(
+            "Stratégie invalide: "
+            f"{value!r}. Choisissez parmi fft, welch, wavelet ou csp."
+        )
+    # Retourne la stratégie normalisée pour la suite du traitement
+    return cleaned
+
+
 # Regroupe les specs pour éviter les répétitions dans build_parser
 _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
     (
@@ -103,6 +121,46 @@ _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
         {
             "choices": ("train", "predict"),
             "help": "Choix du pipeline à lancer",
+        },
+    ),
+    (
+        ("--classifier",),
+        {
+            "choices": ("lda", "logistic", "svm", "centroid"),
+            # Supprime la valeur par défaut pour ne relayer que les overrides
+            "default": argparse.SUPPRESS,
+            "help": "Classifieur final utilisé pour l'entraînement",
+        },
+    ),
+    (
+        ("--scaler",),
+        {
+            "choices": ("standard", "robust", "none"),
+            # Supprime la valeur par défaut pour préserver la logique train
+            "default": argparse.SUPPRESS,
+            "help": "Scaler optionnel appliqué après l'extraction de features",
+        },
+    ),
+    (
+        ("--feature-strategy",),
+        {
+            "choices": ("fft", "welch", "wavelet", "csp"),
+            "type": _parse_feature_strategy,
+            # Supprime la valeur par défaut pour éviter les faux explicites
+            "default": argparse.SUPPRESS,
+            "help": (
+                "Méthode d'extraction (fft, welch, wavelet) ou alias csp "
+                "(bascule --dim-method csp)"
+            ),
+        },
+    ),
+    (
+        ("--dim-method",),
+        {
+            "choices": ("pca", "csp", "svd"),
+            # Supprime la valeur par défaut pour conserver l'auto-switch train
+            "default": argparse.SUPPRESS,
+            "help": "Méthode de réduction de dimension pour la pipeline",
         },
     ),
 )
@@ -154,6 +212,8 @@ class ModuleCallConfig:
     subject: str
     # Identifie le run cible pour charger la bonne session
     run: str
+    # Conserve les options CLI explicites à relayer au module ciblé
+    module_args: list[str] = field(default_factory=list)
 
 
 # Centralise les répertoires nécessaires pendant l'évaluation globale
@@ -181,6 +241,8 @@ def _call_module(module_name: str, config: ModuleCallConfig) -> int:
         config.subject,
         config.run,
     ]
+    # Ajoute uniquement les options explicitement demandées par l'utilisateur
+    command.extend(config.module_args)
     # Exécute la commande en capturant le code retour sans lever d'exception
     completed = subprocess.run(command, check=False)
     # Retourne le code retour pour propagation à l'appelant principal
@@ -606,6 +668,48 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+# Construit la liste d'options explicites à relayer vers train/predict
+def _build_module_args(args: argparse.Namespace) -> list[str]:
+    """Traduit les overrides CLI vers les modules scripts.train/predict."""
+
+    # Récupère la stratégie de features si elle a été fournie explicitement
+    feature_strategy = getattr(args, "feature_strategy", None)
+    # Récupère la méthode de réduction si elle a été fournie explicitement
+    dim_method = getattr(args, "dim_method", None)
+
+    # Interprète l'alias CSP comme une demande explicite de réduction CSP
+    if feature_strategy == "csp":
+        # Informe l'utilisateur de la traduction appliquée pour éviter l'ambiguïté
+        print("INFO: --feature-strategy csp est interprété comme --dim-method csp.")
+        # Signale un éventuel conflit lorsque l'utilisateur force une autre méthode
+        if dim_method and dim_method != "csp":
+            print(
+                "AVERTISSEMENT: --feature-strategy csp force --dim-method csp "
+                f"(reçu: {dim_method})."
+            )
+        # Fixe explicitement la méthode CSP côté module train/predict
+        dim_method = "csp"
+        # Empêche de relayer une stratégie de features invalide côté scripts.train
+        feature_strategy = None
+
+    # Initialise la liste des arguments à transmettre au module cible
+    module_args: list[str] = []
+    # Relaye le classifieur uniquement lorsqu'il est fourni explicitement
+    if hasattr(args, "classifier"):
+        module_args.extend(["--classifier", str(args.classifier)])
+    # Relaye le scaler uniquement lorsqu'il est fourni explicitement
+    if hasattr(args, "scaler"):
+        module_args.extend(["--scaler", str(args.scaler)])
+    # Relaye la stratégie de features valide lorsqu'elle est explicitement demandée
+    if feature_strategy:
+        module_args.extend(["--feature-strategy", feature_strategy])
+    # Relaye la méthode de réduction uniquement lorsqu'elle est explicitement demandée
+    if dim_method:
+        module_args.extend(["--dim-method", dim_method])
+    # Retourne la liste finale à injecter dans la commande module
+    return module_args
+
+
 # Point d'entrée principal de la CLI
 def main(argv: Sequence[str] | None = None) -> int:
     """Point d'entrée exécutable de mybci."""
@@ -623,10 +727,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Interrompt avec un message actionnable si scikit-learn manque
         _ensure_ml_dependencies()
 
+    # Traduit les options explicites avant de déléguer aux modules dédiés
+    module_args = _build_module_args(args)
     # Construit la configuration de pipeline commune
     config = ModuleCallConfig(
         subject=args.subject,
         run=args.run,
+        module_args=module_args,
     )
 
     # Appelle le module train si le mode le demande
