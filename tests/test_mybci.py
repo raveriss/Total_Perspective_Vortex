@@ -310,8 +310,10 @@ def test_build_parser_defines_expected_arguments():
     # Vérifie que l'aide du mode reste inchangée
     assert mode_arg.help == "Choix du pipeline à lancer"
     assert tuple(mode_arg.choices) == ("train", "predict")
-    # Vérifie que la stratégie de features expose les choix attendus + l'alias CSP
-    assert tuple(feature_arg.choices) == ("fft", "welch", "wavelet", "csp")
+    # Prépare la liste attendue des choix de features pour la CLI
+    expected_feature_choices = ("fft", "welch", "wavelet", "pca", "csp", "svd")
+    # Vérifie que la stratégie de features expose les choix attendus + alias
+    assert tuple(feature_arg.choices) == expected_feature_choices
     assert feature_arg.default is argparse.SUPPRESS
     # Vérifie que la réduction de dimension reste optionnelle sans override
     assert tuple(dim_arg.choices) == ("pca", "csp", "svd")
@@ -400,6 +402,34 @@ def test_main_maps_csp_feature_alias_to_dim_method(monkeypatch, capsys):
     assert called["args"][1].module_args == ["--dim-method", "csp"]
     stdout = capsys.readouterr().out
     assert "--feature-strategy csp est interprété comme --dim-method csp" in stdout
+
+
+# Vérifie que l'alias PCA est redirigé vers --dim-method pca
+def test_main_maps_pca_feature_alias_to_dim_method(monkeypatch, capsys):
+    # Prépare le conteneur de capture pour l'appel de module
+    called: dict[str, Any] = {}
+
+    # Définit un faux appel module pour enregistrer la configuration
+    def fake_call(module_name: str, config: mybci.ModuleCallConfig) -> int:
+        # Enregistre les arguments transmis par mybci
+        called["args"] = (module_name, config)
+        # Retourne un succès pour simuler l'exécution
+        return 0
+
+    # Injecte le faux call_module pour isoler la logique CLI
+    monkeypatch.setattr(mybci, "_call_module", fake_call)
+
+    # Exécute mybci avec l'alias PCA en stratégie de features
+    exit_code = mybci.main(["S001", "R01", "train", "--feature-strategy", "pca"])
+
+    # Vérifie que le code de sortie remonte le succès simulé
+    assert exit_code == 0
+    # Vérifie que la CLI relaie la méthode de réduction PCA
+    assert called["args"][1].module_args == ["--dim-method", "pca"]
+    # Capture la sortie standard pour vérifier l'information CLI
+    stdout = capsys.readouterr().out
+    # Vérifie que le message d'information mentionne l'alias PCA
+    assert "--feature-strategy pca est interprété comme --dim-method pca" in stdout
 
 
 def test_main_warns_when_csp_alias_conflicts_with_dim_method(monkeypatch, capsys):
