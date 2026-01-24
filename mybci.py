@@ -84,20 +84,29 @@ def _parse_run(value: str) -> str:
 
 # Normalise la stratégie de features pour la CLI mybci
 def _parse_feature_strategy(value: str) -> str:
-    """Valide la stratégie de features et accepte l'alias CSP."""
+    """Valide la stratégie de features et accepte les alias dim_method."""
 
     # Nettoie la valeur fournie pour accepter différentes casses
     cleaned = value.strip().lower()
     # Autorise explicitement les stratégies gérées par le pipeline
-    allowed = {"fft", "welch", "wavelet", "csp"}
+    allowed = {"fft", "welch", "wavelet", "csp", "pca", "svd"}
     # Interrompt le parsing si la stratégie demandée n'est pas supportée
     if cleaned not in allowed:
-        raise argparse.ArgumentTypeError(
+        # Construit un message d'erreur explicite pour l'utilisateur
+        message = (
+            # Décrit la nature de l'erreur de stratégie fournie
             "Stratégie invalide: "
-            f"{value!r}. Choisissez parmi fft, welch, wavelet ou csp."
+            # Liste les valeurs autorisées pour guider la correction
+            f"{value!r}. Choisissez parmi fft, welch, wavelet, pca, csp ou svd."
         )
+        # Lève une erreur de parsing pour arrêter la CLI
+        raise argparse.ArgumentTypeError(message)
     # Retourne la stratégie normalisée pour la suite du traitement
     return cleaned
+
+
+# Regroupe les alias de features qui redirigent vers --dim-method
+_FEATURE_STRATEGY_DIM_ALIASES = {"csp", "pca", "svd"}
 
 
 # Regroupe les specs pour éviter les répétitions dans build_parser
@@ -144,13 +153,13 @@ _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
     (
         ("--feature-strategy",),
         {
-            "choices": ("fft", "welch", "wavelet", "csp"),
+            "choices": ("fft", "welch", "wavelet", "pca", "csp", "svd"),
             "type": _parse_feature_strategy,
             # Supprime la valeur par défaut pour éviter les faux explicites
             "default": argparse.SUPPRESS,
             "help": (
-                "Méthode d'extraction (fft, welch, wavelet) ou alias csp "
-                "(bascule --dim-method csp)"
+                "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/svd "
+                "(bascule --dim-method correspondant)"
             ),
         },
     ),
@@ -677,18 +686,29 @@ def _build_module_args(args: argparse.Namespace) -> list[str]:
     # Récupère la méthode de réduction si elle a été fournie explicitement
     dim_method = getattr(args, "dim_method", None)
 
-    # Interprète l'alias CSP comme une demande explicite de réduction CSP
-    if feature_strategy == "csp":
+    # Interprète les alias de réduction fournis via --feature-strategy
+    if feature_strategy in _FEATURE_STRATEGY_DIM_ALIASES:
         # Informe l'utilisateur de la traduction appliquée pour éviter l'ambiguïté
-        print("INFO: --feature-strategy csp est interprété comme --dim-method csp.")
+        print(
+            # Prépare le préfixe d'information sur l'alias utilisé
+            "INFO: --feature-strategy "
+            # Affiche l'alias pour expliciter la redirection
+            f"{feature_strategy} est interprété comme --dim-method "
+            # Rappelle la valeur cible pour verrouiller l'intention
+            f"{feature_strategy}."
+        )
         # Signale un éventuel conflit lorsque l'utilisateur force une autre méthode
-        if dim_method and dim_method != "csp":
+        if dim_method and dim_method != feature_strategy:
             print(
-                "AVERTISSEMENT: --feature-strategy csp force --dim-method csp "
+                # Prépare l'entête d'avertissement CLI
+                "AVERTISSEMENT: --feature-strategy "
+                # Affiche l'alias qui écrase la méthode explicite
+                f"{feature_strategy} force --dim-method {feature_strategy} "
+                # Rappelle la méthode concurrente reçue pour diagnostic
                 f"(reçu: {dim_method})."
             )
-        # Fixe explicitement la méthode CSP côté module train/predict
-        dim_method = "csp"
+        # Fixe explicitement la méthode de réduction côté module train/predict
+        dim_method = feature_strategy
         # Empêche de relayer une stratégie de features invalide côté scripts.train
         feature_strategy = None
 
