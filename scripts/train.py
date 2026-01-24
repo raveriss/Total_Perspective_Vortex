@@ -133,6 +133,14 @@ DEFAULT_EPOCH_WINDOWS: Sequence[tuple[float, float]] = (
 DEFAULT_EPOCH_WINDOW = DEFAULT_EPOCH_WINDOWS[0]
 # Fixe le nombre de composantes CSP pour la sélection de fenêtre
 DEFAULT_CSP_COMPONENTS = 4
+# Regroupe les stratégies de features supportées par la pipeline
+FEATURE_STRATEGIES = ("fft", "welch", "wavelet")
+# Regroupe les méthodes de réduction de dimension supportées par la pipeline
+DIM_METHODS = ("pca", "csp", "svd")
+# Autorise un alias CLI pour rediriger vers la réduction de dimension
+FEATURE_STRATEGY_ALIASES = DIM_METHODS
+# Combine les valeurs autorisées pour l'argument --feature-strategy
+FEATURE_STRATEGY_CHOICES = FEATURE_STRATEGIES + FEATURE_STRATEGY_ALIASES
 
 
 # Normalise un identifiant brut en appliquant un préfixe standard
@@ -179,6 +187,36 @@ def _parse_run(value: str) -> str:
 
     # Délègue la normalisation au helper générique
     return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
+
+
+# Normalise un choix CLI en minuscules pour les comparaisons
+def _normalize_choice(value: str, label: str) -> str:
+    """Normalise un choix CLI et refuse les valeurs vides."""
+
+    # Nettoie la valeur reçue pour éviter les espaces parasites
+    cleaned_value = value.strip()
+    # Refuse une valeur vide pour éviter un choix ambigu
+    if not cleaned_value:
+        # Signale un choix vide pour guider l'utilisateur
+        raise argparse.ArgumentTypeError(f"{label} vide")
+    # Normalise en minuscules pour accepter des variantes de casse
+    return cleaned_value.lower()
+
+
+# Normalise une stratégie de features pour le parsing CLI
+def _parse_feature_strategy(value: str) -> str:
+    """Normalise la stratégie de features en minuscules."""
+
+    # Délègue la normalisation au helper générique
+    return _normalize_choice(value=value, label="Stratégie de features")
+
+
+# Normalise une méthode de réduction pour le parsing CLI
+def _parse_dim_method(value: str) -> str:
+    """Normalise la méthode de réduction en minuscules."""
+
+    # Délègue la normalisation au helper générique
+    return _normalize_choice(value=value, label="Méthode de réduction")
 
 
 # Résout une fréquence d'échantillonnage fiable pour un sujet/run donné
@@ -567,6 +605,42 @@ def _resolve_dim_method_for_features(
     return dim_method
 
 
+# Ajuste la stratégie de features si un alias de réduction est fourni
+def _resolve_feature_strategy_and_dim_method(
+    feature_strategy: str,
+    dim_method: str,
+    argv: list[str] | None,
+) -> tuple[str, str]:
+    """Retourne une stratégie de features valide et le dim_method associé."""
+
+    # Récupère la liste brute d'arguments pour détecter un override explicite
+    raw_args = argv if argv is not None else sys.argv[1:]
+    # Détecte si --dim-method a été fourni par l'utilisateur
+    dim_method_explicit = "--dim-method" in raw_args
+    # Gère le cas où l'utilisateur fournit CSP/PCA/SVD via --feature-strategy
+    if feature_strategy in FEATURE_STRATEGY_ALIASES:
+        # Conserve la stratégie FFT pour garantir une extraction valide
+        resolved_feature_strategy = "fft"
+        # Conserve le dim_method explicite si l'utilisateur l'a fourni
+        if dim_method_explicit:
+            # Informe de l'alias ignoré au profit de la valeur explicite
+            print(
+                "INFO: feature_strategy interprété comme alias de dim_method, "
+                "feature_strategy='fft' conservée car --dim-method explicite."
+            )
+            # Retourne la stratégie FFT et le dim_method explicite
+            return resolved_feature_strategy, dim_method
+        # Informe que l'alias est interprété comme dim_method
+        print(
+            "INFO: feature_strategy interprété comme alias de dim_method, "
+            "feature_strategy='fft' appliquée."
+        )
+        # Retourne la stratégie FFT et le dim_method dérivé
+        return resolved_feature_strategy, feature_strategy
+    # Retourne les paramètres inchangés si aucune correction n'est requise
+    return feature_strategy, dim_method
+
+
 # Regroupe toutes les informations nécessaires à un run d'entraînement
 @dataclass
 class TrainingRequest:
@@ -665,14 +739,16 @@ def build_parser() -> argparse.ArgumentParser:
     # Ajoute la stratégie d'extraction de features pour garder la cohérence
     parser.add_argument(
         "--feature-strategy",
-        choices=("fft", "welch", "wavelet"),
+        type=_parse_feature_strategy,
+        choices=FEATURE_STRATEGY_CHOICES,
         default="fft",
         help="Méthode d'extraction de features spectrales",
     )
     # Ajoute la méthode de réduction de dimension pour contrôler la compression
     parser.add_argument(
         "--dim-method",
-        choices=("pca", "csp", "svd"),
+        type=_parse_dim_method,
+        choices=DIM_METHODS,
         default="csp",
         help="Méthode de réduction de dimension pour la pipeline",
     )
@@ -1816,16 +1892,22 @@ def main(argv: list[str] | None = None) -> int:
         args.raw_dir,
         args.sfreq,
     )
-    # Résout la méthode de réduction en fonction de la stratégie de features
-    dim_method = _resolve_dim_method_for_features(
+    # Harmonise la stratégie de features si un alias de réduction est fourni
+    feature_strategy, dim_method = _resolve_feature_strategy_and_dim_method(
         args.feature_strategy,
         args.dim_method,
+        argv,
+    )
+    # Résout la méthode de réduction en fonction de la stratégie de features
+    dim_method = _resolve_dim_method_for_features(
+        feature_strategy,
+        dim_method,
         argv,
     )
     # Construit la configuration de pipeline alignée sur mybci
     config = PipelineConfig(
         sfreq=resolved_sfreq,
-        feature_strategy=args.feature_strategy,
+        feature_strategy=feature_strategy,
         normalize_features=normalize,
         dim_method=dim_method,
         n_components=n_components,

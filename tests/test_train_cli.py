@@ -78,7 +78,14 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
     assert tuple(scaler_action.choices) == ("standard", "robust", "none")
     assert scaler_action.default == "none"
     assert feature_action.choices is not None
-    assert tuple(feature_action.choices) == ("fft", "welch", "wavelet")
+    assert tuple(feature_action.choices) == (
+        "fft",
+        "welch",
+        "wavelet",
+        "pca",
+        "csp",
+        "svd",
+    )
     assert feature_action.default == "fft"
     assert dim_action.choices is not None
     assert tuple(dim_action.choices) == ("pca", "csp", "svd")
