@@ -15,6 +15,9 @@ def main(argv: list[str] | None = None) -> int:
 # Expose explicitement l'évaluation de run pour les usages directs
 evaluate_run = script_predict.evaluate_run
 
+# Expose les options de prédiction pour l'auto-train global
+PredictionOptions = script_predict.PredictionOptions
+
 
 # Expose explicitement la construction de rapports agrégés
 build_report = script_predict.build_report

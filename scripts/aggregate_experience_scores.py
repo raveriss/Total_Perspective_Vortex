@@ -441,12 +441,20 @@ def _collect_subject_scores(
                 training_context,
             )
         # Calcule l'accuracy en rechargeant le modèle et les données
+        # Construit les options de prédiction avec le raw_dir demandé
+        prediction_options = predict_cli.PredictionOptions(raw_dir=options.raw_dir)
+        # Calcule l'accuracy en rechargeant le modèle et les données
         result = predict_cli.evaluate_run(
+            # Transmet l'identifiant du sujet évalué
             subject,
+            # Transmet l'identifiant du run évalué
             run,
+            # Transmet le répertoire des données numpy
             data_dir,
+            # Transmet le répertoire des artefacts
             artifacts_dir,
-            options.raw_dir,
+            # Transmet les options de prédiction
+            prediction_options,
         )
         # Ajoute l'accuracy résultante pour l'expérience
         _append_subject_score(subject_scores, subject, experience, result["accuracy"])

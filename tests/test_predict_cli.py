@@ -152,13 +152,13 @@ def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
         run_arg: str,
         data_dir_arg: Path,
         artifacts_dir_arg: Path,
-        raw_dir_arg: Path,
+        options_arg: predict.PredictionOptions,
     ) -> dict[str, object]:
         captured_result["subject"] = subject_arg
         captured_result["run"] = run_arg
         captured_result["data_dir"] = data_dir_arg
         captured_result["artifacts_dir"] = artifacts_dir_arg
-        captured_result["raw_dir"] = raw_dir_arg
+        captured_result["raw_dir"] = options_arg.raw_dir
         return {
             "subject": subject_arg,
             "run": run_arg,

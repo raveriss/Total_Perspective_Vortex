@@ -67,7 +67,7 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
     }
 
     # Définit un faux evaluate_run pour éviter l'I/O de données EEG
-    def fake_evaluate_run(subject: str, run: str, data_dir, artifacts_dir, raw_dir):
+    def fake_evaluate_run(subject: str, run: str, data_dir, artifacts_dir, options):
         # Retourne un dictionnaire aligné sur l'API attendue
         return {"accuracy": scores[subject][run]}
 
@@ -274,7 +274,7 @@ def test_collect_subject_scores_force_retrain_triggers_train(
         called.append((subject, run))
 
     # Définit un evaluate_run factice pour retourner un score fixe
-    def fake_evaluate_run(subject, run, data_dir, artifacts_dir, raw_dir):
+    def fake_evaluate_run(subject, run, data_dir, artifacts_dir, options):
         # Retourne une accuracy stable pour l'agrégation
         return {"accuracy": 0.8}
 
