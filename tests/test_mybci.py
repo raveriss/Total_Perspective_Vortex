@@ -183,6 +183,46 @@ def test_main_defaults_to_sys_argv_and_runs_global_evaluation(monkeypatch):
     assert exit_code == 0
 
 
+# Vérifie que la CLI globale accepte --feature-strategy sans positionnels
+def test_main_runs_global_evaluation_with_feature_strategy(monkeypatch):
+    # Prépare un registre pour inspecter les paramètres transmis au runner
+    called: dict[str, Any] = {}
+
+    # Simule le runner global pour capter les overrides de pipeline
+    def fake_runner(
+        # Conserve la liste d'expériences par défaut
+        experiments=None,
+        # Conserve le répertoire des données si fourni
+        data_dir=None,
+        # Conserve le répertoire des artefacts si fourni
+        artifacts_dir=None,
+        # Conserve le répertoire des EDF si fourni
+        raw_dir=None,
+        # Capture les overrides de pipeline si fournis
+        pipeline_overrides=None,
+    ) -> int:
+        # Capture les overrides transmis par la CLI globale
+        called["pipeline_overrides"] = pipeline_overrides
+        # Capture le répertoire des données pour vérification
+        called["data_dir"] = data_dir
+        # Capture le répertoire des artefacts pour vérification
+        called["artifacts_dir"] = artifacts_dir
+        # Capture le répertoire EDF pour vérification
+        called["raw_dir"] = raw_dir
+        # Retourne un succès contrôlé
+        return 0
+
+    # Remplace le runner global par le double de test
+    monkeypatch.setattr(mybci, "_run_global_evaluation", fake_runner)
+    # Exécute main avec une option de stratégie sans positionnels
+    exit_code = mybci.main(["--feature-strategy", "wavelet"])
+
+    # Vérifie que main renvoie le code de succès du runner global
+    assert exit_code == 0
+    # Vérifie que l'override de stratégie de features est bien transmis
+    assert called["pipeline_overrides"]["feature_strategy"] == "wavelet"
+
+
 def test_main_defaults_to_sys_argv_and_routes_train(monkeypatch):
     # Prépare un registre pour capturer le module et la config transmis
     called: dict[str, Any] = {}

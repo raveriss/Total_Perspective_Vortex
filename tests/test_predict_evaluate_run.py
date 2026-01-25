@@ -36,10 +36,15 @@ def test_evaluate_run_trains_and_loads_missing_artifacts(
         run_arg: str,
         data_dir_arg: Path,
         artifacts_dir_arg: Path,
-        raw_dir_arg: Path,
+        options_arg=None,
     ) -> None:
+        raw_dir = (
+            options_arg.raw_dir
+            if options_arg is not None
+            else predict_cli.DEFAULT_RAW_DIR
+        )
         train_calls.append(
-            (subject_arg, run_arg, data_dir_arg, artifacts_dir_arg, raw_dir_arg)
+            (subject_arg, run_arg, data_dir_arg, artifacts_dir_arg, raw_dir)
         )
         ensured_target = artifacts_dir_arg / subject_arg / run_arg
         ensured_target.mkdir(parents=True, exist_ok=True)
@@ -145,10 +150,15 @@ def test_evaluate_run_triggers_training_when_only_w_matrix_missing(
         run_arg: str,
         data_dir_arg: Path,
         artifacts_dir_arg: Path,
-        raw_dir_arg: Path,
+        options_arg=None,
     ) -> None:
+        raw_dir = (
+            options_arg.raw_dir
+            if options_arg is not None
+            else predict_cli.DEFAULT_RAW_DIR
+        )
         train_calls.append(
-            (subject_arg, run_arg, data_dir_arg, artifacts_dir_arg, raw_dir_arg)
+            (subject_arg, run_arg, data_dir_arg, artifacts_dir_arg, raw_dir)
         )
         ensured_target = artifacts_dir_arg / subject_arg / run_arg
         ensured_target.mkdir(parents=True, exist_ok=True)
@@ -275,7 +285,14 @@ def test_evaluate_run_skips_training_when_artifacts_present_and_forwards_raw_dir
 
     monkeypatch.setattr(predict_cli, "_write_reports", fake_write_reports)
 
-    result = predict_cli.evaluate_run(subject, run, data_dir, artifacts_dir, raw_dir)
+    options = predict_cli.PredictionOptions(raw_dir=raw_dir)
+    result = predict_cli.evaluate_run(
+        subject,
+        run,
+        data_dir,
+        artifacts_dir,
+        options,
+    )
 
     stdout = capsys.readouterr().out
     assert stdout == ""
@@ -317,7 +334,14 @@ def test_train_missing_pipeline_builds_expected_request(tmp_path, monkeypatch) -
     monkeypatch.setattr(predict_cli.train_module, "run_training", fake_run_training)
 
     # Lance l'auto-entraînement pour produire la requête
-    predict_cli._train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
+    options = predict_cli.PredictionOptions(raw_dir=raw_dir)
+    predict_cli._train_missing_pipeline(
+        subject,
+        run,
+        data_dir,
+        artifacts_dir,
+        options,
+    )
 
     # Vérifie que la requête a bien été capturée
     assert "request" in captured
@@ -340,3 +364,51 @@ def test_train_missing_pipeline_builds_expected_request(tmp_path, monkeypatch) -
         request.pipeline_config.n_components
         == predict_cli.train_module.DEFAULT_CSP_COMPONENTS
     )
+    # Vérifie le classifieur par défaut
+    assert request.pipeline_config.classifier == "lda"
+    # Vérifie l'absence de scaler par défaut
+    assert request.pipeline_config.scaler is None
+    # Vérifie le répertoire raw propagé
+    assert request.raw_dir == raw_dir
+    # Vérifie la désactivation de la recherche exhaustive
+    assert request.enable_grid_search is False
+    # Vérifie le nombre de splits par défaut
+    assert request.grid_search_splits == 5
+
+
+# Vérifie la résolution d'un alias de feature_strategy vers dim_method
+def test_resolve_pipeline_overrides_alias_defaults_to_fft(capsys) -> None:
+    # Prépare des overrides d'alias sans dim_method explicite
+    overrides = {"feature_strategy": "pca"}
+    # Résout les overrides via l'helper interne
+    resolved = predict_cli._resolve_pipeline_overrides(overrides)
+    # Capture les messages d'information produits
+    stdout = capsys.readouterr().out
+
+    # Vérifie que l'information sur l'alias est bien affichée
+    assert "feature_strategy='fft' appliquée" in stdout
+    # Vérifie que la stratégie est ramenée à FFT
+    assert resolved.feature_strategy == "fft"
+    # Vérifie que le dim_method suit l'alias fourni
+    assert resolved.dim_method == "pca"
+    # Vérifie que le classifieur par défaut est conservé
+    assert resolved.classifier == "lda"
+    # Vérifie que le scaler par défaut reste None
+    assert resolved.scaler is None
+
+
+# Vérifie le warning lorsque wavelet est combiné à CSP explicite
+def test_resolve_pipeline_overrides_wavelet_warns_on_csp(capsys) -> None:
+    # Prépare des overrides wavelet avec dim_method explicite
+    overrides = {"feature_strategy": "wavelet", "dim_method": "csp"}
+    # Résout les overrides via l'helper interne
+    resolved = predict_cli._resolve_pipeline_overrides(overrides)
+    # Capture les messages d'avertissement produits
+    stdout = capsys.readouterr().out
+
+    # Vérifie qu'un avertissement est bien affiché
+    assert "AVERTISSEMENT: dim_method='csp' ignore feature_strategy" in stdout
+    # Vérifie que la stratégie wavelet est conservée
+    assert resolved.feature_strategy == "wavelet"
+    # Vérifie que la méthode CSP reste en place
+    assert resolved.dim_method == "csp"

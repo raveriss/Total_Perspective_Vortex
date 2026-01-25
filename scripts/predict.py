@@ -11,8 +11,14 @@ import csv
 # Fournit la sérialisation JSON pour tracer les rapports générés
 import json
 
+# Fournit dataclass pour regrouper des options de prédiction
+from dataclasses import dataclass
+
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
+
+# Garantit l'accès aux annotations Mapping pour les overrides
+from typing import Mapping
 
 # Centralise l'accès aux tableaux numpy pour l'évaluation
 import numpy as np
@@ -43,6 +49,33 @@ DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 
 # Définit le répertoire par défaut pour les fichiers EDF bruts
 DEFAULT_RAW_DIR = Path("data")
+
+
+# Regroupe les options de prédiction et d'auto-train
+@dataclass
+class PredictionOptions:
+    """Regroupe les chemins et overrides pour l'évaluation."""
+
+    # Stocke le répertoire des fichiers EDF bruts à utiliser
+    raw_dir: Path = DEFAULT_RAW_DIR
+    # Stocke les overrides de pipeline pour l'auto-train éventuel
+    pipeline_overrides: Mapping[str, str] | None = None
+
+
+# Regroupe les overrides résolus pour l'auto-train
+@dataclass
+class ResolvedOverrides:
+    """Expose une configuration de pipeline prête à l'emploi."""
+
+    # Stocke la stratégie de features effectivement utilisée
+    feature_strategy: str
+    # Stocke la méthode de réduction effectivement utilisée
+    dim_method: str
+    # Stocke le classifieur effectivement utilisé
+    classifier: str
+    # Stocke le scaler effectivement utilisé
+    scaler: str | None
+
 
 # Définit un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
 DEFAULT_MAX_PEAK_TO_PEAK = 200e-6
@@ -496,16 +529,166 @@ def _write_reports(
     }
 
 
+# Résout un alias de features vers une méthode de réduction
+def _resolve_feature_strategy_alias(
+    feature_strategy: str,
+    dim_method: str,
+    dim_method_explicit: bool,
+) -> tuple[str, str] | None:
+    """Résout un alias de features en méthode de réduction."""
+
+    # Quitte si aucune stratégie alias n'est demandée
+    if feature_strategy not in train_module.FEATURE_STRATEGY_ALIASES:
+        # Indique l'absence d'alias à résoudre
+        return None
+    # Force la stratégie FFT pour conserver une extraction valide
+    resolved_feature_strategy = "fft"
+    # Conserve la méthode explicite si elle est fournie
+    if dim_method_explicit:
+        # Informe que l'alias est ignoré au profit du dim_method explicite
+        print(
+            # Décrit la résolution de l'alias pour l'utilisateur
+            "INFO: feature_strategy interprété comme alias de dim_method, "
+            # Précise la conservation de la stratégie FFT
+            "feature_strategy='fft' conservée car --dim-method explicite."
+        )
+        # Retourne la stratégie et la méthode explicite
+        return resolved_feature_strategy, dim_method
+    # Informe que l'alias est utilisé comme méthode de réduction
+    print(
+        # Décrit la résolution de l'alias pour l'utilisateur
+        "INFO: feature_strategy interprété comme alias de dim_method, "
+        # Précise la conservation de la stratégie FFT
+        "feature_strategy='fft' appliquée."
+    )
+    # Retourne la stratégie FFT et l'alias comme méthode
+    return resolved_feature_strategy, feature_strategy
+
+
+# Ajuste la méthode de réduction lorsque les features sont tabulaires
+def _adjust_dim_method_for_tabular_features(
+    feature_strategy: str,
+    dim_method: str,
+    dim_method_explicit: bool,
+) -> str:
+    """Ajuste le dim_method lorsque CSP ignore les features."""
+
+    # Ignore l'ajustement si la stratégie n'est pas tabulaire
+    if feature_strategy not in {"wavelet", "welch"} or dim_method != "csp":
+        # Retourne la méthode inchangée
+        return dim_method
+    # Bascule automatiquement vers PCA si dim_method n'est pas explicite
+    if not dim_method_explicit:
+        # Informe que CSP ignore les features tabulaires
+        print(
+            # Décrit l'auto-bascule de méthode de réduction
+            "INFO: dim_method='csp' ignore feature_strategy, "
+            # Précise la méthode de repli choisie
+            "bascule automatique sur 'pca'."
+        )
+        # Retourne PCA pour activer l'extraction demandée
+        return "pca"
+    # Signale que l'utilisateur force CSP malgré les features
+    print(
+        # Décrit le conflit entre méthode et stratégie de features
+        "AVERTISSEMENT: dim_method='csp' ignore feature_strategy, "
+        # Précise l'effet sur l'extraction de features
+        "aucune extraction wavelet/welch ne sera effectuée."
+    )
+    # Retourne CSP inchangé lorsque l'utilisateur force la méthode
+    return dim_method
+
+
+# Résout les overrides de pipeline transmis à l'auto-train
+def _resolve_pipeline_overrides(
+    pipeline_overrides: Mapping[str, str] | None,
+) -> ResolvedOverrides:
+    """Résout les overrides CLI appliqués à l'auto-train."""
+
+    # Fixe la stratégie de features par défaut pour l'auto-train
+    feature_strategy = "fft"
+    # Fixe la méthode de réduction par défaut pour l'auto-train
+    dim_method = "csp"
+    # Fixe le classifieur par défaut pour l'auto-train
+    classifier = "lda"
+    # Fixe l'absence de scaler par défaut pour l'auto-train
+    scaler: str | None = None
+    # Suit la présence explicite d'une méthode de réduction
+    dim_method_explicit = False
+
+    # Applique les overrides si la CLI en fournit
+    if pipeline_overrides:
+        # Applique la stratégie de features explicitement demandée
+        if "feature_strategy" in pipeline_overrides:
+            # Cast en str pour sécuriser les valeurs sérialisées
+            feature_strategy = str(pipeline_overrides["feature_strategy"])
+        # Applique la méthode de réduction explicitement demandée
+        if "dim_method" in pipeline_overrides:
+            # Cast en str pour sécuriser les valeurs sérialisées
+            dim_method = str(pipeline_overrides["dim_method"])
+            # Signale la présence explicite pour la logique d'alias
+            dim_method_explicit = True
+        # Applique le classifieur explicitement demandé
+        if "classifier" in pipeline_overrides:
+            # Cast en str pour sécuriser les valeurs sérialisées
+            classifier = str(pipeline_overrides["classifier"])
+        # Applique le scaler explicitement demandé
+        if "scaler" in pipeline_overrides:
+            # Cast en str pour sécuriser les valeurs sérialisées
+            scaler_value = str(pipeline_overrides["scaler"])
+            # Interprète "none" comme l'absence de scaler
+            scaler = None if scaler_value == "none" else scaler_value
+
+    # Résout l'alias éventuel de feature_strategy
+    alias_resolution = _resolve_feature_strategy_alias(
+        feature_strategy,
+        dim_method,
+        dim_method_explicit,
+    )
+    # Applique l'alias si présent
+    if alias_resolution is not None:
+        # Déstructure la stratégie et la méthode résolues
+        feature_strategy, dim_method = alias_resolution
+        # Retourne les overrides résolus
+        return ResolvedOverrides(
+            feature_strategy=feature_strategy,
+            dim_method=dim_method,
+            classifier=classifier,
+            scaler=scaler,
+        )
+
+    # Ajuste la méthode de réduction pour les features tabulaires
+    dim_method = _adjust_dim_method_for_tabular_features(
+        feature_strategy,
+        dim_method,
+        dim_method_explicit,
+    )
+    # Retourne la configuration résolue pour l'auto-train
+    return ResolvedOverrides(
+        feature_strategy=feature_strategy,
+        dim_method=dim_method,
+        classifier=classifier,
+        scaler=scaler,
+    )
+
+
 # Entraîne un modèle par défaut lorsqu'aucun artefact n'est disponible
 def _train_missing_pipeline(
     subject: str,
     run: str,
     data_dir: Path,
     artifacts_dir: Path,
-    raw_dir: Path,
+    # Transporte les options de prédiction pour l'auto-train
+    options: PredictionOptions | None = None,
 ) -> None:
     """Construit un pipeline CSP/LDA shrinkage lorsque le modèle manque."""
 
+    # Applique les options par défaut si aucune n'est fournie
+    resolved_options = options or PredictionOptions()
+    # Extrait le répertoire EDF depuis les options
+    raw_dir = resolved_options.raw_dir
+    # Extrait les overrides de pipeline depuis les options
+    pipeline_overrides = resolved_options.pipeline_overrides
     # Résout la fréquence d'échantillonnage à partir de l'EDF si disponible
     resolved_sfreq = train_module.resolve_sampling_rate(
         subject,
@@ -513,15 +696,25 @@ def _train_missing_pipeline(
         raw_dir,
         train_module.DEFAULT_SAMPLING_RATE,
     )
+    # Résout les overrides CLI pour calibrer l'auto-train
+    resolved_overrides = _resolve_pipeline_overrides(pipeline_overrides)
     # Utilise la fréquence de référence pour aligner extraction et entraînement
     pipeline_config = PipelineConfig(
+        # Propage la fréquence d'échantillonnage résolue
         sfreq=resolved_sfreq,
-        feature_strategy="fft",
+        # Propage la stratégie de features résolue
+        feature_strategy=resolved_overrides.feature_strategy,
+        # Conserve la normalisation pour stabiliser les features
         normalize_features=True,
-        dim_method="csp",
+        # Propage la méthode de réduction résolue
+        dim_method=resolved_overrides.dim_method,
+        # Conserve un nombre de composantes robuste pour CSP/PCA
         n_components=train_module.DEFAULT_CSP_COMPONENTS,
-        classifier="lda",
-        scaler=None,
+        # Propage le classifieur résolu
+        classifier=resolved_overrides.classifier,
+        # Propage le scaler résolu
+        scaler=resolved_overrides.scaler,
+        # Conserve la régularisation CSP pour stabiliser les covariances
         csp_regularization=0.1,
     )
     # Prépare la requête pour déléguer l'entraînement à scripts.train
@@ -553,10 +746,15 @@ def evaluate_run(
     run: str,
     data_dir: Path,
     artifacts_dir: Path,
-    raw_dir: Path = DEFAULT_RAW_DIR,
+    # Transporte les options de prédiction pour l'auto-train
+    options: PredictionOptions | None = None,
 ) -> dict:
     """Évalue l'accuracy d'un run en rechargeant le pipeline entraîné."""
 
+    # Applique les options par défaut si aucune n'est fournie
+    resolved_options = options or PredictionOptions()
+    # Extrait le répertoire EDF depuis les options
+    raw_dir = resolved_options.raw_dir
     # Charge ou génère les tableaux numpy nécessaires au scoring
     X, y = _load_data(subject, run, data_dir, raw_dir)
     # Construit le dossier d'artefacts spécifique au sujet et au run
@@ -579,7 +777,18 @@ def evaluate_run(
         # Affiche le message d'auto-entraînement pour l'utilisateur
         print(message)
         # Génère les artefacts de base pour permettre l'évaluation
-        _train_missing_pipeline(subject, run, data_dir, artifacts_dir, raw_dir)
+        _train_missing_pipeline(
+            # Relaye le sujet pour matérialiser les artefacts
+            subject,
+            # Relaye le run pour isoler l'expérience
+            run,
+            # Relaye le répertoire de données numpy
+            data_dir,
+            # Relaye le répertoire d'artefacts pour l'écriture
+            artifacts_dir,
+            # Relaye les options de prédiction pour l'auto-train
+            resolved_options,
+        )
     # Charge la pipeline entraînée depuis le joblib sauvegardé
     pipeline = load_pipeline(str(model_path))
     # Génère les prédictions individuelles pour le rapport
@@ -642,8 +851,20 @@ def main(argv: list[str] | None = None) -> int:
     # Parse les arguments fournis par l'utilisateur
     args = parser.parse_args(argv)
     # Évalue le run demandé et récupère la matrice W
+    # Construit les options de prédiction à partir des arguments CLI
+    options = PredictionOptions(raw_dir=args.raw_dir)
+    # Évalue le run demandé et récupère la matrice W
     result = evaluate_run(
-        args.subject, args.run, args.data_dir, args.artifacts_dir, args.raw_dir
+        # Relaye l'identifiant de sujet fourni par la CLI
+        args.subject,
+        # Relaye l'identifiant de run fourni par la CLI
+        args.run,
+        # Relaye le répertoire des données numpy
+        args.data_dir,
+        # Relaye le répertoire d'artefacts
+        args.artifacts_dir,
+        # Relaye les options de prédiction construites
+        options,
     )
     # Construit le rapport structuré attendu par les tests
     _ = build_report(result)

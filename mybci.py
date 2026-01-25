@@ -175,6 +175,112 @@ _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
 )
 
 
+# Construit un parser CLI dédié aux options d'évaluation globale
+def _build_global_parser() -> argparse.ArgumentParser:
+    """Construit un parser pour l'évaluation globale sans positionnels."""
+
+    # Crée un parser isolé pour éviter de forcer subject/run/mode
+    parser = argparse.ArgumentParser(add_help=False)
+    # Ajoute le classifieur optionnel pour l'auto-train global
+    parser.add_argument(
+        # Déclare le flag de classifieur global
+        "--classifier",
+        # Limite les choix aux classifieurs supportés par la pipeline
+        choices=("lda", "logistic", "svm", "centroid"),
+        # Supprime la valeur par défaut pour détecter les overrides explicites
+        default=argparse.SUPPRESS,
+        # Décrit l'option pour l'aide CLI globale
+        help="Classifieur final utilisé pour l'entraînement global",
+    )
+    # Ajoute le scaler optionnel pour l'auto-train global
+    parser.add_argument(
+        # Déclare le flag de scaler global
+        "--scaler",
+        # Limite les choix aux scalers supportés par la pipeline
+        choices=("standard", "robust", "none"),
+        # Supprime la valeur par défaut pour détecter les overrides explicites
+        default=argparse.SUPPRESS,
+        # Décrit l'option pour l'aide CLI globale
+        help="Scaler optionnel appliqué après l'extraction de features",
+    )
+    # Ajoute la stratégie de features utilisée par l'auto-train global
+    parser.add_argument(
+        # Déclare le flag de stratégie de features globale
+        "--feature-strategy",
+        # Limite les choix aux stratégies supportées
+        choices=("fft", "welch", "wavelet", "pca", "csp", "svd"),
+        # Valide la stratégie via le parser déjà utilisé par mybci
+        type=_parse_feature_strategy,
+        # Supprime la valeur par défaut pour détecter les overrides explicites
+        default=argparse.SUPPRESS,
+        # Décrit l'option pour l'aide CLI globale
+        help=(
+            # Expose les stratégies utilisables pour l'auto-train
+            "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/svd "
+            # Explique la bascule automatique vers dim-method
+            "(bascule --dim-method correspondant)"
+        ),
+    )
+    # Ajoute la méthode de réduction pour l'auto-train global
+    parser.add_argument(
+        # Déclare le flag de méthode de réduction globale
+        "--dim-method",
+        # Limite les choix aux méthodes supportées par la pipeline
+        choices=("pca", "csp", "svd"),
+        # Supprime la valeur par défaut pour détecter les overrides explicites
+        default=argparse.SUPPRESS,
+        # Décrit l'option pour l'aide CLI globale
+        help="Méthode de réduction de dimension pour la pipeline",
+    )
+    # Ajoute le chemin des données numpy pour l'évaluation globale
+    parser.add_argument(
+        # Déclare le flag de répertoire de données global
+        "--data-dir",
+        # Conserve un type Path pour fiabiliser les chemins
+        type=Path,
+        # Supprime la valeur par défaut pour conserver celle du runner global
+        default=argparse.SUPPRESS,
+        # Décrit l'option pour l'aide CLI globale
+        help="Répertoire racine contenant les fichiers numpy",
+    )
+    # Ajoute le chemin des artefacts pour l'évaluation globale
+    parser.add_argument(
+        # Déclare le flag de répertoire d'artefacts global
+        "--artifacts-dir",
+        # Conserve un type Path pour fiabiliser les chemins
+        type=Path,
+        # Supprime la valeur par défaut pour conserver celle du runner global
+        default=argparse.SUPPRESS,
+        # Décrit l'option pour l'aide CLI globale
+        help="Répertoire racine où lire les modèles",
+    )
+    # Ajoute le chemin des EDF bruts pour l'évaluation globale
+    parser.add_argument(
+        # Déclare le flag de répertoire EDF global
+        "--raw-dir",
+        # Conserve un type Path pour fiabiliser les chemins
+        type=Path,
+        # Supprime la valeur par défaut pour conserver celle du runner global
+        default=argparse.SUPPRESS,
+        # Décrit l'option pour l'aide CLI globale
+        help="Répertoire racine contenant les EDF bruts",
+    )
+    # Retourne le parser global configuré
+    return parser
+
+
+# Parse les options d'évaluation globale sans positionnels
+def _parse_global_args(
+    argv: Sequence[str],
+) -> tuple[argparse.Namespace, list[str]]:
+    """Parse les options globales et conserve les arguments inconnus."""
+
+    # Construit le parser global pour isoler les options supportées
+    parser = _build_global_parser()
+    # Retourne l'espace de noms et les arguments inconnus pour décision
+    return parser.parse_known_args(argv)
+
+
 # Valide la présence d'une dépendance critique avant exécution
 def _require_dependency(module_name: str, install_hint: str) -> None:
     """Interrompt l'exécution si une dépendance Python manque."""
@@ -236,6 +342,8 @@ class EvaluationPaths:
     artifacts_root: Path
     # Stocke le chemin vers les fichiers EDF bruts pour les runs
     raw_root: Path
+    # Stocke les overrides de pipeline pour l'auto-train global
+    pipeline_overrides: Mapping[str, str] | None = None
 
 
 # Construit la ligne de commande pour invoquer un module TPV
@@ -302,9 +410,8 @@ def _subject_identifier(subject_index: int) -> str:
 def _evaluate_experiment_subject(
     experiment: ExperimentDefinition,
     subject_index: int,
-    data_dir: Path,
-    artifacts_dir: Path,
-    raw_dir: Path,
+    # Transporte les chemins et overrides nécessaires à l'évaluation
+    paths: EvaluationPaths,
 ) -> float:
     """Évalue un sujet sur le run associé à une expérience donnée."""
 
@@ -312,13 +419,25 @@ def _evaluate_experiment_subject(
     subject = _subject_identifier(subject_index)
     # Charge le module predict seulement au moment de l'évaluation
     tpv_predict = _load_predict_module()
+    # Construit les options de prédiction pour l'auto-train global
+    options = tpv_predict.PredictionOptions(
+        # Transmet le répertoire des EDF bruts
+        raw_dir=paths.raw_root,
+        # Transmet les overrides de pipeline s'ils sont fournis
+        pipeline_overrides=paths.pipeline_overrides,
+    )
     # Exécute evaluate_run sur le run associé à l'expérience
     result = tpv_predict.evaluate_run(
+        # Transmet l'identifiant du sujet évalué
         subject,
+        # Transmet l'identifiant du run évalué
         experiment.run,
-        data_dir,
-        artifacts_dir,
-        raw_dir,
+        # Transmet le répertoire des données numpy
+        paths.data_root,
+        # Transmet le répertoire des artefacts
+        paths.artifacts_root,
+        # Transmet les options de prédiction
+        options,
     )
     # Convertit l'accuracy en float natif pour l'agrégation
     return float(result["accuracy"])
@@ -435,9 +554,7 @@ def _evaluate_experiments(
                 accuracy = _evaluate_experiment_subject(
                     experiment,
                     subject_index,
-                    paths.data_root,
-                    paths.artifacts_root,
-                    paths.raw_root,
+                    paths,
                 )
             except FileNotFoundError as error:
                 # Informe l'utilisateur qu'un prérequis manque pour ce run
@@ -576,6 +693,8 @@ def _run_global_evaluation(
     data_dir: Path | None = None,
     artifacts_dir: Path | None = None,
     raw_dir: Path | None = None,
+    # Transporte les overrides de pipeline pour l'auto-train global
+    pipeline_overrides: Mapping[str, str] | None = None,
 ) -> int:
     """Exécute la boucle d'évaluation globale décrite dans le sujet."""
 
@@ -607,6 +726,8 @@ def _run_global_evaluation(
             artifacts_root=artifacts_root,
             # Fournit le répertoire racine des fichiers EDF bruts
             raw_root=raw_root,
+            # Fournit les overrides de pipeline pour l'auto-train global
+            pipeline_overrides=pipeline_overrides,
         ),
     )
 
@@ -677,6 +798,38 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+# Construit les overrides de pipeline pour l'évaluation globale
+def _build_pipeline_overrides(
+    args: argparse.Namespace,
+) -> dict[str, str] | None:
+    """Transforme un namespace CLI en overrides pour l'auto-train."""
+
+    # Prépare une collection d'overrides explicites
+    overrides: dict[str, str] = {}
+    # Ajoute la stratégie de features si elle est fournie
+    if hasattr(args, "feature_strategy"):
+        # Enregistre la stratégie pour l'auto-train global
+        overrides["feature_strategy"] = str(args.feature_strategy)
+    # Ajoute la méthode de réduction si elle est fournie
+    if hasattr(args, "dim_method"):
+        # Enregistre la méthode de réduction pour l'auto-train global
+        overrides["dim_method"] = str(args.dim_method)
+    # Ajoute le classifieur si la CLI le fournit explicitement
+    if hasattr(args, "classifier"):
+        # Enregistre le classifieur pour l'auto-train global
+        overrides["classifier"] = str(args.classifier)
+    # Ajoute le scaler si la CLI le fournit explicitement
+    if hasattr(args, "scaler"):
+        # Enregistre le scaler pour l'auto-train global
+        overrides["scaler"] = str(args.scaler)
+    # Retourne None si aucun override explicite n'est fourni
+    if not overrides:
+        # Signale l'absence d'overrides pour conserver les défauts
+        return None
+    # Retourne les overrides explicitement demandés
+    return overrides
+
+
 # Construit la liste d'options explicites à relayer vers train/predict
 def _build_module_args(args: argparse.Namespace) -> list[str]:
     """Traduit les overrides CLI vers les modules scripts.train/predict."""
@@ -740,6 +893,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not provided_args:
         # Exécute la boucle des six expériences sur les 109 sujets
         return _run_global_evaluation()
+    # Parse les options globales pour détecter un run sans positionnels
+    global_args, unknown_args = _parse_global_args(provided_args)
+    # Déclenche l'évaluation globale si aucun argument inconnu n'est présent
+    if not unknown_args:
+        # Construit les overrides explicites pour l'auto-train global
+        pipeline_overrides = _build_pipeline_overrides(global_args)
+        # Extrait le répertoire des données s'il est explicitement fourni
+        data_dir = getattr(global_args, "data_dir", None)
+        # Extrait le répertoire des artefacts s'il est explicitement fourni
+        artifacts_dir = getattr(global_args, "artifacts_dir", None)
+        # Extrait le répertoire des EDF bruts s'il est explicitement fourni
+        raw_dir = getattr(global_args, "raw_dir", None)
+        # Lance l'évaluation globale avec les overrides éventuels
+        return _run_global_evaluation(
+            # Conserve les expériences par défaut si non spécifiées
+            experiments=None,
+            # Transmet le répertoire de données si demandé
+            data_dir=data_dir,
+            # Transmet le répertoire d'artefacts si demandé
+            artifacts_dir=artifacts_dir,
+            # Transmet le répertoire des EDF bruts si demandé
+            raw_dir=raw_dir,
+            # Transmet les overrides de pipeline pour l'auto-train
+            pipeline_overrides=pipeline_overrides,
+        )
     # Parse les arguments fournis par l'utilisateur
     args = parse_args(provided_args)
     # Vérifie les dépendances ML pour les modes qui en ont besoin
