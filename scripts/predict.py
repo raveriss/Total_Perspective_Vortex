@@ -8,6 +8,9 @@ import argparse
 # Fournit l'écriture CSV pour exposer les prédictions individuelles
 import csv
 
+# Permet de charger dynamiquement scripts.train depuis un fichier
+import importlib.util
+
 # Fournit la sérialisation JSON pour tracer les rapports générés
 import json
 
@@ -17,17 +20,17 @@ from dataclasses import dataclass
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
 
-# Garantit l'accès aux annotations Mapping pour les overrides
-from typing import Mapping
+# Garantit l'accès au type ModuleType pour typer le chargement dynamique
+from types import ModuleType
+
+# Garantit l'accès aux annotations Any et Mapping pour les overrides
+from typing import Any, Mapping
 
 # Centralise l'accès aux tableaux numpy pour l'évaluation
 import numpy as np
 
 # Calcule les métriques de classification pour le rapport
 from sklearn.metrics import confusion_matrix
-
-# Expose l'entraînement programmatique pour générer un modèle manquant
-import scripts.train as train_module
 
 # Centralise le parsing et le contrôle qualité des fichiers EDF
 from tpv import preprocessing
@@ -37,6 +40,30 @@ from tpv.dimensionality import TPVDimReducer
 
 # Expose la configuration de pipeline pour déclencher un auto-train
 from tpv.pipeline import PipelineConfig, load_pipeline
+
+
+# Charge dynamiquement scripts.train pour l'exécution directe
+def _load_train_module() -> ModuleType:
+    """Charge scripts.train depuis le chemin local du dépôt."""
+
+    # Construit le chemin du script train pour ce module
+    train_path = Path(__file__).resolve().with_name("train.py")
+    # Construit la spec d'import depuis le fichier local
+    spec = importlib.util.spec_from_file_location("scripts.train", train_path)
+    # Refuse la spec vide pour éviter un import silencieux
+    if spec is None or spec.loader is None:
+        # Signale l'échec de chargement pour diagnostiquer rapidement
+        raise ImportError(f"Impossible de charger {train_path}")
+    # Construit un module vierge à partir de la spec
+    module = importlib.util.module_from_spec(spec)
+    # Exécute le module pour charger ses symboles
+    spec.loader.exec_module(module)
+    # Retourne le module prêt à l'emploi
+    return module
+
+
+# Expose l'entraînement programmatique pour générer un modèle manquant
+train_module: Any = _load_train_module()
 
 # Définit le volume attendu des données EEG brutes (trials, canaux, temps)
 EXPECTED_FEATURES_DIMENSIONS = 3
@@ -173,8 +200,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--feature-strategy",
-        choices=("fft", "welch", "wavelet"),
+        # Aligne les choix sur ceux de scripts.train pour les alias
+        choices=train_module.FEATURE_STRATEGY_CHOICES,
+        # Conserve FFT par défaut pour rester aligné sur l'entraînement
         default="fft",
+        # Décrit la stratégie attendue pour compatibilité CLI
         help="Stratégie de features utilisée à l'entraînement (ignorée ici)",
     )
     parser.add_argument(
@@ -842,6 +872,26 @@ def build_report(result: dict) -> dict:
     }
 
 
+# Construit les overrides de pipeline depuis les arguments CLI
+def _build_pipeline_overrides_from_args(
+    args: argparse.Namespace,
+) -> dict[str, str]:
+    """Transforme les arguments CLI en overrides d'auto-train."""
+
+    # Prépare un dictionnaire vide pour les overrides explicites
+    overrides: dict[str, str] = {}
+    # Enregistre la stratégie de features demandée en CLI
+    overrides["feature_strategy"] = str(args.feature_strategy)
+    # Enregistre la méthode de réduction demandée en CLI
+    overrides["dim_method"] = str(args.dim_method)
+    # Enregistre le classifieur demandé en CLI
+    overrides["classifier"] = str(args.classifier)
+    # Enregistre le scaler demandé en CLI
+    overrides["scaler"] = str(args.scaler)
+    # Retourne les overrides construits pour l'auto-train
+    return overrides
+
+
 # Point d'entrée principal pour l'exécution en ligne de commande
 def main(argv: list[str] | None = None) -> int:
     """Parse les arguments et lance l'évaluation."""
@@ -851,8 +901,15 @@ def main(argv: list[str] | None = None) -> int:
     # Parse les arguments fournis par l'utilisateur
     args = parser.parse_args(argv)
     # Évalue le run demandé et récupère la matrice W
+    # Construit les overrides de pipeline à partir des arguments CLI
+    pipeline_overrides = _build_pipeline_overrides_from_args(args)
     # Construit les options de prédiction à partir des arguments CLI
-    options = PredictionOptions(raw_dir=args.raw_dir)
+    options = PredictionOptions(
+        # Transmet le répertoire EDF brut pour l'auto-train
+        raw_dir=args.raw_dir,
+        # Transmet les overrides pour l'auto-train en prédiction
+        pipeline_overrides=pipeline_overrides,
+    )
     # Évalue le run demandé et récupère la matrice W
     result = evaluate_run(
         # Relaye l'identifiant de sujet fourni par la CLI

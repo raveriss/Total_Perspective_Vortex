@@ -58,7 +58,14 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> (
     )
 
     assert feature_action.choices is not None
-    assert tuple(feature_action.choices) == ("fft", "welch", "wavelet")
+    assert tuple(feature_action.choices) == (
+        "fft",
+        "welch",
+        "wavelet",
+        "pca",
+        "csp",
+        "svd",
+    )
     assert feature_action.default == "fft"
     assert (
         feature_action.help
