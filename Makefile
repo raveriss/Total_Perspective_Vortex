@@ -148,6 +148,7 @@ mut: ensure-venv clean-mutants cov
 FEATURE_STRATEGY ?=
 TRAIN_ARGS ?=
 PREDICT_ARGS ?=
+BENCH_ARGS ?=
 
 # Entraînement : `make train <subject> <run>`
 train: ensure-venv
@@ -243,8 +244,19 @@ visualizer: ensure-venv
 
 # Évaluation globale : équivalent à `python mybci.py` du sujet
 bench: ensure-venv
-	@mkdir -p $(BENCH_DIR)
-	$(POETRY) python mybci.py | tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log
+	@set -euo pipefail; \
+	positional_strategy="$(word 2,$(MAKECMDGOALS))"; \
+	extra_args="$(BENCH_ARGS)"; \
+	feature_strategy="$(FEATURE_STRATEGY)"; \
+	if [[ -z "$$feature_strategy" && -n "$$positional_strategy" ]]; then \
+		feature_strategy="$$positional_strategy"; \
+	fi; \
+	if [[ -n "$$feature_strategy" ]]; then \
+		extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
+	fi; \
+	mkdir -p $(BENCH_DIR); \
+	$(POETRY) python mybci.py $$extra_args \
+		| tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log
 
 # Affiche la commande pour activer le venv
 activate:
