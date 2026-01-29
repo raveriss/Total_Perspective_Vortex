@@ -429,7 +429,7 @@ def _collect_subject_scores(
         # Saute l'auto-train si les artefacts sont incomplets et interdits
         if not options.allow_auto_train and needs_training:
             # Informe l'utilisateur que le run est ignoré par manque d'artefact
-            print("INFO: modèle absent pour " f"{subject} {run}, auto-train désactivé.")
+            # print("INFO: modèle absent pour " f"{subject} {run}, auto-train désactivé.")
             # Passe au run suivant sans entraîner
             continue
         # Lance l'auto-train si requis par l'absence ou le retrain forcé

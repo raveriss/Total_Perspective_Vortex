@@ -428,15 +428,6 @@ def _handle_cv_unavailability(
     reason: str,
 ) -> tuple[np.ndarray, Pipeline, str]:
     """Ajuste la pipeline et retourne un diagnostic CV explicite."""
-    # Prépare un message explicite pour signaler la CV désactivée
-    message = (
-        # Indique le fallback pour éviter la confusion côté CLI
-        "INFO: validation croisée indisponible, entraînement direct sans cross-val "
-        # Ajoute la raison pour aider au diagnostic utilisateur
-        f"({reason})"
-    )
-    # Affiche le message de désactivation de la validation croisée
-    print(message)
     # Évite un fit lorsque les données sont absentes pour prévenir une erreur
     if X.size == 0 or y.size == 0:
         # Retourne un score vide sans ajustement lorsque l'échantillon est nul
@@ -589,11 +580,6 @@ def _resolve_dim_method_for_features(
     if feature_strategy in {"wavelet", "welch"} and dim_method == "csp":
         # Bascule la méthode pour activer l'extraction de features
         if not dim_method_explicit:
-            # Informe l'utilisateur que CSP ignore les features tabulaires
-            print(
-                "INFO: dim_method='csp' ignore feature_strategy, "
-                "bascule automatique sur 'pca'."
-            )
             # Retourne la méthode PCA pour activer l'extraction
             return "pca"
         # Signale que CSP ignore la stratégie de features
