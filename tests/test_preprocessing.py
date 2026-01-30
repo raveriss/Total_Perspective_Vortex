@@ -40,6 +40,7 @@ from tpv.preprocessing import (
     DEFAULT_NORMALIZE_METHOD,
     MOTOR_EVENT_LABELS,
     PHYSIONET_LABEL_MAP,
+    UNIT_MICROVOLT_SCALE,
     ReportConfig,
     _apply_marking,
     _assert_expected_labels_present,
@@ -932,6 +933,60 @@ def test_load_physionet_raw_reads_metadata(
     assert metadata["channel_names"] == ["C3", "C4"]
     # Confirm the loader returns an MNE Raw instance
     assert isinstance(loaded_raw, mne.io.BaseRaw)
+
+
+def test_load_physionet_raw_converts_volts_to_microvolts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure volt-level data is converted to microvolts."""
+
+    # Prépare des canaux EEG simples pour simuler un enregistrement
+    info = mne.create_info(
+        ch_names=["C3", "C4"],
+        sfreq=128.0,
+        ch_types=["eeg", "eeg"],
+    )
+    # Construit un signal en volts pour forcer la conversion
+    data = np.full((2, 16), 1e-5, dtype=float)
+    # Construit un RawArray pour simuler un fichier EDF
+    raw = mne.io.RawArray(data, info)
+    # Patch la lecture EDF pour retourner l'enregistrement contrôlé
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Charge l'enregistrement pour déclencher la conversion
+    loaded_raw, metadata = load_physionet_raw(Path("record.edf"))
+    # Vérifie que les données sont converties en microvolts
+    np.testing.assert_allclose(loaded_raw.get_data(), data * UNIT_MICROVOLT_SCALE)
+    # Vérifie que l'unité rapportée est le microvolt
+    assert metadata["unit"] == "uV"
+    # Vérifie que le facteur de conversion est exposé
+    assert metadata["unit_scale"] == UNIT_MICROVOLT_SCALE
+
+
+def test_load_physionet_raw_keeps_microvolts_scale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure microvolt-level data is not scaled."""
+
+    # Prépare des canaux EEG simples pour simuler un enregistrement
+    info = mne.create_info(
+        ch_names=["C3", "C4"],
+        sfreq=128.0,
+        ch_types=["eeg", "eeg"],
+    )
+    # Construit un signal déjà en microvolts
+    data = np.full((2, 16), 50.0, dtype=float)
+    # Construit un RawArray pour simuler un fichier EDF
+    raw = mne.io.RawArray(data, info)
+    # Patch la lecture EDF pour retourner l'enregistrement contrôlé
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Charge l'enregistrement pour vérifier l'absence de conversion
+    loaded_raw, metadata = load_physionet_raw(Path("record.edf"))
+    # Vérifie que les données restent inchangées
+    np.testing.assert_allclose(loaded_raw.get_data(), data)
+    # Vérifie que l'unité rapportée est le microvolt
+    assert metadata["unit"] == "uV"
+    # Vérifie que le facteur de conversion reste neutre
+    assert metadata["unit_scale"] == 1.0
 
 
 def test_load_physionet_raw_applies_montage_and_path(

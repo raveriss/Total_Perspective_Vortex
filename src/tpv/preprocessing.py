@@ -124,6 +124,10 @@ DEFAULT_FILTER_METHOD = "fir"
 DEFAULT_NORMALIZE_METHOD = "zscore"
 # Fixe l'epsilon de stabilisation pour la normalisation par défaut
 DEFAULT_NORMALIZE_EPSILON = 1e-8
+# Fixe le seuil d'amplitude pour détecter des données en volts
+UNIT_MICROVOLT_THRESHOLD = 1e-3
+# Fixe le facteur de conversion volts -> microvolts
+UNIT_MICROVOLT_SCALE = 1e6
 
 
 def _rename_channels_for_montage(
@@ -175,6 +179,25 @@ def _drop_non_eeg_channels(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
     filtered_raw.pick(eeg_picks)
     # Retourne l'objet filtré pour les étapes suivantes
     return filtered_raw
+
+
+def _normalize_units_to_microvolts(raw: mne.io.BaseRaw) -> float:
+    """Convertit les données en microvolts si l'amplitude suggère des volts."""
+
+    # Extrait les données pour mesurer l'échelle d'amplitude
+    data = raw.get_data()
+    # Calcule l'amplitude maximale pour inférer l'unité utilisée
+    max_amplitude = float(np.max(np.abs(data))) if data.size else 0.0
+    # Conserve un facteur neutre pour les signaux nuls ou déjà en microvolts
+    scale = 1.0
+    # Détecte un signal probable en volts via un seuil conservateur
+    if max_amplitude > 0.0 and max_amplitude < UNIT_MICROVOLT_THRESHOLD:
+        # Applique la conversion pour aligner les unités sur microvolts
+        raw._data = data * UNIT_MICROVOLT_SCALE
+        # Fixe le facteur pour documenter la conversion appliquée
+        scale = UNIT_MICROVOLT_SCALE
+    # Retourne le facteur appliqué pour l'export des métadonnées
+    return scale
 
 
 def apply_bandpass_filter(
@@ -357,6 +380,8 @@ def load_mne_raw_checked(
     raw = _rename_channels_for_montage(raw)
     # Retire les canaux non EEG pour éviter les artefacts EOG/EMG
     raw = _drop_non_eeg_channels(raw)
+    # Normalise les unités pour éviter la confusion volts/microvolts
+    _normalize_units_to_microvolts(raw)
     # Gather channel names from the recording for consistency checks
     channel_names = list(raw.ch_names)
     # Identify unexpected channels that would break downstream spatial filters
@@ -449,6 +474,8 @@ def load_physionet_raw(
     raw = _rename_channels_for_montage(raw)
     # Retire les canaux non EEG pour stabiliser les features
     raw = _drop_non_eeg_channels(raw)
+    # Convertit les unités vers microvolts si nécessaire
+    unit_scale = _normalize_units_to_microvolts(raw)
     # Attach the montage so downstream spatial filters assume 10-20 layout
     raw.set_montage(montage, on_missing="warn")
     # Extract sampling rate to guide later filtering and epoch durations
@@ -459,10 +486,18 @@ def load_physionet_raw(
     montage_name = montage
     # Bundle metadata for callers that need reproducible preprocessing config
     metadata = {
+        # Expose la fréquence d'échantillonnage pour l'analyse
         "sampling_rate": sampling_rate,
+        # Expose les canaux conservés après filtrage EEG
         "channel_names": channel_names,
+        # Expose le montage appliqué pour tracer l'alignement spatial
         "montage": montage_name,
+        # Expose le chemin résolu pour la traçabilité des données
         "path": str(normalized_path),
+        # Expose l'unité cible pour éviter les ambiguïtés d'amplitude
+        "unit": "uV",
+        # Expose le facteur appliqué pour convertir les unités
+        "unit_scale": unit_scale,
     }
     # Return both signal and metadata to keep the loader side-effect free
     return raw, metadata
