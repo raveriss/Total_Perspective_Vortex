@@ -40,6 +40,7 @@ from tpv.preprocessing import (
     DEFAULT_NORMALIZE_METHOD,
     MOTOR_EVENT_LABELS,
     PHYSIONET_LABEL_MAP,
+    UNIT_MICROVOLT_SCALE,
     ReportConfig,
     _apply_marking,
     _assert_expected_labels_present,
@@ -934,6 +935,60 @@ def test_load_physionet_raw_reads_metadata(
     assert isinstance(loaded_raw, mne.io.BaseRaw)
 
 
+def test_load_physionet_raw_converts_volts_to_microvolts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure volt-level data is converted to microvolts."""
+
+    # Prépare des canaux EEG simples pour simuler un enregistrement
+    info = mne.create_info(
+        ch_names=["C3", "C4"],
+        sfreq=128.0,
+        ch_types=["eeg", "eeg"],
+    )
+    # Construit un signal en volts pour forcer la conversion
+    data = np.full((2, 16), 1e-5, dtype=float)
+    # Construit un RawArray pour simuler un fichier EDF
+    raw = mne.io.RawArray(data, info)
+    # Patch la lecture EDF pour retourner l'enregistrement contrôlé
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Charge l'enregistrement pour déclencher la conversion
+    loaded_raw, metadata = load_physionet_raw(Path("record.edf"))
+    # Vérifie que les données sont converties en microvolts
+    np.testing.assert_allclose(loaded_raw.get_data(), data * UNIT_MICROVOLT_SCALE)
+    # Vérifie que l'unité rapportée est le microvolt
+    assert metadata["unit"] == "uV"
+    # Vérifie que le facteur de conversion est exposé
+    assert metadata["unit_scale"] == UNIT_MICROVOLT_SCALE
+
+
+def test_load_physionet_raw_keeps_microvolts_scale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure microvolt-level data is not scaled."""
+
+    # Prépare des canaux EEG simples pour simuler un enregistrement
+    info = mne.create_info(
+        ch_names=["C3", "C4"],
+        sfreq=128.0,
+        ch_types=["eeg", "eeg"],
+    )
+    # Construit un signal déjà en microvolts
+    data = np.full((2, 16), 50.0, dtype=float)
+    # Construit un RawArray pour simuler un fichier EDF
+    raw = mne.io.RawArray(data, info)
+    # Patch la lecture EDF pour retourner l'enregistrement contrôlé
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_args, **_kwargs: raw)
+    # Charge l'enregistrement pour vérifier l'absence de conversion
+    loaded_raw, metadata = load_physionet_raw(Path("record.edf"))
+    # Vérifie que les données restent inchangées
+    np.testing.assert_allclose(loaded_raw.get_data(), data)
+    # Vérifie que l'unité rapportée est le microvolt
+    assert metadata["unit"] == "uV"
+    # Vérifie que le facteur de conversion reste neutre
+    assert metadata["unit_scale"] == 1.0
+
+
 def test_load_physionet_raw_applies_montage_and_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1024,6 +1079,59 @@ def test_load_mne_raw_checked_validates_sampling_and_channels(
     assert loaded_raw is raw
     # Ensure the montage setter was called with the expected configuration
     assert montage_calls == [("standard_1020", {"on_missing": "warn"})]
+
+
+def test_load_mne_raw_checked_drops_eog_emg_channels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure EOG/EMG channels are removed before validation."""
+
+    # Prépare des métadonnées avec deux canaux EEG et deux canaux parasites
+    info = mne.create_info(
+        ch_names=["C3", "C4", "EOG1", "EMG1"],
+        sfreq=128.0,
+        ch_types=["eeg", "eeg", "eog", "emg"],
+    )
+    # Génère un signal minimal pour alimenter RawArray
+    data = np.zeros((4, 128), dtype=float)
+    # Construit un RawArray pour simuler un enregistrement Physionet
+    raw = mne.io.RawArray(data, info)
+    # Patch le lecteur EDF pour renvoyer l'enregistrement synthétique
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_a, **_k: raw)
+    # Charge l'enregistrement avec la liste attendue de canaux EEG
+    loaded_raw = load_mne_raw_checked(
+        Path("record.edf"),
+        expected_montage="standard_1020",
+        expected_sampling_rate=128.0,
+        expected_channels=["C3", "C4"],
+    )
+    # Vérifie que seuls les canaux EEG restent après filtrage
+    assert loaded_raw.ch_names == ["C3", "C4"]
+    # Vérifie que les types de canaux restants sont bien EEG
+    assert set(loaded_raw.get_channel_types()) == {"eeg"}
+
+
+def test_load_physionet_raw_strips_non_eeg_from_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure Physionet metadata excludes EOG/EMG channels."""
+
+    # Prépare un enregistrement avec canaux EEG et EOG/EMG
+    info = mne.create_info(
+        ch_names=["C3", "C4", "EOG1", "EMG1"],
+        sfreq=100.0,
+        ch_types=["eeg", "eeg", "eog", "emg"],
+    )
+    # Génère des données nulles pour un RawArray rapide
+    data = np.zeros((4, 100), dtype=float)
+    # Construit un RawArray pour simuler la lecture EDF
+    raw = mne.io.RawArray(data, info)
+    # Patch la lecture EDF pour renvoyer l'objet synthétique
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_a, **_k: raw)
+    # Charge l'enregistrement Physionet pour récupérer les métadonnées
+    _loaded, metadata = load_physionet_raw(Path("record.edf"))
+    # Vérifie que seuls les canaux EEG sont listés
+    assert metadata["channel_names"] == ["C3", "C4"]
 
 
 def test_load_mne_raw_checked_raises_on_sampling_rate_mismatch(
@@ -1648,7 +1756,69 @@ def test_load_mne_raw_checked_surfaces_missing_file(
             expected_sampling_rate=128.0,
             expected_channels=["C3", "C4"],
         )
-    assert str(resolved_missing) in str(exc.value)
+    # Parse le payload JSON pour inspecter les champs contextualisés
+    payload = json.loads(str(exc.value))
+    # Valide que le chemin résolu est bien exposé dans l'erreur
+    assert payload["path"] == str(resolved_missing)
+    # Vérifie que l'erreur est bien catégorisée comme fichier absent
+    assert payload["error"] == "Missing recording file"
+
+
+def test_load_mne_raw_checked_reports_parse_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure corrupted recordings raise a structured parsing error."""
+
+    # Prépare un chemin factice pour simuler un fichier corrompu
+    corrupted_file = tmp_path / "bad.edf"
+    # Simule un échec MNE typique lors du parsing
+    monkeypatch.setattr(
+        mne.io,
+        "read_raw_edf",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("EOF")),
+    )
+    # Vérifie que l'erreur remonte un diagnostic JSON structuré
+    with pytest.raises(ValueError) as exc:
+        load_mne_raw_checked(
+            corrupted_file,
+            expected_montage="standard_1020",
+            expected_sampling_rate=128.0,
+            expected_channels=["C3", "C4"],
+        )
+    # Parse le payload JSON pour inspecter le contexte fourni
+    payload = json.loads(str(exc.value))
+    # Vérifie que le chemin corrompu est reporté
+    assert payload["path"] == str(corrupted_file.resolve())
+    # Vérifie que la catégorie d'erreur est explicite
+    assert payload["error"] == "MNE parse failure"
+    # Vérifie que l'exception d'origine est mentionnée
+    assert payload["exception"] == "RuntimeError"
+
+
+def test_load_physionet_raw_surfaces_missing_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure Physionet loader reports missing files with context."""
+
+    # Construit un chemin inexistant pour simuler un manque de fichier
+    missing_file = tmp_path / "missing.edf"
+    # Simule l'erreur MNE d'absence de fichier
+    monkeypatch.setattr(
+        mne.io,
+        "read_raw_edf",
+        lambda path, *_args, **_kwargs: (
+            (_ for _ in ()).throw(FileNotFoundError(f"No file at {path}"))
+        ),
+    )
+    # Vérifie que l'erreur est bien remontée sous forme structurée
+    with pytest.raises(FileNotFoundError) as exc:
+        load_physionet_raw(missing_file)
+    # Parse le payload JSON pour extraire les champs
+    payload = json.loads(str(exc.value))
+    # Vérifie que le chemin résolu est présent dans le message
+    assert payload["path"] == str(missing_file.resolve())
+    # Vérifie que la catégorie d'erreur est explicite
+    assert payload["error"] == "Missing recording file"
 
 
 def test_load_mne_raw_checked_flags_missing_only_channels(
@@ -2813,21 +2983,25 @@ def test_load_mne_motor_run_reports_unknown_subject_or_run(
     missing_subject = "S404"
     missing_run = "R99"
     missing_file = tmp_path / missing_subject / f"{missing_run}.edf"
-    # Fixe un message d'erreur clair pour verrouiller la propagation
-    error_message = f"No recording for subject {missing_subject} run {missing_run}"
 
     # Simule la lecture EDF qui échoue immédiatement
     def raising_reader(*_args: object, **_kwargs: object) -> mne.io.BaseRaw:
-        raise FileNotFoundError(error_message)
+        raise FileNotFoundError("missing file")
 
     monkeypatch.setattr("mne.io.read_raw_edf", raising_reader)
     # Vérifie que le message explicite est conservé jusqu'à l'appelant
-    with pytest.raises(FileNotFoundError, match=error_message):
+    with pytest.raises(FileNotFoundError) as exc:
         load_mne_motor_run(
             missing_file,
             expected_sampling_rate=128.0,
             expected_channels=["C3", "C4"],
         )
+    # Parse le payload JSON pour vérifier le contexte remonté
+    payload = json.loads(str(exc.value))
+    # Vérifie que le chemin manquant est bien exposé
+    assert payload["path"] == str(missing_file.resolve())
+    # Vérifie que l'erreur est catégorisée comme fichier absent
+    assert payload["error"] == "Missing recording file"
 
 
 def test_map_events_to_motor_labels_rejects_runs_without_motor_activity() -> None:

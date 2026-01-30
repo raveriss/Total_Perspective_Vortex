@@ -124,6 +124,10 @@ DEFAULT_FILTER_METHOD = "fir"
 DEFAULT_NORMALIZE_METHOD = "zscore"
 # Fixe l'epsilon de stabilisation pour la normalisation par défaut
 DEFAULT_NORMALIZE_EPSILON = 1e-8
+# Fixe le seuil d'amplitude pour détecter des données en volts
+UNIT_MICROVOLT_THRESHOLD = 1e-3
+# Fixe le facteur de conversion volts -> microvolts
+UNIT_MICROVOLT_SCALE = 1e6
 
 
 def _rename_channels_for_montage(
@@ -139,6 +143,61 @@ def _rename_channels_for_montage(
         raw.rename_channels(present_map)
     # Retourne l'objet Raw avec des noms compatibles montage 10-20
     return raw
+
+
+def _drop_non_eeg_channels(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
+    """Retire les canaux non EEG (EOG/EMG/etc.) avant le prétraitement."""
+
+    # Réutilise l'objet Raw pour conserver l'identité en tests
+    filtered_raw = raw
+    # Détermine les indices EEG disponibles dans l'enregistrement
+    eeg_picks = mne.pick_types(
+        filtered_raw.info,
+        eeg=True,
+        eog=False,
+        emg=False,
+        ecg=False,
+        stim=False,
+        misc=False,
+        seeg=False,
+        ecog=False,
+        meg=False,
+    )
+    # Refuse la poursuite si aucun canal EEG n'est présent
+    if eeg_picks.size == 0:
+        # Expose un diagnostic structuré pour guider la correction des données
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "No EEG channels after filtering",
+                    "available_channels": list(filtered_raw.ch_names),
+                    "channel_types": filtered_raw.get_channel_types(),
+                }
+            )
+        )
+    # Conserve uniquement les canaux EEG pour éviter les artefacts EOG/EMG
+    filtered_raw.pick(eeg_picks)
+    # Retourne l'objet filtré pour les étapes suivantes
+    return filtered_raw
+
+
+def _normalize_units_to_microvolts(raw: mne.io.BaseRaw) -> float:
+    """Convertit les données en microvolts si l'amplitude suggère des volts."""
+
+    # Extrait les données pour mesurer l'échelle d'amplitude
+    data = raw.get_data()
+    # Calcule l'amplitude maximale pour inférer l'unité utilisée
+    max_amplitude = float(np.max(np.abs(data))) if data.size else 0.0
+    # Conserve un facteur neutre pour les signaux nuls ou déjà en microvolts
+    scale = 1.0
+    # Détecte un signal probable en volts via un seuil conservateur
+    if max_amplitude > 0.0 and max_amplitude < UNIT_MICROVOLT_THRESHOLD:
+        # Applique la conversion pour aligner les unités sur microvolts
+        raw._data = data * UNIT_MICROVOLT_SCALE
+        # Fixe le facteur pour documenter la conversion appliquée
+        scale = UNIT_MICROVOLT_SCALE
+    # Retourne le facteur appliqué pour l'export des métadonnées
+    return scale
 
 
 def apply_bandpass_filter(
@@ -249,6 +308,39 @@ def _is_bad_description(description: str) -> bool:
     return normalized_description.startswith("BAD")
 
 
+def _load_raw_with_mne(path: Path) -> mne.io.BaseRaw:
+    """Charge un EDF/BDF via MNE en enrichissant les erreurs de parsing."""
+
+    # Normalise le chemin pour fiabiliser les messages d'erreur
+    normalized_path = Path(path).expanduser().resolve()
+    # Encadre la lecture pour enrichir les erreurs de parsing MNE
+    try:
+        # Charge les données EDF/BDF en mémoire pour valider rapidement
+        return mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    except FileNotFoundError as exc:
+        # Remonte l'erreur d'absence en conservant le contexte du chemin
+        raise FileNotFoundError(
+            json.dumps(
+                {
+                    "error": "Missing recording file",
+                    "path": str(normalized_path),
+                }
+            )
+        ) from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        # Regroupe les erreurs MNE usuelles en un diagnostic structuré
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "MNE parse failure",
+                    "path": str(normalized_path),
+                    "exception": exc.__class__.__name__,
+                    "message": str(exc),
+                }
+            )
+        ) from exc
+
+
 def load_mne_raw_checked(
     file_path: Path,
     expected_montage: str,
@@ -273,8 +365,8 @@ def load_mne_raw_checked(
                 }
             )
         )
-    # Load the raw file with preload enabled for immediate validation
-    raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    # Charge le fichier brut avec gestion d'erreurs dédiée MNE
+    raw = _load_raw_with_mne(normalized_path)
     # Extract the sampling frequency reported by the recording
     sampling_rate = float(raw.info["sfreq"])
     # Validate the sampling frequency against the expected configuration
@@ -286,6 +378,10 @@ def load_mne_raw_checked(
         )
     # Renomme les canaux bruts pour les aligner sur le montage standard
     raw = _rename_channels_for_montage(raw)
+    # Retire les canaux non EEG pour éviter les artefacts EOG/EMG
+    raw = _drop_non_eeg_channels(raw)
+    # Normalise les unités pour éviter la confusion volts/microvolts
+    _normalize_units_to_microvolts(raw)
     # Gather channel names from the recording for consistency checks
     channel_names = list(raw.ch_names)
     # Identify unexpected channels that would break downstream spatial filters
@@ -372,10 +468,14 @@ def load_physionet_raw(
             category=RuntimeWarning,
             module="mne",
         )
-        # Load the recording with preload to enable immediate validation steps
-        raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+        # Charge l'enregistrement en gérant les erreurs de parsing MNE
+        raw = _load_raw_with_mne(normalized_path)
     # Renomme les canaux pour les aligner sur le montage 10-20 utilisé
     raw = _rename_channels_for_montage(raw)
+    # Retire les canaux non EEG pour stabiliser les features
+    raw = _drop_non_eeg_channels(raw)
+    # Convertit les unités vers microvolts si nécessaire
+    unit_scale = _normalize_units_to_microvolts(raw)
     # Attach the montage so downstream spatial filters assume 10-20 layout
     raw.set_montage(montage, on_missing="warn")
     # Extract sampling rate to guide later filtering and epoch durations
@@ -386,10 +486,18 @@ def load_physionet_raw(
     montage_name = montage
     # Bundle metadata for callers that need reproducible preprocessing config
     metadata = {
+        # Expose la fréquence d'échantillonnage pour l'analyse
         "sampling_rate": sampling_rate,
+        # Expose les canaux conservés après filtrage EEG
         "channel_names": channel_names,
+        # Expose le montage appliqué pour tracer l'alignement spatial
         "montage": montage_name,
+        # Expose le chemin résolu pour la traçabilité des données
         "path": str(normalized_path),
+        # Expose l'unité cible pour éviter les ambiguïtés d'amplitude
+        "unit": "uV",
+        # Expose le facteur appliqué pour convertir les unités
+        "unit_scale": unit_scale,
     }
     # Return both signal and metadata to keep the loader side-effect free
     return raw, metadata
