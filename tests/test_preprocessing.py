@@ -3218,6 +3218,184 @@ def test_summarize_epoch_quality_reports_label_mismatch() -> None:
     assert payload["labels"] == len(truncated_labels)
 
 
+def test_load_mne_raw_checked_handles_corrupted_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify that load_mne_raw_checked raises OSError for corrupted files."""
+
+    # Create a dummy file path
+    test_file = tmp_path / "corrupted.edf"
+    test_file.touch()
+
+    # Simulate MNE raising OSError for a corrupted file
+    def raising_reader(*_args: object, **_kwargs: object) -> mne.io.BaseRaw:
+        raise OSError("File corrupted")
+
+    monkeypatch.setattr("mne.io.read_raw_edf", raising_reader)
+
+    # Verify that OSError is raised with proper JSON error message
+    with pytest.raises(OSError) as excinfo:
+        load_mne_raw_checked(
+            test_file,
+            expected_montage="standard_1020",
+            expected_sampling_rate=160.0,
+            expected_channels=["C3", "C4"],
+        )
+
+    # Parse and verify the JSON error payload
+    error_payload = json.loads(str(excinfo.value))
+    assert error_payload["error"] == "Failed to read EEG file"
+    assert str(test_file) in error_payload["path"]
+    assert "corrupted" in error_payload["reason"].lower()
+
+
+def test_load_mne_raw_checked_handles_invalid_format(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify that load_mne_raw_checked raises ValueError for invalid EDF format."""
+
+    # Create a dummy file path
+    test_file = tmp_path / "invalid.edf"
+    test_file.touch()
+
+    # Simulate MNE raising ValueError for invalid format
+    def raising_reader(*_args: object, **_kwargs: object) -> mne.io.BaseRaw:
+        raise ValueError("Not a valid EDF file")
+
+    monkeypatch.setattr("mne.io.read_raw_edf", raising_reader)
+
+    # Verify that ValueError is raised with proper JSON error message
+    with pytest.raises(ValueError) as excinfo:
+        load_mne_raw_checked(
+            test_file,
+            expected_montage="standard_1020",
+            expected_sampling_rate=160.0,
+            expected_channels=["C3", "C4"],
+        )
+
+    # Parse and verify the JSON error payload
+    error_payload = json.loads(str(excinfo.value))
+    assert error_payload["error"] == "Invalid EEG file format"
+    assert str(test_file) in error_payload["path"]
+
+
+def test_load_mne_raw_checked_handles_unexpected_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify that load_mne_raw_checked raises RuntimeError for unexpected errors."""
+
+    # Create a dummy file path
+    test_file = tmp_path / "unexpected.edf"
+    test_file.touch()
+
+    # Simulate MNE raising an unexpected exception
+    def raising_reader(*_args: object, **_kwargs: object) -> mne.io.BaseRaw:
+        raise MemoryError("Out of memory")
+
+    monkeypatch.setattr("mne.io.read_raw_edf", raising_reader)
+
+    # Verify that RuntimeError is raised with proper JSON error message
+    with pytest.raises(RuntimeError) as excinfo:
+        load_mne_raw_checked(
+            test_file,
+            expected_montage="standard_1020",
+            expected_sampling_rate=160.0,
+            expected_channels=["C3", "C4"],
+        )
+
+    # Parse and verify the JSON error payload
+    error_payload = json.loads(str(excinfo.value))
+    assert error_payload["error"] == "Unexpected error during EEG file parsing"
+    assert error_payload["exception_type"] == "MemoryError"
+
+
+def test_load_mne_motor_run_handles_corrupted_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify that load_mne_motor_run raises OSError for corrupted files."""
+
+    # Create a dummy file path
+    test_file = tmp_path / "corrupted_motor.edf"
+    test_file.touch()
+
+    # Simulate MNE raising OSError for a corrupted file
+    def raising_reader(*_args: object, **_kwargs: object) -> mne.io.BaseRaw:
+        raise OSError("File corrupted")
+
+    monkeypatch.setattr("mne.io.read_raw_edf", raising_reader)
+
+    # Verify that OSError is raised with proper JSON error message
+    with pytest.raises(OSError) as excinfo:
+        load_mne_motor_run(
+            test_file,
+            expected_sampling_rate=160.0,
+            expected_channels=["C3", "C4"],
+        )
+
+    # Parse and verify the JSON error payload
+    error_payload = json.loads(str(excinfo.value))
+    assert error_payload["error"] == "Failed to read EEG file"
+    assert str(test_file) in error_payload["path"]
+
+
+def test_map_events_and_validate_handles_annotation_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify that map_events_and_validate handles errors from events_from_annotations."""
+
+    # Create a dummy raw object
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.5)
+    raw.set_montage("standard_1020")
+
+    # Simulate MNE raising ValueError during event extraction
+    def raising_events_from_annotations(
+        *_args: object, **_kwargs: object
+    ) -> Tuple[Any, Any]:
+        raise ValueError("Annotations are malformed")
+
+    monkeypatch.setattr(
+        "mne.events_from_annotations", raising_events_from_annotations
+    )
+
+    # Verify that ValueError is raised with proper JSON error message
+    with pytest.raises(ValueError) as excinfo:
+        map_events_and_validate(raw, MOTOR_EVENT_LABELS)
+
+    # Parse and verify the JSON error payload
+    error_payload = json.loads(str(excinfo.value))
+    assert error_payload["error"] == "Failed to extract events from annotations"
+
+
+def test_create_epochs_from_raw_handles_epoch_creation_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify that create_epochs_from_raw handles errors during Epochs creation."""
+
+    # Create a dummy raw object
+    raw = _build_dummy_raw(sfreq=128.0, duration=0.5)
+    raw.set_montage("standard_1020")
+
+    # Create simple events
+    events = np.array([[10, 0, 1], [50, 0, 2]])
+    event_id = {"T1": 1, "T2": 2}
+
+    # Simulate MNE raising ValueError during Epochs creation
+    original_epochs = mne.Epochs
+
+    def raising_epochs(*_args: object, **_kwargs: object) -> mne.Epochs:
+        raise ValueError("Invalid epoch parameters")
+
+    monkeypatch.setattr("mne.Epochs", raising_epochs)
+
+    # Verify that ValueError is raised with proper JSON error message
+    with pytest.raises(ValueError) as excinfo:
+        create_epochs_from_raw(raw, events, event_id, tmin=-0.1, tmax=0.2)
+
+    # Parse and verify the JSON error payload
+    error_payload = json.loads(str(excinfo.value))
+    assert error_payload["error"] == "Failed to create epochs"
+
+
 def test_preprocessing_signatures_preserve_documented_defaults() -> None:
     """Protect the public API defaults used in documentation and examples."""
 

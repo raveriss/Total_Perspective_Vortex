@@ -274,7 +274,46 @@ def load_mne_raw_checked(
             )
         )
     # Load the raw file with preload enabled for immediate validation
-    raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    try:
+        raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    except FileNotFoundError as exc:
+        # Re-raise FileNotFoundError with clear context about the missing file
+        raise FileNotFoundError(
+            f"EEG file not found: {normalized_path}"
+        ) from exc
+    except (OSError, IOError) as exc:
+        # Catch I/O errors such as permission denied or corrupted files
+        raise OSError(
+            json.dumps(
+                {
+                    "error": "Failed to read EEG file",
+                    "path": str(normalized_path),
+                    "reason": "File may be corrupted, unreadable, or have incorrect permissions",
+                }
+            )
+        ) from exc
+    except ValueError as exc:
+        # Catch MNE-specific ValueError for invalid EDF/BDF format
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Invalid EEG file format",
+                    "path": str(normalized_path),
+                    "reason": "File does not conform to EDF/BDF standard",
+                }
+            )
+        ) from exc
+    except Exception as exc:
+        # Catch any other unexpected errors during MNE parsing
+        raise RuntimeError(
+            json.dumps(
+                {
+                    "error": "Unexpected error during EEG file parsing",
+                    "path": str(normalized_path),
+                    "exception_type": type(exc).__name__,
+                }
+            )
+        ) from exc
     # Extract the sampling frequency reported by the recording
     sampling_rate = float(raw.info["sfreq"])
     # Validate the sampling frequency against the expected configuration
@@ -373,7 +412,46 @@ def load_physionet_raw(
             module="mne",
         )
         # Load the recording with preload to enable immediate validation steps
-        raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+        try:
+            raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+        except FileNotFoundError as exc:
+            # Re-raise FileNotFoundError with clear context about the missing file
+            raise FileNotFoundError(
+                f"EEG file not found: {normalized_path}"
+            ) from exc
+        except (OSError, IOError) as exc:
+            # Catch I/O errors such as permission denied or corrupted files
+            raise OSError(
+                json.dumps(
+                    {
+                        "error": "Failed to read EEG file",
+                        "path": str(normalized_path),
+                        "reason": "File may be corrupted, unreadable, or have incorrect permissions",
+                    }
+                )
+            ) from exc
+        except ValueError as exc:
+            # Catch MNE-specific ValueError for invalid EDF/BDF format
+            raise ValueError(
+                json.dumps(
+                    {
+                        "error": "Invalid EEG file format",
+                        "path": str(normalized_path),
+                        "reason": "File does not conform to EDF/BDF standard",
+                    }
+                )
+            ) from exc
+        except Exception as exc:
+            # Catch any other unexpected errors during MNE parsing
+            raise RuntimeError(
+                json.dumps(
+                    {
+                        "error": "Unexpected error during EEG file parsing",
+                        "path": str(normalized_path),
+                        "exception_type": type(exc).__name__,
+                    }
+                )
+            ) from exc
     # Renomme les canaux pour les aligner sur le montage 10-20 utilisé
     raw = _rename_channels_for_montage(raw)
     # Attach the montage so downstream spatial filters assume 10-20 layout
@@ -447,9 +525,30 @@ def map_events_and_validate(
     # Extract invalid windows to support removal of corrupted epochs
     bad_intervals = _extract_bad_intervals(raw)
     # Convert annotations into events that MNE Epochs can consume
-    events, _ = mne.events_from_annotations(
-        raw, event_id=effective_label_map, verbose=False
-    )
+    try:
+        events, _ = mne.events_from_annotations(
+            raw, event_id=effective_label_map, verbose=False
+        )
+    except ValueError as exc:
+        # Catch errors when annotations cannot be converted to events
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Failed to extract events from annotations",
+                    "reason": "Annotations may be malformed or incompatible with event mapping",
+                }
+            )
+        ) from exc
+    except Exception as exc:
+        # Catch any other unexpected errors during event extraction
+        raise RuntimeError(
+            json.dumps(
+                {
+                    "error": "Unexpected error during event extraction from annotations",
+                    "exception_type": type(exc).__name__,
+                }
+            )
+        ) from exc
     # Preserve the full label map even if some labels are absent in a run
     event_id = dict(effective_label_map)
     # Build a boolean mask describing which events survive BAD intervals
@@ -681,19 +780,40 @@ def create_epochs_from_raw(
     # Reuse the typed array without copying when already integer
     typed_events = safe_events.astype(int, copy=False)
     # Build epochs while honoring BAD annotations to avoid contaminating data
-    epochs = mne.Epochs(
-        raw,
-        events=typed_events,
-        event_id=event_id,
-        tmin=tmin,
-        tmax=tmax,
-        preload=True,
-        reject_by_annotation=True,
-        baseline=None,
-        # Ignore labels missing from specific runs to keep epoching robust
-        on_missing="ignore",
-        verbose=False,
-    )
+    try:
+        epochs = mne.Epochs(
+            raw,
+            events=typed_events,
+            event_id=event_id,
+            tmin=tmin,
+            tmax=tmax,
+            preload=True,
+            reject_by_annotation=True,
+            baseline=None,
+            # Ignore labels missing from specific runs to keep epoching robust
+            on_missing="ignore",
+            verbose=False,
+        )
+    except ValueError as exc:
+        # Catch errors when epoch creation fails due to invalid parameters
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "Failed to create epochs",
+                    "reason": "Event timing or parameters may be invalid",
+                }
+            )
+        ) from exc
+    except Exception as exc:
+        # Catch any other unexpected errors during epoch creation
+        raise RuntimeError(
+            json.dumps(
+                {
+                    "error": "Unexpected error during epoch creation",
+                    "exception_type": type(exc).__name__,
+                }
+            )
+        ) from exc
     # Return epochs ready for feature extraction and model training
     return epochs
 
