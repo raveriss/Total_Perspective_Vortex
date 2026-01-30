@@ -1026,6 +1026,59 @@ def test_load_mne_raw_checked_validates_sampling_and_channels(
     assert montage_calls == [("standard_1020", {"on_missing": "warn"})]
 
 
+def test_load_mne_raw_checked_drops_eog_emg_channels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure EOG/EMG channels are removed before validation."""
+
+    # Prépare des métadonnées avec deux canaux EEG et deux canaux parasites
+    info = mne.create_info(
+        ch_names=["C3", "C4", "EOG1", "EMG1"],
+        sfreq=128.0,
+        ch_types=["eeg", "eeg", "eog", "emg"],
+    )
+    # Génère un signal minimal pour alimenter RawArray
+    data = np.zeros((4, 128), dtype=float)
+    # Construit un RawArray pour simuler un enregistrement Physionet
+    raw = mne.io.RawArray(data, info)
+    # Patch le lecteur EDF pour renvoyer l'enregistrement synthétique
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_a, **_k: raw)
+    # Charge l'enregistrement avec la liste attendue de canaux EEG
+    loaded_raw = load_mne_raw_checked(
+        Path("record.edf"),
+        expected_montage="standard_1020",
+        expected_sampling_rate=128.0,
+        expected_channels=["C3", "C4"],
+    )
+    # Vérifie que seuls les canaux EEG restent après filtrage
+    assert loaded_raw.ch_names == ["C3", "C4"]
+    # Vérifie que les types de canaux restants sont bien EEG
+    assert set(loaded_raw.get_channel_types()) == {"eeg"}
+
+
+def test_load_physionet_raw_strips_non_eeg_from_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure Physionet metadata excludes EOG/EMG channels."""
+
+    # Prépare un enregistrement avec canaux EEG et EOG/EMG
+    info = mne.create_info(
+        ch_names=["C3", "C4", "EOG1", "EMG1"],
+        sfreq=100.0,
+        ch_types=["eeg", "eeg", "eog", "emg"],
+    )
+    # Génère des données nulles pour un RawArray rapide
+    data = np.zeros((4, 100), dtype=float)
+    # Construit un RawArray pour simuler la lecture EDF
+    raw = mne.io.RawArray(data, info)
+    # Patch la lecture EDF pour renvoyer l'objet synthétique
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *_a, **_k: raw)
+    # Charge l'enregistrement Physionet pour récupérer les métadonnées
+    _loaded, metadata = load_physionet_raw(Path("record.edf"))
+    # Vérifie que seuls les canaux EEG sont listés
+    assert metadata["channel_names"] == ["C3", "C4"]
+
+
 def test_load_mne_raw_checked_raises_on_sampling_rate_mismatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -141,6 +141,42 @@ def _rename_channels_for_montage(
     return raw
 
 
+def _drop_non_eeg_channels(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
+    """Retire les canaux non EEG (EOG/EMG/etc.) avant le prétraitement."""
+
+    # Réutilise l'objet Raw pour conserver l'identité en tests
+    filtered_raw = raw
+    # Détermine les indices EEG disponibles dans l'enregistrement
+    eeg_picks = mne.pick_types(
+        filtered_raw.info,
+        eeg=True,
+        eog=False,
+        emg=False,
+        ecg=False,
+        stim=False,
+        misc=False,
+        seeg=False,
+        ecog=False,
+        meg=False,
+    )
+    # Refuse la poursuite si aucun canal EEG n'est présent
+    if eeg_picks.size == 0:
+        # Expose un diagnostic structuré pour guider la correction des données
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "No EEG channels after filtering",
+                    "available_channels": list(filtered_raw.ch_names),
+                    "channel_types": filtered_raw.get_channel_types(),
+                }
+            )
+        )
+    # Conserve uniquement les canaux EEG pour éviter les artefacts EOG/EMG
+    filtered_raw.pick(eeg_picks)
+    # Retourne l'objet filtré pour les étapes suivantes
+    return filtered_raw
+
+
 def apply_bandpass_filter(
     raw: mne.io.BaseRaw,
     method: str = DEFAULT_FILTER_METHOD,
@@ -319,6 +355,8 @@ def load_mne_raw_checked(
         )
     # Renomme les canaux bruts pour les aligner sur le montage standard
     raw = _rename_channels_for_montage(raw)
+    # Retire les canaux non EEG pour éviter les artefacts EOG/EMG
+    raw = _drop_non_eeg_channels(raw)
     # Gather channel names from the recording for consistency checks
     channel_names = list(raw.ch_names)
     # Identify unexpected channels that would break downstream spatial filters
@@ -409,6 +447,8 @@ def load_physionet_raw(
         raw = _load_raw_with_mne(normalized_path)
     # Renomme les canaux pour les aligner sur le montage 10-20 utilisé
     raw = _rename_channels_for_montage(raw)
+    # Retire les canaux non EEG pour stabiliser les features
+    raw = _drop_non_eeg_channels(raw)
     # Attach the montage so downstream spatial filters assume 10-20 layout
     raw.set_montage(montage, on_missing="warn")
     # Extract sampling rate to guide later filtering and epoch durations
