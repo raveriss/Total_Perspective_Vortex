@@ -580,6 +580,11 @@ def _resolve_dim_method_for_features(
     if feature_strategy in {"wavelet", "welch"} and dim_method == "csp":
         # Bascule la méthode pour activer l'extraction de features
         if not dim_method_explicit:
+            # Informe l'utilisateur de la bascule automatique de méthode
+            print(
+                "INFO: dim_method='csp' ignore feature_strategy, "
+                "bascule automatique sur 'pca'."
+            )
             # Retourne la méthode PCA pour activer l'extraction
             return "pca"
         # Signale que CSP ignore la stratégie de features
@@ -1793,6 +1798,12 @@ def run_training(request: TrainingRequest) -> dict:
         pipeline,
         adapted_config,
     )
+    # Informe l'utilisateur lorsque la validation croisée est désactivée
+    if cv_unavailability_reason and cv_scores.size == 0:
+        # Affiche un message explicite pour signaler le fallback direct
+        print(
+            "INFO: validation croisée indisponible, entraînement direct sans cross-val"
+        )
     # Prépare le dossier d'artefacts spécifique au sujet et au run
     target_dir = request.artifacts_dir / request.subject / request.run
     # Assure l'existence du parent pour stabiliser la création du dossier cible
