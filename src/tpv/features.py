@@ -2,10 +2,9 @@
 
 # Importe les annotations pour clarifier la signature des fonctions
 # Importe Any pour typer la configuration dynamique des fonctions
-from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple, cast
-
 # Importe lru_cache pour n'afficher certains messages qu'une seule fois
 from functools import lru_cache
+from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple, cast
 
 # Importe NumPy pour manipuler les tenseurs spectraux et tabulaires
 import numpy as np
@@ -23,7 +22,6 @@ def _print_once(message: str) -> None:
 
     # Centralise l'affichage pour éviter les répétitions en CV/clonage
     print(message)
-
 
 
 def _resolve_band_ranges(
@@ -415,7 +413,6 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         # Affiche la stratégie FFT une seule fois malgré la CV et les clones
         _print_once("[⚡ TPV] Extracting FFT features...")
 
-        
         n_times = X.shape[-1]
         # Centre le signal pour supprimer la composante DC avant la FFT
         centered = X - X.mean(axis=-1, keepdims=True)
@@ -462,7 +459,6 @@ class ExtractFeatures(BaseEstimator, TransformerMixin):
         # Affiche la stratégie wavelet une seule fois malgré la CV et les clones
         _print_once("[⚡ TPV] Extracting wavelet features...")
 
-        
         expected_bands = len(self._band_items)
         if expected_bands == 0:  # pragma: no cover - defensive
             raise ValueError("Wavelet features require at least one configured band.")

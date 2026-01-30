@@ -1648,7 +1648,69 @@ def test_load_mne_raw_checked_surfaces_missing_file(
             expected_sampling_rate=128.0,
             expected_channels=["C3", "C4"],
         )
-    assert str(resolved_missing) in str(exc.value)
+    # Parse le payload JSON pour inspecter les champs contextualisés
+    payload = json.loads(str(exc.value))
+    # Valide que le chemin résolu est bien exposé dans l'erreur
+    assert payload["path"] == str(resolved_missing)
+    # Vérifie que l'erreur est bien catégorisée comme fichier absent
+    assert payload["error"] == "Missing recording file"
+
+
+def test_load_mne_raw_checked_reports_parse_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure corrupted recordings raise a structured parsing error."""
+
+    # Prépare un chemin factice pour simuler un fichier corrompu
+    corrupted_file = tmp_path / "bad.edf"
+    # Simule un échec MNE typique lors du parsing
+    monkeypatch.setattr(
+        mne.io,
+        "read_raw_edf",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("EOF")),
+    )
+    # Vérifie que l'erreur remonte un diagnostic JSON structuré
+    with pytest.raises(ValueError) as exc:
+        load_mne_raw_checked(
+            corrupted_file,
+            expected_montage="standard_1020",
+            expected_sampling_rate=128.0,
+            expected_channels=["C3", "C4"],
+        )
+    # Parse le payload JSON pour inspecter le contexte fourni
+    payload = json.loads(str(exc.value))
+    # Vérifie que le chemin corrompu est reporté
+    assert payload["path"] == str(corrupted_file.resolve())
+    # Vérifie que la catégorie d'erreur est explicite
+    assert payload["error"] == "MNE parse failure"
+    # Vérifie que l'exception d'origine est mentionnée
+    assert payload["exception"] == "RuntimeError"
+
+
+def test_load_physionet_raw_surfaces_missing_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure Physionet loader reports missing files with context."""
+
+    # Construit un chemin inexistant pour simuler un manque de fichier
+    missing_file = tmp_path / "missing.edf"
+    # Simule l'erreur MNE d'absence de fichier
+    monkeypatch.setattr(
+        mne.io,
+        "read_raw_edf",
+        lambda path, *_args, **_kwargs: (
+            (_ for _ in ()).throw(FileNotFoundError(f"No file at {path}"))
+        ),
+    )
+    # Vérifie que l'erreur est bien remontée sous forme structurée
+    with pytest.raises(FileNotFoundError) as exc:
+        load_physionet_raw(missing_file)
+    # Parse le payload JSON pour extraire les champs
+    payload = json.loads(str(exc.value))
+    # Vérifie que le chemin résolu est présent dans le message
+    assert payload["path"] == str(missing_file.resolve())
+    # Vérifie que la catégorie d'erreur est explicite
+    assert payload["error"] == "Missing recording file"
 
 
 def test_load_mne_raw_checked_flags_missing_only_channels(
@@ -2813,21 +2875,25 @@ def test_load_mne_motor_run_reports_unknown_subject_or_run(
     missing_subject = "S404"
     missing_run = "R99"
     missing_file = tmp_path / missing_subject / f"{missing_run}.edf"
-    # Fixe un message d'erreur clair pour verrouiller la propagation
-    error_message = f"No recording for subject {missing_subject} run {missing_run}"
 
     # Simule la lecture EDF qui échoue immédiatement
     def raising_reader(*_args: object, **_kwargs: object) -> mne.io.BaseRaw:
-        raise FileNotFoundError(error_message)
+        raise FileNotFoundError("missing file")
 
     monkeypatch.setattr("mne.io.read_raw_edf", raising_reader)
     # Vérifie que le message explicite est conservé jusqu'à l'appelant
-    with pytest.raises(FileNotFoundError, match=error_message):
+    with pytest.raises(FileNotFoundError) as exc:
         load_mne_motor_run(
             missing_file,
             expected_sampling_rate=128.0,
             expected_channels=["C3", "C4"],
         )
+    # Parse le payload JSON pour vérifier le contexte remonté
+    payload = json.loads(str(exc.value))
+    # Vérifie que le chemin manquant est bien exposé
+    assert payload["path"] == str(missing_file.resolve())
+    # Vérifie que l'erreur est catégorisée comme fichier absent
+    assert payload["error"] == "Missing recording file"
 
 
 def test_map_events_to_motor_labels_rejects_runs_without_motor_activity() -> None:

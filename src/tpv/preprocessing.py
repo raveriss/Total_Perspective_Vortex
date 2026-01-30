@@ -249,6 +249,39 @@ def _is_bad_description(description: str) -> bool:
     return normalized_description.startswith("BAD")
 
 
+def _load_raw_with_mne(path: Path) -> mne.io.BaseRaw:
+    """Charge un EDF/BDF via MNE en enrichissant les erreurs de parsing."""
+
+    # Normalise le chemin pour fiabiliser les messages d'erreur
+    normalized_path = Path(path).expanduser().resolve()
+    # Encadre la lecture pour enrichir les erreurs de parsing MNE
+    try:
+        # Charge les données EDF/BDF en mémoire pour valider rapidement
+        return mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    except FileNotFoundError as exc:
+        # Remonte l'erreur d'absence en conservant le contexte du chemin
+        raise FileNotFoundError(
+            json.dumps(
+                {
+                    "error": "Missing recording file",
+                    "path": str(normalized_path),
+                }
+            )
+        ) from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        # Regroupe les erreurs MNE usuelles en un diagnostic structuré
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "MNE parse failure",
+                    "path": str(normalized_path),
+                    "exception": exc.__class__.__name__,
+                    "message": str(exc),
+                }
+            )
+        ) from exc
+
+
 def load_mne_raw_checked(
     file_path: Path,
     expected_montage: str,
@@ -273,8 +306,8 @@ def load_mne_raw_checked(
                 }
             )
         )
-    # Load the raw file with preload enabled for immediate validation
-    raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    # Charge le fichier brut avec gestion d'erreurs dédiée MNE
+    raw = _load_raw_with_mne(normalized_path)
     # Extract the sampling frequency reported by the recording
     sampling_rate = float(raw.info["sfreq"])
     # Validate the sampling frequency against the expected configuration
@@ -372,8 +405,8 @@ def load_physionet_raw(
             category=RuntimeWarning,
             module="mne",
         )
-        # Load the recording with preload to enable immediate validation steps
-        raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+        # Charge l'enregistrement en gérant les erreurs de parsing MNE
+        raw = _load_raw_with_mne(normalized_path)
     # Renomme les canaux pour les aligner sur le montage 10-20 utilisé
     raw = _rename_channels_for_montage(raw)
     # Attach the montage so downstream spatial filters assume 10-20 layout
