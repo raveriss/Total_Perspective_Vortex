@@ -576,21 +576,21 @@ def _resolve_feature_strategy_alias(
     # Conserve la méthode explicite si elle est fournie
     if dim_method_explicit:
         # Informe que l'alias est ignoré au profit du dim_method explicite
-        # print(
-        #     # Décrit la résolution de l'alias pour l'utilisateur
-        #     "INFO: feature_strategy interprété comme alias de dim_method, "
-        #     # Précise la conservation de la stratégie FFT
-        #     "feature_strategy='fft' conservée car --dim-method explicite."
-        # )
+        print(
+            # Décrit la résolution de l'alias pour l'utilisateur
+            "INFO: feature_strategy interprété comme alias de dim_method, "
+            # Précise la conservation de la stratégie FFT
+            "feature_strategy='fft' conservée car --dim-method explicite."
+        )
         # Retourne la stratégie et la méthode explicite
         return resolved_feature_strategy, dim_method
     # Informe que l'alias est utilisé comme méthode de réduction
-    # print(
-    #     # Décrit la résolution de l'alias pour l'utilisateur
-    #     "INFO: feature_strategy interprété comme alias de dim_method, "
-    #     # Précise la conservation de la stratégie FFT
-    #     "feature_strategy='fft' appliquée."
-    # )
+    print(
+        # Décrit la résolution de l'alias pour l'utilisateur
+        "INFO: feature_strategy interprété comme alias de dim_method, "
+        # Précise la conservation de la stratégie FFT
+        "feature_strategy='fft' appliquée."
+    )
     # Retourne la stratégie FFT et l'alias comme méthode
     return resolved_feature_strategy, feature_strategy
 
@@ -609,6 +609,13 @@ def _adjust_dim_method_for_tabular_features(
         return dim_method
     # Bascule automatiquement vers PCA si dim_method n'est pas explicite
     if not dim_method_explicit:
+        # Informe l'utilisateur de la bascule automatique vers PCA
+        print(
+            # Décrit le conflit entre méthode et stratégie de features
+            "INFO: dim_method='csp' ignore feature_strategy, "
+            # Précise la bascule appliquée pour activer les features
+            "bascule automatique sur 'pca'."
+        )
         # Retourne PCA pour activer l'extraction demandée
         return "pca"
     # Signale que l'utilisateur force CSP malgré les features
@@ -790,6 +797,11 @@ def evaluate_run(
     w_matrix_path = target_dir / "w_matrix.joblib"
     # Déclenche un entraînement si le modèle ou la matrice sont manquants
     if not model_path.exists() or not w_matrix_path.exists():
+        # Informe l'utilisateur que l'auto-train est lancé faute d'artefacts
+        print(
+            f"INFO: modèle absent pour {subject} {run}, "
+            "entraînement automatique en cours..."
+        )
         # Génère les artefacts de base pour permettre l'évaluation
         _train_missing_pipeline(
             # Relaye le sujet pour matérialiser les artefacts

@@ -141,6 +141,42 @@ def _rename_channels_for_montage(
     return raw
 
 
+def _drop_non_eeg_channels(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
+    """Retire les canaux non EEG (EOG/EMG/etc.) avant le prétraitement."""
+
+    # Réutilise l'objet Raw pour conserver l'identité en tests
+    filtered_raw = raw
+    # Détermine les indices EEG disponibles dans l'enregistrement
+    eeg_picks = mne.pick_types(
+        filtered_raw.info,
+        eeg=True,
+        eog=False,
+        emg=False,
+        ecg=False,
+        stim=False,
+        misc=False,
+        seeg=False,
+        ecog=False,
+        meg=False,
+    )
+    # Refuse la poursuite si aucun canal EEG n'est présent
+    if eeg_picks.size == 0:
+        # Expose un diagnostic structuré pour guider la correction des données
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "No EEG channels after filtering",
+                    "available_channels": list(filtered_raw.ch_names),
+                    "channel_types": filtered_raw.get_channel_types(),
+                }
+            )
+        )
+    # Conserve uniquement les canaux EEG pour éviter les artefacts EOG/EMG
+    filtered_raw.pick(eeg_picks)
+    # Retourne l'objet filtré pour les étapes suivantes
+    return filtered_raw
+
+
 def apply_bandpass_filter(
     raw: mne.io.BaseRaw,
     method: str = DEFAULT_FILTER_METHOD,
@@ -249,6 +285,39 @@ def _is_bad_description(description: str) -> bool:
     return normalized_description.startswith("BAD")
 
 
+def _load_raw_with_mne(path: Path) -> mne.io.BaseRaw:
+    """Charge un EDF/BDF via MNE en enrichissant les erreurs de parsing."""
+
+    # Normalise le chemin pour fiabiliser les messages d'erreur
+    normalized_path = Path(path).expanduser().resolve()
+    # Encadre la lecture pour enrichir les erreurs de parsing MNE
+    try:
+        # Charge les données EDF/BDF en mémoire pour valider rapidement
+        return mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    except FileNotFoundError as exc:
+        # Remonte l'erreur d'absence en conservant le contexte du chemin
+        raise FileNotFoundError(
+            json.dumps(
+                {
+                    "error": "Missing recording file",
+                    "path": str(normalized_path),
+                }
+            )
+        ) from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        # Regroupe les erreurs MNE usuelles en un diagnostic structuré
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "MNE parse failure",
+                    "path": str(normalized_path),
+                    "exception": exc.__class__.__name__,
+                    "message": str(exc),
+                }
+            )
+        ) from exc
+
+
 def load_mne_raw_checked(
     file_path: Path,
     expected_montage: str,
@@ -273,8 +342,8 @@ def load_mne_raw_checked(
                 }
             )
         )
-    # Load the raw file with preload enabled for immediate validation
-    raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+    # Charge le fichier brut avec gestion d'erreurs dédiée MNE
+    raw = _load_raw_with_mne(normalized_path)
     # Extract the sampling frequency reported by the recording
     sampling_rate = float(raw.info["sfreq"])
     # Validate the sampling frequency against the expected configuration
@@ -286,6 +355,8 @@ def load_mne_raw_checked(
         )
     # Renomme les canaux bruts pour les aligner sur le montage standard
     raw = _rename_channels_for_montage(raw)
+    # Retire les canaux non EEG pour éviter les artefacts EOG/EMG
+    raw = _drop_non_eeg_channels(raw)
     # Gather channel names from the recording for consistency checks
     channel_names = list(raw.ch_names)
     # Identify unexpected channels that would break downstream spatial filters
@@ -372,10 +443,12 @@ def load_physionet_raw(
             category=RuntimeWarning,
             module="mne",
         )
-        # Load the recording with preload to enable immediate validation steps
-        raw = mne.io.read_raw_edf(normalized_path, preload=True, verbose=False)
+        # Charge l'enregistrement en gérant les erreurs de parsing MNE
+        raw = _load_raw_with_mne(normalized_path)
     # Renomme les canaux pour les aligner sur le montage 10-20 utilisé
     raw = _rename_channels_for_montage(raw)
+    # Retire les canaux non EEG pour stabiliser les features
+    raw = _drop_non_eeg_channels(raw)
     # Attach the montage so downstream spatial filters assume 10-20 layout
     raw.set_montage(montage, on_missing="warn")
     # Extract sampling rate to guide later filtering and epoch durations
