@@ -24,6 +24,9 @@ from typing import Deque, Generator, Protocol, TypedDict
 # Centralise les opérations numériques nécessaires au fenêtrage
 import numpy as np
 
+# Récupère le filtrage pour l'appliquer aux flux temps réel si demandé
+from tpv import preprocessing
+
 # Récupère la restauration du pipeline entraîné pour la prédiction
 from tpv.pipeline import load_pipeline
 
@@ -55,6 +58,10 @@ class RealtimeConfig:
     label_zero: str
     # Définit l'étiquette lisible associée à la classe un
     label_one: str
+    # Indique si le flux doit être filtré avant le fenêtrage
+    apply_bandpass: bool = False
+    # Indique si le filtrage utilise une phase causale
+    causal_filter: bool = True
 
 
 # Décrit un événement individuel produit par la boucle temps réel
@@ -148,6 +155,13 @@ DEFAULT_LABEL_SETS: dict[str, tuple[str, str]] = {
     "fists-feet": ("deux poings", "deux pieds"),
 }
 
+# Fixe la bande-passante par défaut pour le streaming
+DEFAULT_BANDPASS_BAND = (8.0, 30.0)
+# Fixe la méthode de filtrage par défaut alignée avec preprocessing
+DEFAULT_FILTER_METHOD = preprocessing.DEFAULT_FILTER_METHOD
+# Fixe la durée de padding par défaut pour les effets de bord
+DEFAULT_PAD_DURATION = 0.5
+
 
 # Résout les libellés finaux en combinant le set et les overrides CLI
 def _resolve_label_pair(
@@ -165,6 +179,26 @@ def _resolve_label_pair(
     resolved_one = label_one if label_one is not None else default_one
     # Retourne les libellés finaux prêts à être affichés
     return resolved_zero, resolved_one
+
+
+# Applique un filtrage optionnel avant le fenêtrage temps réel
+def _filter_stream_if_needed(stream: np.ndarray, config: RealtimeConfig) -> np.ndarray:
+    """Retourne le flux filtré si l'option est activée."""
+
+    # Court-circuite si le filtrage est explicitement désactivé
+    if not config.apply_bandpass:
+        # Retourne le flux brut pour préserver la latence par défaut
+        return stream
+    # Applique le filtre bande-passante avec une phase ajustée au mode causal
+    return preprocessing.apply_bandpass_filter_to_array(
+        data=stream,
+        sampling_rate=config.sfreq,
+        method=DEFAULT_FILTER_METHOD,
+        freq_band=DEFAULT_BANDPASS_BAND,
+        order=None,
+        pad_duration=DEFAULT_PAD_DURATION,
+        causal=config.causal_filter,
+    )
 
 
 # Applique la pipeline entraînée à un flux continu en mesurant la latence
@@ -393,6 +427,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Étiquette affichée pour la classe 1",
     )
+    # Ajoute une option pour activer le filtrage bande-passante en streaming
+    parser.add_argument(
+        "--apply-bandpass",
+        action="store_true",
+        default=False,
+        help="Applique un band-pass avant le fenêtrage temps réel",
+    )
+    # Ajoute une option pour choisir la phase causale ou non en streaming
+    parser.add_argument(
+        "--causal-filter",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Utilise une phase causale si le band-pass est activé",
+    )
     # Retourne le parser configuré
     return parser
 
@@ -514,6 +562,8 @@ def run_realtime_session(
     X, _ = _load_data(features_path, labels_path)
     # Construit un flux continu en concaténant les essais successifs
     stream = np.concatenate(list(X), axis=1)
+    # Applique un filtrage optionnel pour cadrer le mode temps réel
+    stream = _filter_stream_if_needed(stream, config)
     # Charge la pipeline entraînée depuis le joblib sauvegardé
     pipeline = load_pipeline(
         str(artifacts_dir / normalized_subject / normalized_run / "model.joblib")
@@ -562,6 +612,10 @@ def main(argv: list[str] | None = None) -> int:
                 label_zero=label_zero,
                 # Renseigne l'étiquette utilisateur associée à la classe un
                 label_one=label_one,
+                # Active le band-pass optionnel pour encadrer le streaming
+                apply_bandpass=args.apply_bandpass,
+                # Choisit la phase causale pour éviter les fuites temporelles
+                causal_filter=args.causal_filter,
             ),
         )
     # Intercepte les artefacts manquants pour un message clair
