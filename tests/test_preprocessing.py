@@ -35,7 +35,6 @@ from tpv import preprocessing
 # Importe les utilitaires de contrôle d'échantillons et de qualité
 # Importe le marqueur pour vérifier la structure des métadonnées
 from tpv.preprocessing import (
-    DEFAULT_FILTER_METHOD,
     DEFAULT_NORMALIZE_EPSILON,
     DEFAULT_NORMALIZE_METHOD,
     MOTOR_EVENT_LABELS,
@@ -828,6 +827,33 @@ def test_apply_bandpass_filter_defaults_to_fir(monkeypatch: pytest.MonkeyPatch) 
     assert kwargs.get("h_freq") == pytest.approx(30.0)
     # Contrôle que le filtrage se fait en mode silencieux pour les tests
     assert kwargs.get("verbose") is False
+
+
+def test_apply_bandpass_filter_uses_minimum_phase_when_causal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure causal mode enforces a minimum-phase filter."""
+
+    # Construit un enregistrement minimal pour exercer la phase causale
+    raw = _build_dummy_raw(sfreq=64.0, duration=0.25)
+    # Capture les paramètres transmis à la fonction de filtrage
+    captured: dict[str, dict[str, object]] = {}
+
+    # Remplace la fonction de filtrage pour inspecter la phase appliquée
+    def _fake_filter(data: np.ndarray, **kwargs: object) -> np.ndarray:
+        # Stocke les arguments afin de valider la phase causale
+        captured["kwargs"] = kwargs
+        # Retourne le tampon inchangé pour simplifier l'assertion
+        return data
+
+    # Patch la fonction de filtrage afin d'éviter le calcul réel
+    monkeypatch.setattr("mne.filter.filter_data", _fake_filter)
+    # Applique un filtrage causal explicite pour déclencher la phase minimum
+    apply_bandpass_filter(raw, method="fir", pad_duration=0.0, causal=True)
+    # Extrait les paramètres capturés avec un typage clair pour les assertions
+    kwargs: dict[str, object] = captured["kwargs"]
+    # Vérifie que la phase correspond bien au mode causal attendu
+    assert kwargs.get("phase") == "minimum"
 
 
 def test_apply_bandpass_filter_skips_padding_when_disabled(
@@ -3458,8 +3484,8 @@ def test_preprocessing_signatures_preserve_documented_defaults() -> None:
 
     # Capture la signature du filtre pour verrouiller la valeur par défaut
     filter_signature = inspect.signature(apply_bandpass_filter)
-    # Vérifie que la méthode par défaut reste bien en minuscules pour la doc
-    assert filter_signature.parameters["method"].default == DEFAULT_FILTER_METHOD
+    # Vérifie que la configuration reste optionnelle par défaut
+    assert filter_signature.parameters["config"].default is None
     # Capture la signature de la normalisation pour sécuriser le paramètre
     normalize_signature = inspect.signature(normalize_channels)
     # Confirme que le mode par défaut reste conforme aux guides utilisateur

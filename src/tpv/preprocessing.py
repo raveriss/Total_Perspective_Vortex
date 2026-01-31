@@ -24,14 +24,14 @@ import json
 import warnings
 
 # Utilise pathlib pour assurer la portabilité des interactions fichiers
-# Introduit dataclass pour regrouper la configuration de rapport
-from dataclasses import dataclass
+# Introduit dataclass/replace pour regrouper et ajuster la configuration
+from dataclasses import dataclass, replace
 
 # Utilise pathlib pour assurer la portabilité des interactions fichiers
 from pathlib import Path
 
 # Centralise les hints pour clarifier les attentes des appels et des tests
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Tuple, TypedDict, cast
 
 # MNE est obligatoire pour le parsing EDF/BDF et la gestion des epochs
 import mne
@@ -139,6 +139,74 @@ UNIT_MICROVOLT_THRESHOLD = 1e-3
 UNIT_MICROVOLT_SCALE = 1e6
 
 
+@dataclass(frozen=True)
+class BandpassFilterConfig:
+    """Regroupe les paramètres du filtre bande-passante."""
+
+    method: str = DEFAULT_FILTER_METHOD
+    freq_band: Tuple[float, float] = (8.0, 30.0)
+    order: int | str | None = None
+    pad_duration: float = 0.5
+    causal: bool = False
+
+
+class BandpassOverrides(TypedDict, total=False):
+    """Contrat typé pour les overrides du filtre bande-passante."""
+
+    method: str
+    freq_band: Tuple[float, float]
+    order: int | str | None
+    pad_duration: float
+    causal: bool
+
+
+def _merge_bandpass_config(
+    config: BandpassFilterConfig | None, overrides: Mapping[str, object]
+) -> BandpassFilterConfig:
+    """Fusionne les overrides dans la configuration de filtrage."""
+
+    # Sélectionne la configuration par défaut si aucune n'est fournie
+    active_config = config or BandpassFilterConfig()
+    # Court-circuite si aucun override n'est demandé
+    if not overrides:
+        # Retourne la configuration active sans mutation
+        return active_config
+    # Déclare la liste des champs autorisés pour valider les overrides
+    allowed_keys = {"method", "freq_band", "order", "pad_duration", "causal"}
+    # Identifie les clés inconnues pour éviter les erreurs silencieuses
+    unknown_keys = set(overrides) - allowed_keys
+    # Refuse les overrides non supportés pour garder un contrat strict
+    if unknown_keys:
+        # Formate un message explicite pour guider la correction
+        unknown_list = ", ".join(sorted(unknown_keys))
+        # Lève une erreur claire pour éviter les overrides fantômes
+        raise ValueError(f"Unsupported bandpass overrides: {unknown_list}")
+    # Prépare une structure typée pour satisfaire mypy
+    typed_overrides: BandpassOverrides = {}
+    # Force la conversion explicite du champ method si présent
+    if "method" in overrides:
+        # Cast explicite pour garantir le type str attendu
+        typed_overrides["method"] = cast(str, overrides["method"])
+    # Force la conversion explicite de la bande si présente
+    if "freq_band" in overrides:
+        # Cast explicite pour garantir le type tuple attendu
+        typed_overrides["freq_band"] = cast(Tuple[float, float], overrides["freq_band"])
+    # Force la conversion explicite de l'ordre si présent
+    if "order" in overrides:
+        # Cast explicite pour garantir le type int|str|None attendu
+        typed_overrides["order"] = cast(int | str | None, overrides["order"])
+    # Force la conversion explicite du padding si présent
+    if "pad_duration" in overrides:
+        # Cast explicite pour garantir le type float attendu
+        typed_overrides["pad_duration"] = cast(float, overrides["pad_duration"])
+    # Force la conversion explicite du mode causal si présent
+    if "causal" in overrides:
+        # Cast explicite pour garantir le type bool attendu
+        typed_overrides["causal"] = cast(bool, overrides["causal"])
+    # Retourne une configuration figée mise à jour par override
+    return replace(active_config, **typed_overrides)
+
+
 def _rename_channels_for_montage(
     raw: mne.io.BaseRaw,
     channel_map: Mapping[str, str] = RAW_TO_MONTAGE_CHANNEL_MAP,
@@ -209,72 +277,106 @@ def _normalize_units_to_microvolts(raw: mne.io.BaseRaw) -> float:
     return scale
 
 
-def apply_bandpass_filter(
-    raw: mne.io.BaseRaw,
-    method: str = DEFAULT_FILTER_METHOD,
-    freq_band: Tuple[float, float] = (8.0, 30.0),
-    order: int | str | None = None,
-    pad_duration: float = 0.5,
-) -> mne.io.BaseRaw:
-    """Apply a padded 8–30 Hz band-pass filter using FIR or IIR designs."""
+def _resolve_filter_phase(causal: bool) -> str:
+    """Résout la phase MNE à utiliser selon le mode causal."""
 
-    # Clone the raw object to avoid mutating caller buffers during filtering
-    filtered_raw = raw.copy().load_data()
-    # Normalize the method string to simplify downstream comparisons
-    normalized_method = method.lower()
-    # Enforce supported methods to avoid silent fallbacks inside MNE
+    # Force une phase minimum pour éviter le filtrage non causal en streaming
+    if causal:
+        # Retourne la phase minimum supportée par MNE
+        return "minimum"
+    # Conserve la phase zéro-double pour les usages offline classiques
+    return "zero-double"
+
+
+def apply_bandpass_filter_to_array(
+    data: np.ndarray,
+    sampling_rate: float,
+    config: BandpassFilterConfig | None = None,
+    **overrides: object,
+) -> np.ndarray:
+    """Filtre un tableau (channels × time) avec FIR/IIR et phase configurée."""
+
+    # Fusionne la configuration avec les overrides fournis par l'appelant
+    active_config = _merge_bandpass_config(config, overrides)
+    # Normalise la méthode pour simplifier les branches FIR/IIR
+    normalized_method = active_config.method.lower()
+    # Valide la méthode pour éviter un fallback silencieux côté MNE
     if normalized_method not in {"fir", "iir"}:
-        # Raise early to force callers to pick an explicit filter family
+        # Force un choix explicite pour garder une traçabilité claire
         raise ValueError("method must be 'fir' or 'iir'")
-    # Extract the sampling frequency to derive padding and design parameters
-    sampling_rate = float(filtered_raw.info["sfreq"])
     # Décompose la bande en fréquences basse et haute pour le filtrage
-    l_freq, h_freq = freq_band
-    # Translate the padding duration into sample counts for symmetrical padding
-    pad_samples = max(int(round(pad_duration * sampling_rate)), 0)
-    # Fetch the data array once to avoid repeated MNE access overhead
-    data = filtered_raw.get_data()
-    # Build a reflect-padded buffer to minimize edge artifacts during filtering
+    l_freq, h_freq = active_config.freq_band
+    # Traduit la durée de padding en nombre d'échantillons entiers
+    pad_samples = max(int(round(active_config.pad_duration * sampling_rate)), 0)
+    # Construit un buffer réfléchi pour limiter les effets de bord
     if pad_samples > 0:
-        # Use symmetric reflection to keep boundary continuity without phase jumps
+        # Utilise la réflexion pour préserver la continuité au bord
         padded_data = np.pad(data, ((0, 0), (pad_samples, pad_samples)), mode="reflect")
     else:
-        # Skip padding when the caller explicitly disables it via pad_duration=0.0
+        # Conserve les données brutes si le padding est désactivé
         padded_data = data
-    # Prepare FIR-specific arguments when a linear-phase design is required
+    # Détermine la phase à utiliser selon le mode causal souhaité
+    phase = _resolve_filter_phase(active_config.causal)
+    # Prépare les paramètres FIR avec une phase contrôlée
     if normalized_method == "fir":
         # Sélectionne l’ordre FIR explicite ou l’auto-calcul par défaut
-        fir_length = order if order is not None else "auto"
-        # Configure FIR parameters to balance roll-off and latency for MI bands
+        fir_length = active_config.order if active_config.order is not None else "auto"
+        # Configure FIR pour équilibrer latence et roll-off
         filter_kwargs: Dict[str, Any] = {
             "method": "fir",
             "fir_design": "firwin",
             "fir_window": "hamming",
             "filter_length": fir_length,
-            "phase": "zero-double",
+            "phase": phase,
         }
     else:
         # Définit l’ordre IIR à 4 par défaut pour limiter la latence
-        iir_order = int(order) if order is not None else 4
-        # Configure a Butterworth IIR design to minimize latency during streaming
+        iir_order = int(active_config.order) if active_config.order is not None else 4
+        # Configure un IIR Butterworth avec phase configurable
         filter_kwargs = {
             "method": "iir",
             "iir_params": {"order": iir_order, "ftype": "butter"},
-            "phase": "zero-double",
+            "phase": phase,
         }
-    # Apply the selected filter to the padded buffer to obtain band-limited data
+    # Applique le filtre à l'aide de MNE pour obtenir le signal bande-passante
     filtered_data = mne.filter.filter_data(
         padded_data,
-        sfreq=sampling_rate,
+        sfreq=float(sampling_rate),
         l_freq=l_freq,
         h_freq=h_freq,
         verbose=False,
         **filter_kwargs,
     )
-    # Remove artificial padding to restore the original signal duration
+    # Normalise le type de retour pour satisfaire mypy
+    filtered_array = np.asarray(filtered_data)
+    # Supprime le padding artificiel pour revenir à la durée d'origine
     if pad_samples > 0:
-        # Slice out the central segment corresponding to the unpadded recording
-        filtered_data = filtered_data[:, pad_samples:-pad_samples]
+        # Extrait le segment central correspondant aux données brutes
+        filtered_array = filtered_array[:, pad_samples:-pad_samples]
+    # Retourne les données filtrées prêtes pour le streaming ou l'epoching
+    return filtered_array
+
+
+def apply_bandpass_filter(
+    raw: mne.io.BaseRaw,
+    config: BandpassFilterConfig | None = None,
+    **overrides: object,
+) -> mne.io.BaseRaw:
+    """Apply a padded 8–30 Hz band-pass filter using FIR/IIR designs."""
+
+    # Clone the raw object to avoid mutating caller buffers during filtering
+    filtered_raw = raw.copy().load_data()
+    # Extract the sampling frequency to derive padding and design parameters
+    sampling_rate = float(filtered_raw.info["sfreq"])
+    # Fetch the data array once to avoid repeated MNE access overhead
+    data = filtered_raw.get_data()
+    # Applique le filtrage sur le tableau pour mutualiser la logique
+    filtered_data = apply_bandpass_filter_to_array(
+        data=data,
+        sampling_rate=sampling_rate,
+        config=config,
+        **overrides,
+    )
     # Assign the filtered samples back into the cloned Raw object for return
     filtered_raw._data = filtered_data
     # Return the filtered recording to feed downstream epoching and features
@@ -393,6 +495,7 @@ def apply_preprocessing_pipeline(
             freq_band=active_config.bandpass_band,
             order=active_config.filter_order,
             pad_duration=active_config.pad_duration,
+            causal=active_config.causal_filter,
         )
     # Retourne le signal prétraité ainsi que la séquence appliquée
     return processed_raw, steps
@@ -1071,6 +1174,7 @@ class PreprocessingConfig:
     filter_method: str = DEFAULT_FILTER_METHOD
     filter_order: int | str | None = None
     pad_duration: float = 0.5
+    causal_filter: bool = False
 
 
 def _ensure_label_alignment(epochs: mne.Epochs, motor_labels: List[str]) -> None:

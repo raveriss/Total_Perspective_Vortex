@@ -51,6 +51,10 @@ DEFAULT_LABEL_SET = "t1-t2"
 DEFAULT_LABEL_ZERO = "T1"
 # Fige l'étiquette par défaut pour la classe un
 DEFAULT_LABEL_ONE = "T2"
+# Fige le flag par défaut pour l'activation du band-pass
+DEFAULT_APPLY_BANDPASS = False
+# Fige le flag par défaut pour la phase causale du filtrage
+DEFAULT_CAUSAL_FILTER = True
 # Fige la fenêtre personnalisée pour documenter les attentes CLI
 CUSTOM_WINDOW_SIZE = 128
 # Fige le pas personnalisé pour documenter les attentes CLI
@@ -80,12 +84,20 @@ PERF_BASE_TIME = 10.0
 PERF_INFERENCE_START = 11.0
 
 
-# Vérifie que le parser realtime expose toutes les options attendues
-def test_realtime_build_parser_defines_cli_contract():
+# Centralise la construction du parser pour éviter la duplication des tests
+def _build_realtime_actions():
     # Construit le parser pour inspecter la configuration CLI
     parser = realtime.build_parser()
     # Indexe les actions par destination pour simplifier les vérifications
     actions = {action.dest: action for action in parser._actions}
+    # Retourne le parser et les actions pour les tests unitaires
+    return parser, actions
+
+
+# Vérifie que le parser realtime expose toutes les options attendues
+def test_realtime_build_parser_defines_cli_contract():
+    # Construit le parser et les actions pour inspecter la configuration CLI
+    parser, actions = _build_realtime_actions()
     # Vérifie que la description reflète l'usage streaming documenté
     assert parser.description == "Applique un modèle entraîné sur un flux fenêtré"
     # Vérifie que l'argument subject reste positionnel et documenté
@@ -169,6 +181,84 @@ def test_realtime_build_parser_defines_cli_contract():
     assert actions["label_one"].option_strings == ["--label-one"]
     # Verrouille le texte d'aide pour la classe un
     assert actions["label_one"].help == "Étiquette affichée pour la classe 1"
+
+
+# Vérifie que le parser realtime expose les options de filtrage streaming
+def test_realtime_build_parser_defines_filter_options():
+    # Construit le parser et les actions pour inspecter la configuration CLI
+    _parser, actions = _build_realtime_actions()
+    # Vérifie que l'option d'activation du band-pass est exposée
+    assert actions["apply_bandpass"].default == DEFAULT_APPLY_BANDPASS
+    # Vérifie que l'option --apply-bandpass est bien présente
+    assert actions["apply_bandpass"].option_strings == ["--apply-bandpass"]
+    # Verrouille le texte d'aide pour l'activation du band-pass
+    assert (
+        actions["apply_bandpass"].help
+        == "Applique un band-pass avant le fenêtrage temps réel"
+    )
+    # Vérifie que l'option de phase causale est exposée avec la valeur attendue
+    assert actions["causal_filter"].default == DEFAULT_CAUSAL_FILTER
+    # Vérifie que les options causales sont bien exposées par la CLI
+    assert set(actions["causal_filter"].option_strings) == {
+        "--causal-filter",
+        "--no-causal-filter",
+    }
+    # Normalise l'aide pour éviter les None en signature mypy
+    help_text = actions["causal_filter"].help or ""
+    # Verrouille le préfixe d'aide pour la phase causale
+    assert help_text.startswith("Utilise une phase causale si le band-pass est activé")
+
+
+# Vérifie que le filtrage streaming délègue la phase causale au helper
+def test_filter_stream_if_needed_applies_causal_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure streaming filtering forwards the causal flag."""
+
+    # Construit un flux synthétique pour simuler un signal continu
+    stream = np.ones((2, 10))
+    # Capture les paramètres transmis au helper de filtrage
+    captured: dict[str, object] = {}
+
+    # Remplace le helper de filtrage pour tracer les arguments reçus
+    def _fake_filter(
+        data: np.ndarray,
+        sampling_rate: float,
+        method: str,
+        freq_band: tuple[float, float],
+        order: int | str | None,
+        pad_duration: float,
+        causal: bool,
+    ) -> np.ndarray:
+        # Stocke les paramètres afin de valider la phase causale
+        captured["causal"] = causal
+        # Retourne un flux modifié pour vérifier la propagation
+        return data * 0.5
+
+    # Patch le helper afin d'éviter un filtrage réel en test
+    monkeypatch.setattr(
+        realtime.preprocessing,
+        "apply_bandpass_filter_to_array",
+        _fake_filter,
+    )
+    # Construit une configuration minimale avec filtrage activé
+    config = RealtimeConfig(
+        window_size=DEFAULT_WINDOW_SIZE,
+        step_size=DEFAULT_STEP_SIZE,
+        buffer_size=DEFAULT_BUFFER_SIZE,
+        max_latency=DEFAULT_MAX_LATENCY,
+        sfreq=DEFAULT_SFREQ,
+        label_zero=DEFAULT_LABEL_ZERO,
+        label_one=DEFAULT_LABEL_ONE,
+        apply_bandpass=True,
+        causal_filter=True,
+    )
+    # Applique le filtrage conditionnel pour vérifier la délégation
+    filtered = realtime._filter_stream_if_needed(stream, config)
+    # Confirme que le flux retourné est celui du helper patché
+    assert np.array_equal(filtered, stream * 0.5)
+    # Vérifie que l'option causale a bien été transmise
+    assert captured["causal"] is True
 
 
 # Vérifie que le chargement des données retourne exactement les tableaux écrits
