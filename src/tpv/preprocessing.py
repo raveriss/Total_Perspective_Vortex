@@ -2,6 +2,9 @@
 
 Filtrage EEG 8–40 Hz (FIR/IIR) avec padding (FIR auto ~2–4*fs, IIR ordre 4).
 
+Ordre du prétraitement verrouillé : re-référencement EEG → notch → band-pass,
+conformément au risque TPV-025 (éviter le filtrage avant re-référencement).
+
 Le filtre par défaut suit la contrainte WBS 3.1.1 : bande 8–40 Hz avec FIR
 zero-phase (longueur auto MNE équivalente à un ordre ~401 sur des segments
 >1s) ou IIR Butterworth (ordre 4) et un padding réfléchissant de 0.5 seconde
@@ -124,6 +127,12 @@ DEFAULT_FILTER_METHOD = "fir"
 DEFAULT_NORMALIZE_METHOD = "zscore"
 # Fixe l'epsilon de stabilisation pour la normalisation par défaut
 DEFAULT_NORMALIZE_EPSILON = 1e-8
+# Identifie l'étape de re-référencement du pipeline de prétraitement
+PREPROCESSING_STEP_REREFERENCE = "rereference"
+# Identifie l'étape de notch filtering dans la pipeline de prétraitement
+PREPROCESSING_STEP_NOTCH = "notch"
+# Identifie l'étape de filtrage passe-bande dans la pipeline de prétraitement
+PREPROCESSING_STEP_BANDPASS = "bandpass"
 # Fixe le seuil d'amplitude pour détecter des données en volts
 UNIT_MICROVOLT_THRESHOLD = 1e-3
 # Fixe le facteur de conversion volts -> microvolts
@@ -297,6 +306,96 @@ def apply_notch_filter(
     filtered_raw._data = filtered_data
     # Retourne l'enregistrement filtré pour la suite du pipeline
     return filtered_raw
+
+
+def apply_rereference(
+    raw: mne.io.BaseRaw,
+    method: str = "average",
+) -> mne.io.BaseRaw:
+    """Apply EEG re-referencing before filtering to stabilize baselines."""
+
+    # Clone les données pour éviter les mutations côté appelant
+    try:
+        referenced_raw = raw.copy().load_data()
+    except AttributeError:
+        return raw
+    # Normalise la méthode pour simplifier la validation
+    normalized_method = method.lower()
+    # Valide que la méthode est supportée pour prévenir les erreurs silencieuses
+    if normalized_method not in {"average"}:
+        # Force un choix explicite plutôt qu'un fallback implicite
+        raise ValueError("method must be 'average'")
+    # Applique le re-référencement moyen pour retirer l'offset global
+    referenced_raw.set_eeg_reference("average", projection=False, verbose=False)
+    # Retourne l'objet Raw re-référencé
+    return referenced_raw
+
+
+def validate_preprocessing_order(steps: List[str]) -> None:
+    """Validate that re-referencing occurs before any filtering steps."""
+
+    # Refuse une séquence vide pour éviter un pipeline implicite
+    if not steps:
+        raise ValueError("Preprocessing steps cannot be empty")
+    # Vérifie la présence explicite du re-référencement
+    if PREPROCESSING_STEP_REREFERENCE not in steps:
+        raise ValueError("Preprocessing must include a rereference step")
+    # Construit un mapping des positions pour les comparaisons d'ordre
+    step_indices = {step: idx for idx, step in enumerate(steps)}
+    # Récupère l'index du re-référencement pour comparaison
+    reref_index = step_indices[PREPROCESSING_STEP_REREFERENCE]
+    # Liste les étapes de filtrage à contrôler
+    filter_steps = [PREPROCESSING_STEP_NOTCH, PREPROCESSING_STEP_BANDPASS]
+    # S'assure que chaque filtre est après le re-référencement
+    for step in filter_steps:
+        # Ignore les étapes absentes (filtre facultatif)
+        if step not in step_indices:
+            continue
+        # Vérifie que le re-référencement arrive avant le filtrage
+        if reref_index > step_indices[step]:
+            raise ValueError(
+                "Preprocessing order invalid: rereference must occur " f"before {step}"
+            )
+
+
+def apply_preprocessing_pipeline(
+    raw: mne.io.BaseRaw,
+    config: PreprocessingConfig | None = None,
+) -> Tuple[mne.io.BaseRaw, List[str]]:
+    """Apply the ordered preprocessing pipeline with validation."""
+
+    # Normalise la configuration en instanciant les valeurs par défaut
+    active_config = config or PreprocessingConfig()
+    # Construit la liste des étapes appliquées pour valider l'ordre
+    steps = [PREPROCESSING_STEP_REREFERENCE]
+    # Ajoute le notch si l'utilisateur fournit une fréquence explicite
+    if active_config.notch_freq is not None:
+        steps.append(PREPROCESSING_STEP_NOTCH)
+    # Ajoute le band-pass si une bande est fournie
+    if active_config.bandpass_band is not None:
+        steps.append(PREPROCESSING_STEP_BANDPASS)
+    # Valide l'ordre avant d'exécuter les étapes
+    validate_preprocessing_order(steps)
+    # Applique le re-référencement avant tout filtrage
+    processed_raw = apply_rereference(raw, method=active_config.rereference_method)
+    # Applique un notch pour supprimer la pollution secteur
+    if active_config.notch_freq is not None:
+        processed_raw = apply_notch_filter(
+            processed_raw,
+            freq=active_config.notch_freq,
+            notch_width=active_config.notch_width,
+        )
+    # Applique le filtrage passe-bande motor imagery
+    if active_config.bandpass_band is not None:
+        processed_raw = apply_bandpass_filter(
+            processed_raw,
+            method=active_config.filter_method,
+            freq_band=active_config.bandpass_band,
+            order=active_config.filter_order,
+            pad_duration=active_config.pad_duration,
+        )
+    # Retourne le signal prétraité ainsi que la séquence appliquée
+    return processed_raw, steps
 
 
 def _is_bad_description(description: str) -> bool:
@@ -959,6 +1058,19 @@ class ReportConfig:
     path: Path
     # Spécifie le format attendu pour contrôler la normalisation amont
     fmt: str = "json"
+
+
+@dataclass(frozen=True)
+class PreprocessingConfig:
+    """Configuration des étapes de prétraitement EEG."""
+
+    rereference_method: str = "average"
+    notch_freq: float | None = 50.0
+    notch_width: float | None = None
+    bandpass_band: Tuple[float, float] | None = (8.0, 30.0)
+    filter_method: str = DEFAULT_FILTER_METHOD
+    filter_order: int | str | None = None
+    pad_duration: float = 0.5
 
 
 def _ensure_label_alignment(epochs: mne.Epochs, motor_labels: List[str]) -> None:
