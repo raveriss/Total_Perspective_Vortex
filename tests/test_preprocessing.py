@@ -40,7 +40,11 @@ from tpv.preprocessing import (
     DEFAULT_NORMALIZE_METHOD,
     MOTOR_EVENT_LABELS,
     PHYSIONET_LABEL_MAP,
+    PREPROCESSING_STEP_BANDPASS,
+    PREPROCESSING_STEP_NOTCH,
+    PREPROCESSING_STEP_REREFERENCE,
     UNIT_MICROVOLT_SCALE,
+    PreprocessingConfig,
     ReportConfig,
     _apply_marking,
     _assert_expected_labels_present,
@@ -56,6 +60,8 @@ from tpv.preprocessing import (
     _rename_channels_for_montage,
     _validate_motor_mapping,
     apply_bandpass_filter,
+    apply_preprocessing_pipeline,
+    apply_rereference,
     create_epochs_from_raw,
     detect_artifacts,
     generate_epoch_report,
@@ -68,6 +74,7 @@ from tpv.preprocessing import (
     quality_control_epochs,
     report_epoch_anomalies,
     summarize_epoch_quality,
+    validate_preprocessing_order,
     verify_dataset_integrity,
 )
 
@@ -234,6 +241,60 @@ def test_apply_bandpass_filter_invalid_method_message() -> None:
     with pytest.raises(ValueError, match=r"^method must be 'fir' or 'iir'$"):
         # Passe une méthode erronée pour couvrir les variantes mutées du message
         apply_bandpass_filter(raw, method="bad")
+
+
+def test_apply_rereference_average_centers_channels() -> None:
+    """Ensure average rereferencing recenters channels without shape changes."""
+
+    # Construit un enregistrement synthétique pour vérifier l'offset moyen
+    raw = _build_dummy_raw(sfreq=128.0, duration=1.0)
+    # Applique le re-référencement moyen
+    referenced = apply_rereference(raw, method="average")
+    # Vérifie que la forme des données est conservée
+    assert referenced.get_data().shape == raw.get_data().shape
+    # Contrôle que la moyenne des canaux est recentrée à 0
+    channel_mean = referenced.get_data().mean(axis=0)
+    assert np.allclose(channel_mean, 0.0, atol=1e-7)
+
+
+def test_validate_preprocessing_order_requires_rereference() -> None:
+    """Require an explicit rereference step in preprocessing order."""
+
+    # Vérifie que l'absence de re-référencement est refusée
+    with pytest.raises(ValueError, match="must include a rereference step"):
+        validate_preprocessing_order([PREPROCESSING_STEP_BANDPASS])
+
+
+def test_validate_preprocessing_order_rejects_wrong_order() -> None:
+    """Ensure rereference precedes filtering steps."""
+
+    # Vérifie que l'ordre inversé déclenche une erreur explicite
+    with pytest.raises(ValueError, match="rereference must occur before bandpass"):
+        validate_preprocessing_order(
+            [PREPROCESSING_STEP_BANDPASS, PREPROCESSING_STEP_REREFERENCE]
+        )
+
+
+def test_apply_preprocessing_pipeline_records_steps() -> None:
+    """Ensure preprocessing pipeline enforces and reports the step order."""
+
+    # Prépare un enregistrement minimal pour exercer le pipeline
+    raw = _build_dummy_raw(sfreq=64.0, duration=1.0)
+    # Exécute le pipeline complet avec notch + band-pass
+    config = PreprocessingConfig(
+        rereference_method="average",
+        notch_freq=20.0,
+        bandpass_band=(8.0, 30.0),
+    )
+    filtered_raw, steps = apply_preprocessing_pipeline(raw, config)
+    # Vérifie que la liste des étapes respecte l'ordre requis
+    assert steps == [
+        PREPROCESSING_STEP_REREFERENCE,
+        PREPROCESSING_STEP_NOTCH,
+        PREPROCESSING_STEP_BANDPASS,
+    ]
+    # Confirme que la forme des données reste stable
+    assert filtered_raw.get_data().shape == raw.get_data().shape
 
 
 def test_report_epoch_anomalies_reports_clean_run(

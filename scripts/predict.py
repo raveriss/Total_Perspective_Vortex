@@ -328,12 +328,14 @@ def _build_npy_from_edf(
     raw, _ = preprocessing.load_physionet_raw(raw_path)
     # Résout la fenêtre d'epochs alignée avec l'entraînement
     epoch_window = _read_epoch_window_metadata(subject, run, data_dir)
-    # Applique un notch pour supprimer la pollution secteur
-    notched_raw = preprocessing.apply_notch_filter(raw, freq=DEFAULT_NOTCH_FREQ)
-    # Applique le filtrage bande-passante pour stabiliser les bandes MI
-    filtered_raw = preprocessing.apply_bandpass_filter(
-        notched_raw,
-        freq_band=DEFAULT_BANDPASS_BAND,
+    # Applique le prétraitement ordonné (re-référencement → notch → band-pass)
+    preprocessing_config = preprocessing.PreprocessingConfig(
+        rereference_method="average",
+        notch_freq=DEFAULT_NOTCH_FREQ,
+        bandpass_band=DEFAULT_BANDPASS_BAND,
+    )
+    filtered_raw, _steps = preprocessing.apply_preprocessing_pipeline(
+        raw, preprocessing_config
     )
     # Mappe les annotations en événements moteurs après filtrage
     events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
