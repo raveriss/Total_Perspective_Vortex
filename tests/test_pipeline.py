@@ -90,10 +90,12 @@ def test_pipeline_cross_val_score_runs():
 def test_pipeline_no_label_leakage():
     """Vérifie que la performance reste proche du hasard."""
 
+    # Fixe un générateur déterministe pour stabiliser le test
+    rng = np.random.default_rng(0)
     # Crée un dataset plus large pour stabiliser les scores
-    X = np.random.randn(60, 2, 80)
+    X = rng.standard_normal((60, 2, 80))
     # Crée des labels aléatoires pour simuler deux classes
-    y = np.random.randint(0, 2, size=60)
+    y = rng.integers(0, 2, size=60)
     # Construit un pipeline avec scaler robuste
     pipeline = build_pipeline(
         PipelineConfig(sfreq=120.0, scaler="robust", classifier="svm", dim_method="pca")

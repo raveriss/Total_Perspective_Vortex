@@ -30,6 +30,28 @@ def test_init_defaults_lock_api_contract() -> None:
     assert reducer.eigenvalues_ is None
     # Verrouille l'absence de valeurs singulières avant l'apprentissage
     assert reducer.singular_values_ is None
+    # Verrouille la configuration max_iter par défaut pour l'ICA
+    assert reducer.ica_max_iter == 200
+    # Verrouille la tolérance ICA par défaut
+    assert reducer.ica_tol == 1e-4
+    # Verrouille la graine ICA par défaut
+    assert reducer.ica_random_state == 0
+    # Verrouille le ratio d'échantillons par canal par défaut
+    assert reducer.ica_min_epochs_per_channel == 20
+    # Verrouille le seuil de résidu ICA par défaut
+    assert reducer.ica_residual_threshold == 0.05
+    # Verrouille l'absence de convergence ICA avant l'apprentissage
+    assert reducer.ica_converged_ is None
+    # Verrouille l'absence d'itérations ICA avant l'apprentissage
+    assert reducer.ica_n_iter_ is None
+    # Verrouille l'absence de résidu ICA avant l'apprentissage
+    assert reducer.ica_residual_norm_ is None
+    # Verrouille l'absence de whitening ICA avant l'apprentissage
+    assert reducer.ica_whitening_ is None
+    # Verrouille l'absence de démixage ICA avant l'apprentissage
+    assert reducer.ica_unmixing_ is None
+    # Verrouille l'absence de mixage ICA avant l'apprentissage
+    assert reducer.ica_mixing_ is None
 
 
 def test_csp_returns_log_variances_and_orthogonality() -> None:
@@ -520,6 +542,117 @@ def test_load_keeps_existing_defaults_when_optional_keys_missing(
     assert reducer.regularization == pytest.approx(0.125)
 
 
+def test_ica_converges_and_records_residual_metrics() -> None:
+    """ICA doit converger et exposer un résidu de reconstruction."""
+
+    # Prépare un générateur déterministe pour les sources indépendantes
+    rng = np.random.default_rng(123)
+    # Fixe un nombre d'échantillons suffisant pour l'ICA
+    samples = 500
+    # Génère une source laplacienne pour la non-gaussianité
+    source_one = rng.laplace(size=samples)
+    # Génère une source uniforme pour la diversité statistique
+    source_two = rng.uniform(low=-1.0, high=1.0, size=samples)
+    # Empile les sources pour former la matrice S
+    sources = np.column_stack([source_one, source_two])
+    # Définit une matrice de mélange fixe pour l'observation
+    mixing = np.array([[1.0, 0.5], [0.3, 2.0]])
+    # Génère les observations mélangées
+    observations = sources @ mixing.T
+    # Instancie le réducteur ICA avec un seuil de résidu tolérant
+    reducer = TPVDimReducer(
+        method="ica",
+        n_components=2,
+        ica_max_iter=300,
+        ica_tol=1e-5,
+        ica_random_state=0,
+        ica_min_epochs_per_channel=5,
+        ica_residual_threshold=0.1,
+    )
+    # Apprend la séparation ICA sur les observations
+    reducer.fit(observations)
+    # Transforme les observations pour obtenir les composantes indépendantes
+    transformed = reducer.transform(observations)
+    # Vérifie la forme des composantes projetées
+    assert transformed.shape == (samples, 2)
+    # Vérifie que l'ICA a bien convergé
+    assert reducer.ica_converged_ is True
+    # Vérifie que le compteur d'itérations est renseigné
+    assert reducer.ica_n_iter_ is not None
+    # Vérifie que la matrice de démixage est présente
+    assert reducer.ica_unmixing_ is not None
+    # Vérifie que la matrice de whitening est présente
+    assert reducer.ica_whitening_ is not None
+    # Vérifie que le résidu est calculé
+    assert reducer.ica_residual_norm_ is not None
+    # Vérifie que le résidu respecte le seuil défini
+    assert reducer.ica_residual_norm_ <= reducer.ica_residual_threshold
+
+
+def test_ica_rejects_low_sample_count() -> None:
+    """ICA doit refuser un nombre d'échantillons insuffisant."""
+
+    # Prépare un jeu de données trop petit pour l'ICA
+    observations = np.random.default_rng(0).standard_normal((10, 2))
+    # Instancie le réducteur avec un ratio d'échantillons élevé
+    reducer = TPVDimReducer(
+        method="ica",
+        n_components=2,
+        ica_min_epochs_per_channel=20,
+    )
+    # Vérifie que l'ICA refuse un dataset insuffisant
+    with pytest.raises(ValueError):
+        reducer.fit(observations)
+
+
+def test_ica_raises_when_not_converged() -> None:
+    """ICA doit signaler une non-convergence explicite."""
+
+    # Prépare des observations aléatoires pour forcer un cas difficile
+    observations = np.random.default_rng(1).standard_normal((200, 2))
+    # Instancie le réducteur ICA avec une itération unique
+    reducer = TPVDimReducer(
+        method="ica",
+        n_components=2,
+        ica_max_iter=1,
+        ica_tol=0.0,
+        ica_min_epochs_per_channel=1,
+    )
+    # Vérifie que l'ICA échoue faute de convergence
+    with pytest.raises(ValueError):
+        reducer.fit(observations)
+
+
+def test_ica_rejects_excessive_residual() -> None:
+    """ICA doit refuser un résidu de reconstruction trop élevé."""
+
+    # Prépare un générateur déterministe pour les sources
+    rng = np.random.default_rng(42)
+    # Fixe un nombre d'échantillons suffisant pour l'ICA
+    samples = 300
+    # Génère deux sources non gaussiennes
+    sources = np.column_stack(
+        [rng.laplace(size=samples), rng.uniform(-1.0, 1.0, size=samples)]
+    )
+    # Définit une matrice de mélange simple
+    mixing = np.array([[1.2, 0.7], [-0.4, 1.5]])
+    # Mélange les sources pour obtenir les observations
+    observations = sources @ mixing.T
+    # Instancie l'ICA avec une composante et un seuil strict
+    reducer = TPVDimReducer(
+        method="ica",
+        n_components=1,
+        ica_max_iter=200,
+        ica_tol=1e-4,
+        ica_random_state=0,
+        ica_min_epochs_per_channel=1,
+        ica_residual_threshold=0.05,
+    )
+    # Vérifie que l'ICA refuse un résidu trop élevé
+    with pytest.raises(ValueError):
+        reducer.fit(observations)
+
+
 def test_save_serializes_expected_payload_keys_and_values(
     tmp_path, monkeypatch
 ) -> None:
@@ -567,6 +700,17 @@ def test_save_serializes_expected_payload_keys_and_values(
         "method",
         "n_components",
         "regularization",
+        "ica_max_iter",
+        "ica_tol",
+        "ica_random_state",
+        "ica_min_epochs_per_channel",
+        "ica_residual_threshold",
+        "ica_converged",
+        "ica_n_iter",
+        "ica_residual_norm",
+        "ica_whitening",
+        "ica_unmixing",
+        "ica_mixing",
     }
     # Verrouille la méthode persistée pour éviter des incohérences au rechargement
     assert payload["method"] == "pca"
@@ -597,7 +741,9 @@ def test_validation_guards_raise_errors_for_invalid_calls() -> None:
     # Instancie PCA avec une méthode incorrecte pour vérifier la validation
     invalid_method = TPVDimReducer(method="unknown")
     # Vérifie que la méthode inconnue est rejetée
-    with pytest.raises(ValueError, match=r"^method must be 'pca', 'csp', or 'svd'$"):
+    with pytest.raises(
+        ValueError, match=r"^method must be 'pca', 'csp', 'svd', or 'ica'$"
+    ):
         invalid_method.fit(tabular)
     # Instancie PCA pour déclencher l'erreur de dimension attendue
     pca = TPVDimReducer(method="pca")
