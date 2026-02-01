@@ -438,7 +438,9 @@ def load_mne_motor_run(
 
 
 def load_physionet_raw(
-    file_path: Path, montage: str = "standard_1020"
+    file_path: Path,
+    montage: str = "standard_1020",
+    reference: str | None = "average",
 ) -> Tuple[mne.io.BaseRaw, Dict[str, object]]:
     """Load an EDF/BDF Physionet file with volts-normalized metadata."""
 
@@ -461,6 +463,10 @@ def load_physionet_raw(
     raw = _rename_channels_for_montage(raw)
     # Drop non-EEG channels before attaching the montage
     raw = drop_non_eeg_channels(raw)
+    # Applique le re-référencement EEG demandé pour stabiliser les canaux
+    if reference is not None:
+        # Applique le re-référencement en amont du montage 10-20
+        raw.set_eeg_reference(reference, verbose=False)
     # Attach the montage so downstream spatial filters assume 10-20 layout
     raw.set_montage(montage, on_missing="warn")
     # Extract sampling rate to guide later filtering and epoch durations
@@ -474,6 +480,7 @@ def load_physionet_raw(
         "sampling_rate": sampling_rate,
         "channel_names": channel_names,
         "montage": montage_name,
+        "reference": reference,
         "path": str(normalized_path),
     }
     # Return both signal and metadata to keep the loader side-effect free

@@ -77,6 +77,9 @@ DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 # Définit le répertoire par défaut pour les fichiers EDF bruts
 DEFAULT_RAW_DIR = Path("data")
 
+# Définit la référence EEG par défaut pour le re-référencement
+DEFAULT_EEG_REFERENCE = "average"
+
 
 # Regroupe les options de prédiction et d'auto-train
 @dataclass
@@ -85,6 +88,8 @@ class PredictionOptions:
 
     # Stocke le répertoire des fichiers EDF bruts à utiliser
     raw_dir: Path = DEFAULT_RAW_DIR
+    # Stocke la référence EEG à appliquer au chargement EDF
+    eeg_reference: str | None = DEFAULT_EEG_REFERENCE
     # Stocke les overrides de pipeline pour l'auto-train éventuel
     pipeline_overrides: Mapping[str, str] | None = None
 
@@ -158,6 +163,24 @@ def _parse_run(value: str) -> str:
 
     # Délègue la normalisation au helper générique
     return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
+
+
+# Normalise la référence EEG demandée via CLI
+def _parse_eeg_reference(value: str) -> str | None:
+    """Retourne la référence EEG normalisée ou None."""
+
+    # Nettoie la valeur reçue pour éviter les espaces parasites
+    cleaned_value = value.strip()
+    # Refuse une valeur vide pour éviter une référence ambiguë
+    if not cleaned_value:
+        # Signale une référence vide pour guider l'utilisateur
+        raise argparse.ArgumentTypeError("Référence EEG vide")
+    # Interprète l'alias "none" comme une désactivation explicite
+    if cleaned_value.lower() == "none":
+        # Retourne None pour indiquer l'absence de re-référencement
+        return None
+    # Retourne la valeur brute pour passer à MNE
+    return cleaned_value
 
 
 # Construit un argument parser aligné sur l'appel mybci
@@ -252,6 +275,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_RAW_DIR,
         help="Répertoire racine contenant les fichiers EDF bruts",
     )
+    # Ajoute l'option de re-référencement EEG lors du chargement EDF
+    parser.add_argument(
+        "--eeg-reference",
+        type=_parse_eeg_reference,
+        default=DEFAULT_EEG_REFERENCE,
+        help="Référence EEG appliquée au chargement (ex: average, none)",
+    )
     # Retourne le parser configuré
     return parser
 
@@ -311,6 +341,7 @@ def _build_npy_from_edf(
     run: str,
     data_dir: Path,
     raw_dir: Path,
+    eeg_reference: str | None,
 ) -> tuple[Path, Path]:
     """Génère X (epochs brutes) et y depuis un fichier EDF Physionet."""
 
@@ -325,7 +356,10 @@ def _build_npy_from_edf(
     # Crée l'arborescence cible pour déposer les .npy
     features_path.parent.mkdir(parents=True, exist_ok=True)
     # Charge l'EDF en conservant les métadonnées essentielles
-    raw, _ = preprocessing.load_physionet_raw(raw_path)
+    raw, _ = preprocessing.load_physionet_raw(
+        raw_path,
+        reference=eeg_reference,
+    )
     # Résout la fenêtre d'epochs alignée avec l'entraînement
     epoch_window = _read_epoch_window_metadata(subject, run, data_dir)
     # Applique un notch pour supprimer la pollution secteur
@@ -387,6 +421,7 @@ def _load_data(
     run: str,
     data_dir: Path,
     raw_dir: Path,
+    eeg_reference: str | None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Charge ou construit les données et étiquettes pour un run."""
 
@@ -419,7 +454,11 @@ def _load_data(
     if needs_rebuild:
         # Convertit l'EDF associé en fichiers numpy persistés
         features_path, labels_path = _build_npy_from_edf(
-            subject, run, data_dir, raw_dir
+            subject,
+            run,
+            data_dir,
+            raw_dir,
+            eeg_reference,
         )
 
     # Utilise numpy.load pour récupérer les features en mémoire
@@ -717,6 +756,8 @@ def _train_missing_pipeline(
     resolved_options = options or PredictionOptions()
     # Extrait le répertoire EDF depuis les options
     raw_dir = resolved_options.raw_dir
+    # Extrait la référence EEG depuis les options
+    eeg_reference = resolved_options.eeg_reference
     # Extrait les overrides de pipeline depuis les options
     pipeline_overrides = resolved_options.pipeline_overrides
     # Résout la fréquence d'échantillonnage à partir de l'EDF si disponible
@@ -725,6 +766,7 @@ def _train_missing_pipeline(
         run,
         raw_dir,
         train_module.DEFAULT_SAMPLING_RATE,
+        eeg_reference,
     )
     # Résout les overrides CLI pour calibrer l'auto-train
     resolved_overrides = _resolve_pipeline_overrides(pipeline_overrides)
@@ -761,6 +803,8 @@ def _train_missing_pipeline(
         artifacts_dir=artifacts_dir,
         # Transmet le répertoire des EDF bruts pour les métadonnées
         raw_dir=raw_dir,
+        # Transmet la référence EEG pour aligner train et predict
+        eeg_reference=eeg_reference,
         # Désactive la recherche exhaustive pour accélérer l'auto-train
         enable_grid_search=False,
         # Fixe un nombre de splits raisonnable si la recherche est réactivée
@@ -785,8 +829,16 @@ def evaluate_run(
     resolved_options = options or PredictionOptions()
     # Extrait le répertoire EDF depuis les options
     raw_dir = resolved_options.raw_dir
+    # Extrait la référence EEG depuis les options
+    eeg_reference = resolved_options.eeg_reference
     # Charge ou génère les tableaux numpy nécessaires au scoring
-    X, y = _load_data(subject, run, data_dir, raw_dir)
+    X, y = _load_data(
+        subject,
+        run,
+        data_dir,
+        raw_dir,
+        eeg_reference,
+    )
     # Construit le dossier d'artefacts spécifique au sujet et au run
     target_dir = artifacts_dir / subject / run
     # Assure la présence du dossier pour pouvoir écrire les rapports
@@ -903,6 +955,8 @@ def main(argv: list[str] | None = None) -> int:
     options = PredictionOptions(
         # Transmet le répertoire EDF brut pour l'auto-train
         raw_dir=args.raw_dir,
+        # Transmet la référence EEG pour re-référencer au chargement
+        eeg_reference=args.eeg_reference,
         # Transmet les overrides pour l'auto-train en prédiction
         pipeline_overrides=pipeline_overrides,
     )

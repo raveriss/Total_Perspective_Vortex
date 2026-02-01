@@ -202,7 +202,9 @@ def test_train_run_builds_training_request(tmp_path, monkeypatch) -> None:
     captured: list[object] = []
 
     # Définit un resolve_sampling_rate déterministe pour le test
-    def fake_resolve_sampling_rate(subject, run, raw_dir, requested_sfreq):
+    def fake_resolve_sampling_rate(
+        subject, run, raw_dir, requested_sfreq, eeg_reference
+    ):
         # Retourne une fréquence factice pour vérifier l'appel
         return 128.0
 

@@ -957,6 +957,39 @@ def test_load_physionet_raw_reads_metadata(
     assert isinstance(loaded_raw, mne.io.BaseRaw)
 
 
+def test_load_physionet_raw_applies_average_reference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure the loader applies the requested EEG reference."""
+
+    # Prépare des métadonnées simples pour un RawArray contrôlé
+    info = mne.create_info(ch_names=["C3", "C4"], sfreq=128.0, ch_types="eeg")
+    # Définit des données non centrées pour détecter le re-référencement
+    data = np.array([[1e-4, 2e-4, 3e-4], [4e-4, 5e-4, 6e-4]])
+    # Construit un RawArray avec des valeurs déterministes
+    raw = mne.io.RawArray(data, info)
+    # Calcule la moyenne inter-canaux avant re-référencement
+    baseline_mean = raw.get_data().mean(axis=0)
+    # Vérifie que la moyenne initiale n'est pas déjà nulle
+    assert not np.allclose(baseline_mean, 0.0)
+    # Prépare un chemin EDF factice pour le loader
+    edf_path = tmp_path / "subject02" / "run02.edf"
+    # Crée le répertoire parent pour le chemin factice
+    edf_path.parent.mkdir(parents=True, exist_ok=True)
+    # Écrit un fichier factice pour satisfaire les accès disque
+    edf_path.write_bytes(b"dummy")
+    # Stubbe le lecteur MNE pour renvoyer le Raw contrôlé
+    monkeypatch.setattr(mne.io, "read_raw_edf", lambda *args, **kwargs: raw)
+    # Charge le fichier via le loader avec re-référencement moyen
+    loaded_raw, metadata = load_physionet_raw(edf_path, reference="average")
+    # Calcule la moyenne inter-canaux après re-référencement
+    referenced_mean = loaded_raw.get_data().mean(axis=0)
+    # Vérifie que la moyenne est proche de zéro après re-référencement
+    assert np.allclose(referenced_mean, 0.0, atol=1e-10)
+    # Confirme que la référence est exposée dans les métadonnées
+    assert metadata["reference"] == "average"
+
+
 def test_ensure_volts_units_converts_microvolts_for_rejection_thresholds() -> None:
     """Ensure microvolt inputs are converted to volts for rejection checks."""
 
