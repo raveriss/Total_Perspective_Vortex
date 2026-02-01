@@ -41,6 +41,9 @@ from tpv.dimensionality import TPVDimReducer
 # Expose la configuration de pipeline pour déclencher un auto-train
 from tpv.pipeline import PipelineConfig, load_pipeline
 
+# Centralise la fenêtre d'epoching par défaut
+from tpv.utils import DEFAULT_EPOCH_WINDOW
+
 
 # Charge dynamiquement scripts.train pour l'exécution directe
 def _load_train_module() -> ModuleType:
@@ -115,8 +118,6 @@ DEFAULT_MAX_PEAK_TO_PEAK = 200e-6
 DEFAULT_BANDPASS_BAND = (8.0, 30.0)
 # Fixe la fréquence de notch pour supprimer la pollution secteur
 DEFAULT_NOTCH_FREQ = 50.0
-# Fixe la fenêtre d'epochs par défaut côté prédiction
-DEFAULT_EPOCH_WINDOW = (0.5, 2.5)
 
 
 # Normalise un identifiant brut en appliquant un préfixe standard
