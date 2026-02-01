@@ -242,7 +242,9 @@ def test_load_data_does_not_log_corruption_info_on_clean_files(
 
     monkeypatch.setattr(train, "_build_npy_from_edf", unexpected_rebuild)
 
-    loaded_x, loaded_y = train._load_data(subject, run, data_dir, tmp_path / "raw")
+    loaded_x, loaded_y = train._load_data(
+        subject, run, data_dir, tmp_path / "raw", "average"
+    )
     assert loaded_x.shape == X.shape
     assert loaded_y.shape == y.shape
 
@@ -268,8 +270,15 @@ def test_load_data_rebuilds_silently_when_one_file_is_missing(
 
     called: dict[str, object] = {}
 
-    def fake_rebuild(subject_arg: str, run_arg: str, data_dir_arg: Path, raw_dir: Path):
+    def fake_rebuild(
+        subject_arg: str,
+        run_arg: str,
+        data_dir_arg: Path,
+        raw_dir: Path,
+        eeg_reference: str | None,
+    ):
         called["raw_dir"] = raw_dir
+        called["reference"] = eeg_reference
         x_new = np.zeros((5, 2, 8), dtype=float)
         y_new = np.zeros((5,), dtype=int)
         np.save(subject_dir / f"{run}_X.npy", x_new)
@@ -278,8 +287,11 @@ def test_load_data_rebuilds_silently_when_one_file_is_missing(
 
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
 
-    loaded_x, loaded_y = train._load_data(subject, run, data_dir, tmp_path / "raw")
+    loaded_x, loaded_y = train._load_data(
+        subject, run, data_dir, tmp_path / "raw", "average"
+    )
     assert called["raw_dir"] == tmp_path / "raw"
+    assert called["reference"] == "average"
     # CORRECTION ICI : loaded_x au lieu de loaded_X
     assert loaded_x.shape[0] == loaded_y.shape[0]
 
@@ -318,7 +330,7 @@ def test_load_data_uses_mmap_mode_read_for_shape_validation(
 
     monkeypatch.setattr(train.np, "load", fake_np_load)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw")
+    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
 
     assert len(calls) == 4
     assert calls[0][1] == "r"
@@ -378,7 +390,7 @@ def test_load_data_initializes_candidate_buffers_as_none_before_loading(
     previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
-        train._load_data(subject, run, data_dir, tmp_path / "raw")
+        train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
     finally:
         sys.settrace(previous_tracer)
 
@@ -478,7 +490,7 @@ def test_load_data_forwards_needs_rebuild_bool_to_should_check_shapes_on_clean_f
 
     monkeypatch.setattr(train, "_should_check_shapes", spy)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw")
+    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
 
     assert "args" in captured
     needs_rebuild, corrupted_reason, candidate_X, candidate_y = cast(
@@ -511,7 +523,13 @@ def test_load_data_reports_real_numpy_error_reason(
     np.save(labels_path, np.zeros((2,), dtype=int))
 
     # La reconstruction doit s'exécuter après l'échec numpy.
-    def fake_rebuild(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+    def fake_rebuild(
+        _subject: str,
+        _run: str,
+        _data_dir: Path,
+        _raw_dir: Path,
+        _eeg_reference: str | None,
+    ):
         np.save(features_path, np.zeros((5, 2, 8), dtype=float))
         np.save(labels_path, np.zeros((5,), dtype=int))
         return features_path, labels_path
@@ -531,7 +549,7 @@ def test_load_data_reports_real_numpy_error_reason(
 
     monkeypatch.setattr(train.np, "load", fake_np_load)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw")
+    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
 
     captured = capsys.readouterr()
     output = captured.out + captured.err
@@ -568,7 +586,7 @@ def test_load_data_logs_features_ndim_mismatch_with_stable_prefix(
 
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw")
+    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
 
     captured = capsys.readouterr()
     output = captured.out + captured.err
@@ -609,7 +627,9 @@ def test_load_data_logs_labels_ndim_mismatch_with_stable_prefix_and_triggers_reb
 
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
 
-    loaded_x, loaded_y = train._load_data(subject, run, data_dir, tmp_path / "raw")
+    loaded_x, loaded_y = train._load_data(
+        subject, run, data_dir, tmp_path / "raw", "average"
+    )
 
     captured = capsys.readouterr()
     output = captured.out + captured.err
@@ -668,7 +688,7 @@ def test_load_data_keeps_needs_rebuild_boolean_when_nothing_to_rebuild(
     previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
-        train._load_data(subject, run, data_dir, tmp_path / "raw")
+        train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
     finally:
         sys.settrace(previous_tracer)
 
@@ -714,7 +734,7 @@ def test_load_data_keeps_needs_rebuild_strict_false_before_bool_coercion_on_clea
     previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
-        train._load_data(subject, run, data_dir, tmp_path / "raw")
+        train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
     finally:
         sys.settrace(previous_tracer)
 
@@ -740,7 +760,13 @@ def test_load_data_sets_needs_rebuild_true_inside_numpy_load_except_before_corru
     np.save(features_path, np.zeros((2, 1, 4), dtype=float))
     np.save(labels_path, np.zeros((2,), dtype=int))
 
-    def fake_rebuild(_s: str, _r: str, _d: Path, _raw: Path):
+    def fake_rebuild(
+        _s: str,
+        _r: str,
+        _d: Path,
+        _raw: Path,
+        _eeg_reference: str | None,
+    ):
         np.save(features_path, np.zeros((2, 1, 4), dtype=float))
         np.save(labels_path, np.zeros((2,), dtype=int))
         return features_path, labels_path
@@ -800,7 +826,7 @@ def test_load_data_sets_needs_rebuild_true_inside_numpy_load_except_before_corru
     previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
-        train._load_data(subject, run, data_dir, tmp_path / "raw")
+        train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
     finally:
         sys.settrace(previous_tracer)
 
@@ -828,7 +854,13 @@ def test_load_data_forwards_corrupted_reason_to_should_check_shapes_on_numpy_err
     np.save(features_path, np.zeros((2, 1, 4), dtype=float))
     np.save(labels_path, np.zeros((2,), dtype=int))
 
-    def fake_rebuild(_s: str, _r: str, _d: Path, _raw: Path):
+    def fake_rebuild(
+        _s: str,
+        _r: str,
+        _d: Path,
+        _raw: Path,
+        _eeg_reference: str | None,
+    ):
         np.save(features_path, np.zeros((2, 1, 4), dtype=float))
         np.save(labels_path, np.zeros((2,), dtype=int))
         return features_path, labels_path
@@ -859,7 +891,7 @@ def test_load_data_forwards_corrupted_reason_to_should_check_shapes_on_numpy_err
 
     monkeypatch.setattr(train, "_should_check_shapes", spy)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw")
+    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
 
     assert "args" in captured
     needs_rebuild, corrupted_reason, _candidate_X, _candidate_y = cast(
@@ -895,10 +927,16 @@ def test_load_data_reports_misalignment_with_correct_shape0(
     np.save(subject_dir / f"{run}_X.npy", x_bad)
     np.save(subject_dir / f"{run}_y.npy", y_bad)
 
-    rebuild_calls: list[Path] = []
+    rebuild_calls: list[tuple[Path, str | None]] = []
 
-    def fake_rebuild(subject_arg: str, run_arg: str, data_dir_arg: Path, raw_dir: Path):
-        rebuild_calls.append(raw_dir)
+    def fake_rebuild(
+        subject_arg: str,
+        run_arg: str,
+        data_dir_arg: Path,
+        raw_dir: Path,
+        eeg_reference: str | None,
+    ):
+        rebuild_calls.append((raw_dir, eeg_reference))
         # CORRECTION : x_new (minuscule) au lieu de X_new
         x_new = np.zeros((5, 2, 8), dtype=float)
         y_new = np.zeros((5,), dtype=int)
@@ -909,7 +947,7 @@ def test_load_data_reports_misalignment_with_correct_shape0(
 
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw")
+    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
 
     out_lines = capsys.readouterr().out.splitlines()
     assert out_lines[0].startswith("INFO: Désalignement détecté pour ")
@@ -1133,7 +1171,7 @@ def test_load_data_uses_ndarray_casts_for_validated_buffers(
 
     monkeypatch.setattr(train, "cast", spy_cast)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw")
+    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
 
     # Vérifie que cast a été appelé avec np.ndarray pour X et y
     # Si mutmut remplace par cast(None, ...), ces assertions échoueront
@@ -1145,8 +1183,8 @@ def test_load_data_uses_ndarray_casts_for_validated_buffers(
 def test_main_build_all_invokes_builder(monkeypatch, tmp_path):
     called: dict[str, tuple] = {}
 
-    def fake_build_all(raw_dir, data_dir):
-        called["args"] = (raw_dir, data_dir)
+    def fake_build_all(raw_dir, data_dir, eeg_reference):
+        called["args"] = (raw_dir, data_dir, eeg_reference)
 
     monkeypatch.setattr(train, "_build_all_npy", fake_build_all)
     raw_dir = tmp_path / "raw"
@@ -1165,15 +1203,15 @@ def test_main_build_all_invokes_builder(monkeypatch, tmp_path):
     )
 
     assert exit_code == 0
-    assert called["args"] == (raw_dir, data_dir)
+    assert called["args"] == (raw_dir, data_dir, "average")
 
 
 def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 
-    def fake_train_all_runs(config, data_dir, artifacts_dir, raw_dir):
+    def fake_train_all_runs(config, data_dir, artifacts_dir, raw_dir, eeg_reference):
         captured["config"] = config
-        captured["dirs"] = (data_dir, artifacts_dir, raw_dir)
+        captured["dirs"] = (data_dir, artifacts_dir, raw_dir, eeg_reference)
         return 7
 
     monkeypatch.setattr(train, "_train_all_runs", fake_train_all_runs)
@@ -1219,15 +1257,16 @@ def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
         tmp_path / "data",
         tmp_path / "artifacts",
         tmp_path / "raw",
+        "average",
     )
 
 
 def test_main_train_all_respects_no_normalize_features_flag(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 
-    def fake_train_all_runs(config, data_dir, artifacts_dir, raw_dir):
+    def fake_train_all_runs(config, data_dir, artifacts_dir, raw_dir, eeg_reference):
         captured["config"] = config
-        captured["dirs"] = (data_dir, artifacts_dir, raw_dir)
+        captured["dirs"] = (data_dir, artifacts_dir, raw_dir, eeg_reference)
         return 0
 
     monkeypatch.setattr(train, "_train_all_runs", fake_train_all_runs)
@@ -1512,8 +1551,14 @@ def test_run_training_passes_raw_dir_to_load_data_and_reports_scaler_path_none(
     # Capture les arguments transmis à _load_data pour tuer raw_dir=None
     captured: dict[str, object] = {}
 
-    def fake_load_data(subject: str, run: str, data_dir: Path, raw_dir: Path):
-        captured["args"] = (subject, run, data_dir, raw_dir)
+    def fake_load_data(
+        subject: str,
+        run: str,
+        data_dir: Path,
+        raw_dir: Path,
+        eeg_reference: str | None,
+    ):
+        captured["args"] = (subject, run, data_dir, raw_dir, eeg_reference)
         X = np.zeros((2, 1, 4), dtype=float)
         y = np.array([0, 0], dtype=int)
         return X, y
@@ -1570,10 +1615,11 @@ def test_run_training_passes_raw_dir_to_load_data_and_reports_scaler_path_none(
     report = train.run_training(request)
 
     assert "args" in captured
-    _subject, _run, _data_dir, observed_raw_dir = cast(
-        tuple[object, object, object, object], captured["args"]
+    _subject, _run, _data_dir, observed_raw_dir, observed_reference = cast(
+        tuple[object, object, object, object, object], captured["args"]
     )
     assert observed_raw_dir == raw_dir
+    assert observed_reference == "average"
 
     # Verrouille le contrat: pas de scaler => scaler_path doit rester None
     assert report["scaler_path"] is None
@@ -1584,7 +1630,13 @@ def test_run_training_prints_exact_warning_when_cross_validation_is_disabled(
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_load_data(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+    def fake_load_data(
+        _subject: str,
+        _run: str,
+        _data_dir: Path,
+        _raw_dir: Path,
+        _eeg_reference: str | None,
+    ):
         X = np.zeros((2, 1, 4), dtype=float)
         y = np.array([0, 1], dtype=int)
         return X, y
@@ -1647,7 +1699,13 @@ def test_run_training_builds_stratified_shuffle_split_with_stable_random_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Définit un loader factice pour maîtriser les labels
-    def fake_load_data(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+    def fake_load_data(
+        _subject: str,
+        _run: str,
+        _data_dir: Path,
+        _raw_dir: Path,
+        _eeg_reference: str | None,
+    ):
         # Prépare un tenseur minimal compatible pipeline
         X = np.zeros((6, 1, 4), dtype=float)
         # Déclare deux classes équilibrées pour la CV
@@ -2027,7 +2085,13 @@ def test_run_training_creates_target_dir_with_exist_ok_true(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_load_data(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+    def fake_load_data(
+        _subject: str,
+        _run: str,
+        _data_dir: Path,
+        _raw_dir: Path,
+        _eeg_reference: str | None,
+    ):
         X = np.zeros((2, 1, 4), dtype=float)
         y = np.array([0, 1], dtype=int)
         return X, y
@@ -2099,7 +2163,13 @@ def test_run_training_dumps_scaler_step_when_present(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_load_data(_subject: str, _run: str, _data_dir: Path, _raw_dir: Path):
+    def fake_load_data(
+        _subject: str,
+        _run: str,
+        _data_dir: Path,
+        _raw_dir: Path,
+        _eeg_reference: str | None,
+    ):
         X = np.zeros((2, 1, 4), dtype=float)
         y = np.array([0, 1], dtype=int)
         return X, y
@@ -2191,9 +2261,13 @@ def test_resolve_sampling_rate_prefers_metadata_when_default_requested(
             return None
 
     # Définit un loader factice renvoyant une fréquence de 160 Hz
-    def fake_loader(path: Path) -> tuple[DummyRaw, dict[str, object]]:
+    def fake_loader(
+        path: Path, reference: str | None = "average"
+    ) -> tuple[DummyRaw, dict[str, object]]:
         # Vérifie que le chemin transmis est celui attendu
         assert path == raw_path
+        # Vérifie que la référence attendue est transmise
+        assert reference == "average"
         # Retourne un Raw simulé et des métadonnées cohérentes
         return DummyRaw(), {"sampling_rate": 160.0}
 
@@ -2206,6 +2280,7 @@ def test_resolve_sampling_rate_prefers_metadata_when_default_requested(
         run,
         raw_dir,
         train.DEFAULT_SAMPLING_RATE,
+        "average",
     )
 
     # Vérifie que la fréquence détectée est utilisée
@@ -2239,9 +2314,13 @@ def test_resolve_sampling_rate_falls_back_on_invalid_metadata(
             return None
 
     # Définit un loader factice renvoyant une fréquence invalide
-    def fake_loader(path: Path) -> tuple[DummyRaw, dict[str, object]]:
+    def fake_loader(
+        path: Path, reference: str | None = "average"
+    ) -> tuple[DummyRaw, dict[str, object]]:
         # Vérifie que le chemin transmis est celui attendu
         assert path == raw_path
+        # Vérifie que la référence attendue est transmise
+        assert reference == "average"
         # Retourne un Raw simulé et une valeur non convertible
         return DummyRaw(), {"sampling_rate": {"invalid": True}}
 
@@ -2254,6 +2333,7 @@ def test_resolve_sampling_rate_falls_back_on_invalid_metadata(
         run,
         raw_dir,
         123.0,
+        "average",
     )
 
     # Vérifie que la fréquence demandée est conservée

@@ -316,6 +316,7 @@ def _train_run(subject: str, run: str, context: TrainingContext) -> None:
         run,
         context.options.raw_dir,
         train_cli.DEFAULT_SAMPLING_RATE,
+        train_cli.DEFAULT_EEG_REFERENCE,
     )
     # Construit une configuration de pipeline cohérente pour l'auto-train
     pipeline_config = train_cli.PipelineConfig(
@@ -335,6 +336,7 @@ def _train_run(subject: str, run: str, context: TrainingContext) -> None:
         data_dir=context.data_dir,
         artifacts_dir=context.artifacts_dir,
         raw_dir=context.options.raw_dir,
+        eeg_reference=train_cli.DEFAULT_EEG_REFERENCE,
         enable_grid_search=context.options.enable_grid_search,
         grid_search_splits=context.options.grid_search_splits,
     )

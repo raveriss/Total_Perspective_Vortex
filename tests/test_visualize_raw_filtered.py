@@ -154,9 +154,13 @@ def test_load_recording_hydrates_metadata(
     seen: dict[str, object] = {}
 
     # Définit un spy qui vérifie le chemin fourni au loader
-    def _spy_load_physionet_raw(path: Path) -> tuple[mne.io.Raw, dict]:
+    def _spy_load_physionet_raw(
+        path: Path, reference: str | None = "average"
+    ) -> tuple[mne.io.Raw, dict]:
         # Mémorise le chemin reçu pour assertion post-call
         seen["path"] = path
+        # Mémorise la référence pour vérifier le passage des arguments
+        seen["reference"] = reference
         # Retourne les objets mockés pour ne pas dépendre du dataset
         return raw, dict(metadata)
 
@@ -920,9 +924,9 @@ def test_main_guard_covered(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     # Fournit un filtre no-op pour éviter tout calcul lourd
     typed_preprocessing.apply_bandpass_filter = lambda raw, **_: raw
     # Fournit un loader factice qui renvoie le Raw synthétique
-    typed_preprocessing.load_physionet_raw = lambda path: (
+    typed_preprocessing.load_physionet_raw = lambda path, reference="average": (
         dummy_raw.copy(),
-        {"path": str(path)},
+        {"path": str(path), "reference": reference},
     )
     # Injecte le module factice dans sys.modules pour l'exécution runpy
     monkeypatch.setitem(sys.modules, "tpv.preprocessing", fake_preprocessing)

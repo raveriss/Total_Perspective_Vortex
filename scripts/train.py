@@ -111,6 +111,9 @@ DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 # Définit le répertoire par défaut où résident les fichiers EDF bruts
 DEFAULT_RAW_DIR = Path("data")
 
+# Définit la référence EEG par défaut pour le re-référencement
+DEFAULT_EEG_REFERENCE = "average"
+
 # Fige la fréquence d'échantillonnage par défaut utilisée pour les features
 DEFAULT_SAMPLING_RATE = 50.0
 
@@ -189,6 +192,24 @@ def _parse_run(value: str) -> str:
     return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
 
 
+# Normalise la référence EEG demandée via CLI
+def _parse_eeg_reference(value: str) -> str | None:
+    """Retourne la référence EEG normalisée ou None."""
+
+    # Nettoie la valeur reçue pour éviter les espaces parasites
+    cleaned_value = value.strip()
+    # Refuse une valeur vide pour éviter une référence ambiguë
+    if not cleaned_value:
+        # Signale une référence vide pour guider l'utilisateur
+        raise argparse.ArgumentTypeError("Référence EEG vide")
+    # Interprète l'alias "none" comme une désactivation explicite
+    if cleaned_value.lower() == "none":
+        # Retourne None pour indiquer l'absence de re-référencement
+        return None
+    # Retourne la valeur brute pour passer à MNE
+    return cleaned_value
+
+
 # Normalise un choix CLI en minuscules pour les comparaisons
 def _normalize_choice(value: str, label: str) -> str:
     """Normalise un choix CLI et refuse les valeurs vides."""
@@ -225,6 +246,7 @@ def resolve_sampling_rate(
     run: str,
     raw_dir: Path,
     requested_sfreq: float,
+    eeg_reference: str | None,
 ) -> float:
     """Retourne la fréquence d'échantillonnage détectée ou la valeur demandée."""
 
@@ -241,7 +263,10 @@ def resolve_sampling_rate(
     # Encadre la lecture MNE pour éviter un crash si l'EDF est invalide
     try:
         # Charge l'EDF et récupère les métadonnées utiles
-        raw, metadata = preprocessing.load_physionet_raw(raw_path)
+        raw, metadata = preprocessing.load_physionet_raw(
+            raw_path,
+            reference=eeg_reference,
+        )
         # Extrait la valeur brute de la fréquence depuis les métadonnées
         sampling_rate_value = metadata.get("sampling_rate")
         # Convertit la valeur si possible pour préserver une fréquence cohérente
@@ -649,6 +674,8 @@ class TrainingRequest:
     artifacts_dir: Path
     # Spécifie le répertoire des enregistrements EDF bruts
     raw_dir: Path = DEFAULT_RAW_DIR
+    # Définit la référence EEG à appliquer lors du chargement EDF
+    eeg_reference: str | None = DEFAULT_EEG_REFERENCE
     # Active une optimisation systématique des hyperparamètres si demandé
     enable_grid_search: bool = False
     # Fixe un nombre de splits spécifique pour la recherche si fourni
@@ -687,6 +714,8 @@ class TrainingResources:
     artifacts_dir: Path
     # Spécifie le répertoire des enregistrements EDF bruts
     raw_dir: Path = DEFAULT_RAW_DIR
+    # Définit la référence EEG à appliquer lors du chargement EDF
+    eeg_reference: str | None = DEFAULT_EEG_REFERENCE
     # Active une optimisation systématique des hyperparamètres si demandé
     enable_grid_search: bool = False
     # Fixe un nombre de splits spécifique pour la recherche si fourni
@@ -783,6 +812,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=DEFAULT_RAW_DIR,
         help="Répertoire racine contenant les fichiers EDF bruts",
+    )
+    # Ajoute l'option de re-référencement EEG lors du chargement EDF
+    parser.add_argument(
+        "--eeg-reference",
+        type=_parse_eeg_reference,
+        default=DEFAULT_EEG_REFERENCE,
+        help="Référence EEG appliquée au chargement (ex: average, none)",
     )
     # Ajoute un mode pour générer tous les .npy sans lancer un fit complet
     parser.add_argument(
@@ -1100,6 +1136,7 @@ def _build_npy_from_edf(
     run: str,
     data_dir: Path,
     raw_dir: Path,
+    eeg_reference: str | None,
 ) -> tuple[Path, Path]:
     """Génère X (epochs brutes) et y depuis un fichier EDF Physionet.
 
@@ -1127,7 +1164,10 @@ def _build_npy_from_edf(
     features_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Charge l'EDF en conservant les métadonnées essentielles
-    raw, _ = preprocessing.load_physionet_raw(raw_path)
+    raw, _ = preprocessing.load_physionet_raw(
+        raw_path,
+        reference=eeg_reference,
+    )
 
     # Applique un notch pour supprimer la pollution secteur
     notched_raw = preprocessing.apply_notch_filter(raw, freq=DEFAULT_NOTCH_FREQ)
@@ -1168,7 +1208,11 @@ def _build_npy_from_edf(
 
 
 # Construit les .npy pour l'ensemble des sujets disponibles
-def _build_all_npy(raw_dir: Path, data_dir: Path) -> None:
+def _build_all_npy(
+    raw_dir: Path,
+    data_dir: Path,
+    eeg_reference: str | None,
+) -> None:
     """Génère les fichiers numpy pour chaque run moteur disponible."""
 
     # Parcourt les dossiers de sujets triés pour des logs prédictibles
@@ -1188,7 +1232,13 @@ def _build_all_npy(raw_dir: Path, data_dir: Path) -> None:
 
             # Ignore explicitement les runs dépourvus d'événements moteurs
             try:
-                _build_npy_from_edf(subject, run, data_dir, raw_dir)
+                _build_npy_from_edf(
+                    subject,
+                    run,
+                    data_dir,
+                    raw_dir,
+                    eeg_reference,
+                )
             except ValueError as error:
                 if "No motor events present" in str(error):
                     print(
@@ -1227,6 +1277,7 @@ def _train_single_run(
         data_dir=resources.data_dir,
         artifacts_dir=resources.artifacts_dir,
         raw_dir=resources.raw_dir,
+        eeg_reference=resources.eeg_reference,
     )
     # Protège l'appel pour signaler les données manquantes sans stopper la boucle
     try:
@@ -1247,6 +1298,7 @@ def _train_all_runs(
     data_dir: Path,
     artifacts_dir: Path,
     raw_dir: Path,
+    eeg_reference: str | None,
 ) -> int:
     """Parcourt les sujets et runs moteurs pour générer tous les modèles."""
 
@@ -1258,6 +1310,7 @@ def _train_all_runs(
         data_dir=data_dir,
         artifacts_dir=artifacts_dir,
         raw_dir=raw_dir,
+        eeg_reference=eeg_reference,
     )
     # Prépare un compteur d'échecs pour informer l'utilisateur à la fin
     failures = 0
@@ -1371,6 +1424,7 @@ def _load_data(
     run: str,
     data_dir: Path,
     raw_dir: Path,
+    eeg_reference: str | None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Charge ou construit les données et étiquettes pour un run.
 
@@ -1447,6 +1501,7 @@ def _load_data(
             run,
             data_dir,
             raw_dir,
+            eeg_reference,
         )
 
     # Charge les données validées (3D) et labels réalignés
@@ -1779,7 +1834,13 @@ def run_training(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
-    X, y = _load_data(request.subject, request.run, request.data_dir, request.raw_dir)
+    X, y = _load_data(
+        request.subject,
+        request.run,
+        request.data_dir,
+        request.raw_dir,
+        request.eeg_reference,
+    )
     # Adapte la configuration au niveau d'effectif pour stabiliser l'entraînement
     adapted_config = _adapt_pipeline_config_for_samples(request.pipeline_config, y)
     # Construit la pipeline complète sans préprocesseur amont
@@ -1874,7 +1935,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     # Exécute la génération massive et s'arrête si le flag est positionné
     if args.build_all:
-        _build_all_npy(args.raw_dir, args.data_dir)
+        _build_all_npy(args.raw_dir, args.data_dir, args.eeg_reference)
         return 0
     # Convertit l'option scaler "none" en None pour la pipeline
     scaler = None if args.scaler == "none" else args.scaler
@@ -1888,6 +1949,7 @@ def main(argv: list[str] | None = None) -> int:
         args.run,
         args.raw_dir,
         args.sfreq,
+        args.eeg_reference,
     )
     # Harmonise la stratégie de features si un alias de réduction est fourni
     feature_strategy, dim_method = _resolve_feature_strategy_and_dim_method(
@@ -1920,6 +1982,7 @@ def main(argv: list[str] | None = None) -> int:
             args.data_dir,
             args.artifacts_dir,
             args.raw_dir,
+            args.eeg_reference,
         )
     # Regroupe les paramètres d'entraînement dans une structure dédiée
     request = TrainingRequest(
@@ -1929,6 +1992,7 @@ def main(argv: list[str] | None = None) -> int:
         data_dir=args.data_dir,
         artifacts_dir=args.artifacts_dir,
         raw_dir=args.raw_dir,
+        eeg_reference=args.eeg_reference,
         enable_grid_search=args.grid_search,
         grid_search_splits=args.grid_search_splits,
     )

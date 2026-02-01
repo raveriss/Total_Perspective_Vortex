@@ -232,18 +232,19 @@ def test_evaluate_run_skips_training_when_artifacts_present_and_forwards_raw_dir
 
     X = np.ones((3, 1, 2), dtype=float)
     y = np.array([1, 0, 1], dtype=int)
-    load_calls: list[Path | None] = []
+    load_calls: list[tuple[Path | None, str | None]] = []
 
     def fake_load_data(
         subject_arg: str,
         run_arg: str,
         data_dir_arg: Path,
         raw_dir_arg: Path,
+        eeg_reference: str | None,
     ) -> tuple[np.ndarray, np.ndarray]:
         assert subject_arg == subject
         assert run_arg == run
         assert data_dir_arg == data_dir
-        load_calls.append(raw_dir_arg)
+        load_calls.append((raw_dir_arg, eeg_reference))
         return X, y
 
     monkeypatch.setattr(predict_cli, "_load_data", fake_load_data)
@@ -296,7 +297,7 @@ def test_evaluate_run_skips_training_when_artifacts_present_and_forwards_raw_dir
 
     stdout = capsys.readouterr().out
     assert stdout == ""
-    assert load_calls == [raw_dir]
+    assert load_calls == [(raw_dir, "average")]
     assert loaded_w_paths == [target_dir / "w_matrix.joblib"]
     assert "truth" in result
     assert np.array_equal(result["truth"], y)

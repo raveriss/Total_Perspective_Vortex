@@ -111,7 +111,7 @@ def test_resolve_sampling_rate_returns_requested_when_missing(tmp_path):
     """Vérifie la valeur par défaut si l'EDF est absent."""
 
     # Appelle la résolution avec un répertoire sans EDF
-    result = resolve_sampling_rate("S001", "R01", tmp_path, 50.0)
+    result = resolve_sampling_rate("S001", "R01", tmp_path, 50.0, "average")
     # Vérifie que la fréquence demandée est conservée
     assert result == 50.0
 
@@ -134,7 +134,7 @@ def test_resolve_sampling_rate_handles_read_error(tmp_path, monkeypatch):
     )
 
     # Appelle la résolution pour couvrir le bloc d'exception
-    result = resolve_sampling_rate("S001", "R01", tmp_path, 50.0)
+    result = resolve_sampling_rate("S001", "R01", tmp_path, 50.0, "average")
     # Vérifie que la fréquence demandée est conservée
     assert result == 50.0
 
@@ -174,7 +174,7 @@ def test_resolve_sampling_rate_falls_back_on_non_numeric_metadata(
     )
 
     # Appelle la résolution pour couvrir le fallback non numérique
-    result = resolve_sampling_rate("S002", "R01", tmp_path, 50.0)
+    result = resolve_sampling_rate("S002", "R01", tmp_path, 50.0, "average")
     # Vérifie que la fréquence demandée est conservée
     assert result == 50.0
     # Vérifie que le Raw est bien fermé malgré la valeur invalide
