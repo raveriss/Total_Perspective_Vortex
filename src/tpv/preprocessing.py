@@ -141,6 +141,24 @@ def _rename_channels_for_montage(
     return raw
 
 
+def drop_non_eeg_channels(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
+    """Drop EOG/EMG channels to keep only EEG signals."""
+
+    # Capture channel types aligned with channel names
+    channel_types = raw.get_channel_types()
+    # Identify non-EEG channels that must be removed before preprocessing
+    to_drop = [
+        name
+        for name, channel_type in zip(raw.ch_names, channel_types, strict=True)
+        if channel_type.lower() in {"eog", "emg"}
+    ]
+    # Remove non-EEG channels when present to avoid contaminating features
+    if to_drop:
+        raw.drop_channels(to_drop)
+    # Return the filtered raw object for downstream processing
+    return raw
+
+
 def apply_bandpass_filter(
     raw: mne.io.BaseRaw,
     method: str = DEFAULT_FILTER_METHOD,
@@ -319,6 +337,8 @@ def load_mne_raw_checked(
         )
     # Renomme les canaux bruts pour les aligner sur le montage standard
     raw = _rename_channels_for_montage(raw)
+    # Drop non-EEG channels to protect downstream spatial filters
+    raw = drop_non_eeg_channels(raw)
     # Gather channel names from the recording for consistency checks
     channel_names = list(raw.ch_names)
     # Identify unexpected channels that would break downstream spatial filters
@@ -409,6 +429,8 @@ def load_physionet_raw(
         raw = _load_raw_with_mne(normalized_path)
     # Renomme les canaux pour les aligner sur le montage 10-20 utilisé
     raw = _rename_channels_for_montage(raw)
+    # Drop non-EEG channels before attaching the montage
+    raw = drop_non_eeg_channels(raw)
     # Attach the montage so downstream spatial filters assume 10-20 layout
     raw.set_montage(montage, on_missing="warn")
     # Extract sampling rate to guide later filtering and epoch durations
