@@ -57,6 +57,7 @@ from tpv.preprocessing import (
     apply_bandpass_filter,
     create_epochs_from_raw,
     detect_artifacts,
+    drop_non_eeg_channels,
     generate_epoch_report,
     load_mne_motor_run,
     load_mne_raw_checked,
@@ -132,6 +133,26 @@ def _build_epoch_array(
     epochs = mne.EpochsArray(data=data, info=info, events=events, tmin=0.0)
     # Retourne les epochs et les labels alignés pour alimenter les tests
     return epochs, labels
+
+
+def test_drop_non_eeg_channels_removes_eog_emg() -> None:
+    """Ensure EOG/EMG channels are removed from raw recordings."""
+
+    # Construit des métadonnées incluant des canaux EEG et non-EEG
+    info = mne.create_info(
+        ch_names=["C3", "C4", "EOG1", "EMG1"],
+        sfreq=128.0,
+        ch_types=["eeg", "eeg", "eog", "emg"],
+    )
+    # Génère des données déterministes pour ces canaux
+    rng = np.random.default_rng(seed=7)
+    data = rng.standard_normal((4, 128))
+    # Assemble un RawArray pour tester le filtrage des canaux
+    raw = mne.io.RawArray(data, info)
+    # Applique la suppression des canaux non EEG
+    cleaned = drop_non_eeg_channels(raw)
+    # Vérifie que seuls les canaux EEG restent
+    assert cleaned.ch_names == ["C3", "C4"]
 
 
 def test_apply_bandpass_filter_preserves_shape_and_stability() -> None:
