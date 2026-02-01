@@ -13,7 +13,7 @@ import json
 import sys
 
 # Rassemble la construction de structures immuables orientées données
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
@@ -71,6 +71,15 @@ from tpv.pipeline import (
     save_pipeline,
 )
 
+# Centralise la configuration des fenêtres d'epochs
+from tpv.utils import (
+    DEFAULT_EPOCH_WINDOW,
+    EpochWindowConfig,
+    default_epoch_window_config,
+    load_epoch_window_config,
+    resolve_epoch_windows,
+)
+
 # Déclare la liste des runs moteurs à couvrir pour l'entraînement massif
 MOTOR_RUNS = (
     # Couvre le run moteur R03 documenté dans le protocole Physionet
@@ -123,17 +132,6 @@ DEFAULT_MAX_PEAK_TO_PEAK = 3000e-6
 DEFAULT_BANDPASS_BAND = (8.0, 30.0)
 # Fixe la fréquence de notch pour supprimer la pollution secteur
 DEFAULT_NOTCH_FREQ = 50.0
-# Définit des fenêtres post-cue candidates pour la sélection d'epochs
-DEFAULT_EPOCH_WINDOWS: Sequence[tuple[float, float]] = (
-    # Cible une fenêtre courte centrée sur l'ERD/ERS initial
-    (0.5, 2.5),
-    # Cible une fenêtre plus tardive pour les sujets lents
-    (1.0, 3.0),
-    # Cible une fenêtre plus proche du cue pour capturer l'initiation
-    (0.0, 2.0),
-)
-# Fixe la fenêtre par défaut utilisée en absence de sélection
-DEFAULT_EPOCH_WINDOW = DEFAULT_EPOCH_WINDOWS[0]
 # Fixe le nombre de composantes CSP pour la sélection de fenêtre
 DEFAULT_CSP_COMPONENTS = 4
 # Regroupe les stratégies de features supportées par la pipeline
@@ -144,6 +142,19 @@ DIM_METHODS = ("pca", "csp", "svd")
 FEATURE_STRATEGY_ALIASES = DIM_METHODS
 # Combine les valeurs autorisées pour l'argument --feature-strategy
 FEATURE_STRATEGY_CHOICES = FEATURE_STRATEGIES + FEATURE_STRATEGY_ALIASES
+
+
+# Encapsule la configuration active pour éviter un global direct
+@dataclass
+class EpochWindowState:
+    """Conteneur mutable pour la configuration des fenêtres d'epochs."""
+
+    # Stocke la configuration active utilisée par les helpers
+    config: EpochWindowConfig
+
+
+# Centralise la configuration active des fenêtres d'epochs
+ACTIVE_EPOCH_WINDOW_CONFIG = EpochWindowState(config=default_epoch_window_config())
 
 
 # Normalise un identifiant brut en appliquant un préfixe standard
@@ -657,6 +668,14 @@ def _resolve_feature_strategy_and_dim_method(
     return feature_strategy, dim_method
 
 
+# Fournit les fenêtres d'epochs par défaut pour le contexte
+def _default_epoch_windows() -> Sequence[tuple[float, float]]:
+    """Retourne les fenêtres d'epochs par défaut."""
+
+    # Récupère les fenêtres par défaut via la configuration centralisée
+    return default_epoch_window_config().default_windows
+
+
 # Regroupe toutes les informations nécessaires à un run d'entraînement
 @dataclass
 class TrainingRequest:
@@ -699,6 +718,25 @@ class EpochWindowContext:
     subject: str
     # Identifie le run pour les logs et erreurs
     run: str
+    # Transporte les fenêtres candidates à évaluer
+    windows: Sequence[tuple[float, float]] = field(
+        default_factory=_default_epoch_windows
+    )
+
+
+# Capture l'état courant de la sélection de fenêtre
+@dataclass
+class WindowSelectionState:
+    """Stocke l'état de sélection d'une fenêtre d'epochs."""
+
+    # Stocke la fenêtre candidate courante
+    best_window: tuple[float, float]
+    # Stocke le meilleur score connu ou None
+    best_score: float | None
+    # Stocke les données d'epochs associées
+    best_epochs_data: np.ndarray | None
+    # Stocke les labels associés
+    best_labels: np.ndarray | None
 
 
 # Centralise les ressources partagées entre plusieurs entraînements
@@ -805,6 +843,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=DEFAULT_ARTIFACTS_DIR,
         help="Répertoire racine où enregistrer le modèle",
+    )
+    # Ajoute une option pour charger une configuration de fenêtres par sujet
+    parser.add_argument(
+        "--epoch-window-config",
+        type=Path,
+        default=None,
+        help="Chemin d'un JSON définissant les fenêtres d'epochs par sujet",
     )
     # Ajoute une option pour pointer vers les fichiers EDF bruts
     parser.add_argument(
@@ -1069,23 +1114,71 @@ def _build_epochs_for_window(
         return epochs_data, epochs_aligned_array
 
 
+# Initialise l'état de sélection pour une liste de fenêtres
+def _initialize_window_selection(context: EpochWindowContext) -> WindowSelectionState:
+    """Construit l'état initial de sélection des fenêtres."""
+
+    # Refuse la sélection si aucune fenêtre n'est disponible
+    if not context.windows:
+        # Signale l'absence de fenêtres pour stopper la sélection
+        raise ValueError("Aucune fenêtre d'epochs disponible pour la sélection.")
+    # Retourne l'état initialisé sur la première fenêtre
+    return WindowSelectionState(
+        best_window=context.windows[0],
+        best_score=None,
+        best_epochs_data=None,
+        best_labels=None,
+    )
+
+
+# Met à jour l'état de sélection avec une fenêtre candidate
+def _update_window_selection(
+    state: WindowSelectionState,
+    window: tuple[float, float],
+    epochs_data: np.ndarray,
+    numeric_labels: np.ndarray,
+    window_score: float | None,
+) -> WindowSelectionState:
+    """Retourne un état de sélection mis à jour."""
+
+    # Initialise l'état de base si aucune fenêtre n'est encore retenue
+    if state.best_epochs_data is None:
+        # Retourne un état initialisé avec la fenêtre courante
+        return WindowSelectionState(
+            best_window=window,
+            best_score=window_score,
+            best_epochs_data=epochs_data,
+            best_labels=numeric_labels,
+        )
+    # Ignore les fenêtres sans score si un score existe déjà
+    if window_score is None and state.best_score is not None:
+        return state
+    # Vérifie si le score courant est meilleur que le précédent
+    if window_score is not None and (
+        state.best_score is None or window_score > state.best_score
+    ):
+        # Retourne un état mis à jour avec la fenêtre courante
+        return WindowSelectionState(
+            best_window=window,
+            best_score=window_score,
+            best_epochs_data=epochs_data,
+            best_labels=numeric_labels,
+        )
+    # Retourne l'état inchangé si aucune amélioration n'est trouvée
+    return state
+
+
 # Sélectionne la meilleure fenêtre selon un score cross-val
 def _select_best_epoch_window(
     context: EpochWindowContext,
 ) -> tuple[tuple[float, float], np.ndarray, np.ndarray]:
     """Retourne la fenêtre optimale et les données associées."""
 
-    # Initialise la meilleure fenêtre par défaut
-    best_window = DEFAULT_EPOCH_WINDOW
-    # Initialise le score de fenêtre à None pour détecter l'absence de CV
-    best_score: float | None = None
-    # Initialise les données d'epochs pour la fenêtre retenue
-    best_epochs_data: np.ndarray | None = None
-    # Initialise les labels numériques pour la fenêtre retenue
-    best_labels: np.ndarray | None = None
+    # Initialise l'état de sélection des fenêtres
+    selection_state = _initialize_window_selection(context)
 
     # Parcourt les fenêtres candidates pour sélectionner la plus robuste
-    for window in DEFAULT_EPOCH_WINDOWS:
+    for window in context.windows:
         # Construit les epochs et labels pour la fenêtre courante
         epochs_data, numeric_labels = _build_epochs_for_window(context, window)
         # Calcule le score cross-val pour cette fenêtre si possible
@@ -1094,32 +1187,17 @@ def _select_best_epoch_window(
             numeric_labels,
             float(context.filtered_raw.info["sfreq"]),
         )
-        # Initialise la fenêtre par défaut lorsqu'aucune n'est retenue
-        if best_epochs_data is None:
-            # Stocke les données de référence pour éviter un fallback vide
-            best_epochs_data = epochs_data
-            # Stocke les labels de référence pour éviter un fallback vide
-            best_labels = numeric_labels
-            # Conserve la fenêtre courante comme valeur par défaut
-            best_window = window
-        # Ignore les fenêtres sans score si une meilleure est déjà connue
-        if window_score is None and best_score is not None:
-            continue
-        # Met à jour la meilleure fenêtre si un score supérieur est trouvé
-        if window_score is not None and (
-            best_score is None or window_score > best_score
-        ):
-            # Conserve le score de la fenêtre retenue
-            best_score = window_score
-            # Conserve les données de la fenêtre retenue
-            best_epochs_data = epochs_data
-            # Conserve les labels de la fenêtre retenue
-            best_labels = numeric_labels
-            # Conserve la fenêtre retenue pour usage ultérieur
-            best_window = window
+        # Met à jour l'état avec la fenêtre courante si nécessaire
+        selection_state = _update_window_selection(
+            selection_state,
+            window,
+            epochs_data,
+            numeric_labels,
+            window_score,
+        )
 
     # Garantit que les données retenues existent avant la sauvegarde
-    if best_epochs_data is None or best_labels is None:
+    if selection_state.best_epochs_data is None or selection_state.best_labels is None:
         # Signale une absence complète de données après sélection
         raise ValueError(
             f"Aucune epoch valide pour {context.subject} {context.run} "
@@ -1127,7 +1205,11 @@ def _select_best_epoch_window(
         )
 
     # Retourne la fenêtre retenue et les données associées
-    return best_window, best_epochs_data, best_labels
+    return (
+        selection_state.best_window,
+        selection_state.best_epochs_data,
+        selection_state.best_labels,
+    )
 
 
 # Construit des matrices numpy à partir d'un EDF lorsqu'elles manquent
@@ -1182,6 +1264,10 @@ def _build_npy_from_edf(
         filtered_raw
     )
 
+    # Résout les fenêtres candidates en fonction du sujet
+    candidate_windows = resolve_epoch_windows(
+        subject, ACTIVE_EPOCH_WINDOW_CONFIG.config
+    )
     # Construit le contexte nécessaire à la sélection de fenêtre
     window_context = EpochWindowContext(
         filtered_raw=filtered_raw,
@@ -1190,6 +1276,7 @@ def _build_npy_from_edf(
         motor_labels=motor_labels,
         subject=subject,
         run=run,
+        windows=candidate_windows,
     )
     # Sélectionne la meilleure fenêtre et ses données associées
     best_window, best_epochs_data, best_labels = _select_best_epoch_window(
@@ -1496,6 +1583,7 @@ def _load_data(
 
     # Reconstruit les fichiers lorsque nécessaire
     if needs_rebuild:
+        # Lance la reconstruction avec la configuration active
         features_path, labels_path = _build_npy_from_edf(
             subject,
             run,
@@ -1925,6 +2013,52 @@ def run_training(request: TrainingRequest) -> dict:
     }
 
 
+# Applique la configuration des fenêtres si un fichier est fourni
+def _apply_epoch_window_config(args: argparse.Namespace) -> None:
+    """Met à jour la configuration des fenêtres à partir des arguments."""
+
+    # Quitte tôt si aucun fichier n'est fourni
+    if args.epoch_window_config is None:
+        return
+    # Charge et applique la configuration dédiée
+    ACTIVE_EPOCH_WINDOW_CONFIG.config = load_epoch_window_config(
+        args.epoch_window_config
+    )
+
+
+# Gère la génération complète des fichiers .npy si demandée
+def _maybe_build_all(args: argparse.Namespace) -> bool:
+    """Construit tous les .npy et retourne True si exécuté."""
+
+    # Ignore si le flag build_all est absent
+    if not args.build_all:
+        return False
+    # Construit les .npy avec la configuration active
+    _build_all_npy(args.raw_dir, args.data_dir, args.eeg_reference)
+    # Indique qu'une exécution a eu lieu
+    return True
+
+
+# Gère l'entraînement massif si demandé
+def _maybe_train_all(
+    args: argparse.Namespace,
+    config: PipelineConfig,
+) -> int | None:
+    """Lance l'entraînement massif et retourne le code si exécuté."""
+
+    # Ignore si le flag train_all est absent
+    if not args.train_all:
+        return None
+    # Lance l'entraînement global avec la configuration active
+    return _train_all_runs(
+        config,
+        args.data_dir,
+        args.artifacts_dir,
+        args.raw_dir,
+        args.eeg_reference,
+    )
+
+
 # Point d'entrée principal pour l'exécution en ligne de commande
 def main(argv: list[str] | None = None) -> int:
     """Parse les arguments et lance l'entraînement."""
@@ -1933,9 +2067,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     # Parse les arguments fournis par l'utilisateur
     args = parser.parse_args(argv)
+    # Applique la configuration de fenêtres depuis les arguments
+    _apply_epoch_window_config(args)
     # Exécute la génération massive et s'arrête si le flag est positionné
-    if args.build_all:
-        _build_all_npy(args.raw_dir, args.data_dir, args.eeg_reference)
+    if _maybe_build_all(args):
         return 0
     # Convertit l'option scaler "none" en None pour la pipeline
     scaler = None if args.scaler == "none" else args.scaler
@@ -1975,15 +2110,11 @@ def main(argv: list[str] | None = None) -> int:
         csp_regularization=args.csp_regularization,
     )
     # Déclenche l'entraînement massif si le flag est activé
-    if args.train_all:
-        # Propulse la configuration commune vers l'ensemble des runs moteurs
-        return _train_all_runs(
-            config,
-            args.data_dir,
-            args.artifacts_dir,
-            args.raw_dir,
-            args.eeg_reference,
-        )
+    train_all_status = _maybe_train_all(args, config)
+    # Retourne le code d'exécution si l'entraînement massif a été lancé
+    if train_all_status is not None:
+        return train_all_status
+    # Regroupe les paramètres d'entraînement dans une structure dédiée
     # Regroupe les paramètres d'entraînement dans une structure dédiée
     request = TrainingRequest(
         subject=args.subject,

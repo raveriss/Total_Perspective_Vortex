@@ -26,6 +26,9 @@ from tpv.pipeline import (
     save_pipeline,
 )
 
+# Récupère la configuration des fenêtres pour les tests
+from tpv.utils import EpochWindowConfig, resolve_epoch_windows
+
 # Fixe le nombre de plis pour harmoniser les validations croisées
 CROSS_VALIDATION_SPLITS = 3
 
@@ -352,3 +355,30 @@ def test_build_pipeline_csp_skips_features_and_sets_regularization():
     assert pipeline.named_steps["dimensionality"].method == "csp"
     # Vérifie que la régularisation CSP est correctement propagée
     assert pipeline.named_steps["dimensionality"].regularization == 0.25
+
+
+# Vérifie que les fenêtres par sujet peuvent diverger sans conflit
+def test_epoch_window_config_supports_subject_overrides():
+    """Confirme l'override de fenêtres par sujet."""
+
+    # Déclare la fenêtre par défaut utilisée en l'absence d'override
+    default_windows = ((0.5, 2.5),)
+    # Prépare l'override pour le premier sujet
+    subject_one_override = ((0.0, 1.0),)
+    # Prépare l'override pour le second sujet
+    subject_two_override = ((1.0, 2.0),)
+    # Agrège les overrides par identifiant de sujet
+    subject_overrides = {"S001": subject_one_override, "S002": subject_two_override}
+    # Construit la configuration à tester
+    config = EpochWindowConfig(
+        # Utilise la fenêtre par défaut pour ce test
+        default_windows=default_windows,
+        # Utilise les overrides par sujet pour ce test
+        subject_overrides=subject_overrides,
+    )
+    # Vérifie que S001 récupère ses fenêtres spécifiques
+    assert resolve_epoch_windows("S001", config) == subject_overrides["S001"]
+    # Vérifie que S002 récupère ses fenêtres spécifiques
+    assert resolve_epoch_windows("S002", config) == subject_overrides["S002"]
+    # Vérifie que les autres sujets utilisent le défaut
+    assert resolve_epoch_windows("S003", config) == default_windows
