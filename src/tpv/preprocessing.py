@@ -124,6 +124,10 @@ DEFAULT_FILTER_METHOD = "fir"
 DEFAULT_NORMALIZE_METHOD = "zscore"
 # Fixe l'epsilon de stabilisation pour la normalisation par défaut
 DEFAULT_NORMALIZE_EPSILON = 1e-8
+# Définit le facteur de conversion des microvolts vers les volts
+MICROVOLTS_TO_VOLTS = 1e-6
+# Définit le seuil au-delà duquel on suspecte des microvolts
+DEFAULT_MICROVOLT_THRESHOLD = 1e-3
 
 
 def _rename_channels_for_montage(
@@ -267,6 +271,27 @@ def _is_bad_description(description: str) -> bool:
     return normalized_description.startswith("BAD")
 
 
+def ensure_volts_units(
+    raw: mne.io.BaseRaw, microvolt_threshold: float = DEFAULT_MICROVOLT_THRESHOLD
+) -> mne.io.BaseRaw:
+    """Ensure EEG data is expressed in volts, converting from µV if detected."""
+
+    # Charge les données pour inspecter l'amplitude réelle des signaux
+    loaded_raw = raw.load_data()
+    # Extrait les données pour évaluer l'échelle d'amplitude dominante
+    data = loaded_raw.get_data()
+    # Mesure l'amplitude maximale absolue pour détecter une échelle en µV
+    max_abs = float(np.max(np.abs(data))) if data.size else 0.0
+    # Décide si une conversion est requise pour garantir des volts
+    needs_conversion = max_abs > microvolt_threshold
+    # Applique la conversion uniquement lorsque l'amplitude dépasse le seuil
+    if needs_conversion:
+        # Convertit les microvolts en volts pour aligner les seuils
+        loaded_raw._data = loaded_raw._data * MICROVOLTS_TO_VOLTS
+    # Retourne l'objet Raw potentiellement normalisé en volts
+    return loaded_raw
+
+
 def _load_raw_with_mne(path: Path) -> mne.io.BaseRaw:
     """Charge un EDF/BDF via MNE en enrichissant les erreurs de parsing."""
 
@@ -306,7 +331,8 @@ def load_mne_raw_checked(
     expected_sampling_rate: float,
     expected_channels: List[str],
 ) -> mne.io.BaseRaw:
-    """Load a raw MNE file and validate montage, sampling rate, and channels."""
+    """Load a raw MNE file in volts and validate montage, sampling rate,
+    and channels."""
 
     # Normalize the file path to avoid surprises from relative inputs
     normalized_path = Path(file_path).expanduser().resolve()
@@ -326,6 +352,8 @@ def load_mne_raw_checked(
         )
     # Charge le fichier brut avec gestion d'erreurs dédiée MNE
     raw = _load_raw_with_mne(normalized_path)
+    # Normalise l'unité en volts juste après le chargement MNE
+    raw = ensure_volts_units(raw)
     # Extract the sampling frequency reported by the recording
     sampling_rate = float(raw.info["sfreq"])
     # Validate the sampling frequency against the expected configuration
@@ -412,7 +440,7 @@ def load_mne_motor_run(
 def load_physionet_raw(
     file_path: Path, montage: str = "standard_1020"
 ) -> Tuple[mne.io.BaseRaw, Dict[str, object]]:
-    """Load an EDF/BDF Physionet file with metadata."""
+    """Load an EDF/BDF Physionet file with volts-normalized metadata."""
 
     # Resolve the input path to avoid surprises with relative locations
     normalized_path = Path(file_path).expanduser().resolve()
@@ -427,6 +455,8 @@ def load_physionet_raw(
         )
         # Charge l'enregistrement en gérant les erreurs de parsing MNE
         raw = _load_raw_with_mne(normalized_path)
+    # Convertit en volts si le signal est exprimé en microvolts
+    raw = ensure_volts_units(raw)
     # Renomme les canaux pour les aligner sur le montage 10-20 utilisé
     raw = _rename_channels_for_montage(raw)
     # Drop non-EEG channels before attaching the montage
@@ -851,7 +881,7 @@ def summarize_epoch_quality(
     max_peak_to_peak: float,
     expected_labels: Tuple[str, str] = ("A", "B"),
 ) -> Tuple[mne.Epochs, Dict[str, Any], List[str]]:
-    """Drop incomplete epochs then count valid labels per subject/run."""
+    """Drop incomplete epochs then count labels using volt-based thresholds."""
 
     # Vérifie l'alignement entre événements et étiquettes transmises
     if len(motor_labels) != len(epochs):

@@ -34,6 +34,7 @@ from tpv import preprocessing
 # Import the preprocessing helpers under test
 # Importe les utilitaires de contrôle d'échantillons et de qualité
 # Importe le marqueur pour vérifier la structure des métadonnées
+# Importe l'utilitaire de conversion d'unités pour le contrôle qualité
 from tpv.preprocessing import (
     DEFAULT_FILTER_METHOD,
     DEFAULT_NORMALIZE_EPSILON,
@@ -58,6 +59,7 @@ from tpv.preprocessing import (
     create_epochs_from_raw,
     detect_artifacts,
     drop_non_eeg_channels,
+    ensure_volts_units,
     generate_epoch_report,
     load_mne_motor_run,
     load_mne_raw_checked,
@@ -953,6 +955,50 @@ def test_load_physionet_raw_reads_metadata(
     assert metadata["channel_names"] == ["C3", "C4"]
     # Confirm the loader returns an MNE Raw instance
     assert isinstance(loaded_raw, mne.io.BaseRaw)
+
+
+def test_ensure_volts_units_converts_microvolts_for_rejection_thresholds() -> None:
+    """Ensure microvolt inputs are converted to volts for rejection checks."""
+
+    # Prépare une configuration MNE minimale pour deux canaux EEG
+    info = mne.create_info(ch_names=["C3", "C4"], sfreq=100.0, ch_types="eeg")
+    # Définit un signal microvolté avec un pic-à-pic de 100 µV
+    data_uv = np.array(
+        [
+            [50.0, -50.0, 50.0, -50.0],
+            [25.0, -25.0, 25.0, -25.0],
+        ]
+    )
+    # Construit un RawArray simulant un fichier encodé en microvolts
+    raw_uv = mne.io.RawArray(data_uv, info)
+    # Convertit les données en volts via l'utilitaire dédié
+    converted_raw = ensure_volts_units(raw_uv)
+    # Prépare un epoch unique pour exécuter le contrôle qualité
+    epochs = mne.EpochsArray(
+        data=converted_raw.get_data()[np.newaxis, ...],
+        info=converted_raw.info,
+        tmin=0.0,
+    )
+    # Applique un seuil en volts pour vérifier l'absence de rejet après conversion
+    _, flagged_converted = quality_control_epochs(
+        epochs, max_peak_to_peak=200e-6, mode="mark"
+    )
+    # Vérifie que l'epoch converti n'est pas marqué comme artefact
+    assert flagged_converted["artifact"] == []
+    # Reconstruit un RawArray sans conversion pour comparer le même seuil
+    raw_unscaled = mne.io.RawArray(data_uv, info)
+    # Crée un epoch non converti pour vérifier le comportement attendu
+    epochs_unscaled = mne.EpochsArray(
+        data=raw_unscaled.get_data()[np.newaxis, ...],
+        info=raw_unscaled.info,
+        tmin=0.0,
+    )
+    # Applique le seuil en volts sur les données non converties
+    _, flagged_unscaled = quality_control_epochs(
+        epochs_unscaled, max_peak_to_peak=200e-6, mode="mark"
+    )
+    # Confirme que l'absence de conversion déclenche un rejet d'artefact
+    assert flagged_unscaled["artifact"] == [0]
 
 
 def test_load_physionet_raw_applies_montage_and_path(
