@@ -29,6 +29,7 @@
 - [🧩 Architecture du projet](#architecture-du-projet)
 - [🔬 1. Préprocessing & parsing EEG (MNE)](#1-préprocessing--parsing-eeg-mne)
 - [📊 Visualiser raw vs filtré](#-visualiser-raw-vs-filtré)
+- [🧭 Justification scientifique : canaux & fenêtres temporelles](#-justification-scientifique--canaux--fenêtres-temporelles)
 - [🎛️ 2. Extraction de features](#2-extraction-de-features)
 - [🧮 3. Réduction de dimension (PCA, CSP, ICA…)](#3-réduction-de-dimension-pca-csp-ica)
 - [🧠 4. Pipeline scikit-learn](#4-pipeline-scikit-learn)
@@ -293,6 +294,40 @@ python scripts/visualize_raw_filtered.py S001 R05
 <div align="center">
   <img src="https://github.com/raveriss/Total_Perspective_Vortex/blob/main/docs/assets/image02.png" alt="scripts visualize">
 </div>
+
+---
+
+## 🧭 Justification scientifique : canaux & fenêtres temporelles
+
+Les canaux EEG retenus se concentrent sur la **région sensorimotrice**
+(10-20) car l’imagerie motrice induit des variations d’ERD/ERS surtout
+sur les sites **C3/Cz/C4** et leurs voisins fronto-centraux et centro-pariétaux.
+Cela aligne la sélection `DEFAULT_MOTOR_ROI` (ex: FC3/FC1/FCz/FC2/FC4,
+C3/C1/Cz/C2/C4, CP3/CP1/CPz/CP2/CP4) du script
+`scripts/visualize_raw_filtered.py` et les recommandations classiques en BCI
+(Pfurtscheller & Neuper, 2001; Wolpaw et al., 2002).
+Références :
+* Pfurtscheller, G. & Neuper, C. (2001). Motor imagery and ERD/ERS.
+  https://doi.org/10.1016/S1388-2457(01)00579-1
+* Wolpaw, J. R. et al. (2002). Brain-computer interfaces for communication.
+  https://doi.org/10.1016/S1388-2457(02)00057-3
+
+Les fenêtres temporelles d’epoching **0.5–2.5 s**, **1.0–3.0 s** et **0.0–2.0 s**
+correspondent aux valeurs par défaut de `tpv.utils.DEFAULT_EPOCH_WINDOWS`. Elles
+évacuent la phase de réaction immédiate à l’indice visuel tout en couvrant la
+réponse motrice soutenue, ce qui limite les risques de fenêtres trop courtes
+ou mal alignées avec l’ERD/ERS (cf. Murphy TPV-032, TPV-052).
+
+Pour **visualiser l’impact** de ces choix (canaux + filtrage), utiliser le script
+de comparaison brut/filtré :
+
+```bash
+poetry run python scripts/visualize_raw_filtered.py S001 R03 --channels C3 Cz C4
+```
+
+Ce graphique permet de vérifier visuellement que les canaux sensorimoteurs
+présentent bien une dynamique exploitable dans la bande 8–40 Hz avant
+d’alimenter la pipeline de features.
 
 ---
 
