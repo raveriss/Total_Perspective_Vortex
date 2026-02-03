@@ -164,6 +164,17 @@ _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
         },
     ),
     (
+        ("--grid-search",),
+        {
+            # Supprime la valeur par défaut pour détecter l'activation explicite
+            "default": argparse.SUPPRESS,
+            # Active la recherche d'hyperparamètres côté scripts.train
+            "action": "store_true",
+            # Décrit le rôle du flag pour la CLI mybci
+            "help": "Active la recherche systématique des hyperparamètres",
+        },
+    ),
+    (
         ("--dim-method",),
         {
             "choices": ("pca", "csp", "svd"),
@@ -876,6 +887,10 @@ def _build_module_args(args: argparse.Namespace) -> list[str]:
     # Relaye la stratégie de features valide lorsqu'elle est explicitement demandée
     if feature_strategy:
         module_args.extend(["--feature-strategy", feature_strategy])
+    # Relaye l'activation de la grid search uniquement si demandée
+    if getattr(args, "grid_search", False):
+        # Ajoute le flag pour activer la recherche d'hyperparamètres
+        module_args.append("--grid-search")
     # Relaye la méthode de réduction uniquement lorsqu'elle est explicitement demandée
     if dim_method:
         module_args.extend(["--dim-method", dim_method])
