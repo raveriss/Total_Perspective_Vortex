@@ -323,10 +323,11 @@ def _train_run(subject: str, run: str, context: TrainingContext) -> None:
         sfreq=resolved_sfreq,
         feature_strategy="fft",
         normalize_features=True,
-        dim_method="pca",
-        n_components=None,
+        dim_method="csp",
+        n_components=train_cli.DEFAULT_CSP_COMPONENTS,
         classifier="lda",
         scaler=None,
+        csp_regularization=0.1,
     )
     # Prépare la requête d'entraînement pour scripts.train.run_training
     request = train_cli.TrainingRequest(
