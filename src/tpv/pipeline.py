@@ -61,10 +61,10 @@ class PipelineConfig:
 
 # Fixe le nombre d'itérations de la régression logistique pour la stabilité
 LOGISTIC_MAX_ITER = 1000
-# Privilégie le solver SVD pour éviter les covariances instables en petit n
-LDA_SOLVER = "svd"
-# Désactive le shrinkage pour rester compatible avec le solver SVD
-LDA_SHRINKAGE = None
+# Privilégie le solver LSQR pour activer le shrinkage automatique
+LDA_SOLVER = "lsqr"
+# Active le shrinkage automatique pour stabiliser les covariances
+LDA_SHRINKAGE = "auto"
 
 
 # Construit une pipeline complète incluant préprocessing, features et classification
