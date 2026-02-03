@@ -203,7 +203,7 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 | Mutation | `make mut` | `MUTMUT_USE_COVERAGE=1 ... poetry run mutmut run` |
 | Entraîner | `make train` | `poetry run python mybci.py 109 3 train` *(par défaut)* |
 | Prédire | `make predict` | `poetry run python mybci.py 109 3 predict` *(par défaut)* |
-| Benchmark global | `make bench` | `poetry run python mybci.py` |
+| Benchmark global | `make bench` | `poetry run python mybci.py S001 R03 train --grid-search` |
 | Nettoyer | `make clean` | supprime `./artifacts` + les `*.npy` (hors `.venv`, `.git`, `artifacts`) |
 
 ---
@@ -235,6 +235,27 @@ make train 1 3 TRAIN_ARGS="--feature-strategy wavelet --dim-method pca"
 > Utilisez un argument positionnel (`wavelet`/`welch`) ou bien
 > `FEATURE_STRATEGY` / `TRAIN_ARGS` pour transmettre les options
 > vers la CLI d'entraînement.
+
+### 🧪 Benchmark automatisé (objectif ≥ 90 %)
+
+La cible `make bench` enchaîne **`mybci.py ... train --grid-search`** pour
+les runs **R03 → R14**, en commençant par **R03–R06**. L'objectif est une
+recherche systématique des hyperparamètres visant **≥ 90 %** de score moyen.
+Par défaut, la grille de `scripts/train.py` teste `features__feature_strategy`
+avec `["fft", "welch", ("fft", "welch"), "wavelet"]`. Si vous voulez forcer une
+stratégie unique, utilisez `BENCH_FEATURE_STRATEGY=...` ou `FEATURE_STRATEGY=...`.
+
+Exemple (sujet par défaut, ordre R03 → R14) :
+
+```bash
+make bench
+```
+
+Exemple (sur plusieurs sujets, stratégie imposée) :
+
+```bash
+make bench BENCH_SUBJECTS="S001 S002" BENCH_FEATURE_STRATEGY=wavelet
+```
 
 *Boucler sur tous les runs avec un sujet donné (exemple 1)* :
 

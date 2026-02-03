@@ -149,6 +149,9 @@ FEATURE_STRATEGY ?=
 TRAIN_ARGS ?=
 PREDICT_ARGS ?=
 BENCH_ARGS ?=
+BENCH_FEATURE_STRATEGY ?=
+BENCH_SUBJECTS ?= S001
+BENCH_RUNS ?= R03 R04 R05 R06 R07 R08 R09 R10 R11 R12 R13 R14
 
 # Entraînement : `make train <subject> <run>`
 train: ensure-venv
@@ -245,18 +248,23 @@ visualizer: ensure-venv
 # Évaluation globale : équivalent à `python mybci.py` du sujet
 bench: ensure-venv
 	@set -euo pipefail; \
-	positional_strategy="$(word 2,$(MAKECMDGOALS))"; \
+	mkdir -p $(BENCH_DIR); \
 	extra_args="$(BENCH_ARGS)"; \
-	feature_strategy="$(FEATURE_STRATEGY)"; \
-	if [[ -z "$$feature_strategy" && -n "$$positional_strategy" ]]; then \
-		feature_strategy="$$positional_strategy"; \
+	feature_strategy="$(BENCH_FEATURE_STRATEGY)"; \
+	if [[ -z "$$feature_strategy" && -n "$(FEATURE_STRATEGY)" ]]; then \
+		feature_strategy="$(FEATURE_STRATEGY)"; \
 	fi; \
 	if [[ -n "$$feature_strategy" ]]; then \
 		extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
 	fi; \
-	mkdir -p $(BENCH_DIR); \
-	$(POETRY) python mybci.py $$extra_args \
-		| tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log
+	for subject in $(BENCH_SUBJECTS); do \
+		for run in $(BENCH_RUNS); do \
+			log_file="$(BENCH_DIR)/bench_$${subject}_$${run}_$$(date +%Y%m%d_%H%M%S).log"; \
+			echo "▶️  Bench $$subject $$run (grid-search)"; \
+			$(POETRY) python mybci.py "$$subject" "$$run" train \
+				--grid-search $$extra_args | tee "$$log_file"; \
+		done; \
+	done
 
 # Affiche la commande pour activer le venv
 activate:
