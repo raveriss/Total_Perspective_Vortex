@@ -16,6 +16,8 @@
 	mut \
 	train \
 	predict \
+	train-all-features \
+	predict-all-features \
 	bench \
 	activate \
 	deactivate \
@@ -157,9 +159,9 @@ train: ensure-venv
 	run="$(word 3,$(MAKECMDGOALS))"; \
 	positional_strategy="$(word 4,$(MAKECMDGOALS))"; \
 	if [[ -z "$$subject" || -z "$$run" ]]; then \
-		echo "Usage: make train <subject> <run> [wavelet|welch]" >&2; \
-		echo "       make train <subject> <run> FEATURE_STRATEGY=wavelet" >&2; \
-		echo "       make train <subject> <run> TRAIN_ARGS='--feature-strategy wavelet'" >&2; \
+		echo "Usage: make train <subject> <run> [wavelet|welch|all]" >&2; \
+		echo "       make train <subject> <run> FEATURE_STRATEGY=all" >&2; \
+		echo "       make train <subject> <run> TRAIN_ARGS='--feature-strategy all'" >&2; \
 		echo "Note : GNU make interprète les flags '--*' comme options." >&2; \
 		echo "       Utiliser FEATURE_STRATEGY=... ou TRAIN_ARGS=... pour passer des flags." >&2; \
 		exit 0; \
@@ -185,9 +187,9 @@ predict: ensure-venv
 	run="$(word 3,$(MAKECMDGOALS))"; \
 	positional_strategy="$(word 4,$(MAKECMDGOALS))"; \
 	if [[ -z "$$subject" || -z "$$run" ]]; then \
-		echo "Usage: make predict <subject> <run> [wavelet|welch]" >&2; \
-		echo "       make predict <subject> <run> FEATURE_STRATEGY=wavelet" >&2; \
-		echo "       make predict <subject> <run> PREDICT_ARGS='--feature-strategy wavelet'" >&2; \
+		echo "Usage: make predict <subject> <run> [wavelet|welch|all]" >&2; \
+		echo "       make predict <subject> <run> FEATURE_STRATEGY=all" >&2; \
+		echo "       make predict <subject> <run> PREDICT_ARGS='--feature-strategy all'" >&2; \
 		echo "Note : GNU make interprète les flags '--*' comme options." >&2; \
 		echo "       Utiliser FEATURE_STRATEGY=... ou PREDICT_ARGS=... pour passer des flags." >&2; \
 		exit 0; \
@@ -205,6 +207,16 @@ predict: ensure-venv
 		extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
 	fi; \
 	$(POETRY) python scripts/predict.py "$$subject" "$$run" $$extra_args
+
+# Entraînement avec toutes les features (FFT + Welch + Wavelet)
+train-all-features: ensure-venv
+	@$(MAKE) --no-print-directory train $(word 2,$(MAKECMDGOALS)) \
+		$(word 3,$(MAKECMDGOALS)) FEATURE_STRATEGY=all
+
+# Prédiction avec toutes les features (FFT + Welch + Wavelet)
+predict-all-features: ensure-venv
+	@$(MAKE) --no-print-directory predict $(word 2,$(MAKECMDGOALS)) \
+		$(word 3,$(MAKECMDGOALS)) FEATURE_STRATEGY=all
 
 # realtime : `make realtime <subject> <run>`
 realtime: ensure-venv

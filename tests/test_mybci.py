@@ -351,7 +351,15 @@ def test_build_parser_defines_expected_arguments():
     assert mode_arg.help == "Choix du pipeline à lancer"
     assert tuple(mode_arg.choices) == ("train", "predict")
     # Prépare la liste attendue des choix de features pour la CLI
-    expected_feature_choices = ("fft", "welch", "wavelet", "pca", "csp", "svd")
+    expected_feature_choices = (
+        "fft",
+        "welch",
+        "wavelet",
+        "all",
+        "pca",
+        "csp",
+        "svd",
+    )
     # Vérifie que la stratégie de features expose les choix attendus + alias
     assert tuple(feature_arg.choices) == expected_feature_choices
     assert feature_arg.default is argparse.SUPPRESS

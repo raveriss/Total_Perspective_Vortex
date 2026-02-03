@@ -62,6 +62,7 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> (
         "fft",
         "welch",
         "wavelet",
+        "all",
         "pca",
         "csp",
         "svd",

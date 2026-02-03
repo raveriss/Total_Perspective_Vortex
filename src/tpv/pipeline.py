@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # Maintient la compatibilité avec les types génériques scikit-learn
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Sequence, Tuple
 
 # Garantit la persistance pickle via le protocole scikit-learn
 from joblib import dump, load
@@ -44,7 +44,7 @@ class PipelineConfig:
     # Fréquence d'échantillonnage utilisée par l'extracteur de features
     sfreq: float
     # Stratégie de features pour harmoniser extraction et prédiction
-    feature_strategy: str = "fft"
+    feature_strategy: str | Sequence[str] = "fft"
     # Active la normalisation pour stabiliser les entrées du classifieur
     normalize_features: bool = True
     # Méthode de réduction de dimension pour compacter les features

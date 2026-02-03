@@ -82,6 +82,7 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
         "fft",
         "welch",
         "wavelet",
+        "all",
         "pca",
         "csp",
         "svd",

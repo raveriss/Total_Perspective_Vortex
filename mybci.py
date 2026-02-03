@@ -89,7 +89,7 @@ def _parse_feature_strategy(value: str) -> str:
     # Nettoie la valeur fournie pour accepter différentes casses
     cleaned = value.strip().lower()
     # Autorise explicitement les stratégies gérées par le pipeline
-    allowed = {"fft", "welch", "wavelet", "csp", "pca", "svd"}
+    allowed = {"fft", "welch", "wavelet", "all", "csp", "pca", "svd"}
     # Interrompt le parsing si la stratégie demandée n'est pas supportée
     if cleaned not in allowed:
         # Construit un message d'erreur explicite pour l'utilisateur
@@ -97,7 +97,7 @@ def _parse_feature_strategy(value: str) -> str:
             # Décrit la nature de l'erreur de stratégie fournie
             "Stratégie invalide: "
             # Liste les valeurs autorisées pour guider la correction
-            f"{value!r}. Choisissez parmi fft, welch, wavelet, pca, csp ou svd."
+            f"{value!r}. Choisissez parmi fft, welch, wavelet, all, pca, csp ou svd."
         )
         # Lève une erreur de parsing pour arrêter la CLI
         raise argparse.ArgumentTypeError(message)
@@ -153,12 +153,12 @@ _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
     (
         ("--feature-strategy",),
         {
-            "choices": ("fft", "welch", "wavelet", "pca", "csp", "svd"),
+            "choices": ("fft", "welch", "wavelet", "all", "pca", "csp", "svd"),
             "type": _parse_feature_strategy,
             # Supprime la valeur par défaut pour éviter les faux explicites
             "default": argparse.SUPPRESS,
             "help": (
-                "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/svd "
+                "Méthode d'extraction (fft, welch, wavelet, all) ou alias pca/csp/svd "
                 "(bascule --dim-method correspondant)"
             ),
         },
@@ -208,7 +208,7 @@ def _build_global_parser() -> argparse.ArgumentParser:
         # Déclare le flag de stratégie de features globale
         "--feature-strategy",
         # Limite les choix aux stratégies supportées
-        choices=("fft", "welch", "wavelet", "pca", "csp", "svd"),
+        choices=("fft", "welch", "wavelet", "all", "pca", "csp", "svd"),
         # Valide la stratégie via le parser déjà utilisé par mybci
         type=_parse_feature_strategy,
         # Supprime la valeur par défaut pour détecter les overrides explicites
@@ -216,7 +216,7 @@ def _build_global_parser() -> argparse.ArgumentParser:
         # Décrit l'option pour l'aide CLI globale
         help=(
             # Expose les stratégies utilisables pour l'auto-train
-            "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/svd "
+            "Méthode d'extraction (fft, welch, wavelet, all) ou alias pca/csp/svd "
             # Explique la bascule automatique vers dim-method
             "(bascule --dim-method correspondant)"
         ),
@@ -669,7 +669,7 @@ def _report_missing_artifacts(
         # Aide l'utilisateur en rappelant la commande de génération d'artefacts
         print(
             "Pour générer un modèle manquant, lancez par exemple :\n"
-            "  poetry run python scripts/train.py S001 R04 --feature-strategy fft "
+            "  poetry run python scripts/train.py S001 R04 --feature-strategy all "
             "--dim-method pca"
         )
     # Vérifie si certaines expériences ont été ignorées pour le calcul global

@@ -135,7 +135,9 @@ DEFAULT_NOTCH_FREQ = 50.0
 # Fixe le nombre de composantes CSP pour la sélection de fenêtre
 DEFAULT_CSP_COMPONENTS = 4
 # Regroupe les stratégies de features supportées par la pipeline
-FEATURE_STRATEGIES = ("fft", "welch", "wavelet")
+FEATURE_STRATEGY_ALL_NAME = "all"
+FEATURE_STRATEGY_COMBINED = ("fft", "welch", "wavelet")
+FEATURE_STRATEGIES = FEATURE_STRATEGY_COMBINED + (FEATURE_STRATEGY_ALL_NAME,)
 # Regroupe les méthodes de réduction de dimension supportées par la pipeline
 DIM_METHODS = ("pca", "csp", "svd")
 # Autorise un alias CLI pour rediriger vers la réduction de dimension
@@ -601,8 +603,16 @@ def _adapt_pipeline_config_for_samples(
 
 
 # Résout la méthode de réduction en fonction des features demandées
+def _uses_tabular_features(feature_strategy: str | Sequence[str]) -> bool:
+    """Indique si la stratégie utilise des features tabulaires."""
+
+    if isinstance(feature_strategy, str):
+        return feature_strategy in {"wavelet", "welch"}
+    return any(strategy in {"wavelet", "welch"} for strategy in feature_strategy)
+
+
 def _resolve_dim_method_for_features(
-    feature_strategy: str,
+    feature_strategy: str | Sequence[str],
     dim_method: str,
     argv: list[str] | None,
 ) -> str:
@@ -613,7 +623,7 @@ def _resolve_dim_method_for_features(
     # Détecte si --dim-method a été fourni par l'utilisateur
     dim_method_explicit = "--dim-method" in raw_args
     # Vérifie si la stratégie impose des features tabulaires
-    if feature_strategy in {"wavelet", "welch"} and dim_method == "csp":
+    if _uses_tabular_features(feature_strategy) and dim_method == "csp":
         # Bascule la méthode pour activer l'extraction de features
         if not dim_method_explicit:
             # Informe l'utilisateur de la bascule automatique de méthode
@@ -637,9 +647,11 @@ def _resolve_feature_strategy_and_dim_method(
     feature_strategy: str,
     dim_method: str,
     argv: list[str] | None,
-) -> tuple[str, str]:
+) -> tuple[str | Sequence[str], str]:
     """Retourne une stratégie de features valide et le dim_method associé."""
 
+    if feature_strategy == FEATURE_STRATEGY_ALL_NAME:
+        return FEATURE_STRATEGY_COMBINED, dim_method
     # Récupère la liste brute d'arguments pour détecter un override explicite
     raw_args = argv if argv is not None else sys.argv[1:]
     # Détecte si --dim-method a été fourni par l'utilisateur
@@ -1788,7 +1800,13 @@ def _build_grid_search_grid(
     # Construit la grille finale en couvrant features + réduction + classif
     # Étend la grille aux familles Welch et mixte pour enrichir les features
     return {
-        "features__feature_strategy": ["fft", "welch", ("fft", "welch"), "wavelet"],
+        "features__feature_strategy": [
+            "fft",
+            "welch",
+            ("fft", "welch"),
+            "wavelet",
+            FEATURE_STRATEGY_COMBINED,
+        ],
         "features__normalize": [True, False],
         "dimensionality__method": ["pca", "svd"],
         "dimensionality__n_components": n_components_grid,

@@ -24,7 +24,7 @@ from pathlib import Path
 from types import ModuleType
 
 # Garantit l'accès aux annotations Any et Mapping pour les overrides
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 # Centralise l'accès aux tableaux numpy pour l'évaluation
 import numpy as np
@@ -103,7 +103,7 @@ class ResolvedOverrides:
     """Expose une configuration de pipeline prête à l'emploi."""
 
     # Stocke la stratégie de features effectivement utilisée
-    feature_strategy: str
+    feature_strategy: str | Sequence[str]
     # Stocke la méthode de réduction effectivement utilisée
     dim_method: str
     # Stocke le classifieur effectivement utilisé
@@ -636,15 +636,23 @@ def _resolve_feature_strategy_alias(
 
 
 # Ajuste la méthode de réduction lorsque les features sont tabulaires
+def _uses_tabular_features(feature_strategy: str | Sequence[str]) -> bool:
+    """Indique si la stratégie utilise des features tabulaires."""
+
+    if isinstance(feature_strategy, str):
+        return feature_strategy in {"wavelet", "welch"}
+    return any(strategy in {"wavelet", "welch"} for strategy in feature_strategy)
+
+
 def _adjust_dim_method_for_tabular_features(
-    feature_strategy: str,
+    feature_strategy: str | Sequence[str],
     dim_method: str,
     dim_method_explicit: bool,
 ) -> str:
     """Ajuste le dim_method lorsque CSP ignore les features."""
 
     # Ignore l'ajustement si la stratégie n'est pas tabulaire
-    if feature_strategy not in {"wavelet", "welch"} or dim_method != "csp":
+    if not _uses_tabular_features(feature_strategy) or dim_method != "csp":
         # Retourne la méthode inchangée
         return dim_method
     # Bascule automatiquement vers PCA si dim_method n'est pas explicite
@@ -676,7 +684,7 @@ def _resolve_pipeline_overrides(
     """Résout les overrides CLI appliqués à l'auto-train."""
 
     # Fixe la stratégie de features par défaut pour l'auto-train
-    feature_strategy = "fft"
+    feature_strategy: str | Sequence[str] = "fft"
     # Fixe la méthode de réduction par défaut pour l'auto-train
     dim_method = "csp"
     # Fixe le classifieur par défaut pour l'auto-train
@@ -709,23 +717,27 @@ def _resolve_pipeline_overrides(
             # Interprète "none" comme l'absence de scaler
             scaler = None if scaler_value == "none" else scaler_value
 
-    # Résout l'alias éventuel de feature_strategy
-    alias_resolution = _resolve_feature_strategy_alias(
-        feature_strategy,
-        dim_method,
-        dim_method_explicit,
-    )
-    # Applique l'alias si présent
-    if alias_resolution is not None:
-        # Déstructure la stratégie et la méthode résolues
-        feature_strategy, dim_method = alias_resolution
-        # Retourne les overrides résolus
-        return ResolvedOverrides(
-            feature_strategy=feature_strategy,
-            dim_method=dim_method,
-            classifier=classifier,
-            scaler=scaler,
-        )
+    if isinstance(feature_strategy, str):
+        if feature_strategy == train_module.FEATURE_STRATEGY_ALL_NAME:
+            feature_strategy = train_module.FEATURE_STRATEGY_COMBINED
+        else:
+            # Résout l'alias éventuel de feature_strategy
+            alias_resolution = _resolve_feature_strategy_alias(
+                feature_strategy,
+                dim_method,
+                dim_method_explicit,
+            )
+            # Applique l'alias si présent
+            if alias_resolution is not None:
+                # Déstructure la stratégie et la méthode résolues
+                feature_strategy, dim_method = alias_resolution
+                # Retourne les overrides résolus
+                return ResolvedOverrides(
+                    feature_strategy=feature_strategy,
+                    dim_method=dim_method,
+                    classifier=classifier,
+                    scaler=scaler,
+                )
 
     # Ajuste la méthode de réduction pour les features tabulaires
     dim_method = _adjust_dim_method_for_tabular_features(
