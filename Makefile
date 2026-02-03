@@ -45,6 +45,7 @@ export POETRY_VIRTUALENVS_IN_PROJECT := true
 # --- Benchmarks ---------------------------------------------------------------
 BENCH_DIR   := data/benchmarks
 BENCH_CSVS  := $(wildcard $(BENCH_DIR)/*.csv)
+BENCH_SUMMARY := artifacts/bench_summary.csv
 
 # Utilisation raccourcie de Poetry
 POETRY = poetry run
@@ -249,6 +250,7 @@ visualizer: ensure-venv
 bench: ensure-venv
 	@set -euo pipefail; \
 	mkdir -p $(BENCH_DIR); \
+	rm -f $(BENCH_SUMMARY); \
 	extra_args="$(BENCH_ARGS)"; \
 	feature_strategy="$(BENCH_FEATURE_STRATEGY)"; \
 	if [[ -z "$$feature_strategy" && -n "$(FEATURE_STRATEGY)" ]]; then \

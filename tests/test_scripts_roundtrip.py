@@ -21,6 +21,7 @@ from scripts.predict import evaluate_run
 
 # Importe les constantes CV et helpers pour couvrir l'entraînement
 from scripts.train import (
+    DEFAULT_BENCH_SUMMARY_NAME,
     DEFAULT_CV_SPLITS,
     MIN_CV_SPLITS,
     TrainingRequest,
@@ -122,6 +123,73 @@ def test_train_and_predict_produce_manifests_and_reports(tmp_path):
     assert set(json_report["per_class_accuracy"].keys()) == {"0", "1"}
     # Vérifie que le nombre d'échantillons loggé correspond aux données
     assert json_report["samples"] == len(y)
+
+
+# Vérifie que run_training alimente le résumé global des benches
+def test_run_training_appends_bench_summary(tmp_path: Path) -> None:
+    """Valide la création du CSV global de bench après un run."""
+
+    # Fixe le sujet et le run pour générer une entrée unique
+    subject = "S002"
+    # Fixe un run explicite pour le scénario
+    run = "R02"
+    # Prépare le répertoire racine des données synthétiques
+    data_dir = tmp_path / "data"
+    # Prépare le répertoire racine des artefacts à inspecter
+    artifacts_dir = tmp_path / "artifacts"
+    # Prépare le dossier sujet pour y placer les numpy
+    subject_dir = data_dir / subject
+    # Crée le dossier requis pour les fichiers d'entrée
+    subject_dir.mkdir(parents=True)
+    # Initialise un RNG pour obtenir des valeurs stables
+    rng = np.random.default_rng(42)
+    # Génère des features synthétiques pour l'entraînement
+    X = rng.normal(size=(6, 2, 20))
+    # Définit des labels alternés pour deux classes
+    y = np.array([0, 1, 0, 1, 0, 1])
+    # Écrit les features dans la structure attendue
+    np.save(subject_dir / f"{run}_X.npy", X)
+    # Écrit les labels associés pour l'entraînement
+    np.save(subject_dir / f"{run}_y.npy", y)
+    # Construit une configuration pipeline minimale
+    config = PipelineConfig(
+        sfreq=64.0,
+        feature_strategy="fft",
+        normalize_features=True,
+        dim_method="pca",
+    )
+    # Prépare la requête d'entraînement complète
+    request = TrainingRequest(
+        subject=subject,
+        run=run,
+        pipeline_config=config,
+        data_dir=data_dir,
+        artifacts_dir=artifacts_dir,
+    )
+    # Lance l'entraînement pour produire le résumé global
+    result = run_training(request)
+    # Récupère le chemin du CSV global renvoyé par run_training
+    summary_path = result["bench_summary_path"]
+    # Vérifie que le fichier global est bien créé
+    assert summary_path.exists()
+    # Vérifie que le nom du fichier est bien celui attendu
+    assert summary_path.name == DEFAULT_BENCH_SUMMARY_NAME
+    # Ouvre le résumé pour vérifier la ligne produite
+    with summary_path.open() as handle:
+        # Construit un reader CSV pour extraire la première ligne
+        reader = csv.DictReader(handle)
+        # Récupère la ligne unique correspondant au run
+        row = next(reader)
+    # Vérifie que le sujet est bien enregistré dans le résumé
+    assert row["subject"] == subject
+    # Vérifie que le run est bien enregistré dans le résumé
+    assert row["run"] == run
+    # Vérifie que la colonne best_score est bien présente
+    assert "best_score" in row
+    # Vérifie que la colonne best_params est bien présente
+    assert "best_params" in row
+    # Vérifie que la colonne cv_scores est bien présente
+    assert "cv_scores" in row
 
 
 # Vérifie que l'entrée CLI produit bien un manifeste et un scaler dédié

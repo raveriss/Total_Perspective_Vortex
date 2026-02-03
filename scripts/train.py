@@ -116,6 +116,8 @@ EXPECTED_FEATURES_DIMENSIONS = 3
 
 # Définit le répertoire par défaut pour déposer les artefacts d'entraînement
 DEFAULT_ARTIFACTS_DIR = Path("artifacts")
+# Définit le nom du fichier CSV global pour résumer les benches
+DEFAULT_BENCH_SUMMARY_NAME = "bench_summary.csv"
 
 # Définit le répertoire par défaut où résident les fichiers EDF bruts
 DEFAULT_RAW_DIR = Path("data")
@@ -1681,6 +1683,78 @@ def _resolve_best_feature_strategy(
     return _format_feature_strategy(best_strategy)
 
 
+def _serialize_bench_value(value: object | None) -> str:
+    """Sérialise une valeur de bench pour une exportation CSV stable."""
+
+    # Retourne une chaîne vide pour représenter une valeur absente
+    if value is None:
+        # Normalise l'absence de valeur pour éviter les None dans le CSV
+        return ""
+    # Sérialise les valeurs complexes pour préserver la lisibilité
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _resolve_bench_best_score(
+    cv_scores: np.ndarray,
+    search_summary: dict[str, object] | None,
+) -> str:
+    """Retourne le meilleur score formaté pour le résumé global."""
+
+    # Priorise le score de GridSearch lorsqu'il est disponible
+    if search_summary is not None:
+        # Récupère la valeur best_score si elle existe dans le résumé
+        best_score = search_summary.get("best_score")
+        # Sérialise directement la valeur best_score si elle est fournie
+        return _serialize_bench_value(best_score)
+    # Calcule la moyenne des scores si la CV est disponible
+    cv_mean = float(np.mean(cv_scores)) if cv_scores.size else None
+    # Sérialise la moyenne pour rester cohérent avec le CSV
+    return _serialize_bench_value(cv_mean)
+
+
+def _write_bench_summary(
+    request: TrainingRequest,
+    cv_scores: np.ndarray,
+    search_summary: dict[str, object] | None,
+) -> Path:
+    """Écrit/ajoute une ligne au résumé global des benches."""
+
+    # Prépare le répertoire d'artefacts pour l'écriture du résumé
+    request.artifacts_dir.mkdir(parents=True, exist_ok=True)
+    # Définit le chemin complet du résumé global pour tous les runs
+    summary_path = request.artifacts_dir / DEFAULT_BENCH_SUMMARY_NAME
+    # Sérialise les scores de validation croisée pour la ligne CSV
+    cv_scores_text = ";".join(str(score) for score in cv_scores.tolist())
+    # Prépare les paramètres optimaux pour l'export CSV
+    best_params = None
+    # Récupère les paramètres optimaux si la recherche est disponible
+    if search_summary is not None:
+        # Extrait best_params en conservant None si absent
+        best_params = search_summary.get("best_params")
+    # Construit la ligne à écrire dans le fichier global
+    row = {
+        "subject": request.subject,
+        "run": request.run,
+        "cv_scores": cv_scores_text,
+        "best_score": _resolve_bench_best_score(cv_scores, search_summary),
+        "best_params": _serialize_bench_value(best_params),
+    }
+    # Détermine si le fichier existe pour gérer l'en-tête
+    should_write_header = not summary_path.exists()
+    # Ouvre le fichier en append pour conserver les runs précédents
+    with summary_path.open("a", newline="") as handle:
+        # Initialise le writer CSV avec les colonnes du résumé
+        writer = csv.DictWriter(handle, fieldnames=list(row.keys()))
+        # Ajoute l'en-tête si le fichier vient d'être créé
+        if should_write_header:
+            # Inscrit les noms de colonnes pour un import stable
+            writer.writeheader()
+        # Ajoute la ligne correspondant au run courant
+        writer.writerow(row)
+    # Retourne le chemin du résumé global écrit
+    return summary_path
+
+
 def _write_manifest(
     request: TrainingRequest,
     target_dir: Path,
@@ -2111,6 +2185,11 @@ def run_training(request: TrainingRequest) -> dict:
         "w_matrix_path": w_matrix_path,
         "manifest_path": manifest_paths["json"],
         "manifest_csv_path": manifest_paths["csv"],
+        "bench_summary_path": _write_bench_summary(
+            request,
+            cv_scores,
+            search_summary,
+        ),
     }
 
 
