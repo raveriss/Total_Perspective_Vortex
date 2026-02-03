@@ -1209,9 +1209,17 @@ def test_main_build_all_invokes_builder(monkeypatch, tmp_path):
 def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 
-    def fake_train_all_runs(config, data_dir, artifacts_dir, raw_dir, eeg_reference):
-        captured["config"] = config
-        captured["dirs"] = (data_dir, artifacts_dir, raw_dir, eeg_reference)
+    def fake_train_all_runs(
+        # Capture les ressources mutuelles pour vérifier la propagation CLI
+        resources,
+    ):
+        captured["config"] = resources.pipeline_config
+        captured["dirs"] = (
+            resources.data_dir,
+            resources.artifacts_dir,
+            resources.raw_dir,
+            resources.eeg_reference,
+        )
         return 7
 
     monkeypatch.setattr(train, "_train_all_runs", fake_train_all_runs)
@@ -1264,9 +1272,17 @@ def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
 def test_main_train_all_respects_no_normalize_features_flag(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 
-    def fake_train_all_runs(config, data_dir, artifacts_dir, raw_dir, eeg_reference):
-        captured["config"] = config
-        captured["dirs"] = (data_dir, artifacts_dir, raw_dir, eeg_reference)
+    def fake_train_all_runs(
+        # Capture les ressources mutuelles pour vérifier la propagation CLI
+        resources,
+    ):
+        captured["config"] = resources.pipeline_config
+        captured["dirs"] = (
+            resources.data_dir,
+            resources.artifacts_dir,
+            resources.raw_dir,
+            resources.eeg_reference,
+        )
         return 0
 
     monkeypatch.setattr(train, "_train_all_runs", fake_train_all_runs)
