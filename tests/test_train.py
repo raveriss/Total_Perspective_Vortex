@@ -17,6 +17,8 @@ from scripts.train import (
     _adapt_pipeline_config_for_samples,
     _build_epochs_for_window,
     _build_grid_search_grid,
+    _build_pipeline_config_from_args,
+    _build_training_request,
     _build_window_search_pipeline,
     _normalize_identifier,
     _read_epoch_window_metadata,
@@ -24,6 +26,7 @@ from scripts.train import (
     _score_epoch_window,
     _select_best_epoch_window,
     _write_epoch_window_metadata,
+    build_parser,
     resolve_sampling_rate,
 )
 
@@ -63,17 +66,110 @@ def test_build_grid_search_grid_respects_lda_flag():
     # Prépare une configuration de pipeline de référence
     config = PipelineConfig(sfreq=128.0, classifier="lda")
     # Construit une grille sans LDA autorisé
-    grid_without_lda = _build_grid_search_grid(config, allow_lda=False)
+    grid_without_lda = _build_grid_search_grid(
+        config,
+        allow_lda=False,
+        bench_mode=False,
+    )
     # Extrait les classes présentes dans la grille de classifieurs
     types_without_lda = {type(item) for item in grid_without_lda["classifier"]}
     # Vérifie l'absence du classifieur LDA dans la grille
     assert LinearDiscriminantAnalysis not in types_without_lda
     # Construit une grille avec LDA autorisé
-    grid_with_lda = _build_grid_search_grid(config, allow_lda=True)
+    grid_with_lda = _build_grid_search_grid(
+        config,
+        allow_lda=True,
+        bench_mode=False,
+    )
     # Extrait les classes présentes dans la grille de classifieurs
     types_with_lda = {type(item) for item in grid_with_lda["classifier"]}
     # Vérifie que LDA est bien présent dans la grille
     assert LinearDiscriminantAnalysis in types_with_lda
+
+
+# Vérifie que le mode bench expose les stratégies de features attendues
+def test_build_grid_search_grid_bench_includes_feature_strategies():
+    """Vérifie que la grille bench couvre FFT, Welch, Wavelet et FFT+Welch."""
+
+    # Prépare une configuration CSP pour forcer le bypass en mode bench
+    config = PipelineConfig(sfreq=128.0, classifier="lda", dim_method="csp")
+    # Construit une grille en mode bench pour exposer les features
+    grid = _build_grid_search_grid(config, allow_lda=False, bench_mode=True)
+    # Récupère la liste des stratégies proposées dans la grille
+    feature_strategies = grid["features__feature_strategy"]
+    # Vérifie que FFT est présent dans la grille
+    assert "fft" in feature_strategies
+    # Vérifie que Welch est présent dans la grille
+    assert "welch" in feature_strategies
+    # Vérifie que Wavelet est présent dans la grille
+    assert "wavelet" in feature_strategies
+    # Vérifie que la combinaison FFT+Welch est présente dans la grille
+    assert ("fft", "welch") in feature_strategies
+
+
+# Vérifie la construction de pipeline via les arguments CLI
+def test_build_pipeline_config_from_args_respects_alias(tmp_path):
+    """Vérifie que l'alias feature_strategy ajuste la méthode."""
+
+    # Construit un parser pour simuler des arguments CLI
+    parser = build_parser()
+    # Prépare une liste d'arguments incluant un alias de feature_strategy
+    argv = [
+        "S01",
+        "R03",
+        "--feature-strategy",
+        "pca",
+        "--raw-dir",
+        str(tmp_path / "raw"),
+        "--sfreq",
+        "123",
+    ]
+    # Parse les arguments pour obtenir un Namespace argparse
+    args = parser.parse_args(argv)
+    # Construit la configuration pipeline à partir des arguments
+    config = _build_pipeline_config_from_args(args, argv)
+    # Vérifie que la stratégie de features est forcée sur FFT
+    assert config.feature_strategy == "fft"
+    # Vérifie que la méthode de réduction est définie sur PCA
+    assert config.dim_method == "pca"
+    # Vérifie que la fréquence d'échantillonnage est propagée
+    assert config.sfreq == 123.0
+
+
+# Vérifie que la requête d'entraînement conserve les flags bench/grid search
+def test_build_training_request_propagates_bench_and_grid(tmp_path):
+    """Vérifie le transport des flags bench et grid search."""
+
+    # Construit un parser pour simuler des arguments CLI
+    parser = build_parser()
+    # Prépare une liste d'arguments minimaux pour l'entraînement
+    argv = [
+        "S01",
+        "R03",
+        "--data-dir",
+        str(tmp_path / "data"),
+        "--artifacts-dir",
+        str(tmp_path / "artifacts"),
+        "--raw-dir",
+        str(tmp_path / "raw"),
+    ]
+    # Parse les arguments pour obtenir un Namespace argparse
+    args = parser.parse_args(argv)
+    # Prépare une configuration pipeline minimaliste
+    config = PipelineConfig(sfreq=50.0)
+    # Construit la requête en activant grid search et bench
+    request = _build_training_request(
+        args,
+        config,
+        enable_grid_search=True,
+        bench_mode=True,
+    )
+    # Vérifie que le flag grid search est propagé
+    assert request.enable_grid_search is True
+    # Vérifie que le flag bench est propagé
+    assert request.bench_mode is True
+    # Vérifie que la configuration pipeline est conservée
+    assert request.pipeline_config is config
 
 
 # Vérifie que les identifiants vides sont rejetés

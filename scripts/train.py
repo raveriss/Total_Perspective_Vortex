@@ -136,6 +136,8 @@ DEFAULT_NOTCH_FREQ = 50.0
 DEFAULT_CSP_COMPONENTS = 4
 # Regroupe les stratégies de features supportées par la pipeline
 FEATURE_STRATEGIES = ("fft", "welch", "wavelet")
+# Définit les stratégies évaluées en mode bench pour comparer les features
+BENCH_FEATURE_STRATEGIES = ("fft", "welch", "wavelet", ("fft", "welch"))
 # Regroupe les méthodes de réduction de dimension supportées par la pipeline
 DIM_METHODS = ("pca", "csp", "svd")
 # Autorise un alias CLI pour rediriger vers la réduction de dimension
@@ -699,6 +701,8 @@ class TrainingRequest:
     enable_grid_search: bool = False
     # Fixe un nombre de splits spécifique pour la recherche si fourni
     grid_search_splits: int | None = None
+    # Active le mode bench pour comparer explicitement les stratégies de features
+    bench_mode: bool = False
 
 
 # Regroupe les entrées nécessaires à la sélection de fenêtre d'epochs
@@ -758,6 +762,8 @@ class TrainingResources:
     enable_grid_search: bool = False
     # Fixe un nombre de splits spécifique pour la recherche si fourni
     grid_search_splits: int | None = None
+    # Active le mode bench pour comparer explicitement les stratégies de features
+    bench_mode: bool = False
 
 
 # Construit un argument parser aligné sur la CLI mybci
@@ -889,6 +895,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Nombre de splits CV dédié à la recherche d'hyperparamètres",
+    )
+    # Ajoute un mode bench pour comparer explicitement les stratégies de features
+    parser.add_argument(
+        "--bench",
+        action="store_true",
+        help="Active le mode bench (grid search ciblé sur les features)",
     )
     # Ajoute une option pour spécifier la fréquence d'échantillonnage
     parser.add_argument(
@@ -1365,6 +1377,12 @@ def _train_single_run(
         artifacts_dir=resources.artifacts_dir,
         raw_dir=resources.raw_dir,
         eeg_reference=resources.eeg_reference,
+        # Répercute le mode grid search des ressources partagées
+        enable_grid_search=resources.enable_grid_search,
+        # Répercute le nombre de splits pour la recherche si fourni
+        grid_search_splits=resources.grid_search_splits,
+        # Répercute le mode bench pour comparer les stratégies de features
+        bench_mode=resources.bench_mode,
     )
     # Protège l'appel pour signaler les données manquantes sans stopper la boucle
     try:
@@ -1380,25 +1398,13 @@ def _train_single_run(
 
 
 # Entraîne tous les runs moteurs pour chaque sujet détecté
-def _train_all_runs(
-    config: PipelineConfig,
-    data_dir: Path,
-    artifacts_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str | None,
-) -> int:
+def _train_all_runs(resources: TrainingResources) -> int:
     """Parcourt les sujets et runs moteurs pour générer tous les modèles."""
 
+    # Référence le répertoire brut pour éviter les accès répétés
+    raw_dir = resources.raw_dir
     # Récupère la liste des sujets disponibles dans le répertoire brut
     subjects = _list_subjects(raw_dir)
-    # Centralise les ressources immuables pour éviter des répétitions
-    resources = TrainingResources(
-        pipeline_config=config,
-        data_dir=data_dir,
-        artifacts_dir=artifacts_dir,
-        raw_dir=raw_dir,
-        eeg_reference=eeg_reference,
-    )
     # Prépare un compteur d'échecs pour informer l'utilisateur à la fin
     failures = 0
     # Parcourt chaque sujet détecté
@@ -1639,6 +1645,42 @@ def _flatten_hyperparams(hyperparams: dict) -> dict[str, str]:
     return flattened
 
 
+def _format_feature_strategy(value: object) -> str:
+    """Normalise une stratégie de features en chaîne lisible."""
+
+    # Formate les listes ou tuples en concaténant les labels
+    if isinstance(value, (list, tuple)):
+        # Construit une chaîne lisible pour les combinaisons de features
+        return "+".join(str(item) for item in value)
+    # Retourne la valeur en chaîne pour les stratégies simples
+    return str(value)
+
+
+def _resolve_best_feature_strategy(
+    request: TrainingRequest,
+    search_summary: dict[str, object] | None,
+) -> str:
+    """Retourne la meilleure stratégie de features pour le manifeste."""
+
+    # Utilise la stratégie de la configuration comme valeur par défaut
+    best_strategy: object = request.pipeline_config.feature_strategy
+    # Ne tente pas d'inspecter la recherche si aucune n'est disponible
+    if search_summary is None:
+        # Retourne la valeur par défaut normalisée pour le manifeste
+        return _format_feature_strategy(best_strategy)
+    # Récupère la section best_params lorsque GridSearch a été exécutée
+    best_params = search_summary.get("best_params")
+    # Valide que best_params est bien un dictionnaire avant accès
+    if isinstance(best_params, dict):
+        # Récupère la stratégie issue de la recherche si elle existe
+        candidate = best_params.get("features__feature_strategy")
+        # Utilise la stratégie candidate si elle est disponible
+        if candidate is not None:
+            best_strategy = candidate
+    # Retourne la valeur normalisée pour l'écriture du manifeste
+    return _format_feature_strategy(best_strategy)
+
+
 def _write_manifest(
     request: TrainingRequest,
     target_dir: Path,
@@ -1663,6 +1705,8 @@ def _write_manifest(
     }
     # Convertit la configuration de pipeline en dictionnaire sérialisable
     hyperparams = asdict(request.pipeline_config)
+    # Résout la meilleure stratégie de features à exposer dans le manifeste
+    best_feature_strategy = _resolve_best_feature_strategy(request, search_summary)
     # Calcule la moyenne des scores si la validation croisée a tourné
     cv_mean = float(np.mean(cv_scores)) if cv_scores.size else None
     # Prépare la section des scores en sérialisant les arrays numpy
@@ -1682,6 +1726,7 @@ def _write_manifest(
     manifest = {
         "dataset": dataset,
         "hyperparams": hyperparams,
+        "best_feature_strategy": best_feature_strategy,
         "scores": scores,
         "git_commit": git_commit,
         "artifacts": artifacts_section,
@@ -1706,6 +1751,7 @@ def _write_manifest(
         "git_commit": git_commit,
         "cv_scores": ";".join(str(score) for score in cv_scores.tolist()),
         "cv_mean": "" if cv_mean is None else str(cv_mean),
+        "best_feature_strategy": best_feature_strategy,
         **flattened_hyperparams,
     }
     # Définit le chemin du manifeste CSV à côté du JSON
@@ -1722,49 +1768,55 @@ def _write_manifest(
     return {"json": manifest_json_path, "csv": manifest_csv_path}
 
 
-# Construit la grille d'hyperparamètres par défaut pour l'optimisation
-# Construit la grille d'hyperparamètres pour la recherche d'optimisation
-def _build_grid_search_grid(
-    config: PipelineConfig, allow_lda: bool
+# Construit la grille dédiée aux pipelines CSP pour l'optimisation
+def _build_csp_grid(
+    config: PipelineConfig,
+    allow_lda: bool,
 ) -> dict[str, list[object]]:
-    """Retourne une grille raisonnable pour la recherche d'hyperparamètres."""
+    """Retourne une grille d'hyperparamètres réduite pour CSP."""
 
-    # Retourne une grille réduite si CSP est utilisé (pas de features/scaler amont)
-    if config.dim_method == "csp":
-        # Déclare un ensemble restreint de classifieurs pour CSP
-        csp_classifier_grid: list[object] = []
-        # Ajoute LDA uniquement lorsque l'effectif le permet
-        if allow_lda:
-            # Utilise LDA shrinkage pour stabilité des covariances
-            csp_classifier_grid.append(
-                LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")
-            )
-        # Ajoute une régression logistique pour des décisions régularisées
-        csp_classifier_grid.append(LogisticRegression(max_iter=1000))
-        # Augmente max_iter pour limiter les warnings de convergence liblinear
-        csp_classifier_grid.append(LinearSVC(max_iter=5000))
-        # Ajoute un classifieur centroïde pour les petits échantillons
-        csp_classifier_grid.append(CentroidClassifier())
-        # Prépare une liste de composantes CSP sans doublons
-        csp_n_components_grid: list[object] = (
-            [config.n_components]
-            if config.n_components is not None
-            else [None, DEFAULT_CSP_COMPONENTS]
+    # Déclare un ensemble restreint de classifieurs pour CSP
+    csp_classifier_grid: list[object] = []
+    # Ajoute LDA uniquement lorsque l'effectif le permet
+    if allow_lda:
+        # Utilise LDA shrinkage pour stabilité des covariances
+        csp_classifier_grid.append(
+            LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")
         )
-        # Ajoute la valeur explicite si absente de la grille
-        if (
-            config.n_components is not None
-            and config.n_components not in csp_n_components_grid
-        ):
-            csp_n_components_grid.append(config.n_components)
-        # Retourne une grille compatible avec la pipeline CSP réduite
-        return {
-            "dimensionality__n_components": csp_n_components_grid,
-            "classifier": csp_classifier_grid,
-        }
+    # Ajoute une régression logistique pour des décisions régularisées
+    csp_classifier_grid.append(LogisticRegression(max_iter=1000))
+    # Augmente max_iter pour limiter les warnings de convergence liblinear
+    csp_classifier_grid.append(LinearSVC(max_iter=5000))
+    # Ajoute un classifieur centroïde pour les petits échantillons
+    csp_classifier_grid.append(CentroidClassifier())
+    # Prépare une liste de composantes CSP sans doublons
+    csp_n_components_grid: list[object] = (
+        [config.n_components]
+        if config.n_components is not None
+        else [None, DEFAULT_CSP_COMPONENTS]
+    )
+    # Ajoute la valeur explicite si absente de la grille
+    if (
+        config.n_components is not None
+        and config.n_components not in csp_n_components_grid
+    ):
+        csp_n_components_grid.append(config.n_components)
+    # Retourne une grille compatible avec la pipeline CSP réduite
+    return {
+        "dimensionality__n_components": csp_n_components_grid,
+        "classifier": csp_classifier_grid,
+    }
+
+
+# Construit la grille dédiée aux pipelines avec features explicites
+def _build_feature_grid(
+    config: PipelineConfig,
+    allow_lda: bool,
+    bench_mode: bool,
+) -> dict[str, list[object]]:
+    """Retourne une grille d'hyperparamètres centrée sur les features."""
 
     # Déclare un ensemble restreint de classifieurs pour limiter la complexité
-    # Initialise la grille de classifieurs candidates
     classifier_grid: list[object] = []
     # Ajoute LDA uniquement lorsque l'effectif le permet
     if allow_lda:
@@ -1785,16 +1837,40 @@ def _build_grid_search_grid(
     # Ajoute la valeur demandée explicitement pour garantir sa présence
     if config.n_components is not None and config.n_components not in n_components_grid:
         n_components_grid.append(config.n_components)
-    # Construit la grille finale en couvrant features + réduction + classif
-    # Étend la grille aux familles Welch et mixte pour enrichir les features
+    # Prépare une liste typée pour satisfaire mypy
+    feature_strategy_grid: list[object] = []
+    # Ajoute les stratégies adaptées au mode bench
+    if bench_mode:
+        # Étend la grille avec les stratégies FFT/Welch/Wavelet/FFT+Welch
+        feature_strategy_grid.extend(BENCH_FEATURE_STRATEGIES)
+    else:
+        # Étend la grille avec les stratégies standard de features
+        feature_strategy_grid.extend(["fft", "welch", ("fft", "welch"), "wavelet"])
+    # Retourne la grille finale couvrant features + réduction + classif
     return {
-        "features__feature_strategy": ["fft", "welch", ("fft", "welch"), "wavelet"],
+        "features__feature_strategy": feature_strategy_grid,
         "features__normalize": [True, False],
         "dimensionality__method": ["pca", "svd"],
         "dimensionality__n_components": n_components_grid,
         "classifier": classifier_grid,
         "scaler": scaler_grid,
     }
+
+
+# Construit la grille d'hyperparamètres pour la recherche d'optimisation
+def _build_grid_search_grid(
+    config: PipelineConfig,
+    allow_lda: bool,
+    bench_mode: bool,
+) -> dict[str, list[object]]:
+    """Retourne une grille raisonnable pour la recherche d'hyperparamètres."""
+
+    # Retourne la grille CSP si la réduction CSP est active hors bench
+    if config.dim_method == "csp" and not bench_mode:
+        # Délègue à un helper dédié pour réduire la complexité
+        return _build_csp_grid(config, allow_lda)
+    # Retourne la grille centrée sur les features pour les autres cas
+    return _build_feature_grid(config, allow_lda, bench_mode)
 
 
 # Extrait les scores par split d'une GridSearchCV pour le meilleur modèle
@@ -1856,12 +1932,37 @@ def _train_with_optional_cv(
         )
     # Lance une recherche systématique des hyperparamètres si demandée
     elif request.enable_grid_search:
+        # Prépare une configuration spécifique si le mode bench ignore CSP
+        if request.bench_mode and adapted_config.dim_method == "csp":
+            # Informe l'utilisateur que CSP est incompatible avec le bench features
+            print(
+                "INFO: mode bench force dim_method='pca' "
+                "pour comparer les stratégies de features."
+            )
+            # Construit une configuration basée sur PCA pour activer les features
+            search_config = PipelineConfig(
+                sfreq=adapted_config.sfreq,
+                feature_strategy=adapted_config.feature_strategy,
+                normalize_features=adapted_config.normalize_features,
+                dim_method="pca",
+                n_components=adapted_config.n_components,
+                classifier=adapted_config.classifier,
+                scaler=adapted_config.scaler,
+                csp_regularization=adapted_config.csp_regularization,
+            )
+        else:
+            # Conserve la configuration adaptée lorsque CSP n'est pas forcé
+            search_config = adapted_config
         # Construit la pipeline dédiée au grid search
-        search_pipeline = build_search_pipeline(adapted_config)
+        search_pipeline = build_search_pipeline(search_config)
         # Détermine si LDA est autorisé par le ratio effectif/classes
         allow_lda = sample_count > class_count
         # Construit la grille d'hyperparamètres à explorer
-        param_grid = _build_grid_search_grid(adapted_config, allow_lda)
+        param_grid = _build_grid_search_grid(
+            search_config,
+            allow_lda,
+            request.bench_mode,
+        )
         # Détermine le nombre de splits spécifique si fourni
         search_splits = request.grid_search_splits or DEFAULT_CV_SPLITS
         # Construit un splitter dédié pour la recherche d'hyperparamètres
@@ -2039,39 +2140,13 @@ def _maybe_build_all(args: argparse.Namespace) -> bool:
     return True
 
 
-# Gère l'entraînement massif si demandé
-def _maybe_train_all(
+# Construit la configuration pipeline à partir des arguments CLI
+def _build_pipeline_config_from_args(
     args: argparse.Namespace,
-    config: PipelineConfig,
-) -> int | None:
-    """Lance l'entraînement massif et retourne le code si exécuté."""
+    argv: list[str] | None,
+) -> PipelineConfig:
+    """Retourne une configuration PipelineConfig alignée sur les arguments."""
 
-    # Ignore si le flag train_all est absent
-    if not args.train_all:
-        return None
-    # Lance l'entraînement global avec la configuration active
-    return _train_all_runs(
-        config,
-        args.data_dir,
-        args.artifacts_dir,
-        args.raw_dir,
-        args.eeg_reference,
-    )
-
-
-# Point d'entrée principal pour l'exécution en ligne de commande
-def main(argv: list[str] | None = None) -> int:
-    """Parse les arguments et lance l'entraînement."""
-
-    # Construit le parser pour interpréter les arguments
-    parser = build_parser()
-    # Parse les arguments fournis par l'utilisateur
-    args = parser.parse_args(argv)
-    # Applique la configuration de fenêtres depuis les arguments
-    _apply_epoch_window_config(args)
-    # Exécute la génération massive et s'arrête si le flag est positionné
-    if _maybe_build_all(args):
-        return 0
     # Convertit l'option scaler "none" en None pour la pipeline
     scaler = None if args.scaler == "none" else args.scaler
     # Calcule la valeur de normalisation en inversant le flag d'opt-out
@@ -2099,7 +2174,7 @@ def main(argv: list[str] | None = None) -> int:
         argv,
     )
     # Construit la configuration de pipeline alignée sur mybci
-    config = PipelineConfig(
+    return PipelineConfig(
         sfreq=resolved_sfreq,
         feature_strategy=feature_strategy,
         normalize_features=normalize,
@@ -2109,14 +2184,19 @@ def main(argv: list[str] | None = None) -> int:
         scaler=scaler,
         csp_regularization=args.csp_regularization,
     )
-    # Déclenche l'entraînement massif si le flag est activé
-    train_all_status = _maybe_train_all(args, config)
-    # Retourne le code d'exécution si l'entraînement massif a été lancé
-    if train_all_status is not None:
-        return train_all_status
+
+
+# Construit la requête d'entraînement à partir des arguments CLI
+def _build_training_request(
+    args: argparse.Namespace,
+    config: PipelineConfig,
+    enable_grid_search: bool,
+    bench_mode: bool,
+) -> TrainingRequest:
+    """Retourne une requête TrainingRequest prête pour l'entraînement."""
+
     # Regroupe les paramètres d'entraînement dans une structure dédiée
-    # Regroupe les paramètres d'entraînement dans une structure dédiée
-    request = TrainingRequest(
+    return TrainingRequest(
         subject=args.subject,
         run=args.run,
         pipeline_config=config,
@@ -2124,8 +2204,72 @@ def main(argv: list[str] | None = None) -> int:
         artifacts_dir=args.artifacts_dir,
         raw_dir=args.raw_dir,
         eeg_reference=args.eeg_reference,
-        enable_grid_search=args.grid_search,
+        # Active le grid search si demandé ou en mode bench
+        enable_grid_search=enable_grid_search,
         grid_search_splits=args.grid_search_splits,
+        # Active le mode bench pour la sélection de features
+        bench_mode=bench_mode,
+    )
+
+
+# Gère l'entraînement massif si demandé
+def _maybe_train_all(
+    args: argparse.Namespace,
+    config: PipelineConfig,
+) -> int | None:
+    """Lance l'entraînement massif et retourne le code si exécuté."""
+
+    # Ignore si le flag train_all est absent
+    if not args.train_all:
+        return None
+    # Prépare les ressources mutualisées pour l'entraînement massif
+    resources = TrainingResources(
+        pipeline_config=config,
+        data_dir=args.data_dir,
+        artifacts_dir=args.artifacts_dir,
+        raw_dir=args.raw_dir,
+        eeg_reference=args.eeg_reference,
+        # Active la recherche systématique si demandée ou en mode bench
+        enable_grid_search=args.grid_search or args.bench,
+        # Propage le nombre de splits dédié à la recherche si fourni
+        grid_search_splits=args.grid_search_splits,
+        # Active le mode bench pour forcer une grille centrée sur les features
+        bench_mode=args.bench,
+    )
+    # Lance l'entraînement global avec les ressources préparées
+    return _train_all_runs(resources)
+
+
+# Point d'entrée principal pour l'exécution en ligne de commande
+def main(argv: list[str] | None = None) -> int:
+    """Parse les arguments et lance l'entraînement."""
+
+    # Construit le parser pour interpréter les arguments
+    parser = build_parser()
+    # Parse les arguments fournis par l'utilisateur
+    args = parser.parse_args(argv)
+    # Applique la configuration de fenêtres depuis les arguments
+    _apply_epoch_window_config(args)
+    # Exécute la génération massive et s'arrête si le flag est positionné
+    if _maybe_build_all(args):
+        return 0
+    # Active le mode bench pour déclencher la comparaison des features
+    bench_mode = bool(args.bench)
+    # Force l'activation du grid search lorsque le mode bench est actif
+    enable_grid_search = args.grid_search or bench_mode
+    # Construit la configuration de pipeline à partir des arguments CLI
+    config = _build_pipeline_config_from_args(args, argv)
+    # Déclenche l'entraînement massif si le flag est activé
+    train_all_status = _maybe_train_all(args, config)
+    # Retourne le code d'exécution si l'entraînement massif a été lancé
+    if train_all_status is not None:
+        return train_all_status
+    # Regroupe les paramètres d'entraînement dans une structure dédiée
+    request = _build_training_request(
+        args,
+        config,
+        enable_grid_search,
+        bench_mode,
     )
     # Exécute l'entraînement et la sauvegarde des artefacts
     # Sécurise l'exécution pour afficher une erreur lisible sans trace
