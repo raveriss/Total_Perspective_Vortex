@@ -25,7 +25,9 @@ from pathlib import Path
 from types import ModuleType
 
 # Garantit l'accès aux annotations Any et Mapping pour les overrides
-from typing import Any, Mapping
+# Garantit l'accès à Iterable pour les stratégies multi-entries
+# Garantit l'accès à cast pour typer les sorties numpy
+from typing import Any, Iterable, Mapping, cast
 
 # Centralise l'accès aux tableaux numpy pour l'évaluation
 import numpy as np
@@ -38,6 +40,14 @@ from tpv import preprocessing
 
 # Permet de restaurer la matrice W pour des usages temps-réel
 from tpv.dimensionality import TPVDimReducer
+
+# Expose le découpage glissant et l'agrégation pour l'inférence Welch
+# Expose l'extracteur de features pour inspecter la stratégie Welch
+from tpv.features import (
+    ExtractFeatures,
+    aggregate_window_probabilities,
+    build_sliding_windows,
+)
 
 # Expose la configuration de pipeline pour déclencher un auto-train
 from tpv.pipeline import PipelineConfig, load_pipeline
@@ -83,6 +93,136 @@ DEFAULT_RAW_DIR = Path("data")
 
 # Définit la référence EEG par défaut pour le re-référencement
 DEFAULT_EEG_REFERENCE = "average"
+
+# Définit la durée de fenêtre glissante en secondes pour la stratégie Welch
+DEFAULT_WELCH_WINDOW_SECONDS = 1.0
+# Définit l'overlap des fenêtres glissantes pour la stratégie Welch
+DEFAULT_WELCH_WINDOW_OVERLAP = 0.5
+# Définit l'agrégation probabiliste par défaut pour la stratégie Welch
+DEFAULT_WELCH_AGGREGATION = "mean_proba"
+
+
+# Regroupe les paramètres de fenêtrage Welch en prédiction
+@dataclass
+class WelchWindowConfig:
+    """Paramètres de fenêtrage Welch pour l'inférence."""
+
+    # Stocke la durée de fenêtre en secondes
+    window_seconds: float
+    # Stocke l'overlap entre fenêtres successives
+    overlap: float
+    # Stocke la stratégie d'agrégation par fenêtre
+    aggregation: str
+
+
+# Extrait le premier extracteur de features d'une pipeline scikit-learn
+def _find_feature_extractor(pipeline: object) -> ExtractFeatures | None:
+    """Retourne l'extracteur de features Welch depuis une pipeline."""
+
+    # Récupère les étapes d'une pipeline scikit-learn si disponibles
+    steps = getattr(pipeline, "steps", [])
+    # Parcourt les étapes pour identifier l'extracteur de features
+    for _name, step in steps:
+        # Retourne l'extracteur lorsqu'il est détecté
+        if isinstance(step, ExtractFeatures):
+            return step
+    # Retourne None si aucune étape de features n'est trouvée
+    return None
+
+
+# Normalise une stratégie de features en ensemble de libellés simples
+def _normalize_feature_strategy(strategy: str | Iterable[str]) -> set[str]:
+    """Normalise une stratégie de features en set de labels."""
+
+    # Supporte une stratégie unique exprimée en chaîne
+    if isinstance(strategy, str):
+        # Normalise la casse et l'espace pour faciliter les comparaisons
+        return {strategy.strip().lower()}
+    # Normalise une stratégie multi-entries via un set de labels
+    return {str(item).strip().lower() for item in strategy}
+
+
+# Agrège des prédictions issues de fenêtres glissantes Welch
+def _predict_with_welch_windows(
+    pipeline: Any,
+    X: np.ndarray,
+    sfreq: float,
+    window_config: WelchWindowConfig,
+) -> np.ndarray:
+    """Prédit des labels en agrégeant des fenêtres Welch."""
+
+    # Normalise la fréquence d'échantillonnage pour le découpage glissant
+    resolved_sfreq = float(sfreq)
+    # Normalise la durée de fenêtre pour un découpage cohérent
+    resolved_window = float(window_config.window_seconds)
+    # Normalise l'overlap pour éviter des pas irréguliers
+    resolved_overlap = float(window_config.overlap)
+    # Alias la fonction pour limiter la longueur des lignes de découpage
+    build_windows = build_sliding_windows
+    # Applique le découpage glissant pour enrichir l'analyse temporelle
+    windowed = build_windows(X, resolved_sfreq, resolved_window, resolved_overlap)
+    # Récupère les dimensions pour replier ensuite les fenêtres
+    n_epochs, n_windows, n_channels, n_times = windowed.shape
+    # Aplatie les fenêtres pour une prédiction batch via scikit-learn
+    flattened = windowed.reshape(n_epochs * n_windows, n_channels, n_times)
+
+    # Prédit des probabilités si le classifieur le permet
+    if hasattr(pipeline, "predict_proba"):
+        # Récupère les probabilités par fenêtre pour chaque classe
+        proba = pipeline.predict_proba(flattened)
+        # Recompose en (epochs, fenêtres, classes) pour l'agrégation
+        proba = proba.reshape(n_epochs, n_windows, -1)
+        # Agrège les probabilités selon la stratégie choisie
+        aggregated = aggregate_window_probabilities(proba, window_config.aggregation)
+        # Récupère les classes connues du pipeline
+        classes = getattr(pipeline, "classes_", None)
+        # Refuse l'absence de classes pour éviter un indexage invalide
+        if classes is None:
+            # Signale l'absence d'attribut classes_ pour l'agrégation
+            raise ValueError("Pipeline has no classes_ attribute for aggregation.")
+        # Normalise les classes en ndarray pour un indexage typé
+        class_labels = cast(np.ndarray, classes)
+        # Sélectionne l'index maximal pour chaque epoch
+        predicted_indices = np.argmax(aggregated, axis=1)
+        # Convertit les indices en labels réels
+        predicted_labels = cast(np.ndarray, class_labels[predicted_indices])
+        # Retourne les labels prédits avec un type numpy stable
+        return predicted_labels
+
+    # Prédit des labels par fenêtre si les probabilités sont indisponibles
+    window_predictions = pipeline.predict(flattened)
+    # Recompose les labels fenêtre par fenêtre pour chaque epoch
+    window_predictions = window_predictions.reshape(n_epochs, n_windows)
+    # Récupère les classes connues pour construire les votes
+    classes = getattr(pipeline, "classes_", None)
+    # Refuse l'absence de classes pour conserver un mapping stable
+    if classes is None:
+        # Signale l'absence d'attribut classes_ pour l'agrégation
+        raise ValueError("Pipeline has no classes_ attribute for aggregation.")
+    # Normalise les classes en ndarray pour un indexage typé
+    class_labels = cast(np.ndarray, classes)
+    # Construit un mapping label -> index pour encoder les votes
+    class_index = {label: idx for idx, label in enumerate(class_labels)}
+    # Prépare un tenseur de votes one-hot pour chaque fenêtre
+    proba = np.zeros((n_epochs, n_windows, len(classes)), dtype=float)
+    # Parcourt les epochs pour encoder les votes par fenêtre
+    for epoch_index in range(n_epochs):
+        # Parcourt les fenêtres de l'epoch courant
+        for window_index in range(n_windows):
+            # Récupère le label prédit pour cette fenêtre
+            label = window_predictions[epoch_index, window_index]
+            # Convertit le label en index de classe stable
+            label_index = class_index[label]
+            # Déclare un vote unitaire pour ce label
+            proba[epoch_index, window_index, label_index] = 1.0
+    # Agrège les votes par epoch pour obtenir une pseudo-probabilité
+    aggregated = aggregate_window_probabilities(proba, "majority_vote")
+    # Sélectionne l'index maximal pour chaque epoch
+    predicted_indices = np.argmax(aggregated, axis=1)
+    # Convertit les indices en labels réels
+    predicted_labels = cast(np.ndarray, class_labels[predicted_indices])
+    # Retourne les labels prédits avec un type numpy stable
+    return predicted_labels
 
 
 # Regroupe les options de prédiction et d'auto-train
@@ -996,10 +1136,42 @@ def evaluate_run(
         )
     # Charge la pipeline entraînée depuis le joblib sauvegardé
     pipeline = load_pipeline(str(model_path))
-    # Génère les prédictions individuelles pour le rapport
-    y_pred = pipeline.predict(X)
-    # Calcule l'accuracy du pipeline sur les données fournies
-    accuracy = float(pipeline.score(X, y))
+    # Récupère l'extracteur de features pour détecter la stratégie Welch
+    extractor = _find_feature_extractor(pipeline)
+    # Initialise la stratégie normalisée pour la comparaison
+    normalized_strategy: set[str] = set()
+    # Normalise la stratégie si un extracteur est présent
+    if extractor is not None:
+        # Normalise la stratégie déclarée pour simplifier la détection
+        normalized_strategy = _normalize_feature_strategy(extractor.feature_strategy)
+    # Détecte si la stratégie Welch est active dans la pipeline
+    uses_welch = "welch" in normalized_strategy
+
+    # Applique la logique glissante Welch uniquement pour des epochs bruts
+    if uses_welch and X.ndim == EXPECTED_FEATURES_DIMENSIONS and extractor is not None:
+        # Extrait la fréquence d'échantillonnage depuis l'extracteur
+        sfreq = float(extractor.sfreq)
+        # Capture la durée de fenêtre par défaut pour l'inférence Welch
+        window_seconds = DEFAULT_WELCH_WINDOW_SECONDS
+        # Capture l'overlap par défaut pour l'inférence Welch
+        overlap = DEFAULT_WELCH_WINDOW_OVERLAP
+        # Capture la stratégie d'agrégation par défaut pour l'inférence Welch
+        aggregation = DEFAULT_WELCH_AGGREGATION
+        # Regroupe les paramètres de fenêtre pour la prédiction
+        window_config = WelchWindowConfig(window_seconds, overlap, aggregation)
+        # Alias la fonction pour limiter la longueur des lignes de prédiction
+        predict_with_windows = _predict_with_welch_windows
+        # Prépare les arguments de prédiction pour éviter une ligne trop longue
+        predict_args = (pipeline, X, sfreq, window_config)
+        # Prédit via fenêtres Welch et agrégation probabiliste
+        y_pred = predict_with_windows(*predict_args)
+        # Calcule l'accuracy à partir des labels agrégés
+        accuracy = float(np.mean(y_pred == y))
+    else:
+        # Génère les prédictions individuelles pour le rapport
+        y_pred = pipeline.predict(X)
+        # Calcule l'accuracy du pipeline sur les données fournies
+        accuracy = float(pipeline.score(X, y))
     # Recharge la matrice W pour confirmer sa présence
     w_matrix = _load_w_matrix(w_matrix_path)
     # Écrit les rapports JSON et CSV dans le dossier d'artefacts
