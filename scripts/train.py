@@ -2151,6 +2151,57 @@ def _train_with_optional_cv(
     )
 
 
+# Sélectionne l'étape de réduction de dimension ou les filtres spatiaux
+def _resolve_reducer_step(pipeline: Pipeline) -> object | None:
+    """Retourne l'étape de réduction à utiliser pour persister W."""
+
+    # Tente de récupérer la réduction de dimension standard
+    reducer = cast(object | None, pipeline.named_steps.get("dimensionality"))
+    # Retourne la réduction si elle existe déjà
+    if reducer is not None:
+        # Préserve l'étape explicite pour les pipelines classiques
+        return reducer
+    # Retourne CSP/CSSP si la pipeline n'a pas de réduction dédiée
+    return cast(object | None, pipeline.named_steps.get("spatial_filters"))
+
+
+# Persiste une matrice W en respectant le format TPVDimReducer
+def _persist_w_matrix(
+    reducer: object,
+    path: Path,
+    adapted_config: PipelineConfig,
+) -> None:
+    """Sauvegarde la matrice W pour les prédictions temps réel."""
+
+    # Utilise la sauvegarde native pour les réducteurs TPV
+    if isinstance(reducer, TPVDimReducer):
+        # Confie la persistance au réducteur pour conserver ses attributs
+        reducer.save(path)
+        # Stoppe l'exécution pour éviter un double dump
+        return
+    # Récupère la matrice W exposée par un CSP/CSSP
+    w_matrix = getattr(reducer, "w_matrix", None)
+    # Interrompt la sauvegarde si aucun filtre n'est disponible
+    if w_matrix is None:
+        # Quitte sans écrire de fichier pour éviter un artefact vide
+        return
+    # Construit un réducteur TPV pour sérialiser W au format attendu
+    fallback = TPVDimReducer(
+        # Conserve la méthode de réduction demandée
+        method=adapted_config.dim_method,
+        # Conserve le nombre de composantes demandé
+        n_components=adapted_config.n_components,
+        # Conserve la régularisation CSP paramétrée
+        regularization=adapted_config.csp_regularization,
+    )
+    # Réplique la matrice W pour fournir une projection cohérente
+    fallback.w_matrix = w_matrix
+    # Transfère les valeurs propres si elles existent pour diagnostic
+    fallback.eigenvalues_ = getattr(reducer, "eigenvalues_", None)
+    # Délègue la sérialisation au format TPVDimReducer attendu par predict
+    fallback.save(path)
+
+
 # Exécute la validation croisée et l'entraînement final
 def run_training(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
@@ -2216,17 +2267,17 @@ def run_training(request: TrainingRequest) -> dict:
         # Dépose le scaler dans un fichier distinct pour inspection
         joblib.dump(scaler_step, target_dir / "scaler.joblib")
     # Récupère le réducteur de dimension pour exposer la matrice W
-    dim_reducer: TPVDimReducer = pipeline.named_steps["dimensionality"]
+    dim_reducer = _resolve_reducer_step(pipeline)
     # Prépare un chemin de sauvegarde pour la matrice W si disponible
     w_matrix_path: Path | None = None
-    # Récupère la matrice W si l'attribut existe sur le réducteur
-    w_matrix = getattr(dim_reducer, "w_matrix", None)
+    # Récupère la matrice W si l'étape est disponible
+    w_matrix = getattr(dim_reducer, "w_matrix", None) if dim_reducer else None
     # Sauvegarde la matrice de projection seulement si elle existe
-    if w_matrix is not None:
+    if w_matrix is not None and dim_reducer is not None:
         # Fixe le chemin cible pour la matrice W sérialisée
         w_matrix_path = target_dir / "w_matrix.joblib"
         # Sauvegarde la matrice de projection pour les usages temps-réel
-        dim_reducer.save(w_matrix_path)
+        _persist_w_matrix(dim_reducer, w_matrix_path, adapted_config)
     # Calcule le chemin du scaler pour l'ajouter au manifeste
     scaler_path = None
     # Renseigne le chemin du scaler uniquement lorsqu'il existe
