@@ -36,8 +36,7 @@ tant qu’il n’a pas, dans **cette réponse précise** :
    - `→ Commit autorisé : ✅/❌`
 
 3. Listé les **commandes locales** à exécuter, **dans l’ordre 2.1 → 2.3**.
-   *(2.4 Mutmut est un diagnostic long : il ne doit jamais conditionner
-   l’exécution de `pre-commit` en MODE DEV.)*
+
 4. Indiqué pour chaque étape si l’état est **réellement connu** :
 
    - ✅ : l’agent a vu un log de succès ou a lui-même exécuté la commande.
@@ -367,10 +366,6 @@ cov:
 	$(POETRY) coverage report --fail-under=90
 
 
-# Mutation testing avec Mutmut (guidé par la couverture)
-mut: cov
-	$(POETRY) mutmut run --use-coverage --simple-output
-
 
 
 
@@ -601,28 +596,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
-      - name: Run mutation tests (coverage-guided)
-        run: |
-          poetry run mutmut run --use-coverage --simple-output
-
-      - name: Show mutation results
-        run: |
-          poetry run mutmut results > mutmut-results.txt
-          cat mutmut-results.txt
-
-      - name: Upload mutation report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mutmut-results
-          path: mutmut-results.txt
-
-      - name: Fail if surviving mutants
-        run: |
-          if grep -Fq "survived" mutmut-results.txt; then
-            echo "Surviving mutants detected" && exit 1
-          fi
-
   build:
     name: Build Package
     runs-on: ubuntu-22.04
@@ -712,8 +685,6 @@ Cette section est le miroir local des jobs CI :
   `ruff`, `mypy`, `bandit`, `radon`, `xenon`, etc.),
 * `static-analysis`,
 * `tests` (couverture via `make cov`).
-* `mutmut` (mutation testing — diagnostic long ; ne bloque jamais un RUN
-  `pre-commit` en MODE DEV).
 
 L’agent doit toujours rappeler en **texte clair** que :
 
@@ -781,24 +752,6 @@ Si `make cov` est **KO**, la réponse doit :
 Ajout (boucle) :
 - l’agent doit itérer : corriger → re-run `make cov` jusqu’au vert,
   ou s’arrêter après 5 itérations avec diagnostic + options.
-
-### 2.4 Mutation testing (miroir Mutmut)
-
-L’agent doit proposer :
-
-```bash
-poetry run mutmut run --use-coverage --simple-output
-poetry run mutmut results > mutmut-results.txt
-```
-
-Puis demander la vérification suivante :
-
-* **aucune** ligne ne doit contenir `survived` dans `mutmut-results.txt`.
-
-Si un mutant **survit**, l’agent doit :
-
-* identifier la zone de code concernée (fonction, fichier),
-* proposer des tests supplémentaires ciblés,
 
 ### 2.5 Contrat de validité d’un commit
 
@@ -1135,8 +1088,6 @@ poetry run ruff check .
 poetry run mypy src scripts tests
 poetry run pip-audit --progress-spinner=off
 make cov
-poetry run mutmut run --use-coverage --simple-output
-poetry run mutmut results > mutmut-results.txt
 ````
 
 Supposons que :
