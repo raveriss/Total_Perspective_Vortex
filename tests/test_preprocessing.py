@@ -35,6 +35,9 @@ from tpv import preprocessing
 # Importe les utilitaires de contrôle d'échantillons et de qualité
 # Importe le marqueur pour vérifier la structure des métadonnées
 # Importe l'utilitaire de conversion d'unités pour le contrôle qualité
+# Importe le helper qui applique un rejet et un équilibrage train/val
+# Importe le rejet par quantile pour filtrer les essais aberrants
+# Importe le sous-échantillonnage pour équilibrer les classes
 from tpv.preprocessing import (
     DEFAULT_FILTER_METHOD,
     DEFAULT_NORMALIZE_EPSILON,
@@ -56,6 +59,7 @@ from tpv.preprocessing import (
     _rename_channels_for_montage,
     _validate_motor_mapping,
     apply_bandpass_filter,
+    apply_outlier_rejection_and_undersampling,
     create_epochs_from_raw,
     detect_artifacts,
     drop_non_eeg_channels,
@@ -69,8 +73,10 @@ from tpv.preprocessing import (
     normalize_channels,
     normalize_epoch_data,
     quality_control_epochs,
+    reject_trials_by_variance_quantile,
     report_epoch_anomalies,
     summarize_epoch_quality,
+    undersample_classes,
     verify_dataset_integrity,
 )
 
@@ -2803,6 +2809,143 @@ def test_detect_artifacts_thresholds_and_dtypes() -> None:
     assert mask.tolist() == [False, False, False]
     # Confirme que la sortie est bien promue en flottants pour les traitements suivants
     assert cleaned.dtype == float
+
+
+def test_reject_trials_by_variance_quantile_filters_artifact() -> None:
+    """Ensure a variance outlier trial is rejected by quantile filtering."""
+
+    # Prépare un générateur pour des données reproductibles
+    rng = np.random.default_rng(seed=7)
+    # Crée deux essais à faible variance pour simuler un signal sain
+    base_trials = rng.normal(loc=0.0, scale=0.1, size=(2, 2, 8))
+    # Crée une série oscillante pour garantir une forte variance
+    artifact_series = np.linspace(-50.0, 50.0, num=8)
+    # Construit deux canaux opposés pour amplifier la variance
+    artifact_channels = np.stack([artifact_series, -artifact_series], axis=0)
+    # Ajoute une dimension d'essai pour obtenir (1, 2, 8)
+    artifact_trial = artifact_channels[None, :, :]
+    # Concatène les essais pour former un batch complet
+    epochs_data = np.concatenate([base_trials, artifact_trial], axis=0)
+    # Définit des labels alignés avec les essais synthétiques
+    labels = np.array([0, 1, 1])
+    # Applique le rejet par quantile pour filtrer l'artefact
+    cleaned, cleaned_labels, _threshold, mask = reject_trials_by_variance_quantile(
+        # Transmet les essais synthétiques pour le filtrage
+        epochs_data,
+        # Transmet les labels alignés pour conserver l'ordre
+        labels,
+        # Utilise un quantile modéré pour isoler l'artefact
+        quantile=0.8,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Vérifie que l'artefact a été supprimé du batch
+    assert cleaned.shape[0] == 2
+    # Vérifie que les labels restants sont alignés
+    assert cleaned_labels.tolist() == [0, 1]
+    # Vérifie que le masque de conservation rejette le dernier essai
+    assert mask.tolist() == [True, True, False]
+
+
+def test_undersample_classes_balances_counts() -> None:
+    """Ensure undersampling aligns classes to the minimum count."""
+
+    # Construit un batch simple avec un léger déséquilibre de classes
+    epochs_data = np.zeros((5, 2, 4))
+    # Définit des labels avec une classe majoritaire
+    labels = np.array([0, 0, 0, 1, 1])
+    # Applique le sous-échantillonnage pour équilibrer
+    balanced_epochs, balanced_labels = undersample_classes(
+        # Transmet les données pour équilibrer les classes
+        epochs_data,
+        # Transmet les labels pour calculer l'équilibrage
+        labels,
+        # Utilise une graine fixe pour garantir la reproductibilité
+        random_state=1,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Vérifie que l'effectif est réduit à deux classes équilibrées
+    assert balanced_epochs.shape[0] == 4
+    # Vérifie que les classes sont équilibrées après filtrage
+    _, counts = np.unique(balanced_labels, return_counts=True)
+    # Vérifie que les deux classes ont le même effectif
+    assert counts.tolist() == [2, 2]
+
+
+def test_apply_outlier_rejection_and_undersampling_filters_train_val() -> None:
+    """Ensure the same rejection logic is applied on train and val."""
+
+    # Prépare un générateur pour des données reproductibles
+    rng = np.random.default_rng(seed=21)
+    # Construit deux essais train à faible variance
+    train_base = rng.normal(loc=0.0, scale=0.1, size=(2, 2, 6))
+    # Construit une série oscillante pour garantir une forte variance
+    train_artifact_series = np.linspace(-60.0, 60.0, num=6)
+    # Construit deux canaux opposés pour amplifier la variance
+    train_artifact_channels = np.stack(
+        # Réutilise la série pour le premier canal
+        [train_artifact_series, -train_artifact_series],
+        # Définit l'axe canal pour former (2, 6)
+        axis=0,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Ajoute une dimension d'essai pour obtenir (1, 2, 6)
+    train_artifact = train_artifact_channels[None, :, :]
+    # Assemble les essais train en un batch complet
+    train_epochs = np.concatenate([train_base, train_artifact], axis=0)
+    # Définit des labels train alignés avec les essais
+    train_labels = np.array([0, 1, 1])
+    # Construit un essai val sain
+    val_base = rng.normal(loc=0.0, scale=0.1, size=(1, 2, 6))
+    # Construit une série oscillante pour garantir une forte variance
+    val_artifact_series = np.linspace(-60.0, 60.0, num=6)
+    # Construit deux canaux opposés pour amplifier la variance
+    val_artifact_channels = np.stack(
+        # Réutilise la série pour le premier canal
+        [val_artifact_series, -val_artifact_series],
+        # Définit l'axe canal pour former (2, 6)
+        axis=0,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Ajoute une dimension d'essai pour obtenir (1, 2, 6)
+    val_artifact = val_artifact_channels[None, :, :]
+    # Assemble les essais val en un batch complet
+    val_epochs = np.concatenate([val_base, val_artifact], axis=0)
+    # Définit des labels val alignés avec les essais
+    val_labels = np.array([0, 1])
+    # Applique le rejet et l'équilibrage sur train et val
+    (
+        # Capture les epochs train filtrées
+        balanced_train,
+        # Capture les labels train filtrés
+        balanced_train_labels,
+        # Capture les epochs val filtrées
+        balanced_val,
+        # Capture les labels val filtrés
+        balanced_val_labels,
+        # Capture le rapport synthétique
+        report,
+        # Ferme le tuple multi-ligne pour clore l'affectation
+    ) = apply_outlier_rejection_and_undersampling(
+        # Transmet le split train pour le filtrage
+        (train_epochs, train_labels),
+        # Transmet le split val pour appliquer la même logique
+        (val_epochs, val_labels),
+        # Fixe un quantile modéré pour isoler l'artefact
+        quantile=0.8,
+        # Fixe une graine pour stabiliser l'équilibrage
+        random_state=2,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Vérifie que le filtrage réduit le nombre d'essais train
+    assert balanced_train.shape[0] == 2
+    # Vérifie que les labels train restent alignés
+    assert balanced_train_labels.tolist() == [0, 1]
+    # Vérifie que le filtrage réduit le nombre d'essais val
+    assert balanced_val.shape[0] == 1
+    # Vérifie que les labels val restent alignés
+    assert balanced_val_labels.tolist() == [0]
+    # Vérifie que le rapport expose un seuil positif
+    assert report["variance_threshold"] > 0.0
 
 
 def test_normalize_channels_supports_zscore_and_robust() -> None:
