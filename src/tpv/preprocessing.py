@@ -28,7 +28,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Centralise les hints pour clarifier les attentes des appels et des tests
-from typing import Any, Dict, List, Mapping, Tuple
+# Étend les hints pour typer les séquences de labels utilisées au filtrage
+from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
 # MNE est obligatoire pour le parsing EDF/BDF et la gestion des epochs
 import mne
@@ -124,6 +125,12 @@ DEFAULT_FILTER_METHOD = "fir"
 DEFAULT_NORMALIZE_METHOD = "zscore"
 # Fixe l'epsilon de stabilisation pour la normalisation par défaut
 DEFAULT_NORMALIZE_EPSILON = 1e-8
+# Fixe le quantile par défaut pour le rejet des essais aberrants
+DEFAULT_OUTLIER_VARIANCE_QUANTILE = 0.98
+# Fixe la graine par défaut pour l'équilibrage reproductible
+DEFAULT_UNDERSAMPLE_SEED = 0
+# Fixe le minimum de classes attendues pour équilibrer
+MIN_BALANCE_CLASS_COUNT = 2
 # Fixe la bande passante MI par défaut pour les filtres passe-bande
 DEFAULT_BANDPASS_BAND = (8.0, 30.0)
 # Fixe la fréquence de notch par défaut pour le bruit secteur
@@ -1275,6 +1282,252 @@ def normalize_epoch_data(
         normalized_epochs.append(normalized_epoch)
     # Empile les epochs normalisés pour retrouver la forme d'origine
     return np.stack(normalized_epochs, axis=0)
+
+
+def compute_trial_variances(
+    epochs_data: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
+    """Calcule la variance par essai pour détecter les essais aberrants."""
+
+    # Convertit l'entrée en float pour stabiliser les calculs de variance
+    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
+    # Retourne un vecteur vide si aucune donnée n'est disponible
+    if safe_epochs.size == 0:
+        # Préserve un dtype float explicite pour les appels ultérieurs
+        return np.asarray([], dtype=float)
+    # Refuse les formes inattendues pour éviter un calcul incohérent
+    if safe_epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
+        # Signale l'erreur de forme pour imposer (trials, channels, time)
+        raise ValueError("epochs_data must be a 3D array (trials, channels, time)")
+    # Calcule la variance par essai pour capturer les excursions globales
+    variances = np.var(safe_epochs, axis=(1, 2))
+    # Force un type float explicite pour satisfaire le typage
+    return np.asarray(variances, dtype=float)
+
+
+def reject_trials_by_variance_threshold(
+    epochs_data: NDArray[np.floating[Any]],
+    labels: Sequence[Any] | np.ndarray,
+    variance_threshold: float,
+) -> Tuple[NDArray[np.floating[Any]], np.ndarray, NDArray[np.bool_]]:
+    """Supprime les essais dont la variance dépasse un seuil explicite."""
+
+    # Convertit les epochs en float pour comparer correctement les variances
+    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
+    # Convertit les labels en tableau pour conserver l'alignement
+    labels_array = np.asarray(labels)
+    # Retourne immédiatement si aucune donnée n'est disponible
+    if safe_epochs.size == 0:
+        # Conserve un masque vide pour garder une API homogène
+        return safe_epochs, labels_array, np.asarray([], dtype=bool)
+    # Refuse les formes inattendues pour éviter les erreurs de slicing
+    if safe_epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
+        # Signale l'erreur de forme pour imposer (trials, channels, time)
+        raise ValueError("epochs_data must be a 3D array (trials, channels, time)")
+    # Vérifie l'alignement entre les labels et le nombre d'essais
+    if len(labels_array) != safe_epochs.shape[0]:
+        # Remonte une erreur claire pour éviter les désalignements silencieux
+        raise ValueError("labels length must match epochs_data length")
+    # Calcule la variance par essai pour comparer au seuil fourni
+    variances = compute_trial_variances(safe_epochs)
+    # Détermine quels essais restent sous le seuil de variance
+    keep_mask = variances <= float(variance_threshold)
+    # Filtre les epochs en respectant l'ordre d'origine
+    cleaned_epochs = safe_epochs[keep_mask]
+    # Filtre les labels pour rester aligné avec les epochs conservées
+    cleaned_labels = labels_array[keep_mask]
+    # Retourne les données filtrées ainsi que le masque de conservation
+    return cleaned_epochs, cleaned_labels, keep_mask
+
+
+def reject_trials_by_variance_quantile(
+    epochs_data: NDArray[np.floating[Any]],
+    labels: Sequence[Any] | np.ndarray,
+    quantile: float = DEFAULT_OUTLIER_VARIANCE_QUANTILE,
+) -> Tuple[NDArray[np.floating[Any]], np.ndarray, float, NDArray[np.bool_]]:
+    """Supprime les essais aberrants via un seuil défini par quantile."""
+
+    # Convertit les epochs en float pour stabiliser les statistiques
+    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
+    # Convertit les labels en tableau pour conserver l'alignement
+    labels_array = np.asarray(labels)
+    # Refuse un quantile hors des bornes pour éviter des seuils absurdes
+    if not 0.0 < quantile < 1.0:
+        # Signale une configuration invalide pour forcer une correction
+        raise ValueError("quantile must be between 0 and 1")
+    # Retourne des tableaux vides si aucune donnée n'est disponible
+    if safe_epochs.size == 0:
+        # Renvoie un seuil neutre pour rester explicite sur l'absence de données
+        return safe_epochs, labels_array, 0.0, np.asarray([], dtype=bool)
+    # Calcule les variances par essai pour définir un seuil quantile
+    variances = compute_trial_variances(safe_epochs)
+    # Calcule le seuil basé sur le quantile demandé
+    threshold = float(np.quantile(variances, quantile))
+    # Applique le seuil via la fonction dédiée pour maintenir un seul flux
+    cleaned_epochs, cleaned_labels, keep_mask = reject_trials_by_variance_threshold(
+        # Transmet les epochs pour filtrer les essais aberrants
+        safe_epochs,
+        # Transmet les labels alignés pour filtrer sans désaligner
+        labels_array,
+        # Transmet le seuil calculé pour appliquer la même règle
+        threshold,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Retourne les données filtrées, le seuil et le masque de conservation
+    return cleaned_epochs, cleaned_labels, threshold, keep_mask
+
+
+def undersample_classes(
+    epochs_data: NDArray[np.floating[Any]],
+    labels: Sequence[Any] | np.ndarray,
+    random_state: int = DEFAULT_UNDERSAMPLE_SEED,
+) -> Tuple[NDArray[np.floating[Any]], np.ndarray]:
+    """Équilibre les classes en sous-échantillonnant au minimum."""
+
+    # Convertit les epochs en float pour sécuriser les découpages
+    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
+    # Convertit les labels pour simplifier les comparaisons par classe
+    labels_array = np.asarray(labels)
+    # Retourne immédiatement si aucune donnée n'est disponible
+    if safe_epochs.size == 0:
+        # Conserve l'alignement en retournant les labels tels quels
+        return safe_epochs, labels_array
+    # Refuse les formes inattendues pour éviter les erreurs de slicing
+    if safe_epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
+        # Signale l'erreur de forme pour imposer (trials, channels, time)
+        raise ValueError("epochs_data must be a 3D array (trials, channels, time)")
+    # Vérifie l'alignement entre labels et essais pour un équilibrage sûr
+    if len(labels_array) != safe_epochs.shape[0]:
+        # Remonte une erreur claire pour éviter les désalignements silencieux
+        raise ValueError("labels length must match epochs_data length")
+    # Identifie les classes présentes pour déterminer le sous-échantillonnage
+    classes, counts = np.unique(labels_array, return_counts=True)
+    # Retourne les données intactes si une seule classe est disponible
+    if len(classes) < MIN_BALANCE_CLASS_COUNT:
+        # Préserve les données pour éviter un filtrage destructeur
+        return safe_epochs, labels_array
+    # Détermine l'effectif minimal pour équilibrer toutes les classes
+    min_count = int(np.min(counts))
+    # Refuse un équilibrage impossible en conservant les données originales
+    if min_count <= 0:
+        # Conserve les données brutes lorsque l'équilibrage est invalide
+        return safe_epochs, labels_array
+    # Prépare un générateur pseudo-aléatoire pour un échantillonnage stable
+    rng = np.random.default_rng(seed=random_state)
+    # Accumule les indices retenus pour chaque classe
+    selected_indices: List[int] = []
+    # Parcourt chaque classe pour choisir le même nombre d'essais
+    for class_label in classes:
+        # Récupère les indices correspondant à la classe courante
+        class_indices = np.flatnonzero(labels_array == class_label)
+        # Tire un sous-ensemble sans remise pour équilibrer les classes
+        chosen_indices = rng.choice(class_indices, size=min_count, replace=False)
+        # Ajoute les indices retenus à la liste globale
+        selected_indices.extend(chosen_indices.tolist())
+    # Trie les indices pour préserver l'ordre d'origine des essais
+    selected_indices = sorted(selected_indices)
+    # Filtre les epochs selon les indices sélectionnés
+    balanced_epochs = safe_epochs[selected_indices]
+    # Filtre les labels pour correspondre aux epochs équilibrées
+    balanced_labels = labels_array[selected_indices]
+    # Retourne les données équilibrées pour l'entraînement
+    return balanced_epochs, balanced_labels
+
+
+def apply_outlier_rejection_and_undersampling(
+    train_split: Tuple[NDArray[np.floating[Any]], Sequence[Any] | np.ndarray],
+    val_split: Tuple[NDArray[np.floating[Any]], Sequence[Any] | np.ndarray],
+    quantile: float = DEFAULT_OUTLIER_VARIANCE_QUANTILE,
+    random_state: int = DEFAULT_UNDERSAMPLE_SEED,
+) -> Tuple[
+    NDArray[np.floating[Any]],
+    np.ndarray,
+    NDArray[np.floating[Any]],
+    np.ndarray,
+    Dict[str, Any],
+]:
+    """Applique le même rejet de variance et équilibrage sur train/val."""
+
+    # Déstructure les epochs et labels train pour clarifier la suite
+    train_epochs, train_labels = train_split
+    # Déstructure les epochs et labels val pour clarifier la suite
+    val_epochs, val_labels = val_split
+    # Calcule le seuil de variance uniquement sur le train pour éviter la fuite
+    train_variances = compute_trial_variances(train_epochs)
+    # Initialise le seuil à zéro pour couvrir les cas sans données
+    threshold = 0.0
+    # Calcule un seuil quantile stable basé sur les essais d'entraînement
+    if train_variances.size:
+        # Utilise le quantile demandé pour définir le seuil de variance
+        threshold = float(np.quantile(train_variances, quantile))
+    # Prépare un alias court pour éviter les lignes trop longues
+    reject_fn = reject_trials_by_variance_threshold
+    # Applique le seuil aux données d'entraînement pour rejeter les aberrants
+    filtered_train, filtered_train_labels, _train_mask = reject_fn(
+        # Transmet les epochs train pour filtrer les anomalies
+        train_epochs,
+        # Transmet les labels train pour garder l'alignement
+        train_labels,
+        # Transmet le seuil commun train/val pour la cohérence
+        threshold,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Applique le même seuil aux données de validation pour rester cohérent
+    filtered_val, filtered_val_labels, _val_mask = reject_fn(
+        # Transmet les epochs val pour appliquer la même règle
+        val_epochs,
+        # Transmet les labels val pour garder l'alignement
+        val_labels,
+        # Réutilise le seuil train pour éviter la fuite
+        threshold,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Équilibre les classes du train via un sous-échantillonnage simple
+    balanced_train, balanced_train_labels = undersample_classes(
+        # Transmet les epochs filtrées pour équilibrer les classes
+        filtered_train,
+        # Transmet les labels filtrés pour équilibrer les effectifs
+        filtered_train_labels,
+        # Transmet la graine pour un échantillonnage stable
+        random_state=random_state,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Équilibre les classes de validation avec la même logique
+    balanced_val, balanced_val_labels = undersample_classes(
+        # Transmet les epochs val filtrées pour équilibrer les classes
+        filtered_val,
+        # Transmet les labels val filtrés pour équilibrer les effectifs
+        filtered_val_labels,
+        # Transmet la graine pour rester reproductible
+        random_state=random_state,
+        # Ferme l'appel multi-ligne pour clore la requête
+    )
+    # Prépare un rapport synthétique sur le seuil et les effectifs
+    report = {
+        # Expose le seuil de variance utilisé pour la traçabilité
+        "variance_threshold": threshold,
+        # Expose le nombre d'essais train après filtrage
+        "train_count": int(balanced_train.shape[0]),
+        # Expose le nombre d'essais val après filtrage
+        "val_count": int(balanced_val.shape[0]),
+        # Ferme le dictionnaire de rapport pour la sortie
+    }
+    # Prépare le tuple de sortie pour garder un retour explicite
+    result = (
+        # Transmet les epochs train équilibrées
+        balanced_train,
+        # Transmet les labels train équilibrés
+        balanced_train_labels,
+        # Transmet les epochs val équilibrées
+        balanced_val,
+        # Transmet les labels val équilibrés
+        balanced_val_labels,
+        # Transmet le rapport synthétique
+        report,
+        # Ferme le tuple de sortie
+    )
+    # Retourne les jeux filtrés et équilibrés, plus un rapport
+    return result
 
 
 def _build_file_entry(
