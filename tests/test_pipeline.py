@@ -147,6 +147,39 @@ def test_pipeline_respects_input_and_output_shapes():
     assert predictions.shape == (X.shape[0],)
 
 
+# Vérifie que la configuration Welch est propagée au pipeline
+def test_pipeline_welch_config_accepts_large_nperseg():
+    """Valide la propagation d'une config Welch surdimensionnée."""
+
+    # Crée un dataset synthétique pour tester Welch avec peu d'échantillons
+    X = np.random.randn(8, 2, 32)
+    # Crée des labels équilibrés pour garantir deux classes
+    y = np.array([0, 1] * 4)
+    # Prépare une config Welch avec un nperseg supérieur à n_times
+    config = PipelineConfig(
+        # Fournit une fréquence d'échantillonnage stable pour Welch
+        sfreq=128.0,
+        # Active explicitement la stratégie Welch
+        feature_strategy="welch",
+        # Injecte une taille de fenêtre volontairement trop grande
+        feature_strategy_config={"nperseg": 256},
+        # Utilise LDA pour garder un classifieur simple
+        classifier="lda",
+        # Utilise PCA pour garder une réduction classique
+        dim_method="pca",
+    )
+    # Construit la pipeline avec la configuration personnalisée
+    pipeline = build_pipeline(config)
+    # Ajuste la pipeline pour déclencher l'extraction de features
+    pipeline.fit(X, y)
+    # Extrait les features afin de vérifier la stabilité de la config
+    features = pipeline.named_steps["features"].transform(X)
+    # Vérifie que l'extraction conserve le nombre d'échantillons
+    assert features.shape[0] == X.shape[0]
+    # Vérifie que la config Welch est bien propagée au transformer
+    assert pipeline.named_steps["features"].strategy_config == {"nperseg": 256}
+
+
 # Vérifie qu'une valeur invalide de scaler lève une erreur explicite
 def test_build_scaler_rejects_invalid_value():
     """Garantit une erreur claire pour un scaler inconnu."""

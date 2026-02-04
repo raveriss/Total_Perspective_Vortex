@@ -45,6 +45,8 @@ class PipelineConfig:
     sfreq: float
     # Stratégie de features pour harmoniser extraction et prédiction
     feature_strategy: str = "fft"
+    # Transporte la configuration spécifique aux stratégies de features
+    feature_strategy_config: dict[str, object] | None = None
     # Active la normalisation pour stabiliser les entrées du classifieur
     normalize_features: bool = True
     # Méthode de réduction de dimension pour compacter les features
@@ -97,6 +99,8 @@ def build_pipeline(
                     sfreq=config.sfreq,
                     feature_strategy=config.feature_strategy,
                     normalize=config.normalize_features,
+                    # Transmet la configuration Welch/Wavelet si fournie
+                    strategy_config=config.feature_strategy_config,
                 ),
             )
         )
@@ -132,6 +136,8 @@ def build_pipeline(
                         sfreq=config.sfreq,
                         feature_strategy=config.feature_strategy,
                         normalize=config.normalize_features,
+                        # Transmet la configuration Welch/Wavelet si fournie
+                        strategy_config=config.feature_strategy_config,
                     ),
                 )
             )
@@ -179,6 +185,8 @@ def build_search_pipeline(config: PipelineConfig) -> Pipeline:
                     sfreq=config.sfreq,
                     feature_strategy=config.feature_strategy,
                     normalize=config.normalize_features,
+                    # Transmet la configuration Welch/Wavelet si fournie
+                    strategy_config=config.feature_strategy_config,
                 ),
             ),
             # Utilise passthrough pour autoriser la sélection de scaler en grid search
@@ -224,6 +232,8 @@ def build_search_pipeline(config: PipelineConfig) -> Pipeline:
                         sfreq=config.sfreq,
                         feature_strategy=config.feature_strategy,
                         normalize=config.normalize_features,
+                        # Transmet la configuration Welch/Wavelet si fournie
+                        strategy_config=config.feature_strategy_config,
                     ),
                 )
             )

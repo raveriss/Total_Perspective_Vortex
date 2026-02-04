@@ -221,6 +221,23 @@ les avertissements "aucun modèle disponible", assurez-vous que
 poetry run python scripts/train.py 1 4
 ```
 
+### 🧪 Sélection d'hyperparamètres (split interne + CV finale)
+
+Activez la sélection interne avec une grille restreinte (CSP, C, Welch) :
+
+```bash
+poetry run python scripts/train.py 1 4 --grid-search
+```
+
+Ce mode :
+
+* utilise un split interne stratifié pour choisir les hyperparamètres ;
+* teste une **grille restreinte** :
+  * `CSP n_components` (valeurs compactes + valeur explicite si fournie),
+  * `C` pour **LogisticRegression** / **LinearSVC**,
+  * `nperseg` Welch (si `feature_strategy` inclut `welch`) ;
+* conserve **`cross_val_score` sur la pipeline complète** pour la validation finale.
+
 *Entraîner via Makefile avec une stratégie de features* :
 
 ```bash

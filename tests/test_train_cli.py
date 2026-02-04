@@ -2464,6 +2464,11 @@ def test_run_training_uses_grid_search_and_captures_best_scores(
         def __init__(self) -> None:
             self.named_steps = {"dimensionality": FakeDimReducer(), "scaler": None}
 
+        # Simule l'API fit pour la pipeline factice
+        def fit(self, *_args, **_kwargs):
+            # Retourne self pour émuler scikit-learn
+            return self
+
     class FakeSearch:
         def __init__(self, estimator, param_grid, cv, scoring, refit) -> None:
             self.estimator = estimator
@@ -2486,6 +2491,15 @@ def test_run_training_uses_grid_search_and_captures_best_scores(
 
     monkeypatch.setattr(train, "build_search_pipeline", lambda *_cfg: FakePipeline())
     monkeypatch.setattr(train, "GridSearchCV", FakeSearch)
+    # Force cross_val_score pour isoler la validation finale
+    monkeypatch.setattr(
+        # Cible le module d'entraînement pour le patch
+        train,
+        # Cible explicitement cross_val_score
+        "cross_val_score",
+        # Retourne des scores déterministes pour le test
+        lambda *_args, **_kwargs: np.array([0.62, 0.68]),
+    )
     monkeypatch.setattr(train, "save_pipeline", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(train.joblib, "dump", lambda *_args, **_kwargs: None)
 
@@ -2522,7 +2536,7 @@ def test_run_training_uses_grid_search_and_captures_best_scores(
     train.run_training(request)
 
     cv_scores = np.array(cast(np.ndarray, captured["cv_scores"]))
-    assert cv_scores.shape == (3,)
+    assert cv_scores.shape == (2,)
     search_summary = cast(dict[str, object], captured["search_summary"])
     assert search_summary["best_score"] == pytest.approx(0.75)
 
