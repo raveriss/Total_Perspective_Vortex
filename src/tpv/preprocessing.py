@@ -124,10 +124,31 @@ DEFAULT_FILTER_METHOD = "fir"
 DEFAULT_NORMALIZE_METHOD = "zscore"
 # Fixe l'epsilon de stabilisation pour la normalisation par défaut
 DEFAULT_NORMALIZE_EPSILON = 1e-8
+# Fixe la bande passante MI par défaut pour les filtres passe-bande
+DEFAULT_BANDPASS_BAND = (8.0, 30.0)
+# Fixe la fréquence de notch par défaut pour le bruit secteur
+DEFAULT_NOTCH_FREQ = 50.0
+# Fixe le nombre de dimensions attendu pour les epochs (trials, ch, time)
+EXPECTED_EPOCH_DIMENSIONS = 3
 # Définit le facteur de conversion des microvolts vers les volts
 MICROVOLTS_TO_VOLTS = 1e-6
 # Définit le seuil au-delà duquel on suspecte des microvolts
 DEFAULT_MICROVOLT_THRESHOLD = 1e-3
+
+
+# Regroupe la configuration de prétraitement pour le filtrage et la normalisation
+@dataclass
+class PreprocessingConfig:
+    """Encapsule les paramètres de filtrage et de normalisation EEG."""
+
+    # Définit la bande passante MI utilisée pour le filtrage
+    bandpass_band: Tuple[float, float] = DEFAULT_BANDPASS_BAND
+    # Définit la fréquence de notch pour supprimer le bruit secteur
+    notch_freq: float = DEFAULT_NOTCH_FREQ
+    # Définit la méthode de normalisation par canal des epochs
+    normalize_method: str = DEFAULT_NORMALIZE_METHOD
+    # Définit l'epsilon de stabilité pour la normalisation
+    normalize_epsilon: float = DEFAULT_NORMALIZE_EPSILON
 
 
 def _rename_channels_for_montage(
@@ -166,11 +187,11 @@ def drop_non_eeg_channels(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
 def apply_bandpass_filter(
     raw: mne.io.BaseRaw,
     method: str = DEFAULT_FILTER_METHOD,
-    freq_band: Tuple[float, float] = (8.0, 30.0),
+    freq_band: Tuple[float, float] = DEFAULT_BANDPASS_BAND,
     order: int | str | None = None,
     pad_duration: float = 0.5,
 ) -> mne.io.BaseRaw:
-    """Apply a padded 8–30 Hz band-pass filter using FIR or IIR designs."""
+    """Apply a padded motor imagery band-pass filter using FIR or IIR."""
 
     # Clone the raw object to avoid mutating caller buffers during filtering
     filtered_raw = raw.copy().load_data()
@@ -1225,6 +1246,35 @@ def normalize_channels(
         return robust_result
     # Lève une erreur explicite pour les méthodes non supportées
     raise ValueError("method must be either 'zscore' or 'robust'")
+
+
+def normalize_epoch_data(
+    epochs_data: NDArray[np.floating[Any]],
+    method: str = DEFAULT_NORMALIZE_METHOD,
+    epsilon: float = DEFAULT_NORMALIZE_EPSILON,
+) -> NDArray[np.floating[Any]]:
+    """Normalize each epoch per channel while preserving the input shape."""
+
+    # Convertit l'entrée en float pour garantir des statistiques stables
+    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
+    # Retourne un tableau vide si aucune donnée n'est fournie
+    if safe_epochs.size == 0:
+        # Préserve la forme originale en renvoyant un tableau float vide
+        return safe_epochs
+    # Refuse les entrées qui ne sont pas en 3 dimensions (trials, ch, time)
+    if safe_epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
+        # Signale l'erreur de forme pour éviter une normalisation incohérente
+        raise ValueError("epochs_data must be a 3D array (trials, channels, time)")
+    # Prépare une liste vide pour accumuler chaque epoch normalisé
+    normalized_epochs: List[NDArray[np.floating[Any]]] = []
+    # Itère sur chaque epoch pour normaliser indépendamment chaque canal
+    for epoch in safe_epochs:
+        # Normalise l'epoch courant pour stabiliser son échelle
+        normalized_epoch = normalize_channels(epoch, method=method, epsilon=epsilon)
+        # Ajoute l'epoch normalisé à la liste d'accumulation
+        normalized_epochs.append(normalized_epoch)
+    # Empile les epochs normalisés pour retrouver la forme d'origine
+    return np.stack(normalized_epochs, axis=0)
 
 
 def _build_file_entry(

@@ -12,6 +12,69 @@ import pytest
 from scripts import predict
 
 
+# Construit un contexte de génération des numpy pour les tests prédictifs
+def _build_npy_context(
+    data_dir: Path,
+    raw_dir: Path,
+    eeg_reference: str,
+) -> predict.NpyBuildContext:
+    # Construit une configuration de prétraitement par défaut
+    preprocess_config = predict.preprocessing.PreprocessingConfig()
+    # Retourne le contexte complet pour charger/générer les numpy
+    return predict.NpyBuildContext(
+        # Transmet le répertoire de base des numpy
+        data_dir=data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir=raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference=eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
+    )
+
+
+# Charge les données via l'API interne en utilisant un contexte explicite
+def _load_data_with_context(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+    eeg_reference: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    # Construit le contexte de génération des numpy
+    build_context = _build_npy_context(
+        # Transmet le répertoire de base des numpy
+        data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference,
+    )
+    # Délègue à l'API interne avec contexte explicite
+    return predict._load_data(subject, run, build_context)
+
+
+# Construit des numpy depuis l'EDF via un contexte explicite
+def _build_npy_from_edf_with_context(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+    eeg_reference: str,
+) -> tuple[Path, Path]:
+    # Construit le contexte de génération des numpy
+    build_context = _build_npy_context(
+        # Transmet le répertoire de base des numpy
+        data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference,
+    )
+    # Délègue à l'API interne avec contexte explicite
+    return predict._build_npy_from_edf(subject, run, build_context)
+
+
 # Verrouille l'initialisation booléenne de needs_rebuild (mutant équivalent sinon)
 def test_predict_load_data_initializes_needs_rebuild_as_false(
     tmp_path, monkeypatch
@@ -58,7 +121,7 @@ def test_predict_load_data_initializes_needs_rebuild_as_false(
     previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
-        predict._load_data(subject, run, data_dir, raw_dir, "average")
+        _load_data_with_context(subject, run, data_dir, raw_dir, "average")
     finally:
         sys.settrace(previous_tracer)
 
@@ -84,13 +147,25 @@ def test_predict_load_data_rebuilds_invalid_numpy_payloads(tmp_path, monkeypatch
     rebuilt_X = np.full((2, 3, 4), fill_value=5)
     rebuilt_y = np.array([0, 1])
     # Trace les appels de reconstruction pour vérifier la propagation des arguments
-    calls: list[tuple[str, str, Path, Path, str]] = []
+    calls: list[tuple[str, str, Path, Path, str | None]] = []
 
     # Stub de reconstruction qui remplace l'EDF pendant le test
-    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg, eeg_reference):
-        calls.append((subject_arg, run_arg, data_arg, raw_arg, eeg_reference))
-        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
-        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+    def fake_build_npy(
+        subject_arg: str,
+        run_arg: str,
+        build_context: predict.NpyBuildContext,
+    ):
+        calls.append(
+            (
+                subject_arg,
+                run_arg,
+                build_context.data_dir,
+                build_context.raw_dir,
+                build_context.eeg_reference,
+            )
+        )
+        features_path = build_context.data_dir / subject_arg / f"{run_arg}_X.npy"
+        labels_path = build_context.data_dir / subject_arg / f"{run_arg}_y.npy"
         np.save(features_path, rebuilt_X)
         np.save(labels_path, rebuilt_y)
         return features_path, labels_path
@@ -100,7 +175,7 @@ def test_predict_load_data_rebuilds_invalid_numpy_payloads(tmp_path, monkeypatch
     # 1) X 2D pour déclencher la reconstruction liée à la mauvaise dimension
     np.save(subject_dir / f"{run}_X.npy", np.ones((2, 4)))
     np.save(subject_dir / f"{run}_y.npy", np.array([0, 1]))
-    X, y = predict._load_data(subject, run, data_dir, raw_dir, "average")
+    X, y = _load_data_with_context(subject, run, data_dir, raw_dir, "average")
     assert calls == [(subject, run, data_dir, raw_dir, "average")]
     assert np.array_equal(X, rebuilt_X)
     assert np.array_equal(y, rebuilt_y)
@@ -109,7 +184,7 @@ def test_predict_load_data_rebuilds_invalid_numpy_payloads(tmp_path, monkeypatch
     calls.clear()
     np.save(subject_dir / f"{run}_X.npy", np.ones((3, 2, 2)))
     np.save(subject_dir / f"{run}_y.npy", np.array([0, 1, 1, 0]))
-    X, y = predict._load_data(subject, run, data_dir, raw_dir, "average")
+    X, y = _load_data_with_context(subject, run, data_dir, raw_dir, "average")
     assert calls == [(subject, run, data_dir, raw_dir, "average")]
     assert np.array_equal(X, rebuilt_X)
     assert np.array_equal(y, rebuilt_y)
@@ -148,7 +223,7 @@ def test_predict_load_data_skips_rebuild_for_valid_files(tmp_path, monkeypatch):
 
     monkeypatch.setattr(predict, "_build_npy_from_edf", fail_build_npy)
 
-    X, y = predict._load_data(subject, run, data_dir, raw_dir, "average")
+    X, y = _load_data_with_context(subject, run, data_dir, raw_dir, "average")
 
     assert np.array_equal(X, expected_X)
     assert np.array_equal(y, expected_y)
@@ -174,12 +249,23 @@ def test_predict_load_data_rebuilds_when_one_numpy_file_missing(tmp_path, monkey
 
     rebuilt_X = np.zeros((2, 3, 4))
     rebuilt_y = np.array([0, 1])
-    calls: list[tuple[str, str, Path, str]] = []
+    calls: list[tuple[str, str, Path, str | None]] = []
 
-    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg, eeg_reference):
-        calls.append((subject_arg, run_arg, raw_arg, eeg_reference))
-        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
-        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+    def fake_build_npy(
+        subject_arg: str,
+        run_arg: str,
+        build_context: predict.NpyBuildContext,
+    ):
+        calls.append(
+            (
+                subject_arg,
+                run_arg,
+                build_context.raw_dir,
+                build_context.eeg_reference,
+            )
+        )
+        features_path = build_context.data_dir / subject_arg / f"{run_arg}_X.npy"
+        labels_path = build_context.data_dir / subject_arg / f"{run_arg}_y.npy"
         np.save(features_path, rebuilt_X)
         np.save(labels_path, rebuilt_y)
         return features_path, labels_path
@@ -188,7 +274,7 @@ def test_predict_load_data_rebuilds_when_one_numpy_file_missing(tmp_path, monkey
 
     # Cas 1: X présent, y absent => rebuild obligatoire
     np.save(subject_dir / f"{run}_X.npy", np.ones((2, 3, 4)))
-    X, y = predict._load_data(subject, run, data_dir, raw_dir, "average")
+    X, y = _load_data_with_context(subject, run, data_dir, raw_dir, "average")
     assert calls == [(subject, run, raw_dir, "average")]
     assert np.array_equal(X, rebuilt_X)
     assert np.array_equal(y, rebuilt_y)
@@ -197,7 +283,7 @@ def test_predict_load_data_rebuilds_when_one_numpy_file_missing(tmp_path, monkey
     calls.clear()
     (subject_dir / f"{run}_X.npy").unlink()
     np.save(subject_dir / f"{run}_y.npy", np.array([0, 1]))
-    X, y = predict._load_data(subject, run, data_dir, raw_dir, "average")
+    X, y = _load_data_with_context(subject, run, data_dir, raw_dir, "average")
     assert calls == [(subject, run, raw_dir, "average")]
     assert np.array_equal(X, rebuilt_X)
     assert np.array_equal(y, rebuilt_y)
@@ -273,7 +359,7 @@ def test_build_npy_from_edf_uses_epoch_window_metadata(tmp_path, monkeypatch) ->
     )
 
     # Exécute la reconstruction depuis l'EDF
-    features_path, labels_path = predict._build_npy_from_edf(
+    features_path, labels_path = _build_npy_from_edf_with_context(
         subject, run, data_dir, raw_dir, "average"
     )
 
@@ -323,7 +409,7 @@ def test_build_npy_from_edf_raises_when_edf_missing(tmp_path) -> None:
     # Vérifie que l'appel échoue proprement quand l'EDF manque
     with pytest.raises(FileNotFoundError) as exc_info:
         # Tente de construire les .npy depuis un EDF inexistant
-        predict._build_npy_from_edf(subject, run, data_dir, raw_dir, "average")
+        _build_npy_from_edf_with_context(subject, run, data_dir, raw_dir, "average")
 
     # Vérifie que le message contient le chemin attendu
     assert str(expected_path) in str(exc_info.value)
@@ -402,9 +488,30 @@ def test_build_npy_from_edf_handles_missing_labels(tmp_path, monkeypatch) -> Non
         predict, "_read_epoch_window_metadata", lambda *_args, **_kwargs: (0.0, 1.0)
     )
 
+    # Prépare une configuration sans normalisation pour conserver les valeurs
+    preprocess_config = predict.preprocessing.PreprocessingConfig(
+        # Désactive la normalisation pour préserver les valeurs d'origine
+        normalize_method="none"
+    )
+    # Construit le contexte de génération des numpy avec normalisation désactivée
+    build_context = predict.NpyBuildContext(
+        # Transmet le répertoire de base des numpy
+        data_dir=data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir=raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference="average",
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
+    )
     # Construit les .npy en déclenchant le fallback Missing labels
     features_path, labels_path = predict._build_npy_from_edf(
-        subject, run, data_dir, raw_dir, "average"
+        # Transmet l'identifiant de sujet pour la reconstruction
+        subject,
+        # Transmet l'identifiant de run pour la reconstruction
+        run,
+        # Transmet le contexte de génération des numpy
+        build_context,
     )
 
     # Vérifie que les fichiers générés existent bien

@@ -128,10 +128,6 @@ DEFAULT_SAMPLING_RATE = 50.0
 
 # Définit un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
 DEFAULT_MAX_PEAK_TO_PEAK = 3000e-6
-# Fixe la bande passante MI recommandée pour la tâche motrice
-DEFAULT_BANDPASS_BAND = (8.0, 30.0)
-# Fixe la fréquence de notch pour supprimer la pollution secteur
-DEFAULT_NOTCH_FREQ = 50.0
 # Fixe le nombre de composantes CSP pour la sélection de fenêtre
 DEFAULT_CSP_COMPONENTS = 4
 # Regroupe les stratégies de features supportées par la pipeline
@@ -690,6 +686,11 @@ class TrainingRequest:
     raw_dir: Path = DEFAULT_RAW_DIR
     # Définit la référence EEG à appliquer lors du chargement EDF
     eeg_reference: str | None = DEFAULT_EEG_REFERENCE
+    # Regroupe les réglages de filtrage et de normalisation
+    preprocess_config: preprocessing.PreprocessingConfig = field(
+        # Utilise une factory pour éviter le partage d'instance
+        default_factory=preprocessing.PreprocessingConfig
+    )
     # Active une optimisation systématique des hyperparamètres si demandé
     enable_grid_search: bool = False
     # Fixe un nombre de splits spécifique pour la recherche si fourni
@@ -749,10 +750,30 @@ class TrainingResources:
     raw_dir: Path = DEFAULT_RAW_DIR
     # Définit la référence EEG à appliquer lors du chargement EDF
     eeg_reference: str | None = DEFAULT_EEG_REFERENCE
+    # Regroupe les réglages de filtrage et de normalisation
+    preprocess_config: preprocessing.PreprocessingConfig = field(
+        # Utilise une factory pour éviter le partage d'instance
+        default_factory=preprocessing.PreprocessingConfig
+    )
     # Active une optimisation systématique des hyperparamètres si demandé
     enable_grid_search: bool = False
     # Fixe un nombre de splits spécifique pour la recherche si fourni
     grid_search_splits: int | None = None
+
+
+# Regroupe les chemins et réglages nécessaires à la génération des numpy
+@dataclass
+class NpyBuildContext:
+    """Encapsule les paramètres nécessaires à la génération des .npy."""
+
+    # Spécifie le répertoire contenant les données numpy
+    data_dir: Path
+    # Spécifie le répertoire des enregistrements EDF bruts
+    raw_dir: Path
+    # Définit la référence EEG à appliquer lors du chargement EDF
+    eeg_reference: str | None
+    # Regroupe les réglages de filtrage et de normalisation
+    preprocess_config: preprocessing.PreprocessingConfig
 
 
 # Construit un argument parser aligné sur la CLI mybci
@@ -824,6 +845,61 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-normalize-features",
         action="store_true",
         help="Désactive la normalisation des features extraites",
+    )
+    # Ajoute la borne basse du filtre passe-bande MI
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour la borne basse
+        "--bandpass-low",
+        # Type float pour accepter des fréquences décimales
+        type=float,
+        # Fixe la valeur par défaut alignée sur la bande MI
+        default=preprocessing.DEFAULT_BANDPASS_BAND[0],
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Fréquence basse du passe-bande MI (ex: 8.0)",
+    )
+    # Ajoute la borne haute du filtre passe-bande MI
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour la borne haute
+        "--bandpass-high",
+        # Type float pour accepter des fréquences décimales
+        type=float,
+        # Fixe la valeur par défaut alignée sur la bande MI
+        default=preprocessing.DEFAULT_BANDPASS_BAND[1],
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Fréquence haute du passe-bande MI (ex: 30.0)",
+    )
+    # Ajoute la fréquence de notch pour supprimer le bruit secteur
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour le notch
+        "--notch-freq",
+        # Type float pour autoriser 50 ou 60 Hz
+        type=float,
+        # Fixe la valeur par défaut compatible Europe
+        default=preprocessing.DEFAULT_NOTCH_FREQ,
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Fréquence de notch pour le bruit secteur (50 ou 60 Hz)",
+    )
+    # Ajoute la méthode de normalisation par canal des epochs
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour la normalisation canal
+        "--normalize-channels",
+        # Liste les méthodes acceptées pour sécuriser les entrées
+        choices=("zscore", "robust", "none"),
+        # Fixe la méthode par défaut alignée sur preprocessing
+        default=preprocessing.DEFAULT_NORMALIZE_METHOD,
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Normalisation par canal appliquée aux epochs (zscore/robust/none)",
+    )
+    # Ajoute l'epsilon de stabilisation pour la normalisation
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour l'epsilon
+        "--normalize-epsilon",
+        # Type float pour accepter des epsilon personnalisés
+        type=float,
+        # Fixe la valeur par défaut alignée sur preprocessing
+        default=preprocessing.DEFAULT_NORMALIZE_EPSILON,
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Epsilon de stabilité pour la normalisation par canal",
     )
     # Ajoute une option pour cibler un répertoire de données spécifique
     parser.add_argument(
@@ -1211,9 +1287,7 @@ def _select_best_epoch_window(
 def _build_npy_from_edf(
     subject: str,
     run: str,
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str | None,
+    build_context: NpyBuildContext,
 ) -> tuple[Path, Path]:
     """Génère X (epochs brutes) et y depuis un fichier EDF Physionet.
 
@@ -1224,9 +1298,16 @@ def _build_npy_from_edf(
     """
 
     # Calcule les chemins cibles pour les fichiers numpy
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    features_path, labels_path = _resolve_data_paths(
+        # Transmet l'identifiant de sujet pour le chemin
+        subject,
+        # Transmet l'identifiant de run pour le chemin
+        run,
+        # Transmet le répertoire de base des numpy
+        build_context.data_dir,
+    )
     # Calcule le chemin attendu du fichier EDF brut
-    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    raw_path = build_context.raw_dir / subject / f"{subject}{run}.edf"
 
     # Interrompt tôt si l'EDF est absent
     if not raw_path.exists():
@@ -1242,16 +1323,30 @@ def _build_npy_from_edf(
 
     # Charge l'EDF en conservant les métadonnées essentielles
     raw, _ = preprocessing.load_physionet_raw(
+        # Transmet le chemin EDF brut
         raw_path,
-        reference=eeg_reference,
+        # Transmet la référence EEG configurée
+        reference=build_context.eeg_reference,
     )
 
-    # Applique un notch pour supprimer la pollution secteur
-    notched_raw = preprocessing.apply_notch_filter(raw, freq=DEFAULT_NOTCH_FREQ)
+    # Applique un notch si une fréquence valide est fournie
+    if build_context.preprocess_config.notch_freq > 0.0:
+        # Applique le notch pour supprimer la pollution secteur
+        notched_raw = preprocessing.apply_notch_filter(
+            # Transmet le signal brut chargé
+            raw,
+            # Transmet la fréquence de notch configurée
+            freq=build_context.preprocess_config.notch_freq,
+        )
+    else:
+        # Conserve le signal brut si le notch est désactivé
+        notched_raw = raw
     # Applique le filtrage bande-passante pour stabiliser les bandes MI
     filtered_raw = preprocessing.apply_bandpass_filter(
+        # Transmet le signal après notch (ou brut si désactivé)
         notched_raw,
-        freq_band=DEFAULT_BANDPASS_BAND,
+        # Transmet la bande passante configurée pour la MI
+        freq_band=build_context.preprocess_config.bandpass_band,
     )
 
     # Mappe les annotations en événements moteurs après filtrage
@@ -1277,13 +1372,36 @@ def _build_npy_from_edf(
     best_window, best_epochs_data, best_labels = _select_best_epoch_window(
         window_context
     )
+    # Normalise les epochs par canal si la méthode est activée
+    if build_context.preprocess_config.normalize_method != "none":
+        # Applique la normalisation par canal sur chaque epoch
+        normalized_epochs = preprocessing.normalize_epoch_data(
+            # Transmet les epochs sélectionnées pour la normalisation
+            best_epochs_data,
+            # Transmet la méthode de normalisation choisie
+            method=build_context.preprocess_config.normalize_method,
+            # Transmet l'epsilon de stabilité pour éviter les divisions nulles
+            epsilon=build_context.preprocess_config.normalize_epsilon,
+        )
+    else:
+        # Conserve les epochs brutes lorsque la normalisation est désactivée
+        normalized_epochs = best_epochs_data
 
-    # Persiste les epochs brutes sélectionnées
-    np.save(features_path, best_epochs_data)
+    # Persiste les epochs (brutes ou normalisées) sélectionnées
+    np.save(features_path, normalized_epochs)
     # Persiste les labels alignés sur la fenêtre retenue
     np.save(labels_path, best_labels)
     # Écrit la fenêtre retenue pour la réutiliser en prédiction
-    _write_epoch_window_metadata(subject, run, data_dir, best_window)
+    _write_epoch_window_metadata(
+        # Transmet l'identifiant de sujet pour le chemin JSON
+        subject,
+        # Transmet l'identifiant de run pour le chemin JSON
+        run,
+        # Transmet le répertoire de base des numpy
+        build_context.data_dir,
+        # Transmet la fenêtre retenue pour la persistance
+        best_window,
+    )
 
     # Retourne les chemins nouvellement générés
     return features_path, labels_path
@@ -1291,14 +1409,19 @@ def _build_npy_from_edf(
 
 # Construit les .npy pour l'ensemble des sujets disponibles
 def _build_all_npy(
-    raw_dir: Path,
-    data_dir: Path,
-    eeg_reference: str | None,
+    build_context: NpyBuildContext,
 ) -> None:
     """Génère les fichiers numpy pour chaque run moteur disponible."""
 
     # Parcourt les dossiers de sujets triés pour des logs prédictibles
-    subject_dirs = sorted(path for path in raw_dir.iterdir() if path.is_dir())
+    subject_dirs = sorted(
+        # Itère sur les entrées du répertoire brut
+        path
+        # Filtre les entrées pour ne garder que des dossiers
+        for path in build_context.raw_dir.iterdir()
+        # Conserve uniquement les répertoires sujets
+        if path.is_dir()
+    )
 
     # Explore chaque sujet détecté dans le répertoire brut
     for subject_dir in subject_dirs:
@@ -1315,19 +1438,25 @@ def _build_all_npy(
             # Ignore explicitement les runs dépourvus d'événements moteurs
             try:
                 _build_npy_from_edf(
+                    # Transmet l'identifiant de sujet courant
                     subject,
+                    # Transmet l'identifiant de run courant
                     run,
-                    data_dir,
-                    raw_dir,
-                    eeg_reference,
+                    # Transmet la configuration de génération des numpy
+                    build_context,
                 )
+            # Capture l'erreur de runs sans événements moteurs pour continuer
             except ValueError as error:
+                # Intercepte l'absence d'événements moteurs pour continuer
                 if "No motor events present" in str(error):
+                    # Informe l'utilisateur que le run est ignoré
                     print(
                         "INFO: Événements moteurs absents pour "
                         f"{subject} {run}, passage."
                     )
+                    # Passe au run suivant après l'information
                     continue
+                # Relance les erreurs inconnues pour signaler un vrai problème
                 raise
 
 
@@ -1353,13 +1482,22 @@ def _train_single_run(
 
     # Prépare la requête complète pour exécuter run_training
     request = TrainingRequest(
+        # Renseigne le sujet cible
         subject=subject,
+        # Renseigne le run cible
         run=run,
+        # Transmet la configuration pipeline
         pipeline_config=resources.pipeline_config,
+        # Transmet le répertoire de données numpy
         data_dir=resources.data_dir,
+        # Transmet le répertoire d'artefacts
         artifacts_dir=resources.artifacts_dir,
+        # Transmet le répertoire des EDF bruts
         raw_dir=resources.raw_dir,
+        # Transmet la référence EEG pour le chargement
         eeg_reference=resources.eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=resources.preprocess_config,
     )
     # Protège l'appel pour signaler les données manquantes sans stopper la boucle
     try:
@@ -1376,24 +1514,12 @@ def _train_single_run(
 
 # Entraîne tous les runs moteurs pour chaque sujet détecté
 def _train_all_runs(
-    config: PipelineConfig,
-    data_dir: Path,
-    artifacts_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str | None,
+    resources: TrainingResources,
 ) -> int:
     """Parcourt les sujets et runs moteurs pour générer tous les modèles."""
 
     # Récupère la liste des sujets disponibles dans le répertoire brut
-    subjects = _list_subjects(raw_dir)
-    # Centralise les ressources immuables pour éviter des répétitions
-    resources = TrainingResources(
-        pipeline_config=config,
-        data_dir=data_dir,
-        artifacts_dir=artifacts_dir,
-        raw_dir=raw_dir,
-        eeg_reference=eeg_reference,
-    )
+    subjects = _list_subjects(resources.raw_dir)
     # Prépare un compteur d'échecs pour informer l'utilisateur à la fin
     failures = 0
     # Parcourt chaque sujet détecté
@@ -1401,7 +1527,7 @@ def _train_all_runs(
         # Parcourt chaque run moteur attendu
         for run in MOTOR_RUNS:
             # Calcule le chemin EDF attendu pour vérifier l'existence
-            raw_path = raw_dir / subject / f"{subject}{run}.edf"
+            raw_path = resources.raw_dir / subject / f"{subject}{run}.edf"
             # Ignore le couple lorsque l'EDF est absent du disque
             if not raw_path.exists():
                 # Informe l'utilisateur de l'absence pour transparence
@@ -1504,9 +1630,7 @@ def _should_check_shapes(
 def _load_data(
     subject: str,
     run: str,
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str | None,
+    build_context: NpyBuildContext,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Charge ou construit les données et étiquettes pour un run.
 
@@ -1520,7 +1644,14 @@ def _load_data(
     run_label = f"{subject} {run}"
 
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    features_path, labels_path = _resolve_data_paths(
+        # Transmet l'identifiant de sujet pour les chemins
+        subject,
+        # Transmet l'identifiant de run pour les chemins
+        run,
+        # Transmet le répertoire de base des numpy
+        build_context.data_dir,
+    )
 
     # Garde un bool strict (évite None, tue le mutant False->None).
     needs_rebuild: bool = False
@@ -1580,11 +1711,12 @@ def _load_data(
     if needs_rebuild:
         # Lance la reconstruction avec la configuration active
         features_path, labels_path = _build_npy_from_edf(
+            # Transmet l'identifiant de sujet pour reconstruire les numpy
             subject,
+            # Transmet l'identifiant de run pour reconstruire les numpy
             run,
-            data_dir,
-            raw_dir,
-            eeg_reference,
+            # Transmet la configuration de génération des numpy
+            build_context,
         )
 
     # Charge les données validées (3D) et labels réalignés
@@ -1916,13 +2048,25 @@ def _train_with_optional_cv(
 def run_training(request: TrainingRequest) -> dict:
     """Entraîne la pipeline et sauvegarde ses artefacts."""
 
+    # Construit le contexte de génération des numpy à partir de la requête
+    build_context = NpyBuildContext(
+        # Transmet le répertoire des numpy
+        data_dir=request.data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir=request.raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference=request.eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=request.preprocess_config,
+    )
     # Charge ou génère les tableaux numpy nécessaires à l'entraînement
     X, y = _load_data(
+        # Transmet le sujet demandé pour chargement
         request.subject,
+        # Transmet le run demandé pour chargement
         request.run,
-        request.data_dir,
-        request.raw_dir,
-        request.eeg_reference,
+        # Transmet le contexte de génération des numpy
+        build_context,
     )
     # Adapte la configuration au niveau d'effectif pour stabiliser l'entraînement
     adapted_config = _adapt_pipeline_config_for_samples(request.pipeline_config, y)
@@ -2022,14 +2166,31 @@ def _apply_epoch_window_config(args: argparse.Namespace) -> None:
 
 
 # Gère la génération complète des fichiers .npy si demandée
-def _maybe_build_all(args: argparse.Namespace) -> bool:
+def _maybe_build_all(
+    args: argparse.Namespace,
+    preprocess_config: preprocessing.PreprocessingConfig,
+) -> bool:
     """Construit tous les .npy et retourne True si exécuté."""
 
     # Ignore si le flag build_all est absent
     if not args.build_all:
         return False
     # Construit les .npy avec la configuration active
-    _build_all_npy(args.raw_dir, args.data_dir, args.eeg_reference)
+    # Construit le contexte de génération des numpy pour la commande build-all
+    build_context = NpyBuildContext(
+        # Transmet le répertoire des numpy
+        data_dir=args.data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir=args.raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference=args.eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
+    )
+    _build_all_npy(
+        # Transmet le contexte de génération des numpy
+        build_context,
+    )
     # Indique qu'une exécution a eu lieu
     return True
 
@@ -2038,6 +2199,7 @@ def _maybe_build_all(args: argparse.Namespace) -> bool:
 def _maybe_train_all(
     args: argparse.Namespace,
     config: PipelineConfig,
+    preprocess_config: preprocessing.PreprocessingConfig,
 ) -> int | None:
     """Lance l'entraînement massif et retourne le code si exécuté."""
 
@@ -2045,28 +2207,61 @@ def _maybe_train_all(
     if not args.train_all:
         return None
     # Lance l'entraînement global avec la configuration active
+    # Construit les ressources partagées pour l'entraînement global
+    resources = TrainingResources(
+        # Transmet la configuration pipeline partagée
+        pipeline_config=config,
+        # Transmet le répertoire des numpy
+        data_dir=args.data_dir,
+        # Transmet le répertoire d'artefacts
+        artifacts_dir=args.artifacts_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir=args.raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference=args.eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
+        # Transmet l'activation du grid search si nécessaire
+        enable_grid_search=args.grid_search,
+        # Transmet le nombre de splits pour la recherche
+        grid_search_splits=args.grid_search_splits,
+    )
     return _train_all_runs(
-        config,
-        args.data_dir,
-        args.artifacts_dir,
-        args.raw_dir,
-        args.eeg_reference,
+        # Transmet les ressources centralisées pour l'entraînement global
+        resources,
     )
 
 
-# Point d'entrée principal pour l'exécution en ligne de commande
-def main(argv: list[str] | None = None) -> int:
-    """Parse les arguments et lance l'entraînement."""
+# Construit la configuration de prétraitement à partir des arguments CLI
+def _build_preprocess_config_from_args(
+    args: argparse.Namespace,
+) -> preprocessing.PreprocessingConfig:
+    """Construit la configuration de prétraitement validée."""
 
-    # Construit le parser pour interpréter les arguments
-    parser = build_parser()
-    # Parse les arguments fournis par l'utilisateur
-    args = parser.parse_args(argv)
-    # Applique la configuration de fenêtres depuis les arguments
-    _apply_epoch_window_config(args)
-    # Exécute la génération massive et s'arrête si le flag est positionné
-    if _maybe_build_all(args):
-        return 0
+    # Refuse une bande passante incohérente pour éviter un filtrage invalide
+    if args.bandpass_low >= args.bandpass_high:
+        # Signale l'incohérence pour la gestion d'erreur CLI
+        raise ValueError("bandpass_low doit être inférieur à bandpass_high")
+    # Construit la configuration de prétraitement à partir des arguments
+    return preprocessing.PreprocessingConfig(
+        # Définit la bande passante MI configurée
+        bandpass_band=(args.bandpass_low, args.bandpass_high),
+        # Définit la fréquence de notch configurée
+        notch_freq=args.notch_freq,
+        # Définit la méthode de normalisation par canal
+        normalize_method=args.normalize_channels,
+        # Définit l'epsilon de stabilité pour la normalisation
+        normalize_epsilon=args.normalize_epsilon,
+    )
+
+
+# Construit la configuration pipeline à partir des arguments CLI
+def _build_pipeline_config_from_args(
+    args: argparse.Namespace,
+    argv: list[str] | None,
+) -> PipelineConfig:
+    """Construit la PipelineConfig alignée sur les arguments CLI."""
+
     # Convertit l'option scaler "none" en None pour la pipeline
     scaler = None if args.scaler == "none" else args.scaler
     # Calcule la valeur de normalisation en inversant le flag d'opt-out
@@ -2075,54 +2270,93 @@ def main(argv: list[str] | None = None) -> int:
     n_components = getattr(args, "n_components", None)
     # Résout la fréquence d'échantillonnage en s'appuyant sur l'EDF si possible
     resolved_sfreq = resolve_sampling_rate(
+        # Transmet l'identifiant de sujet pour la résolution
         args.subject,
+        # Transmet l'identifiant de run pour la résolution
         args.run,
+        # Transmet le répertoire des EDF bruts
         args.raw_dir,
+        # Transmet la fréquence demandée en CLI
         args.sfreq,
+        # Transmet la référence EEG configurée
         args.eeg_reference,
     )
     # Harmonise la stratégie de features si un alias de réduction est fourni
     feature_strategy, dim_method = _resolve_feature_strategy_and_dim_method(
+        # Transmet la stratégie de features demandée
         args.feature_strategy,
+        # Transmet la méthode de réduction demandée
         args.dim_method,
+        # Transmet argv pour tracer les choix explicites
         argv,
     )
     # Résout la méthode de réduction en fonction de la stratégie de features
     dim_method = _resolve_dim_method_for_features(
+        # Transmet la stratégie de features résolue
         feature_strategy,
+        # Transmet la méthode de réduction résolue
         dim_method,
+        # Transmet argv pour tracer les choix explicites
         argv,
     )
     # Construit la configuration de pipeline alignée sur mybci
-    config = PipelineConfig(
+    return PipelineConfig(
+        # Transmet la fréquence d'échantillonnage résolue
         sfreq=resolved_sfreq,
+        # Transmet la stratégie de features résolue
         feature_strategy=feature_strategy,
+        # Transmet le flag de normalisation des features
         normalize_features=normalize,
+        # Transmet la méthode de réduction résolue
         dim_method=dim_method,
+        # Transmet le nombre de composantes demandé
         n_components=n_components,
+        # Transmet le classifieur demandé
         classifier=args.classifier,
+        # Transmet le scaler optionnel demandé
         scaler=scaler,
+        # Transmet la régularisation CSP configurée
         csp_regularization=args.csp_regularization,
     )
-    # Déclenche l'entraînement massif si le flag est activé
-    train_all_status = _maybe_train_all(args, config)
-    # Retourne le code d'exécution si l'entraînement massif a été lancé
-    if train_all_status is not None:
-        return train_all_status
+
+
+# Construit une requête d'entraînement complète à partir des arguments CLI
+def _build_training_request_from_args(
+    args: argparse.Namespace,
+    config: PipelineConfig,
+    preprocess_config: preprocessing.PreprocessingConfig,
+) -> TrainingRequest:
+    """Construit la TrainingRequest alignée sur les arguments CLI."""
+
     # Regroupe les paramètres d'entraînement dans une structure dédiée
-    # Regroupe les paramètres d'entraînement dans une structure dédiée
-    request = TrainingRequest(
+    return TrainingRequest(
+        # Renseigne le sujet cible
         subject=args.subject,
+        # Renseigne le run cible
         run=args.run,
+        # Transmet la configuration pipeline choisie
         pipeline_config=config,
+        # Transmet le répertoire des numpy
         data_dir=args.data_dir,
+        # Transmet le répertoire d'artefacts
         artifacts_dir=args.artifacts_dir,
+        # Transmet le répertoire des EDF bruts
         raw_dir=args.raw_dir,
+        # Transmet la référence EEG configurée
         eeg_reference=args.eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
+        # Transmet le flag d'activation du grid search
         enable_grid_search=args.grid_search,
+        # Transmet le nombre de splits pour la recherche si fourni
         grid_search_splits=args.grid_search_splits,
     )
-    # Exécute l'entraînement et la sauvegarde des artefacts
+
+
+# Exécute l'entraînement et affiche le résumé CLI
+def _execute_training_request(request: TrainingRequest) -> int:
+    """Exécute run_training et imprime le résumé CLI."""
+
     # Sécurise l'exécution pour afficher une erreur lisible sans trace
     try:
         # Lance l'entraînement et récupère le rapport pour afficher les scores
@@ -2159,7 +2393,14 @@ def main(argv: list[str] | None = None) -> int:
     if isinstance(cv_scores, np.ndarray) and cv_scores.size > 0:
         # Force quatre décimales fixes pour suivre l'exemple du sujet
         formatted_scores = np.array2string(
-            cv_scores, precision=4, separator=" ", floatmode="fixed"
+            # Transmet les scores CV pour formater l'affichage
+            cv_scores,
+            # Force quatre décimales pour l'alignement visuel
+            precision=4,
+            # Définit le séparateur pour coller au format attendu
+            separator=" ",
+            # Force un format fixe pour les flottants
+            floatmode="fixed",
         )
         # Affiche le tableau numpy (format [0.6666 0.4444 ...])
         print(formatted_scores)
@@ -2174,6 +2415,52 @@ def main(argv: list[str] | None = None) -> int:
 
     # Retourne 0 pour signaler un succès CLI à mybci
     return 0
+
+
+# Exécute la logique CLI principale une fois les arguments parsés
+def _run_from_args(
+    args: argparse.Namespace,
+    argv: list[str] | None,
+) -> int:
+    """Orchestre les étapes CLI pour l'entraînement."""
+
+    # Construit la configuration de prétraitement validée
+    preprocess_config = _build_preprocess_config_from_args(args)
+    # Applique la configuration de fenêtres depuis les arguments
+    _apply_epoch_window_config(args)
+    # Exécute la génération massive et s'arrête si le flag est positionné
+    if _maybe_build_all(args, preprocess_config):
+        return 0
+    # Construit la configuration pipeline alignée sur les arguments
+    config = _build_pipeline_config_from_args(args, argv)
+    # Déclenche l'entraînement massif si le flag est activé
+    train_all_status = _maybe_train_all(args, config, preprocess_config)
+    # Retourne le code d'exécution si l'entraînement massif a été lancé
+    if train_all_status is not None:
+        return train_all_status
+    # Construit la requête d'entraînement complète
+    request = _build_training_request_from_args(args, config, preprocess_config)
+    # Exécute l'entraînement et l'affichage CLI
+    return _execute_training_request(request)
+
+
+# Point d'entrée principal pour l'exécution en ligne de commande
+def main(argv: list[str] | None = None) -> int:
+    """Parse les arguments et lance l'entraînement."""
+
+    # Construit le parser pour interpréter les arguments
+    parser = build_parser()
+    # Parse les arguments fournis par l'utilisateur
+    args = parser.parse_args(argv)
+    # Exécute l'orchestration CLI avec gestion d'erreur utilisateur
+    try:
+        # Lance l'orchestration des étapes CLI
+        return _run_from_args(args, argv)
+    except ValueError as error:
+        # Informe l'utilisateur d'une configuration invalide
+        print(f"ERREUR: {error}")
+        # Retourne un code d'erreur explicite pour la CLI
+        return 1
 
 
 # Protège l'exécution directe pour exposer un exit code explicite

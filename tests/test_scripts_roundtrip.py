@@ -33,6 +33,48 @@ from scripts.train import (
 from tpv.pipeline import PipelineConfig
 
 
+# Construit un contexte de génération des numpy pour les tests roundtrip
+def _build_npy_context(
+    data_dir: Path,
+    raw_dir: Path,
+    eeg_reference: str,
+) -> train.NpyBuildContext:
+    # Construit une configuration de prétraitement par défaut
+    preprocess_config = train.preprocessing.PreprocessingConfig()
+    # Retourne le contexte complet pour charger/générer les numpy
+    return train.NpyBuildContext(
+        # Transmet le répertoire de base des numpy
+        data_dir=data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir=raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference=eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
+    )
+
+
+# Charge les données via l'API interne en utilisant un contexte explicite
+def _load_data_with_context(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+    eeg_reference: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    # Construit le contexte de génération des numpy
+    build_context = _build_npy_context(
+        # Transmet le répertoire de base des numpy
+        data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference,
+    )
+    # Délègue à l'API interne avec contexte explicite
+    return train._load_data(subject, run, build_context)
+
+
 # Vérifie qu'entraînement et prédiction produisent manifestes et rapports
 def test_train_and_predict_produce_manifests_and_reports(tmp_path):
     """Valide l'intégration train/predict sur données jouets."""
@@ -420,13 +462,17 @@ def test_load_data_rebuilds_after_corruption(tmp_path, monkeypatch):
     calls: list[tuple[str, str, str | None]] = []
 
     # Déclare un stub pour remplacer la reconstruction EDF pendant le test
-    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg, eeg_reference):
+    def fake_build_npy(
+        subject_arg: str,
+        run_arg: str,
+        build_context: train.NpyBuildContext,
+    ):
         # Archive les arguments pour vérifier la propagation des paramètres
-        calls.append((subject_arg, run_arg, eeg_reference))
+        calls.append((subject_arg, run_arg, build_context.eeg_reference))
         # Construit les chemins de sortie pour les fichiers régénérés
-        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
+        features_path = build_context.data_dir / subject_arg / f"{run_arg}_X.npy"
         # Construit le chemin des labels pour rester cohérent avec _load_data
-        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+        labels_path = build_context.data_dir / subject_arg / f"{run_arg}_y.npy"
         # Sauvegarde les features reconstruites pour remplacer le fichier corrompu
         np.save(features_path, rebuilt_X)
         # Sauvegarde les labels régénérés pour réaligner X et y
@@ -438,7 +484,7 @@ def test_load_data_rebuilds_after_corruption(tmp_path, monkeypatch):
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_build_npy)
 
     # Charge les données, ce qui doit déclencher la reconstruction simulée
-    X, y = train._load_data(subject, run, data_dir, raw_dir, "average")
+    X, y = _load_data_with_context(subject, run, data_dir, raw_dir, "average")
 
     # Vérifie que la reconstruction a bien été invoquée pendant le chargement
     assert calls == [(subject, run, "average")]
@@ -480,13 +526,17 @@ def test_load_data_rebuilds_invalid_numpy_payloads(tmp_path, monkeypatch, scenar
     calls: list[tuple[str, str, str | None]] = []
 
     # Déclare un stub de reconstruction pour simuler l'EDF absent du test
-    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg, eeg_reference):
+    def fake_build_npy(
+        subject_arg: str,
+        run_arg: str,
+        build_context: train.NpyBuildContext,
+    ):
         # Archive les arguments reçus pour vérifier la propagation complète
-        calls.append((subject_arg, run_arg, eeg_reference))
+        calls.append((subject_arg, run_arg, build_context.eeg_reference))
         # Calcule le chemin des features reconstruites pour remplacer l'entrée
-        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
+        features_path = build_context.data_dir / subject_arg / f"{run_arg}_X.npy"
         # Calcule le chemin des labels reconstruits pour réaligner les échantillons
-        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+        labels_path = build_context.data_dir / subject_arg / f"{run_arg}_y.npy"
         # Sauvegarde les features simulées pour annuler les fichiers invalides
         np.save(features_path, rebuilt_X)
         # Sauvegarde les labels simulés pour aligner la longueur avec X
@@ -513,7 +563,7 @@ def test_load_data_rebuilds_invalid_numpy_payloads(tmp_path, monkeypatch, scenar
         np.save(subject_dir / f"{run}_y.npy", np.array([0, 1, 1]))
 
     # Charge les données, ce qui doit forcer la reconstruction simulée
-    X, y = train._load_data(subject, run, data_dir, raw_dir, "average")
+    X, y = _load_data_with_context(subject, run, data_dir, raw_dir, "average")
 
     # Vérifie que la reconstruction a été invoquée exactement une fois
     assert calls == [(subject, run, "average")]
@@ -549,11 +599,15 @@ def test_load_data_logs_corrupted_reason(tmp_path, monkeypatch, capsys):
     rebuilt_y = np.array([1, 1])
 
     # Déclare un stub pour simuler la reconstruction EDF pendant le test
-    def fake_build_npy(subject_arg, run_arg, data_arg, raw_arg, eeg_reference):
+    def fake_build_npy(
+        subject_arg: str,
+        run_arg: str,
+        build_context: train.NpyBuildContext,
+    ):
         # Construit le chemin des features reconstruites pour remplacer le X corrompu
-        features_path = data_arg / subject_arg / f"{run_arg}_X.npy"
+        features_path = build_context.data_dir / subject_arg / f"{run_arg}_X.npy"
         # Construit le chemin des labels reconstruits pour aligner X et y
-        labels_path = data_arg / subject_arg / f"{run_arg}_y.npy"
+        labels_path = build_context.data_dir / subject_arg / f"{run_arg}_y.npy"
         # Sauvegarde les features reconstruites pour la suite du test
         np.save(features_path, rebuilt_X)
         # Sauvegarde les labels reconstruits pour permettre le chargement final
@@ -565,7 +619,7 @@ def test_load_data_logs_corrupted_reason(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_build_npy)
 
     # Charge les données pour déclencher la reconstruction et le log associé
-    X, y = train._load_data(subject, run, data_dir, raw_dir, "average")
+    X, y = _load_data_with_context(subject, run, data_dir, raw_dir, "average")
     # Capture les sorties pour inspecter le message de corruption
     captured = capsys.readouterr().out
 

@@ -67,6 +67,7 @@ from tpv.preprocessing import (
     map_events_and_validate,
     map_events_to_motor_labels,
     normalize_channels,
+    normalize_epoch_data,
     quality_control_epochs,
     report_epoch_anomalies,
     summarize_epoch_quality,
@@ -178,6 +179,52 @@ def test_apply_bandpass_filter_preserves_shape_and_stability() -> None:
     assert np.max(np.abs(fir_filtered.get_data())) < MAX_FILTER_AMPLITUDE
     # Ensure IIR filtering also remains within the expected amplitude range
     assert np.max(np.abs(iir_filtered.get_data())) < MAX_FILTER_AMPLITUDE
+
+
+def test_apply_bandpass_filter_respects_frequency_band() -> None:
+    """Ensure the band-pass preserves MI band energy and attenuates outside."""
+
+    # Fixe la fréquence d'échantillonnage pour une résolution fine
+    sfreq = 256.0
+    # Fixe une durée suffisante pour isoler les composantes fréquentielles
+    duration = 4.0
+    # Construit le vecteur temps pour synthétiser un signal sinusoïdal
+    times = np.arange(int(sfreq * duration)) / sfreq
+    # Construit une composante dans la bande MI (10 Hz)
+    in_band = np.sin(2 * np.pi * 10.0 * times)
+    # Construit une composante hors bande (45 Hz)
+    out_band = 0.5 * np.sin(2 * np.pi * 45.0 * times)
+    # Superpose les composantes pour simuler un signal bruité
+    signal = in_band + out_band
+    # Duplique sur deux canaux pour obtenir un tableau EEG minimal
+    data = np.vstack([signal, signal])
+    # Construit les métadonnées MNE pour un RawArray EEG
+    info = mne.create_info(ch_names=["C3", "C4"], sfreq=sfreq, ch_types="eeg")
+    # Assemble le RawArray pour appliquer le filtrage MNE
+    raw = mne.io.RawArray(data, info)
+    # Applique un filtrage passe-bande MI standard
+    filtered = apply_bandpass_filter(
+        # Transmet le RawArray synthétique à filtrer
+        raw,
+        # Force le design FIR pour une atténuation stable
+        method="fir",
+        # Spécifie la bande MI à préserver
+        freq_band=(8.0, 30.0),
+        # Ajoute un padding pour limiter les effets de bord
+        pad_duration=0.5,
+    )
+    # Récupère les données filtrées du premier canal
+    filtered_data = filtered.get_data()[0]
+    # Calcule le spectre de magnitude par FFT pour estimer l'énergie
+    spectrum = np.abs(np.fft.rfft(filtered_data))
+    # Calcule les fréquences associées aux bins FFT
+    freqs = np.fft.rfftfreq(filtered_data.size, d=1.0 / sfreq)
+    # Localise le bin le plus proche de 10 Hz
+    idx_in_band = int(np.argmin(np.abs(freqs - 10.0)))
+    # Localise le bin le plus proche de 45 Hz
+    idx_out_band = int(np.argmin(np.abs(freqs - 45.0)))
+    # Vérifie que l'énergie en bande reste largement supérieure
+    assert spectrum[idx_in_band] > spectrum[idx_out_band] * 5
 
 
 def test_apply_bandpass_filter_latency_benchmark() -> None:
@@ -2771,6 +2818,17 @@ def test_normalize_channels_supports_zscore_and_robust() -> None:
     robust_signal = normalize_channels(signal, method="robust")
     # Contrôle que la médiane robuste est centrée à zéro pour chaque canal
     assert np.allclose(np.median(robust_signal, axis=1), 0.0)
+
+
+def test_normalize_epoch_data_preserves_shape() -> None:
+    """Ensure epoch normalization keeps the original (trials, ch, time) shape."""
+
+    # Construit un cube d'epochs minimal pour tester la forme
+    epochs_data = np.arange(24, dtype=float).reshape(2, 3, 4)
+    # Applique la normalisation par canal sur chaque epoch
+    normalized = normalize_epoch_data(epochs_data, method="zscore")
+    # Vérifie que la forme est identique à l'entrée
+    assert normalized.shape == epochs_data.shape
 
 
 def test_normalize_channels_robust_respects_epsilon() -> None:

@@ -13,6 +13,48 @@ from pytest import CaptureFixture, MonkeyPatch
 from scripts import train
 
 
+# Construit un contexte de génération des numpy pour les tests
+def _build_npy_context(
+    data_dir: Path,
+    raw_dir: Path,
+    eeg_reference: str,
+) -> train.NpyBuildContext:
+    # Construit une configuration de prétraitement par défaut
+    preprocess_config = train.preprocessing.PreprocessingConfig()
+    # Retourne le contexte complet pour charger/générer les numpy
+    return train.NpyBuildContext(
+        # Transmet le répertoire de base des numpy
+        data_dir=data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir=raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference=eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
+    )
+
+
+# Charge les données via la nouvelle signature tout en gardant les tests lisibles
+def _load_data_with_context(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    raw_dir: Path,
+    eeg_reference: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    # Construit le contexte de génération des numpy
+    build_context = _build_npy_context(
+        # Transmet le répertoire de base des numpy
+        data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference,
+    )
+    # Délègue à l'API interne avec contexte explicite
+    return train._load_data(subject, run, build_context)
+
+
 # Récupère une action argparse via son dest pour assertions stables
 def _get_action(parser: argparse.ArgumentParser, dest: str) -> argparse.Action:
     # Parcourt toutes les actions déclarées dans argparse
@@ -118,10 +160,100 @@ def test_build_parser_parses_defaults_and_suppresses_n_components() -> None:
     assert args.dim_method == "csp"
     assert args.build_all is False
     assert args.train_all is False
+
+
+def test_build_preprocess_config_from_args_accepts_valid_bandpass() -> None:
+    # Construit le parser pour simuler des arguments CLI
+    parser = train.build_parser()
+    # Parse des arguments avec une bande passante MI personnalisée
+    args = parser.parse_args(
+        ["S001", "R01", "--bandpass-low", "7", "--bandpass-high", "35"]
+    )
+    # Construit la configuration de prétraitement via le helper
+    config = train._build_preprocess_config_from_args(args)
+    # Vérifie que la bande passante est bien propagée
+    assert config.bandpass_band == (7.0, 35.0)
+
+
+def test_build_preprocess_config_from_args_rejects_invalid_bandpass() -> None:
+    # Construit le parser pour simuler des arguments CLI
+    parser = train.build_parser()
+    # Parse des arguments avec une bande passante inversée
+    args = parser.parse_args(
+        ["S001", "R01", "--bandpass-low", "30", "--bandpass-high", "8"]
+    )
+    # Vérifie que la validation lève une erreur explicite
+    with pytest.raises(ValueError):
+        train._build_preprocess_config_from_args(args)
+
+
+def test_build_pipeline_config_from_args_respects_no_normalize_flag() -> None:
+    # Construit le parser pour simuler des arguments CLI
+    parser = train.build_parser()
+    # Prépare une liste d'arguments avec sfreq explicite
+    argv = ["S001", "R01", "--sfreq", "120", "--no-normalize-features"]
+    # Parse les arguments afin de générer un Namespace cohérent
+    args = parser.parse_args(argv)
+    # Construit la configuration pipeline via le helper
+    config = train._build_pipeline_config_from_args(args, argv)
+    # Vérifie que la normalisation des features est désactivée
+    assert config.normalize_features is False
+    # Vérifie que la fréquence d'échantillonnage est propagée
+    assert config.sfreq == 120.0
+
+
+def test_build_training_request_from_args_propagates_preprocess_config() -> None:
+    # Construit le parser pour simuler des arguments CLI
+    parser = train.build_parser()
+    # Prépare des arguments CLI minimaux
+    argv = ["S001", "R01", "--sfreq", "120"]
+    # Parse les arguments pour obtenir un Namespace cohérent
+    args = parser.parse_args(argv)
+    # Construit une configuration de prétraitement dédiée
+    preprocess_config = train.preprocessing.PreprocessingConfig(
+        normalize_method="robust"
+    )
+    # Construit la configuration pipeline pour la requête
+    config = train._build_pipeline_config_from_args(args, argv)
+    # Construit la requête d'entraînement
+    request = train._build_training_request_from_args(args, config, preprocess_config)
+    # Vérifie que la configuration de prétraitement est propagée
+    assert request.preprocess_config.normalize_method == "robust"
+
+
+def test_run_from_args_delegates_to_execute_training_request(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    # Construit le parser pour simuler des arguments CLI
+    parser = train.build_parser()
+    # Prépare des arguments CLI minimaux avec sfreq explicite
+    argv = ["S001", "R01", "--sfreq", "120"]
+    # Parse les arguments pour obtenir un Namespace cohérent
+    args = parser.parse_args(argv)
+    # Force _maybe_build_all à rester inactif
+    monkeypatch.setattr(train, "_maybe_build_all", lambda *_args, **_kwargs: False)
+    # Force _maybe_train_all à rester inactif
+    monkeypatch.setattr(train, "_maybe_train_all", lambda *_args, **_kwargs: None)
+    # Prépare un conteneur pour la requête transmise
+    captured: dict[str, object] = {}
+
+    # Remplace l'exécution finale pour éviter un entraînement réel
+    def fake_execute(request: train.TrainingRequest) -> int:
+        captured["request"] = request
+        return 0
+
+    # Injecte le stub pour capturer la requête finale
+    monkeypatch.setattr(train, "_execute_training_request", fake_execute)
+    # Exécute le flow CLI interne
+    exit_code = train._run_from_args(args, argv)
+    # Vérifie que l'exécution s'est bien terminée
+    assert exit_code == 0
+    # Vérifie qu'une requête d'entraînement a été transmise
+    assert isinstance(captured["request"], train.TrainingRequest)
     assert args.grid_search is False
     assert args.grid_search_splits is None
     assert "n_components" not in vars(args)
-    assert args.sfreq == train.DEFAULT_SAMPLING_RATE
+    assert args.sfreq == 120.0
     assert args.csp_regularization == 0.1
 
 
@@ -243,7 +375,7 @@ def test_load_data_does_not_log_corruption_info_on_clean_files(
 
     monkeypatch.setattr(train, "_build_npy_from_edf", unexpected_rebuild)
 
-    loaded_x, loaded_y = train._load_data(
+    loaded_x, loaded_y = _load_data_with_context(
         subject, run, data_dir, tmp_path / "raw", "average"
     )
     assert loaded_x.shape == X.shape
@@ -274,12 +406,10 @@ def test_load_data_rebuilds_silently_when_one_file_is_missing(
     def fake_rebuild(
         subject_arg: str,
         run_arg: str,
-        data_dir_arg: Path,
-        raw_dir: Path,
-        eeg_reference: str | None,
+        build_context: train.NpyBuildContext,
     ):
-        called["raw_dir"] = raw_dir
-        called["reference"] = eeg_reference
+        called["raw_dir"] = build_context.raw_dir
+        called["reference"] = build_context.eeg_reference
         x_new = np.zeros((5, 2, 8), dtype=float)
         y_new = np.zeros((5,), dtype=int)
         np.save(subject_dir / f"{run}_X.npy", x_new)
@@ -288,7 +418,7 @@ def test_load_data_rebuilds_silently_when_one_file_is_missing(
 
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
 
-    loaded_x, loaded_y = train._load_data(
+    loaded_x, loaded_y = _load_data_with_context(
         subject, run, data_dir, tmp_path / "raw", "average"
     )
     assert called["raw_dir"] == tmp_path / "raw"
@@ -331,7 +461,7 @@ def test_load_data_uses_mmap_mode_read_for_shape_validation(
 
     monkeypatch.setattr(train.np, "load", fake_np_load)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
 
     assert len(calls) == 4
     assert calls[0][1] == "r"
@@ -391,7 +521,7 @@ def test_load_data_initializes_candidate_buffers_as_none_before_loading(
     previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
-        train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+        _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
     finally:
         sys.settrace(previous_tracer)
 
@@ -491,7 +621,7 @@ def test_load_data_forwards_needs_rebuild_bool_to_should_check_shapes_on_clean_f
 
     monkeypatch.setattr(train, "_should_check_shapes", spy)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
 
     assert "args" in captured
     needs_rebuild, corrupted_reason, candidate_X, candidate_y = cast(
@@ -527,9 +657,7 @@ def test_load_data_reports_real_numpy_error_reason(
     def fake_rebuild(
         _subject: str,
         _run: str,
-        _data_dir: Path,
-        _raw_dir: Path,
-        _eeg_reference: str | None,
+        _build_context: train.NpyBuildContext,
     ):
         np.save(features_path, np.zeros((5, 2, 8), dtype=float))
         np.save(labels_path, np.zeros((5,), dtype=int))
@@ -550,7 +678,7 @@ def test_load_data_reports_real_numpy_error_reason(
 
     monkeypatch.setattr(train.np, "load", fake_np_load)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
 
     captured = capsys.readouterr()
     output = captured.out + captured.err
@@ -587,7 +715,7 @@ def test_load_data_logs_features_ndim_mismatch_with_stable_prefix(
 
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
 
     captured = capsys.readouterr()
     output = captured.out + captured.err
@@ -628,7 +756,7 @@ def test_load_data_logs_labels_ndim_mismatch_with_stable_prefix_and_triggers_reb
 
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
 
-    loaded_x, loaded_y = train._load_data(
+    loaded_x, loaded_y = _load_data_with_context(
         subject, run, data_dir, tmp_path / "raw", "average"
     )
 
@@ -689,7 +817,7 @@ def test_load_data_keeps_needs_rebuild_boolean_when_nothing_to_rebuild(
     previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
-        train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+        _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
     finally:
         sys.settrace(previous_tracer)
 
@@ -735,7 +863,7 @@ def test_load_data_keeps_needs_rebuild_strict_false_before_bool_coercion_on_clea
     previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
-        train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+        _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
     finally:
         sys.settrace(previous_tracer)
 
@@ -764,9 +892,7 @@ def test_load_data_sets_needs_rebuild_true_inside_numpy_load_except_before_corru
     def fake_rebuild(
         _s: str,
         _r: str,
-        _d: Path,
-        _raw: Path,
-        _eeg_reference: str | None,
+        _build_context: train.NpyBuildContext,
     ):
         np.save(features_path, np.zeros((2, 1, 4), dtype=float))
         np.save(labels_path, np.zeros((2,), dtype=int))
@@ -827,7 +953,7 @@ def test_load_data_sets_needs_rebuild_true_inside_numpy_load_except_before_corru
     previous_tracer = sys.gettrace()
     sys.settrace(tracer)
     try:
-        train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+        _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
     finally:
         sys.settrace(previous_tracer)
 
@@ -858,9 +984,7 @@ def test_load_data_forwards_corrupted_reason_to_should_check_shapes_on_numpy_err
     def fake_rebuild(
         _s: str,
         _r: str,
-        _d: Path,
-        _raw: Path,
-        _eeg_reference: str | None,
+        _build_context: train.NpyBuildContext,
     ):
         np.save(features_path, np.zeros((2, 1, 4), dtype=float))
         np.save(labels_path, np.zeros((2,), dtype=int))
@@ -892,7 +1016,7 @@ def test_load_data_forwards_corrupted_reason_to_should_check_shapes_on_numpy_err
 
     monkeypatch.setattr(train, "_should_check_shapes", spy)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
 
     assert "args" in captured
     needs_rebuild, corrupted_reason, _candidate_X, _candidate_y = cast(
@@ -933,11 +1057,9 @@ def test_load_data_reports_misalignment_with_correct_shape0(
     def fake_rebuild(
         subject_arg: str,
         run_arg: str,
-        data_dir_arg: Path,
-        raw_dir: Path,
-        eeg_reference: str | None,
+        build_context: train.NpyBuildContext,
     ):
-        rebuild_calls.append((raw_dir, eeg_reference))
+        rebuild_calls.append((build_context.raw_dir, build_context.eeg_reference))
         # CORRECTION : x_new (minuscule) au lieu de X_new
         x_new = np.zeros((5, 2, 8), dtype=float)
         y_new = np.zeros((5,), dtype=int)
@@ -948,7 +1070,7 @@ def test_load_data_reports_misalignment_with_correct_shape0(
 
     monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
 
     out_lines = capsys.readouterr().out.splitlines()
     assert out_lines[0].startswith("INFO: Désalignement détecté pour ")
@@ -981,6 +1103,257 @@ def test_flatten_hyperparams_preserves_string_content_for_nested_dicts() -> None
     flattened = train._flatten_hyperparams(hyperparams)
 
     assert flattened["dimensionality"] == '{"method": "pca", "n_components": 2}'
+
+
+def test_build_npy_from_edf_applies_notch_and_normalization(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    # Définit un sujet/run pour construire un contexte minimal
+    subject = "S001"
+    # Définit un run pour générer les chemins EDF
+    run = "R01"
+    # Prépare le répertoire data pour écrire les .npy
+    data_dir = tmp_path / "data"
+    # Prépare le répertoire raw pour simuler l'EDF
+    raw_dir = tmp_path / "raw"
+    # Construit le chemin EDF attendu par la fonction
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Crée l'arborescence de l'EDF factice
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    # Écrit un fichier EDF factice pour passer le check d'existence
+    raw_path.write_text("stub")
+
+    # Prépare une configuration de prétraitement avec notch et z-score
+    preprocess_config = train.preprocessing.PreprocessingConfig(
+        bandpass_band=(8.0, 30.0),
+        notch_freq=50.0,
+        normalize_method="zscore",
+        normalize_epsilon=1e-8,
+    )
+    # Construit le contexte nécessaire à _build_npy_from_edf
+    build_context = train.NpyBuildContext(
+        data_dir=data_dir,
+        raw_dir=raw_dir,
+        eeg_reference="average",
+        preprocess_config=preprocess_config,
+    )
+
+    # Prépare des epochs factices pour la sélection de fenêtre
+    epochs_data = np.arange(24, dtype=float).reshape(2, 3, 4)
+    # Prépare des labels factices alignés sur les epochs
+    labels = np.array([0, 1])
+
+    # Neutralise le chargement EDF pour éviter une dépendance MNE
+    monkeypatch.setattr(
+        train.preprocessing,
+        "load_physionet_raw",
+        lambda *_args, **_kwargs: (object(), {}),
+    )
+    # Neutralise le notch pour éviter un filtrage réel
+    monkeypatch.setattr(
+        train.preprocessing, "apply_notch_filter", lambda raw, **_kwargs: raw
+    )
+    # Neutralise le filtre passe-bande pour éviter un filtrage réel
+    monkeypatch.setattr(
+        train.preprocessing, "apply_bandpass_filter", lambda raw, **_kwargs: raw
+    )
+    # Fournit un mapping d'événements minimal
+    monkeypatch.setattr(
+        train.preprocessing,
+        "map_events_to_motor_labels",
+        lambda *_args, **_kwargs: (np.zeros((2, 3), dtype=int), {"A": 1}, ["A", "B"]),
+    )
+    # Neutralise la résolution des fenêtres pour isoler la sélection
+    monkeypatch.setattr(
+        train, "resolve_epoch_windows", lambda *_args, **_kwargs: [(0.0, 1.0)]
+    )
+    # Neutralise la sélection de fenêtre pour injecter des epochs factices
+    monkeypatch.setattr(
+        train,
+        "_select_best_epoch_window",
+        lambda *_args, **_kwargs: ((0.0, 1.0), epochs_data, labels),
+    )
+
+    # Lance la construction des .npy
+    features_path, labels_path = train._build_npy_from_edf(subject, run, build_context)
+    # Charge les features générés pour vérifier la normalisation
+    saved_features = np.load(features_path)
+    # Vérifie que la normalisation z-score centre les données
+    assert np.allclose(np.mean(saved_features, axis=2), 0.0)
+    # Vérifie que les labels sont bien persistés
+    assert np.array_equal(np.load(labels_path), labels)
+
+
+def test_build_npy_from_edf_skips_notch_and_normalization(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    # Définit un sujet/run pour construire un contexte minimal
+    subject = "S002"
+    # Définit un run pour générer les chemins EDF
+    run = "R02"
+    # Prépare le répertoire data pour écrire les .npy
+    data_dir = tmp_path / "data"
+    # Prépare le répertoire raw pour simuler l'EDF
+    raw_dir = tmp_path / "raw"
+    # Construit le chemin EDF attendu par la fonction
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Crée l'arborescence de l'EDF factice
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    # Écrit un fichier EDF factice pour passer le check d'existence
+    raw_path.write_text("stub")
+
+    # Prépare une configuration de prétraitement sans notch ni normalisation
+    preprocess_config = train.preprocessing.PreprocessingConfig(
+        bandpass_band=(8.0, 30.0),
+        notch_freq=0.0,
+        normalize_method="none",
+        normalize_epsilon=1e-8,
+    )
+    # Construit le contexte nécessaire à _build_npy_from_edf
+    build_context = train.NpyBuildContext(
+        data_dir=data_dir,
+        raw_dir=raw_dir,
+        eeg_reference="average",
+        preprocess_config=preprocess_config,
+    )
+
+    # Prépare des epochs factices pour la sélection de fenêtre
+    epochs_data = np.ones((2, 2, 3), dtype=float)
+    # Prépare des labels factices alignés sur les epochs
+    labels = np.array([0, 1])
+
+    # Neutralise le chargement EDF pour éviter une dépendance MNE
+    monkeypatch.setattr(
+        train.preprocessing,
+        "load_physionet_raw",
+        lambda *_args, **_kwargs: (object(), {}),
+    )
+    # Neutralise le filtre passe-bande pour éviter un filtrage réel
+    monkeypatch.setattr(
+        train.preprocessing, "apply_bandpass_filter", lambda raw, **_kwargs: raw
+    )
+    # Fournit un mapping d'événements minimal
+    monkeypatch.setattr(
+        train.preprocessing,
+        "map_events_to_motor_labels",
+        lambda *_args, **_kwargs: (np.zeros((2, 3), dtype=int), {"A": 1}, ["A", "B"]),
+    )
+    # Neutralise la résolution des fenêtres pour isoler la sélection
+    monkeypatch.setattr(
+        train, "resolve_epoch_windows", lambda *_args, **_kwargs: [(0.0, 1.0)]
+    )
+    # Neutralise la sélection de fenêtre pour injecter des epochs factices
+    monkeypatch.setattr(
+        train,
+        "_select_best_epoch_window",
+        lambda *_args, **_kwargs: ((0.0, 1.0), epochs_data, labels),
+    )
+
+    # Lance la construction des .npy
+    features_path, labels_path = train._build_npy_from_edf(subject, run, build_context)
+    # Vérifie que les features brutes sont conservées
+    assert np.array_equal(np.load(features_path), epochs_data)
+    # Vérifie que les labels sont bien persistés
+    assert np.array_equal(np.load(labels_path), labels)
+
+
+def test_build_all_npy_calls_builder_for_edf_files(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    # Définit un sujet et un run pour simuler un EDF
+    subject = "S010"
+    # Définit un run pour construire un nom EDF valide
+    run = "R03"
+    # Prépare le répertoire raw contenant l'EDF
+    raw_dir = tmp_path / "raw"
+    # Prépare le répertoire data pour le contexte
+    data_dir = tmp_path / "data"
+    # Construit le chemin EDF attendu par _build_all_npy
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Crée l'arborescence et le fichier EDF factice
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    # Écrit un contenu factice pour l'EDF
+    raw_path.write_text("stub")
+
+    # Prépare une configuration de prétraitement par défaut
+    preprocess_config = train.preprocessing.PreprocessingConfig()
+    # Construit le contexte nécessaire à _build_all_npy
+    build_context = train.NpyBuildContext(
+        data_dir=data_dir,
+        raw_dir=raw_dir,
+        eeg_reference="average",
+        preprocess_config=preprocess_config,
+    )
+
+    # Trace les appels faits à _build_npy_from_edf
+    calls: list[tuple[str, str]] = []
+
+    # Remplace _build_npy_from_edf pour tracer les appels
+    def fake_build_npy(
+        subject_arg: str,
+        run_arg: str,
+        _ctx: train.NpyBuildContext,
+    ) -> tuple[Path, Path]:
+        calls.append((subject_arg, run_arg))
+        return Path("X.npy"), Path("y.npy")
+
+    # Injecte le stub pour éviter un traitement EDF réel
+    monkeypatch.setattr(train, "_build_npy_from_edf", fake_build_npy)
+
+    # Exécute la génération pour détecter l'appel
+    train._build_all_npy(build_context)
+    # Vérifie que le run EDF a bien été traité
+    assert calls == [(subject, run)]
+
+
+def test_build_all_npy_skips_runs_without_events(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    # Définit un sujet et un run pour simuler un EDF
+    subject = "S011"
+    # Définit un run pour construire un nom EDF valide
+    run = "R04"
+    # Prépare le répertoire raw contenant l'EDF
+    raw_dir = tmp_path / "raw"
+    # Prépare le répertoire data pour le contexte
+    data_dir = tmp_path / "data"
+    # Construit le chemin EDF attendu par _build_all_npy
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Crée l'arborescence et le fichier EDF factice
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    # Écrit un contenu factice pour l'EDF
+    raw_path.write_text("stub")
+
+    # Prépare une configuration de prétraitement par défaut
+    preprocess_config = train.preprocessing.PreprocessingConfig()
+    # Construit le contexte nécessaire à _build_all_npy
+    build_context = train.NpyBuildContext(
+        data_dir=data_dir,
+        raw_dir=raw_dir,
+        eeg_reference="average",
+        preprocess_config=preprocess_config,
+    )
+
+    # Remplace _build_npy_from_edf pour simuler l'absence d'événements
+    monkeypatch.setattr(
+        train,
+        "_build_npy_from_edf",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ValueError("No motor events present")
+        ),
+    )
+
+    # Exécute la génération pour déclencher la branche de skip
+    train._build_all_npy(build_context)
+    # Capture la sortie standard pour vérifier le log
+    captured = capsys.readouterr().out
+    # Vérifie que le message d'information est bien émis
+    assert "Événements moteurs absents" in captured
 
 
 def test_write_manifest_json_uses_indent_2_and_bool_false_ensure_ascii(
@@ -1172,7 +1545,7 @@ def test_load_data_uses_ndarray_casts_for_validated_buffers(
 
     monkeypatch.setattr(train, "cast", spy_cast)
 
-    train._load_data(subject, run, data_dir, tmp_path / "raw", "average")
+    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
 
     # Vérifie que cast a été appelé avec np.ndarray pour X et y
     # Si mutmut remplace par cast(None, ...), ces assertions échoueront
@@ -1184,8 +1557,12 @@ def test_load_data_uses_ndarray_casts_for_validated_buffers(
 def test_main_build_all_invokes_builder(monkeypatch, tmp_path):
     called: dict[str, tuple] = {}
 
-    def fake_build_all(raw_dir, data_dir, eeg_reference):
-        called["args"] = (raw_dir, data_dir, eeg_reference)
+    def fake_build_all(build_context: train.NpyBuildContext):
+        called["args"] = (
+            build_context.raw_dir,
+            build_context.data_dir,
+            build_context.eeg_reference,
+        )
 
     monkeypatch.setattr(train, "_build_all_npy", fake_build_all)
     raw_dir = tmp_path / "raw"
@@ -1207,12 +1584,76 @@ def test_main_build_all_invokes_builder(monkeypatch, tmp_path):
     assert called["args"] == (raw_dir, data_dir, "average")
 
 
+def test_main_reports_invalid_bandpass(capsys: CaptureFixture[str]) -> None:
+    # Exécute la CLI avec une bande passante invalide
+    exit_code = train.main(
+        ["S001", "R01", "--bandpass-low", "30", "--bandpass-high", "8"]
+    )
+    # Capture la sortie standard pour vérifier le message
+    captured = capsys.readouterr().out
+    # Vérifie que la CLI signale une erreur
+    assert exit_code == 1
+    # Vérifie que le message d'erreur mentionne la bande passante
+    assert "bandpass_low" in captured
+
+
+def test_execute_training_request_reports_cv_status(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    # Prépare un run_training factice pour simuler une CV indisponible
+    def fake_run_training(_request: train.TrainingRequest) -> dict:
+        return {
+            "cv_scores": np.array([]),
+            "cv_splits_requested": 4,
+            "cv_unavailability_reason": "no cv",
+            "cv_error": "boom",
+        }
+
+    # Injecte le stub de run_training pour isoler l'affichage CLI
+    monkeypatch.setattr(train, "run_training", fake_run_training)
+
+    # Construit une requête minimale pour l'exécution de la CLI
+    request = train.TrainingRequest(
+        subject="S010",
+        run="R05",
+        pipeline_config=train.PipelineConfig(
+            sfreq=50.0,
+            feature_strategy="fft",
+            normalize_features=True,
+            dim_method="pca",
+            n_components=None,
+            classifier="lda",
+            scaler=None,
+        ),
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+    )
+
+    # Exécute l'affichage CLI et capture la sortie
+    exit_code = train._execute_training_request(request)
+    # Capture les sorties pour inspection
+    captured = capsys.readouterr().out
+    # Vérifie que l'exécution se termine avec succès
+    assert exit_code == 0
+    # Vérifie que l'erreur CV est signalée
+    assert "cross_val_score échoué" in captured
+    # Vérifie que l'indisponibilité de CV est signalée
+    assert "CV indisponible" in captured
+
+
 def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 
-    def fake_train_all_runs(config, data_dir, artifacts_dir, raw_dir, eeg_reference):
-        captured["config"] = config
-        captured["dirs"] = (data_dir, artifacts_dir, raw_dir, eeg_reference)
+    def fake_train_all_runs(resources: train.TrainingResources):
+        captured["config"] = resources.pipeline_config
+        captured["dirs"] = (
+            resources.data_dir,
+            resources.artifacts_dir,
+            resources.raw_dir,
+            resources.eeg_reference,
+        )
         return 7
 
     monkeypatch.setattr(train, "_train_all_runs", fake_train_all_runs)
@@ -1265,9 +1706,14 @@ def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
 def test_main_train_all_respects_no_normalize_features_flag(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 
-    def fake_train_all_runs(config, data_dir, artifacts_dir, raw_dir, eeg_reference):
-        captured["config"] = config
-        captured["dirs"] = (data_dir, artifacts_dir, raw_dir, eeg_reference)
+    def fake_train_all_runs(resources: train.TrainingResources):
+        captured["config"] = resources.pipeline_config
+        captured["dirs"] = (
+            resources.data_dir,
+            resources.artifacts_dir,
+            resources.raw_dir,
+            resources.eeg_reference,
+        )
         return 0
 
     monkeypatch.setattr(train, "_train_all_runs", fake_train_all_runs)
@@ -1554,11 +2000,15 @@ def test_run_training_passes_raw_dir_to_load_data_and_reports_scaler_path_none(
     def fake_load_data(
         subject: str,
         run: str,
-        data_dir: Path,
-        raw_dir: Path,
-        eeg_reference: str | None,
+        build_context: train.NpyBuildContext,
     ):
-        captured["args"] = (subject, run, data_dir, raw_dir, eeg_reference)
+        captured["args"] = (
+            subject,
+            run,
+            build_context.data_dir,
+            build_context.raw_dir,
+            build_context.eeg_reference,
+        )
         X = np.zeros((2, 1, 4), dtype=float)
         y = np.array([0, 0], dtype=int)
         return X, y
@@ -1633,9 +2083,7 @@ def test_run_training_prints_exact_warning_when_cross_validation_is_disabled(
     def fake_load_data(
         _subject: str,
         _run: str,
-        _data_dir: Path,
-        _raw_dir: Path,
-        _eeg_reference: str | None,
+        _build_context: train.NpyBuildContext,
     ):
         X = np.zeros((2, 1, 4), dtype=float)
         y = np.array([0, 1], dtype=int)
@@ -1702,9 +2150,7 @@ def test_run_training_builds_stratified_shuffle_split_with_stable_random_state(
     def fake_load_data(
         _subject: str,
         _run: str,
-        _data_dir: Path,
-        _raw_dir: Path,
-        _eeg_reference: str | None,
+        _build_context: train.NpyBuildContext,
     ):
         # Prépare un tenseur minimal compatible pipeline
         X = np.zeros((6, 1, 4), dtype=float)
@@ -2088,9 +2534,7 @@ def test_run_training_creates_target_dir_with_exist_ok_true(
     def fake_load_data(
         _subject: str,
         _run: str,
-        _data_dir: Path,
-        _raw_dir: Path,
-        _eeg_reference: str | None,
+        _build_context: train.NpyBuildContext,
     ):
         X = np.zeros((2, 1, 4), dtype=float)
         y = np.array([0, 1], dtype=int)
@@ -2166,9 +2610,7 @@ def test_run_training_dumps_scaler_step_when_present(
     def fake_load_data(
         _subject: str,
         _run: str,
-        _data_dir: Path,
-        _raw_dir: Path,
-        _eeg_reference: str | None,
+        _build_context: train.NpyBuildContext,
     ):
         X = np.zeros((2, 1, 4), dtype=float)
         y = np.array([0, 1], dtype=int)
