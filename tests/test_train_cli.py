@@ -2075,6 +2075,127 @@ def test_run_training_passes_raw_dir_to_load_data_and_reports_scaler_path_none(
     assert report["scaler_path"] is None
 
 
+def test_run_training_persists_w_matrix_when_spatial_filters_are_used(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Définit un loader minimal pour fournir des données synthétiques
+    def fake_load_data(
+        _subject: str,
+        _run: str,
+        _build_context: train.NpyBuildContext,
+    ):
+        # Prépare un tenseur d'essais minimal compatible avec CSP
+        X = np.zeros((2, 2, 4), dtype=float)
+        # Prépare deux labels pour satisfaire CSP/CSSP
+        y = np.array([0, 1], dtype=int)
+        # Retourne les données synthétiques au pipeline
+        return X, y
+
+    # Injecte le loader minimal pour isoler run_training
+    monkeypatch.setattr(train, "_load_data", fake_load_data)
+
+    # Définit un faux CSP exposant une matrice W persistable
+    class FakeSpatialFilters:
+        # Initialise la matrice W attendue par la persistance
+        def __init__(self) -> None:
+            # Fixe une matrice identité pour simplifier la validation
+            self.w_matrix = np.eye(2)
+            # Fixe des valeurs propres factices pour enrichir l'artefact
+            self.eigenvalues_ = np.array([1.0, 0.5])
+
+    # Prépare une pipeline factice avec uniquement des filtres spatiaux
+    class FakePipeline:
+        # Construit la pipeline factice pour run_training
+        def __init__(self, spatial_filters: FakeSpatialFilters) -> None:
+            # Injecte les filtres spatiaux à la place de dimensionality
+            self.named_steps = {"spatial_filters": spatial_filters}
+
+        # Expose une signature fit compatible scikit-learn
+        def fit(self, _X: np.ndarray, _y: np.ndarray) -> "FakePipeline":
+            # Retourne self pour simuler l'entraînement
+            return self
+
+    # Instancie les filtres factices pour la pipeline
+    spatial_filters = FakeSpatialFilters()
+    # Instancie la pipeline factice pour le flux d'entraînement
+    fake_pipeline = FakePipeline(spatial_filters)
+
+    # Neutralise la construction scikit-learn réelle
+    monkeypatch.setattr(train, "build_pipeline", lambda _cfg: fake_pipeline)
+    # Neutralise la persistance complète de la pipeline
+    monkeypatch.setattr(train, "save_pipeline", lambda _p, _path: None)
+
+    # Simule la CV pour éviter de lancer cross_val_score
+    def fake_train_with_optional_cv(
+        _request: train.TrainingRequest,
+        _X: np.ndarray,
+        _y: np.ndarray,
+        _pipeline: train.Pipeline,
+        _adapted_config: train.PipelineConfig,
+    ):
+        # Retourne la pipeline factice sans scores CV
+        return np.array([]), fake_pipeline, None, None, None
+
+    # Injecte le stub CV pour isoler run_training
+    monkeypatch.setattr(train, "_train_with_optional_cv", fake_train_with_optional_cv)
+
+    # Neutralise l'écriture de manifeste pour isoler run_training
+    monkeypatch.setattr(
+        train,
+        "_write_manifest",
+        lambda *_args, **_kwargs: {
+            "json": tmp_path / "m.json",
+            "csv": tmp_path / "m.csv",
+        },
+    )
+
+    # Prépare une requête d'entraînement minimale
+    request = train.TrainingRequest(
+        # Fixe un sujet minimal pour la structure d'artefacts
+        subject="S01",
+        # Fixe un run minimal pour la structure d'artefacts
+        run="R01",
+        # Configure la pipeline pour CSP afin d'activer spatial_filters
+        pipeline_config=train.PipelineConfig(
+            # Fixe la fréquence pour la cohérence des tests
+            sfreq=50.0,
+            # Sélectionne Welch pour reproduire un flux CSP réaliste
+            feature_strategy="welch",
+            # Active la normalisation pour refléter la config standard
+            normalize_features=True,
+            # Force la méthode CSP pour valider la branche spatial_filters
+            dim_method="csp",
+            # Utilise un nombre de composantes explicite
+            n_components=2,
+            # Conserve LDA comme classifieur stable
+            classifier="lda",
+            # Laisse le scaler désactivé pour isoler la persistance W
+            scaler=None,
+        ),
+        # Fixe le répertoire data pour les numpy
+        data_dir=tmp_path / "data",
+        # Fixe le répertoire d'artefacts pour la sauvegarde
+        artifacts_dir=tmp_path / "artifacts",
+        # Fixe le répertoire raw pour le contrat de build
+        raw_dir=tmp_path / "raw",
+    )
+
+    # Lance l'entraînement pour persister la matrice W
+    report = train.run_training(request)
+
+    # Construit le chemin attendu du fichier W sauvegardé
+    expected_path = tmp_path / "artifacts" / "S01" / "R01" / "w_matrix.joblib"
+    # Vérifie que le chemin retourné correspond à l'artefact attendu
+    assert report["w_matrix_path"] == expected_path
+    # Vérifie que la matrice W a bien été persistée sur disque
+    assert expected_path.exists()
+    # Recharge l'artefact pour valider le contenu W sauvegardé
+    payload = train.joblib.load(expected_path)
+    # Vérifie que la matrice W sauvegardée correspond au filtre factice
+    assert np.allclose(payload["w_matrix"], spatial_filters.w_matrix)
+
+
 def test_run_training_prints_exact_warning_when_cross_validation_is_disabled(
     tmp_path: Path,
     capsys: CaptureFixture[str],
