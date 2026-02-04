@@ -117,6 +117,9 @@ jobs:
       - name: Run MyPy
         run: poetry run mypy src scripts tests
 
+      - name: Upgrade pip for pip-audit
+        run: poetry run python -m pip install --upgrade pip==26.0
+
       - name: Audit dependencies with pip-audit
         run: poetry run pip-audit --progress-spinner=off --skip-editable
 

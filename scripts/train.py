@@ -137,7 +137,7 @@ DEFAULT_CSP_COMPONENTS = 4
 # Regroupe les stratégies de features supportées par la pipeline
 FEATURE_STRATEGIES = ("fft", "welch", "wavelet")
 # Regroupe les méthodes de réduction de dimension supportées par la pipeline
-DIM_METHODS = ("pca", "csp", "svd")
+DIM_METHODS = ("pca", "csp", "cssp", "svd")
 # Autorise un alias CLI pour rediriger vers la réduction de dimension
 FEATURE_STRATEGY_ALIASES = DIM_METHODS
 # Combine les valeurs autorisées pour l'argument --feature-strategy
@@ -612,22 +612,17 @@ def _resolve_dim_method_for_features(
     raw_args = argv if argv is not None else sys.argv[1:]
     # Détecte si --dim-method a été fourni par l'utilisateur
     dim_method_explicit = "--dim-method" in raw_args
-    # Vérifie si la stratégie impose des features tabulaires
-    if feature_strategy in {"wavelet", "welch"} and dim_method == "csp":
-        # Bascule la méthode pour activer l'extraction de features
+    # Vérifie si la stratégie impose des features spectrales
+    if feature_strategy in {"wavelet", "welch"} and dim_method in {"csp", "cssp"}:
+        # Informe l'utilisateur d'un enchaînement CSP suivi des features
         if not dim_method_explicit:
-            # Informe l'utilisateur de la bascule automatique de méthode
+            # Documente la pipeline CSP/Welch sans override explicite
             print(
-                "INFO: dim_method='csp' ignore feature_strategy, "
-                "bascule automatique sur 'pca'."
+                "INFO: dim_method='csp/cssp' appliqué avant "
+                "l'extraction des features."
             )
-            # Retourne la méthode PCA pour activer l'extraction
-            return "pca"
-        # Signale que CSP ignore la stratégie de features
-        print(
-            "AVERTISSEMENT: dim_method='csp' ignore feature_strategy, "
-            "aucune extraction wavelet/welch ne sera effectuée."
-        )
+        # Retourne la méthode sans modification pour permettre Welch+CSP
+        return dim_method
     # Retourne la méthode inchangée si aucune adaptation n'est requise
     return dim_method
 
@@ -1729,8 +1724,8 @@ def _build_grid_search_grid(
 ) -> dict[str, list[object]]:
     """Retourne une grille raisonnable pour la recherche d'hyperparamètres."""
 
-    # Retourne une grille réduite si CSP est utilisé (pas de features/scaler amont)
-    if config.dim_method == "csp":
+    # Retourne une grille réduite si CSP/CSSP est utilisé
+    if config.dim_method in {"csp", "cssp"}:
         # Déclare un ensemble restreint de classifieurs pour CSP
         csp_classifier_grid: list[object] = []
         # Ajoute LDA uniquement lorsque l'effectif le permet
@@ -1759,7 +1754,7 @@ def _build_grid_search_grid(
             csp_n_components_grid.append(config.n_components)
         # Retourne une grille compatible avec la pipeline CSP réduite
         return {
-            "dimensionality__n_components": csp_n_components_grid,
+            "spatial_filters__n_components": csp_n_components_grid,
             "classifier": csp_classifier_grid,
         }
 

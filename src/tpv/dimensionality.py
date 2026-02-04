@@ -325,3 +325,170 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             u_matrix[:, nonzero] = u_matrix[:, nonzero] / singular_values[nonzero]
         # Retourne les matrices U, S, V pour inspection éventuelle
         return u_matrix, singular_values, v_matrix
+
+
+# Implémente un transformeur CSP/CSSP pour les signaux EEG
+class CSP(BaseEstimator, TransformerMixin):
+    """Transformeur CSP/CSSP appliquant W^T X = X_CSP sur X ∈ R^{d×N}."""
+
+    # Déclare le constructeur pour configurer CSP ou CSSP
+    def __init__(
+        self,
+        n_components: int | None = None,
+        regularization: float = 0.0,
+        method: str = "csp",
+        cssp_lag: int = 1,
+        return_log_variance: bool = True,
+    ):
+        # Conserve le nombre de composantes souhaité
+        self.n_components = n_components
+        # Conserve la régularisation appliquée aux covariances
+        self.regularization = regularization
+        # Conserve la variante de l'algorithme à appliquer
+        self.method = method
+        # Conserve le décalage temporel pour CSSP
+        self.cssp_lag = cssp_lag
+        # Conserve le choix de sortie log-variance pour le classifieur
+        self.return_log_variance = return_log_variance
+        # Prépare la matrice de projection avant apprentissage
+        self.w_matrix: np.ndarray | None
+        # Prépare le stockage des valeurs propres pour inspection
+        self.eigenvalues_: np.ndarray | None
+        # Positionne None avant le calcul des filtres
+        self.w_matrix = None
+        # Positionne None avant la résolution du problème généralisé
+        self.eigenvalues_ = None
+
+    # Apprend les filtres spatiaux CSP/CSSP à partir des essais
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None):
+        # Refuse l'appel sans labels pour éviter un apprentissage invalide
+        if y is None:
+            # Explique que CSP exige des labels de classe
+            raise ValueError("y is required for CSP/CSSP")
+        # Valide la dimension trial x channel x time attendue
+        if X.ndim != TRIAL_DIMENSION:
+            # Informe que CSP/CSSP attend des essais 3D
+            raise ValueError("CSP/CSSP expects a 3D array")
+        # Valide la variante CSP/CSSP demandée
+        if self.method not in {"csp", "cssp"}:
+            # Signale un paramètre de méthode non supporté
+            raise ValueError("method must be 'csp' or 'cssp'")
+        # Identifie les classes présentes pour vérifier le binaire
+        classes = np.unique(y)
+        # Valide que le problème est strictement binaire
+        if classes.size != EXPECTED_CSP_CLASSES:
+            # Empêche le calcul CSP/CSSP hors contrat binaire
+            raise ValueError("CSP/CSSP requires exactly two classes")
+        # Prépare les essais selon la variante choisie
+        trials = X
+        # Applique l'augmentation CSSP si demandée
+        if self.method == "cssp":
+            # Transforme les essais en espace élargi temps-décalé
+            trials = self._augment_cssp_trials(trials)
+        # Calcule la covariance moyenne de la première classe
+        cov_a = self._average_covariance(trials[y == classes[0]])
+        # Calcule la covariance moyenne de la seconde classe
+        cov_b = self._average_covariance(trials[y == classes[1]])
+        # Construit la covariance composite pour le problème généralisé
+        composite = cov_a + cov_b
+        # Régularise la covariance composite pour stabilité numérique
+        composite = self._regularize_matrix(composite)
+        # Résout le problème généralisé pour maximiser la séparation
+        eigvals, eigvecs = linalg.eigh(cov_a, composite)
+        # Trie les composantes par valeurs propres décroissantes
+        order = np.argsort(eigvals)[::-1]
+        # Réordonne les vecteurs propres selon l'importance
+        sorted_vecs = eigvecs[:, order]
+        # Coupe le nombre de filtres si demandé
+        if self.n_components is not None:
+            # Conserve les filtres les plus informatifs
+            sorted_vecs = sorted_vecs[:, : self.n_components]
+            # Conserve les valeurs propres associées
+            eigvals = eigvals[order][: self.n_components]
+        else:
+            # Conserve toutes les valeurs propres si aucune coupe n'est demandée
+            eigvals = eigvals[order]
+        # Stocke la matrice de filtres spatiaux
+        self.w_matrix = sorted_vecs
+        # Stocke les valeurs propres pour inspection ultérieure
+        self.eigenvalues_ = eigvals
+        # Retourne l'instance pour chaînage scikit-learn
+        return self
+
+    # Applique les filtres CSP/CSSP pour projeter les signaux
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        # Vérifie la disponibilité des filtres appris
+        if self.w_matrix is None:
+            # Interdit la projection avant l'apprentissage
+            raise ValueError("The CSP/CSSP model must be fitted before transform")
+        # Valide la dimension attendue des essais
+        if X.ndim != TRIAL_DIMENSION:
+            # Informe que CSP/CSSP attend des essais 3D
+            raise ValueError("CSP/CSSP expects a 3D array")
+        # Prépare les essais selon la variante choisie
+        trials = X
+        # Applique l'augmentation CSSP si demandée
+        if self.method == "cssp":
+            # Transforme les essais en espace élargi temps-décalé
+            trials = self._augment_cssp_trials(trials)
+        # Projette les essais sur les filtres spatiaux
+        projected = np.tensordot(self.w_matrix.T, trials, axes=([1], [1]))
+        # Réordonne les axes pour revenir à trial x composante x temps
+        reordered = np.moveaxis(projected, 1, 0)
+        # Renvoie les signaux projetés si demandé
+        if not self.return_log_variance:
+            # Retourne directement W^T X pour les étapes suivantes
+            return np.asarray(reordered)
+        # Calcule la variance par composante pour chaque essai
+        variances = np.var(reordered, axis=2)
+        # Stabilise la variance via le log pour les classifieurs
+        return np.asarray(np.log(variances + np.finfo(float).eps))
+
+    # Calcule la moyenne des covariances pour une classe d'essais
+    def _average_covariance(self, trials: np.ndarray) -> np.ndarray:
+        # Valide la présence d'essais pour éviter une moyenne vide
+        if trials.size == 0:
+            # Signale qu'une classe vide est invalide pour CSP/CSSP
+            raise ValueError("No trials provided for covariance estimation")
+        # Prépare une matrice d'accumulation stable
+        cov_sum = np.zeros((trials.shape[1], trials.shape[1]))
+        # Parcourt chaque essai pour accumuler la covariance normalisée
+        for trial in trials:
+            # Calcule la covariance d'un essai pour capturer l'énergie spatiale
+            trial_cov = trial @ trial.T
+            # Normalise par la trace pour une échelle comparable
+            trial_cov /= np.trace(trial_cov)
+            # Ajoute la covariance normalisée à l'accumulateur
+            cov_sum += trial_cov
+        # Calcule la moyenne des covariances sur la classe
+        averaged = np.asarray(cov_sum / trials.shape[0])
+        # Retourne la covariance régularisée pour la stabilité
+        return self._regularize_matrix(averaged)
+
+    # Ajoute une régularisation diagonale pour stabiliser les covariances
+    def _regularize_matrix(self, matrix: np.ndarray) -> np.ndarray:
+        # Copie la matrice pour éviter toute mutation in-place
+        regularized = np.array(matrix, copy=True)
+        # Ajoute la régularisation si elle est activée
+        if self.regularization > 0:
+            # Stabilise l'inversion via une identité scalée
+            regularized += self.regularization * np.eye(matrix.shape[0])
+        # Retourne la matrice prête pour la décomposition
+        return regularized
+
+    # Construit les essais augmentés pour CSSP via un retard temporel
+    def _augment_cssp_trials(self, trials: np.ndarray) -> np.ndarray:
+        # Valide un lag strictement positif pour éviter un doublon
+        if self.cssp_lag < 1:
+            # Signale que le lag CSSP doit être positif
+            raise ValueError("cssp_lag must be >= 1")
+        # Refuse un lag supérieur à la durée pour garder des segments valides
+        if trials.shape[2] <= self.cssp_lag:
+            # Signale que le lag est trop grand pour la fenêtre
+            raise ValueError("cssp_lag is too large for the trial length")
+        # Extrait le signal sans les derniers échantillons
+        base = trials[:, :, : -self.cssp_lag]
+        # Extrait le signal décalé pour capturer la dynamique temporelle
+        delayed = trials[:, :, self.cssp_lag :]
+        # Concatène les canaux originaux et décalés pour CSSP
+        return np.concatenate([base, delayed], axis=1)

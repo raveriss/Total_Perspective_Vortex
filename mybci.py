@@ -89,7 +89,7 @@ def _parse_feature_strategy(value: str) -> str:
     # Nettoie la valeur fournie pour accepter différentes casses
     cleaned = value.strip().lower()
     # Autorise explicitement les stratégies gérées par le pipeline
-    allowed = {"fft", "welch", "wavelet", "csp", "pca", "svd"}
+    allowed = {"fft", "welch", "wavelet", "csp", "cssp", "pca", "svd"}
     # Interrompt le parsing si la stratégie demandée n'est pas supportée
     if cleaned not in allowed:
         # Construit un message d'erreur explicite pour l'utilisateur
@@ -97,7 +97,7 @@ def _parse_feature_strategy(value: str) -> str:
             # Décrit la nature de l'erreur de stratégie fournie
             "Stratégie invalide: "
             # Liste les valeurs autorisées pour guider la correction
-            f"{value!r}. Choisissez parmi fft, welch, wavelet, pca, csp ou svd."
+            f"{value!r}. Choisissez parmi fft, welch, wavelet, pca, csp, cssp ou svd."
         )
         # Lève une erreur de parsing pour arrêter la CLI
         raise argparse.ArgumentTypeError(message)
@@ -106,7 +106,7 @@ def _parse_feature_strategy(value: str) -> str:
 
 
 # Regroupe les alias de features qui redirigent vers --dim-method
-_FEATURE_STRATEGY_DIM_ALIASES = {"csp", "pca", "svd"}
+_FEATURE_STRATEGY_DIM_ALIASES = {"csp", "cssp", "pca", "svd"}
 
 
 # Regroupe les specs pour éviter les répétitions dans build_parser
@@ -153,12 +153,12 @@ _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
     (
         ("--feature-strategy",),
         {
-            "choices": ("fft", "welch", "wavelet", "pca", "csp", "svd"),
+            "choices": ("fft", "welch", "wavelet", "pca", "csp", "cssp", "svd"),
             "type": _parse_feature_strategy,
             # Supprime la valeur par défaut pour éviter les faux explicites
             "default": argparse.SUPPRESS,
             "help": (
-                "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/svd "
+                "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/cssp/svd "
                 "(bascule --dim-method correspondant)"
             ),
         },
@@ -166,7 +166,7 @@ _ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
     (
         ("--dim-method",),
         {
-            "choices": ("pca", "csp", "svd"),
+            "choices": ("pca", "csp", "cssp", "svd"),
             # Supprime la valeur par défaut pour conserver l'auto-switch train
             "default": argparse.SUPPRESS,
             "help": "Méthode de réduction de dimension pour la pipeline",
@@ -208,7 +208,7 @@ def _build_global_parser() -> argparse.ArgumentParser:
         # Déclare le flag de stratégie de features globale
         "--feature-strategy",
         # Limite les choix aux stratégies supportées
-        choices=("fft", "welch", "wavelet", "pca", "csp", "svd"),
+        choices=("fft", "welch", "wavelet", "pca", "csp", "cssp", "svd"),
         # Valide la stratégie via le parser déjà utilisé par mybci
         type=_parse_feature_strategy,
         # Supprime la valeur par défaut pour détecter les overrides explicites
@@ -216,7 +216,7 @@ def _build_global_parser() -> argparse.ArgumentParser:
         # Décrit l'option pour l'aide CLI globale
         help=(
             # Expose les stratégies utilisables pour l'auto-train
-            "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/svd "
+            "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/cssp/svd "
             # Explique la bascule automatique vers dim-method
             "(bascule --dim-method correspondant)"
         ),
@@ -226,7 +226,7 @@ def _build_global_parser() -> argparse.ArgumentParser:
         # Déclare le flag de méthode de réduction globale
         "--dim-method",
         # Limite les choix aux méthodes supportées par la pipeline
-        choices=("pca", "csp", "svd"),
+        choices=("pca", "csp", "cssp", "svd"),
         # Supprime la valeur par défaut pour détecter les overrides explicites
         default=argparse.SUPPRESS,
         # Décrit l'option pour l'aide CLI globale

@@ -4,8 +4,8 @@ import numpy as np
 # Importe pytest pour vérifier les erreurs attendues
 import pytest
 
-# Importe le réducteur dimensionnel de TPV à vérifier
-from tpv.dimensionality import TPVDimReducer
+# Importe les réducteurs dimensionnels de TPV à vérifier
+from tpv.dimensionality import CSP, TPVDimReducer
 
 # Définit un seuil de domination pour la variance expliquée
 DOMINANT_VARIANCE_THRESHOLD = 0.9
@@ -75,6 +75,54 @@ def test_csp_returns_log_variances_and_orthogonality() -> None:
     identity_candidate = reducer.w_matrix.T @ composite @ reducer.w_matrix
     # Vérifie l'orthogonalité dans l'espace régularisé
     assert np.allclose(identity_candidate, np.eye(channels), atol=1e-2)
+
+
+# Vérifie CSP/CSSP sur les projections directes pour la stabilité numérique
+@pytest.mark.parametrize(
+    # Paramètre la méthode et la longueur temporelle attendue
+    "method, cssp_lag, expected_time",
+    # Déclare CSP et CSSP pour couvrir les deux variantes
+    [("csp", 1, 48), ("cssp", 2, 46)],
+)
+def test_csp_cssp_projection_shapes_and_stability(
+    method: str,
+    cssp_lag: int,
+    expected_time: int,
+) -> None:
+    """La projection CSP/CSSP doit conserver des dimensions valides."""
+
+    # Prépare un générateur déterministe pour la reproductibilité
+    rng = np.random.default_rng(123)
+    # Fixe un nombre d'essais par classe pour CSP/CSSP
+    trials_per_class = 5
+    # Fixe un nombre de canaux pour la projection
+    channels = 4
+    # Fixe un nombre de points temporels pour le signal brut
+    time_points = 48
+    # Génère des essais pour la classe 0 avec une énergie modérée
+    class_a = rng.standard_normal((trials_per_class, channels, time_points)) * 0.8
+    # Génère des essais pour la classe 1 avec une énergie plus forte
+    class_b = rng.standard_normal((trials_per_class, channels, time_points)) * 1.4
+    # Concatène les essais pour former le jeu complet
+    trials = np.concatenate([class_a, class_b], axis=0)
+    # Construit les labels binaires correspondants
+    labels = np.array([0] * trials_per_class + [1] * trials_per_class)
+    # Instancie le transformeur CSP/CSSP avec une régularisation légère
+    transformer = CSP(
+        n_components=2,
+        regularization=1e-3,
+        method=method,
+        cssp_lag=cssp_lag,
+        return_log_variance=False,
+    )
+    # Apprend les filtres spatiaux sur les essais synthétiques
+    transformer.fit(trials, labels)
+    # Projette les essais pour vérifier la stabilité numérique
+    projected = transformer.transform(trials)
+    # Vérifie la forme (essais, composantes, temps)
+    assert projected.shape == (trials_per_class * 2, 2, expected_time)
+    # Vérifie l'absence de valeurs NaN ou infinies
+    assert np.isfinite(projected).all()
 
 
 # Vérifie que la moyenne de covariance reste normalisée et régularisée
