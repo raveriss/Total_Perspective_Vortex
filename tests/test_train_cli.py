@@ -84,11 +84,12 @@ def test_build_parser_sets_training_defaults_and_choices() -> None:
         "wavelet",
         "pca",
         "csp",
+        "cssp",
         "svd",
     )
     assert feature_action.default == "fft"
     assert dim_action.choices is not None
-    assert tuple(dim_action.choices) == ("pca", "csp", "svd")
+    assert tuple(dim_action.choices) == ("pca", "csp", "cssp", "svd")
     assert dim_action.default == "csp"
     assert n_components_action.default is argparse.SUPPRESS
     assert n_components_action.type is int
@@ -1432,9 +1433,9 @@ def test_main_falls_back_for_empty_cv_scores_array(monkeypatch, capsys):
     assert stdout_lines == expected
 
 
-# Vérifie la bascule automatique de dim_method pour wavelet
-def test_main_auto_switches_dim_method_for_wavelet(monkeypatch, capsys):
-    """Vérifie la bascule automatique vers PCA quand wavelet est demandé."""
+# Vérifie le maintien de dim_method pour wavelet
+def test_main_keeps_dim_method_for_wavelet(monkeypatch, capsys):
+    """Vérifie que CSP reste actif quand wavelet est demandé."""
 
     # Capture la requête d'entraînement pour inspecter la config finale
     captured: dict[str, object] = {}
@@ -1458,15 +1459,14 @@ def test_main_auto_switches_dim_method_for_wavelet(monkeypatch, capsys):
     request = cast(train.TrainingRequest, captured["request"])
     # Vérifie que la stratégie wavelet est conservée
     assert request.pipeline_config.feature_strategy == "wavelet"
-    # Vérifie la bascule automatique vers PCA
-    assert request.pipeline_config.dim_method == "pca"
+    # Vérifie que CSP reste actif pour la pipeline wavelet
+    assert request.pipeline_config.dim_method == "csp"
 
     # Capture la sortie CLI pour vérifier le message d'info
     stdout_lines = capsys.readouterr().out.splitlines()
-    # Vérifie que le message d'auto-bascule est affiché
+    # Vérifie que le message d'information est affiché
     assert stdout_lines[0] == (
-        "INFO: dim_method='csp' ignore feature_strategy, "
-        "bascule automatique sur 'pca'."
+        "INFO: dim_method='csp/cssp' appliqué avant " "l'extraction des features."
     )
 
 

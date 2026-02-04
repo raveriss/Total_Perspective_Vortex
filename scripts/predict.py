@@ -233,7 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--dim-method",
-        choices=("pca", "csp", "svd"),
+        choices=("pca", "csp", "cssp", "svd"),
         default="pca",
         help="Méthode de réduction de dimension (ignorée en prédiction)",
     )
@@ -643,29 +643,22 @@ def _adjust_dim_method_for_tabular_features(
 ) -> str:
     """Ajuste le dim_method lorsque CSP ignore les features."""
 
-    # Ignore l'ajustement si la stratégie n'est pas tabulaire
-    if feature_strategy not in {"wavelet", "welch"} or dim_method != "csp":
+    # Ignore l'ajustement si la stratégie n'est pas spectrale
+    if feature_strategy not in {"wavelet", "welch"}:
         # Retourne la méthode inchangée
         return dim_method
-    # Bascule automatiquement vers PCA si dim_method n'est pas explicite
-    if not dim_method_explicit:
-        # Informe l'utilisateur de la bascule automatique vers PCA
-        print(
-            # Décrit le conflit entre méthode et stratégie de features
-            "INFO: dim_method='csp' ignore feature_strategy, "
-            # Précise la bascule appliquée pour activer les features
-            "bascule automatique sur 'pca'."
-        )
-        # Retourne PCA pour activer l'extraction demandée
-        return "pca"
-    # Signale que l'utilisateur force CSP malgré les features
-    print(
-        # Décrit le conflit entre méthode et stratégie de features
-        "AVERTISSEMENT: dim_method='csp' ignore feature_strategy, "
-        # Précise l'effet sur l'extraction de features
-        "aucune extraction wavelet/welch ne sera effectuée."
-    )
-    # Retourne CSP inchangé lorsque l'utilisateur force la méthode
+    # Retourne la méthode inchangée si CSP/CSSP est explicitement voulu
+    if dim_method in {"csp", "cssp"}:
+        # Informe sur l'usage de CSP avant l'extraction des features
+        if not dim_method_explicit:
+            # Documente la configuration pour la compatibilité CLI
+            print(
+                "INFO: dim_method='csp/cssp' appliqué avant "
+                "l'extraction des features."
+            )
+        # Retourne la méthode CSP/CSSP pour Welch+CSP
+        return dim_method
+    # Retourne la méthode inchangée pour les autres cas
     return dim_method
 
 

@@ -16,12 +16,15 @@ from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.svm import LinearSVC
 
 # Récupère les API du pipeline à tester
+# Récupère les API du pipeline à tester
 from tpv.pipeline import (
+    DEFAULT_WELCH_CSP_COMPONENTS,
     LOGISTIC_MAX_ITER,
     PipelineConfig,
     _build_classifier,
     _build_scaler,
     build_pipeline,
+    build_search_pipeline,
     load_pipeline,
     save_pipeline,
 )
@@ -351,10 +354,65 @@ def test_build_pipeline_csp_skips_features_and_sets_regularization():
     )
     # Vérifie que l'extracteur de features est absent en mode CSP
     assert "features" not in pipeline.named_steps
-    # Vérifie que le réducteur de dimension est bien CSP
-    assert pipeline.named_steps["dimensionality"].method == "csp"
+    # Vérifie que le bloc de filtres spatiaux est bien CSP
+    assert pipeline.named_steps["spatial_filters"].method == "csp"
     # Vérifie que la régularisation CSP est correctement propagée
-    assert pipeline.named_steps["dimensionality"].regularization == 0.25
+    assert pipeline.named_steps["spatial_filters"].regularization == 0.25
+
+
+# Vérifie que Welch+CSP insère les filtres spatiaux avant les features
+def test_build_pipeline_welch_csp_inserts_spatial_filters_and_features():
+    """Confirme l'enchaînement spatial_filters → features → classifier."""
+
+    # Construit une pipeline Welch avec CSP pour la comparaison
+    pipeline = build_pipeline(
+        PipelineConfig(
+            sfreq=128.0,
+            scaler="standard",
+            classifier="lda",
+            dim_method="csp",
+            feature_strategy="welch",
+        )
+    )
+    # Vérifie l'ordre des étapes pour la chaîne Welch+CSP
+    assert list(pipeline.named_steps) == [
+        "spatial_filters",
+        "features",
+        "scaler",
+        "classifier",
+    ]
+    # Vérifie que CSP renvoie les signaux projetés pour Welch
+    assert pipeline.named_steps["spatial_filters"].return_log_variance is False
+    # Vérifie que le nombre de composantes CSP par défaut est appliqué
+    assert (
+        pipeline.named_steps["spatial_filters"].n_components
+        == DEFAULT_WELCH_CSP_COMPONENTS
+    )
+
+
+# Vérifie que la pipeline de recherche respecte Welch+CSP
+def test_build_search_pipeline_welch_csp_includes_passthrough_scaler():
+    """Confirme la présence du scaler passthrough en recherche."""
+
+    # Construit une pipeline de recherche Welch+CSP
+    pipeline = build_search_pipeline(
+        PipelineConfig(
+            sfreq=128.0,
+            scaler="standard",
+            classifier="lda",
+            dim_method="csp",
+            feature_strategy="welch",
+        )
+    )
+    # Vérifie l'ordre des étapes pour la recherche Welch+CSP
+    assert list(pipeline.named_steps) == [
+        "spatial_filters",
+        "features",
+        "scaler",
+        "classifier",
+    ]
+    # Vérifie que le scaler est en passthrough pour GridSearch
+    assert pipeline.named_steps["scaler"] == "passthrough"
 
 
 # Vérifie que les fenêtres par sujet peuvent diverger sans conflit

@@ -398,17 +398,17 @@ def test_resolve_pipeline_overrides_alias_defaults_to_fft(capsys) -> None:
     assert resolved.scaler is None
 
 
-# Vérifie le warning lorsque wavelet est combiné à CSP explicite
-def test_resolve_pipeline_overrides_wavelet_warns_on_csp(capsys) -> None:
+# Vérifie l'absence d'avertissement lorsque wavelet est combiné à CSP explicite
+def test_resolve_pipeline_overrides_wavelet_keeps_csp(capsys) -> None:
     # Prépare des overrides wavelet avec dim_method explicite
     overrides = {"feature_strategy": "wavelet", "dim_method": "csp"}
     # Résout les overrides via l'helper interne
     resolved = predict_cli._resolve_pipeline_overrides(overrides)
-    # Capture les messages d'avertissement produits
+    # Capture les messages d'information produits
     stdout = capsys.readouterr().out
 
-    # Vérifie qu'un avertissement est bien affiché
-    assert "AVERTISSEMENT: dim_method='csp' ignore feature_strategy" in stdout
+    # Vérifie qu'aucun avertissement n'est affiché
+    assert stdout == ""
     # Vérifie que la stratégie wavelet est conservée
     assert resolved.feature_strategy == "wavelet"
     # Vérifie que la méthode CSP reste en place

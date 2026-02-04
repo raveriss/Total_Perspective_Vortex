@@ -29,8 +29,8 @@ from sklearn.svm import LinearSVC
 # Importe le classifieur léger basé sur les centroïdes
 from tpv.classifier import CentroidClassifier
 
-# Récupère le réducteur de dimension CSP ou PCA
-from tpv.dimensionality import TPVDimReducer
+# Récupère les transformeurs de réduction de dimension
+from tpv.dimensionality import CSP, TPVDimReducer
 
 # Récupère l'extracteur de features de puissance bande
 from tpv.features import ExtractFeatures
@@ -65,6 +65,8 @@ LOGISTIC_MAX_ITER = 1000
 LDA_SOLVER = "svd"
 # Désactive le shrinkage pour rester compatible avec le solver SVD
 LDA_SHRINKAGE = None
+# Fixe un nombre de composantes par défaut pour CSP en mode Welch
+DEFAULT_WELCH_CSP_COMPONENTS = 4
 
 
 # Construit une pipeline complète incluant préprocessing, features et classification
@@ -75,9 +77,17 @@ def build_pipeline(
 
     # Prépare la liste des étapes en partant d'éventuels préprocesseurs
     steps: List[Tuple[str, object]] = list(preprocessors or [])
-    # Indique si CSP est utilisé pour éviter les incompatibilités de forme
-    uses_csp = config.dim_method == "csp"
-    # Ajoute l'extracteur de features lorsque CSP n'est pas utilisé
+    # Indique si CSP ou CSSP est utilisé pour adapter la pipeline
+    uses_csp = config.dim_method in {"csp", "cssp"}
+    # Identifie les stratégies de features nécessitant un signal projeté
+    uses_signal_features = config.feature_strategy in {"welch", "wavelet"}
+    # Prépare le nombre de composantes CSP effectif pour Welch+CSP
+    csp_components = config.n_components
+    # Applique un défaut seulement pour Welch afin de comparer les pipelines
+    if uses_csp and uses_signal_features and csp_components is None:
+        # Définit un nombre de composantes stable pour le benchmark Welch+CSP
+        csp_components = DEFAULT_WELCH_CSP_COMPONENTS
+    # Ajoute l'extracteur de features lorsqu'on n'utilise pas CSP/CSSP
     if not uses_csp:
         # Convertit les signaux bruts en vecteurs tabulaires
         steps.append(
@@ -96,23 +106,53 @@ def build_pipeline(
         if scaler_instance is not None:
             # Sécurise la position du scaler juste après les features tabulaires
             steps.append(("scaler", scaler_instance))
-    # Prépare le scaler pour un usage éventuel après CSP
-    scaler_instance = _build_scaler(config.scaler)
-    # Ajoute la réduction de dimension pour compacter les représentations
-    steps.append(
-        (
-            "dimensionality",
-            TPVDimReducer(
-                method=config.dim_method,
-                n_components=config.n_components,
-                regularization=config.csp_regularization,
-            ),
+    # Ajoute CSP/CSSP en amont si la réduction spatiale est demandée
+    if uses_csp:
+        # Choisit la sortie CSP selon la présence de features spectrales
+        return_log_variance = not uses_signal_features
+        # Ajoute le bloc CSP/CSSP pour filtrer les signaux EEG
+        steps.append(
+            (
+                "spatial_filters",
+                CSP(
+                    n_components=csp_components,
+                    regularization=config.csp_regularization,
+                    method=config.dim_method,
+                    return_log_variance=return_log_variance,
+                ),
+            )
         )
-    )
-    # Place un scaler après CSP uniquement si demandé
-    if uses_csp and scaler_instance is not None:
-        # Stabilise la variance des composantes CSP avant la classification
-        steps.append(("scaler", scaler_instance))
+        # Ajoute l'extracteur de features après CSP en mode Welch/Wavelet
+        if uses_signal_features:
+            # Convertit les signaux projetés en vecteurs tabulaires
+            steps.append(
+                (
+                    "features",
+                    ExtractFeatures(
+                        sfreq=config.sfreq,
+                        feature_strategy=config.feature_strategy,
+                        normalize=config.normalize_features,
+                    ),
+                )
+            )
+            # Insère un scaler optionnel pour stabiliser la variance des features
+            scaler_instance = _build_scaler(config.scaler)
+            # Ajoute le scaler uniquement lorsqu'il est explicitement demandé
+            if scaler_instance is not None:
+                # Sécurise la position du scaler après les features projetées
+                steps.append(("scaler", scaler_instance))
+    else:
+        # Ajoute la réduction de dimension pour compacter les représentations
+        steps.append(
+            (
+                "dimensionality",
+                TPVDimReducer(
+                    method=config.dim_method,
+                    n_components=config.n_components,
+                    regularization=config.csp_regularization,
+                ),
+            )
+        )
     # Construit le classifieur final selon la stratégie choisie
     classifier_instance = _build_classifier(config.classifier)
     # Ajoute le classifieur au pipeline pour la prédiction finale
@@ -125,8 +165,10 @@ def build_pipeline(
 def build_search_pipeline(config: PipelineConfig) -> Pipeline:
     """Assemble une pipeline avec des étapes paramétrables pour GridSearch."""
 
-    # Signale l'usage de CSP pour adapter les étapes de pipeline
-    uses_csp = config.dim_method == "csp"
+    # Signale l'usage de CSP/CSSP pour adapter les étapes de pipeline
+    uses_csp = config.dim_method in {"csp", "cssp"}
+    # Identifie les stratégies nécessitant un signal projeté
+    uses_signal_features = config.feature_strategy in {"welch", "wavelet"}
     # Prépare les étapes fixes de la pipeline
     if not uses_csp:
         # Construit une pipeline classique avec extracteur et scaler configurable
@@ -152,18 +194,43 @@ def build_search_pipeline(config: PipelineConfig) -> Pipeline:
             ("classifier", _build_classifier(config.classifier)),
         ]
     else:
-        # Construit une pipeline réduite pour CSP afin d'éviter les shapes invalides
+        # Fixe un nombre de composantes par défaut pour Welch+CSP en recherche
+        csp_components = config.n_components
+        # Applique un défaut stable pour Welch afin d'assurer la comparaison
+        if uses_signal_features and csp_components is None:
+            # Réutilise le même défaut que la pipeline standard
+            csp_components = DEFAULT_WELCH_CSP_COMPONENTS
+        # Choisit la sortie CSP selon la présence de features spectrales
+        return_log_variance = not uses_signal_features
+        # Construit la pipeline CSP/CSSP avec éventuelles features
         steps = [
             (
-                "dimensionality",
-                TPVDimReducer(
-                    method=config.dim_method,
-                    n_components=config.n_components,
+                "spatial_filters",
+                CSP(
+                    n_components=csp_components,
                     regularization=config.csp_regularization,
+                    method=config.dim_method,
+                    return_log_variance=return_log_variance,
                 ),
             ),
-            ("classifier", _build_classifier(config.classifier)),
         ]
+        # Ajoute les features spectrales après CSP pour Welch/Wavelet
+        if uses_signal_features:
+            # Ajoute l'extracteur de features pour GridSearch
+            steps.append(
+                (
+                    "features",
+                    ExtractFeatures(
+                        sfreq=config.sfreq,
+                        feature_strategy=config.feature_strategy,
+                        normalize=config.normalize_features,
+                    ),
+                )
+            )
+            # Permet le scaler en passthrough pour la grid search
+            steps.append(("scaler", "passthrough"))
+        # Ajoute le classifieur en fin de pipeline
+        steps.append(("classifier", _build_classifier(config.classifier)))
     # Retourne la pipeline prête pour GridSearchCV
     return Pipeline(steps)
 
