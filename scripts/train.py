@@ -329,6 +329,18 @@ MIN_EPOCHS_MEDIUM_THRESHOLD = 20
 # Stabilise la reproductibilité des splits de cross-validation
 DEFAULT_RANDOM_STATE = 42
 
+# Fixe le nombre de splits par défaut pour la sélection interne
+DEFAULT_HYPERPARAM_SPLITS = 3
+
+# Fixe la taille de test pour la sélection interne des hyperparamètres
+DEFAULT_HYPERPARAM_TEST_SIZE = 0.2
+
+# Déclare les valeurs de C explorées pour SVM/LogReg
+DEFAULT_HYPERPARAM_C_VALUES = (0.1, 1.0, 10.0)
+
+# Déclare les tailles de fenêtres Welch testées par défaut
+DEFAULT_HYPERPARAM_WELCH_NPERSEG = (64, 128)
+
 
 # Construit un split stratifié reproductible avec un nombre fixe d'itérations
 def _build_cv_splitter(y: np.ndarray, n_splits: int):
@@ -452,6 +464,54 @@ def _resolve_cv_splits(
     return cv, None
 
 
+# Construit un splitter interne pour la sélection d'hyperparamètres
+def _resolve_hyperparam_splits(
+    y: np.ndarray,
+    requested_splits: int,
+) -> tuple[StratifiedShuffleSplit | None, str | None]:
+    """Retourne un splitter stratifié pour la sélection interne."""
+
+    # Calcule le nombre total d'échantillons disponibles
+    sample_count = int(y.shape[0])
+    # Refuse la sélection si l'effectif est trop faible
+    if sample_count < MIN_CV_TOTAL_SAMPLES:
+        # Retourne une raison explicite pour le diagnostic
+        return None, _describe_cv_unavailability(y, requested_splits)
+    # Mesure le nombre de classes pour valider la stratification
+    class_count = int(np.unique(y).size)
+    # Refuse la sélection si une seule classe est présente
+    if class_count < MIN_CV_CLASS_COUNT:
+        # Retourne une raison explicite pour le diagnostic
+        return None, _describe_cv_unavailability(y, requested_splits)
+    # Récupère l'effectif minimal par classe pour ajuster test_size
+    _labels, class_counts = np.unique(y, return_counts=True)
+    # Calcule le nombre minimal d'échantillons par classe
+    min_class_count = int(class_counts.min())
+    # Refuse la sélection si l'effectif minimal est insuffisant
+    if min_class_count < MIN_CV_CLASS_COUNT:
+        # Retourne une raison explicite pour le diagnostic
+        return None, _describe_cv_unavailability(y, requested_splits)
+    # Calcule la taille minimale pour garantir une classe en test
+    min_test_size = 1.0 / float(min_class_count)
+    # Ajuste la taille de test pour rester valide et stable
+    test_size = max(DEFAULT_HYPERPARAM_TEST_SIZE, min_test_size)
+    # Calcule la taille maximale autorisée pour le split
+    max_test_size = (min_class_count - 1) / float(min_class_count)
+    # Refuse la sélection si le split devient impossible
+    if test_size > max_test_size:
+        # Retourne une raison explicite pour le diagnostic
+        return None, _describe_cv_unavailability(y, requested_splits)
+    # Retourne un splitter stratifié pour la sélection interne
+    return (
+        StratifiedShuffleSplit(
+            n_splits=requested_splits,
+            test_size=test_size,
+            random_state=DEFAULT_RANDOM_STATE,
+        ),
+        None,
+    )
+
+
 # Gère le fallback lorsque la validation croisée est impossible
 def _handle_cv_unavailability(
     pipeline: Pipeline,
@@ -505,6 +565,8 @@ def _run_grid_search(
     search_summary = {
         "best_params": search.best_params_,
         "best_score": float(search.best_score_),
+        # Expose les scores internes pour diagnostic rapide
+        "search_scores": cv_scores.tolist(),
     }
     # Retourne les scores, la meilleure pipeline et le résumé
     return cv_scores, search.best_estimator_, search_summary
@@ -1851,27 +1913,58 @@ def _write_manifest(
 
 # Construit la grille d'hyperparamètres par défaut pour l'optimisation
 # Construit la grille d'hyperparamètres pour la recherche d'optimisation
+def _build_classifier_grid(allow_lda: bool) -> list[object]:
+    """Construit une grille compacte de classifieurs."""
+
+    # Initialise la grille pour les classifieurs candidats
+    classifier_grid: list[object] = []
+    # Ajoute LDA uniquement lorsque l'effectif le permet
+    if allow_lda:
+        # Utilise LDA shrinkage pour stabilité des covariances
+        classifier_grid.append(
+            LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")
+        )
+    # Parcourt les valeurs de C pour limiter la complexité des modèles
+    for c_value in DEFAULT_HYPERPARAM_C_VALUES:
+        # Ajoute une régression logistique régularisée
+        classifier_grid.append(LogisticRegression(C=c_value, max_iter=1000))
+        # Ajoute un SVM linéaire régularisé
+        classifier_grid.append(LinearSVC(C=c_value, max_iter=5000))
+    # Ajoute un classifieur centroïde pour les petits échantillons
+    classifier_grid.append(CentroidClassifier())
+    # Retourne la grille compacte des classifieurs
+    return classifier_grid
+
+
+# Construit la grille des paramètres Welch pour la sélection interne
+def _build_welch_config_grid(
+    base_config: dict[str, object] | None,
+) -> list[object]:
+    """Construit une grille compacte pour les paramètres Welch."""
+
+    # Démarre la grille avec la configuration de base
+    welch_config_grid: list[object] = [base_config]
+    # Ajoute les tailles de fenêtre Welch ciblées
+    for nperseg in DEFAULT_HYPERPARAM_WELCH_NPERSEG:
+        # Ajoute la config nperseg si distincte de la base
+        if {"nperseg": nperseg} not in welch_config_grid:
+            # Enrichit la grille pour la sélection interne
+            welch_config_grid.append({"nperseg": nperseg})
+    # Retourne la grille Welch finale
+    return welch_config_grid
+
+
 def _build_grid_search_grid(
     config: PipelineConfig, allow_lda: bool
 ) -> dict[str, list[object]]:
     """Retourne une grille raisonnable pour la recherche d'hyperparamètres."""
 
+    # Détecte les stratégies qui s'appuient sur des features de signal
+    uses_signal_features = config.feature_strategy in {"welch", "wavelet"}
     # Retourne une grille réduite si CSP/CSSP est utilisé
     if config.dim_method in {"csp", "cssp"}:
         # Déclare un ensemble restreint de classifieurs pour CSP
-        csp_classifier_grid: list[object] = []
-        # Ajoute LDA uniquement lorsque l'effectif le permet
-        if allow_lda:
-            # Utilise LDA shrinkage pour stabilité des covariances
-            csp_classifier_grid.append(
-                LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")
-            )
-        # Ajoute une régression logistique pour des décisions régularisées
-        csp_classifier_grid.append(LogisticRegression(max_iter=1000))
-        # Augmente max_iter pour limiter les warnings de convergence liblinear
-        csp_classifier_grid.append(LinearSVC(max_iter=5000))
-        # Ajoute un classifieur centroïde pour les petits échantillons
-        csp_classifier_grid.append(CentroidClassifier())
+        csp_classifier_grid = _build_classifier_grid(allow_lda)
         # Prépare une liste de composantes CSP sans doublons
         csp_n_components_grid: list[object] = (
             [config.n_components]
@@ -1884,27 +1977,23 @@ def _build_grid_search_grid(
             and config.n_components not in csp_n_components_grid
         ):
             csp_n_components_grid.append(config.n_components)
+        # Prépare une grille de configuration Welch si besoin
+        welch_config_grid = _build_welch_config_grid(config.feature_strategy_config)
         # Retourne une grille compatible avec la pipeline CSP réduite
-        return {
+        grid = {
             "spatial_filters__n_components": csp_n_components_grid,
             "classifier": csp_classifier_grid,
         }
+        # Ajoute la variation Welch uniquement si les features de signal sont actives
+        if uses_signal_features:
+            # Autorise la variation des paramètres Welch au sein de CSP
+            grid["features__strategy_config"] = welch_config_grid
+        # Retourne la grille configurée pour CSP
+        return grid
 
     # Déclare un ensemble restreint de classifieurs pour limiter la complexité
     # Initialise la grille de classifieurs candidates
-    classifier_grid: list[object] = []
-    # Ajoute LDA uniquement lorsque l'effectif le permet
-    if allow_lda:
-        # Utilise LDA pour les effectifs suffisants
-        classifier_grid.append(
-            LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")
-        )
-    # Ajoute une régression logistique pour des décisions régularisées
-    classifier_grid.append(LogisticRegression(max_iter=1000))
-    # Augmente max_iter pour limiter les warnings de convergence liblinear
-    classifier_grid.append(LinearSVC(max_iter=5000))
-    # Ajoute un classifieur centroïde pour les petits échantillons
-    classifier_grid.append(CentroidClassifier())
+    classifier_grid = _build_classifier_grid(allow_lda)
     # Déclare des scalers optionnels, dont passthrough pour désactiver
     scaler_grid: list[object] = ["passthrough", StandardScaler(), RobustScaler()]
     # Déclare une plage compacte de composantes pour PCA/SVD
@@ -1912,10 +2001,13 @@ def _build_grid_search_grid(
     # Ajoute la valeur demandée explicitement pour garantir sa présence
     if config.n_components is not None and config.n_components not in n_components_grid:
         n_components_grid.append(config.n_components)
+    # Prépare une grille de configuration Welch si besoin
+    welch_config_grid = _build_welch_config_grid(config.feature_strategy_config)
     # Construit la grille finale en couvrant features + réduction + classif
     # Étend la grille aux familles Welch et mixte pour enrichir les features
     return {
         "features__feature_strategy": ["fft", "welch", ("fft", "welch"), "wavelet"],
+        "features__strategy_config": welch_config_grid,
         "features__normalize": [True, False],
         "dimensionality__method": ["pca", "svd"],
         "dimensionality__n_components": n_components_grid,
@@ -1989,24 +2081,28 @@ def _train_with_optional_cv(
         allow_lda = sample_count > class_count
         # Construit la grille d'hyperparamètres à explorer
         param_grid = _build_grid_search_grid(adapted_config, allow_lda)
-        # Détermine le nombre de splits spécifique si fourni
-        search_splits = request.grid_search_splits or DEFAULT_CV_SPLITS
-        # Construit un splitter dédié pour la recherche d'hyperparamètres
-        search_cv, search_reason = _resolve_cv_splits(y, search_splits)
-        # Désactive la recherche si la CV est impossible
+        # Détermine le nombre de splits interne pour la sélection
+        search_splits = request.grid_search_splits or DEFAULT_HYPERPARAM_SPLITS
+        # Construit un splitter dédié à la sélection interne
+        search_cv, search_reason = _resolve_hyperparam_splits(y, search_splits)
+        # Désactive la recherche si le split interne est impossible
         if search_cv is None:
-            # Prépare une raison explicite pour l'absence de CV
+            # Prépare une raison explicite pour l'absence de sélection
             cv_unavailability_reason = search_reason or _describe_cv_unavailability(
                 y, search_splits
             )
-            # Applique le fallback CV et retourne immédiatement
-            cv_scores, pipeline, cv_unavailability_reason = _handle_cv_unavailability(
-                pipeline,
-                X,
-                y,
-                cv_unavailability_reason,
-            )
-            # Retourne immédiatement les sorties sans grid search
+            # Calcule les scores de validation croisée sur l'ensemble du pipeline
+            try:
+                # Lance la cross-validation pour mesurer la performance finale
+                cv_scores = cross_val_score(pipeline, X, y, cv=cv, error_score="raise")
+            except ValueError as error:
+                # Capture l'erreur pour un diagnostic CLI explicite
+                cv_error = str(error)
+                # Déclare un score vide pour conserver le flux nominal
+                cv_scores = np.array([])
+            # Ajuste la pipeline sur toutes les données après évaluation
+            pipeline.fit(X, y)
+            # Retourne immédiatement les sorties sans sélection interne
             return (
                 cv_scores,
                 pipeline,
@@ -2014,14 +2110,25 @@ def _train_with_optional_cv(
                 cv_unavailability_reason,
                 cv_error,
             )
-        # Lance la recherche d'hyperparamètres et récupère les scores
-        cv_scores, pipeline, search_summary = _run_grid_search(
+        # Lance la recherche d'hyperparamètres et récupère la meilleure pipeline
+        _search_scores, pipeline, search_summary = _run_grid_search(
             search_pipeline,
             param_grid,
             search_cv,
             X,
             y,
         )
+        # Calcule les scores de validation croisée sur la pipeline sélectionnée
+        try:
+            # Lance la cross-validation pour mesurer la performance finale
+            cv_scores = cross_val_score(pipeline, X, y, cv=cv, error_score="raise")
+        except ValueError as error:
+            # Capture l'erreur pour un diagnostic CLI explicite
+            cv_error = str(error)
+            # Déclare un score vide pour conserver le flux nominal
+            cv_scores = np.array([])
+        # Ajuste la pipeline sur toutes les données après évaluation
+        pipeline.fit(X, y)
     else:
         # Calcule les scores de validation croisée sur l'ensemble du pipeline
         try:
