@@ -15,6 +15,11 @@ from scipy import signal
 # Importe BaseEstimator et TransformerMixin pour conserver la compatibilité scikit-learn
 from sklearn.base import BaseEstimator, TransformerMixin
 
+# Fixe le nombre de dimensions attendues pour les epochs brutes
+EXPECTED_EPOCHS_NDIM = 3
+# Fixe le nombre de dimensions attendues pour les probabilités par fenêtre
+EXPECTED_PROBABILITIES_NDIM = 3
+
 
 @lru_cache(maxsize=None)
 def _print_once(message: str) -> None:
@@ -22,6 +27,111 @@ def _print_once(message: str) -> None:
 
     # Centralise l'affichage pour éviter les répétitions en CV/clonage
     print(message)
+
+
+# Découpe les epochs en fenêtres glissantes pour l'analyse temporelle
+def build_sliding_windows(
+    epochs_data: np.ndarray,
+    sfreq: float,
+    window_seconds: float,
+    overlap: float,
+) -> np.ndarray:
+    """Découpe des epochs en fenêtres glissantes temporelles."""
+
+    # Vérifie que les epochs sont bien au format (n_epochs, n_channels, n_times)
+    if epochs_data.ndim != EXPECTED_EPOCHS_NDIM:
+        # Signale un format invalide pour éviter des reshapes silencieux
+        raise ValueError("epochs_data must have shape (n_epochs, n_channels, n_times)")
+    # Refuse une fréquence d'échantillonnage non positive
+    if sfreq <= 0:
+        # Signale la fréquence invalide pour guider l'appelant
+        raise ValueError("sfreq must be a positive float.")
+    # Refuse une fenêtre non positive pour éviter des slices vides
+    if window_seconds <= 0:
+        # Signale la durée invalide pour corriger la configuration
+        raise ValueError("window_seconds must be positive.")
+    # Refuse un overlap hors [0, 1) pour éviter un pas nul
+    if overlap < 0 or overlap >= 1:
+        # Signale l'overlap invalide pour corriger la configuration
+        raise ValueError("overlap must be in the [0, 1) interval.")
+
+    # Calcule la taille de fenêtre en échantillons pour découper les epochs
+    window_samples = int(round(window_seconds * sfreq))
+    # Garantit une fenêtre d'au moins un échantillon
+    window_samples = max(1, window_samples)
+    # Bornes la fenêtre à la durée disponible pour éviter une fenêtre vide
+    window_samples = min(window_samples, epochs_data.shape[2])
+    # Calcule le pas en échantillons en fonction de l'overlap demandé
+    step_samples = int(round(window_samples * (1.0 - overlap)))
+    # Garantit un pas strictement positif pour générer des fenêtres
+    step_samples = max(1, step_samples)
+
+    # Calcule la dernière position de départ possible pour une fenêtre complète
+    max_start = epochs_data.shape[2] - window_samples + 1
+    # Prépare les indices de départ pour couvrir toute la fenêtre disponible
+    start_indices = list(range(0, max_start, step_samples))
+    # Assure au moins une fenêtre même si la durée est très courte
+    if not start_indices:
+        # Force un seul point de départ pour préserver la structure attendue
+        start_indices = [0]
+
+    # Prépare un conteneur pour empiler les fenêtres par epoch
+    windows: List[np.ndarray] = []
+    # Parcourt chaque epoch pour appliquer la même grille temporelle
+    for epoch in epochs_data:
+        # Prépare un conteneur local pour les fenêtres de cet epoch
+        epoch_windows: List[np.ndarray] = []
+        # Parcourt chaque point de départ pour extraire une fenêtre
+        for start in start_indices:
+            # Ajoute la fenêtre découpée pour ce point de départ
+            epoch_windows.append(epoch[:, start : start + window_samples])
+        # Empile les fenêtres pour obtenir (n_windows, n_channels, n_times)
+        windows.append(np.stack(epoch_windows, axis=0))
+    # Empile les epochs pour obtenir (n_epochs, n_windows, n_channels, n_times)
+    return np.stack(windows, axis=0)
+
+
+# Agrège des probabilités par fenêtre pour revenir à l'échelle epoch
+def aggregate_window_probabilities(
+    probabilities: np.ndarray,
+    strategy: str,
+) -> np.ndarray:
+    """Agrège des probabilités par fenêtre (moyenne ou vote)."""
+
+    # Vérifie que les probabilités suivent (n_epochs, n_windows, n_classes)
+    if probabilities.ndim != EXPECTED_PROBABILITIES_NDIM:
+        # Prépare le message d'erreur pour un format invalide
+        message = "probabilities must have shape (n_epochs, n_windows, n_classes)."
+        # Signale un format inattendu pour préserver le contrat d'agrégation
+        raise ValueError(message)
+    # Nettoie la stratégie pour autoriser une saisie robuste
+    normalized_strategy = strategy.strip().lower()
+    # Applique la moyenne des probabilités pour une agrégation douce
+    if normalized_strategy in {"mean", "mean_proba"}:
+        # Calcule la moyenne sur les fenêtres pour chaque epoch
+        mean_probabilities = cast(np.ndarray, probabilities.mean(axis=1))
+        # Retourne la moyenne agrégée par epoch
+        return mean_probabilities
+    # Applique un vote majoritaire basé sur les classes dominantes
+    if normalized_strategy in {"vote", "majority_vote"}:
+        # Calcule les classes gagnantes par fenêtre
+        predicted_classes = np.argmax(probabilities, axis=2)
+        # Prépare un tableau de votes par epoch et par classe
+        votes = np.zeros((probabilities.shape[0], probabilities.shape[2]), dtype=float)
+        # Parcourt chaque epoch pour compter les votes par classe
+        for epoch_index in range(probabilities.shape[0]):
+            # Extrait les classes prédites pour cet epoch
+            epoch_predictions = predicted_classes[epoch_index]
+            # Compte les occurrences de classes pour cet epoch
+            unique, counts = np.unique(epoch_predictions, return_counts=True)
+            # Injecte les comptes dans la matrice de votes
+            votes[epoch_index, unique] = counts
+        # Normalise les votes pour obtenir une pseudo-probabilité
+        normalized_votes = votes / float(probabilities.shape[1])
+        # Retourne les votes normalisés par epoch
+        return normalized_votes
+    # Signale une stratégie inconnue pour éviter un comportement implicite
+    raise ValueError("strategy must be 'mean_proba' or 'majority_vote'.")
 
 
 def _resolve_band_ranges(

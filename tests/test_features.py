@@ -15,8 +15,15 @@ from mne import EpochsArray, create_info
 # Importe le module complet pour monkeypatcher les helpers internes
 import tpv.features as features_module
 
+# Importe l'agrégation des probabilités pour tester les dimensions
 # Importe l'extracteur procédural, la classe scikit-learn et les helpers Welch
-from tpv.features import ExtractFeatures, _prepare_welch_parameters, extract_features
+from tpv.features import (
+    ExtractFeatures,
+    _prepare_welch_parameters,
+    aggregate_window_probabilities,
+    build_sliding_windows,
+    extract_features,
+)
 
 # Définit une constante pour le budget temps afin d'éviter les magic numbers
 MAX_EXTRACTION_SECONDS = 0.25
@@ -71,6 +78,70 @@ def test_extract_features_welch_respects_window_and_shape() -> None:
         "C1_beta",
         "C1_gamma",
     ]
+
+
+# Vérifie que l'agrégation conserve la dimension des features
+def test_aggregate_window_probabilities_preserves_dimensions() -> None:
+    """L'agrégation doit conserver la dimension n_epochs x n_classes."""
+
+    # Définit des probabilités factices (epochs, fenêtres, classes)
+    probabilities = np.zeros((2, 2, 3), dtype=float)
+    # Injecte les probabilités du premier epoch pour deux fenêtres
+    probabilities[0] = np.array([[0.2, 0.5, 0.3], [0.3, 0.4, 0.3]], dtype=float)
+    # Injecte les probabilités du second epoch pour deux fenêtres
+    probabilities[1] = np.array([[0.6, 0.2, 0.2], [0.1, 0.1, 0.8]], dtype=float)
+
+    # Agrège via la moyenne pour simuler une sortie probabiliste
+    mean_aggregated = aggregate_window_probabilities(probabilities, "mean_proba")
+    # Vérifie que la forme reste epochs x classes
+    assert mean_aggregated.shape == (2, 3)
+
+    # Agrège via le vote majoritaire pour simuler un fallback
+    vote_aggregated = aggregate_window_probabilities(probabilities, "majority_vote")
+    # Vérifie que la forme reste epochs x classes
+    assert vote_aggregated.shape == (2, 3)
+    # Vérifie que les votes sont normalisés par fenêtre
+    assert np.allclose(vote_aggregated.sum(axis=1), 1.0)
+
+
+# Vérifie que le découpage glissant respecte la forme attendue
+def test_build_sliding_windows_preserves_shape() -> None:
+    """Le découpage glissant doit renvoyer (epochs, windows, channels, times)."""
+
+    # Prépare des epochs avec deux essais, un canal et quatre échantillons
+    epochs_data = np.arange(8, dtype=float).reshape(2, 1, 4)
+    # Définit une fréquence d'échantillonnage simple pour le test
+    sfreq = 2.0
+    # Applique un découpage 1s avec 50% d'overlap
+    windows = build_sliding_windows(epochs_data, sfreq, window_seconds=1.0, overlap=0.5)
+    # Vérifie que trois fenêtres de deux échantillons sont produites par epoch
+    assert windows.shape == (2, 3, 1, 2)
+
+
+# Vérifie que le découpage glissant rejette un overlap invalide
+def test_build_sliding_windows_rejects_invalid_overlap() -> None:
+    """Le découpage glissant doit refuser un overlap >= 1."""
+
+    # Prépare des epochs minimaux pour déclencher la validation
+    epochs_data = np.zeros((1, 1, 4), dtype=float)
+    # Définit une fréquence d'échantillonnage simple pour le test
+    sfreq = 2.0
+    # Vérifie que l'overlap invalide déclenche une erreur
+    with pytest.raises(ValueError):
+        # Déclenche l'erreur via un overlap >= 1
+        build_sliding_windows(epochs_data, sfreq, window_seconds=1.0, overlap=1.0)
+
+
+# Vérifie que l'agrégation rejette une stratégie inconnue
+def test_aggregate_window_probabilities_rejects_unknown_strategy() -> None:
+    """L'agrégation doit refuser une stratégie inconnue."""
+
+    # Prépare des probabilités minimales pour déclencher l'exception
+    probabilities = np.ones((1, 1, 2), dtype=float)
+    # Vérifie que la stratégie inconnue déclenche une erreur
+    with pytest.raises(ValueError):
+        # Déclenche l'erreur via une stratégie non supportée
+        aggregate_window_probabilities(probabilities, "unknown")
 
 
 def test_extract_features_alpha_sine_dominates_alpha_band() -> None:
