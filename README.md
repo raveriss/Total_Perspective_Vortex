@@ -203,7 +203,7 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 | Mutation | `make mut` | `MUTMUT_USE_COVERAGE=1 ... poetry run mutmut run` |
 | Entraîner | `make train` | `poetry run python mybci.py 109 3 train` *(par défaut)* |
 | Prédire | `make predict` | `poetry run python mybci.py 109 3 predict` *(par défaut)* |
-| Benchmark global | `make bench` | `poetry run python mybci.py` |
+| Benchmark global | `make mybci` | `poetry run python mybci.py` |
 | Nettoyer | `make clean` | supprime `./artifacts` + les `*.npy` (hors `.venv`, `.git`, `artifacts`) |
 
 ---

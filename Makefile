@@ -16,7 +16,7 @@
 	mut \
 	train \
 	predict \
-	bench \
+	mybci \
 	activate \
 	deactivate \
 	clean-mutants \
@@ -24,7 +24,7 @@
 	clean-artifacts \
 	ensure-venv \
 	realtime \
-	score \
+	compute-mean-of-means \
 	visualizer \
 	clean-npy
 
@@ -222,7 +222,7 @@ realtime: ensure-venv
 	$(POETRY) python src/tpv/realtime.py "$$subject" "$$run"
 
 # score : `make score`
-score: ensure-venv
+compute-mean-of-means: ensure-venv
 	@set -euo pipefail; \
 	$(POETRY) python scripts/aggregate_experience_scores.py
 
@@ -243,7 +243,7 @@ visualizer: ensure-venv
 	$(POETRY) python scripts/visualize_raw_filtered.py "$$subject" "$$run"
 
 # Évaluation globale : équivalent à `python mybci.py` du sujet
-bench: ensure-venv
+mybci: ensure-venv
 	@set -euo pipefail; \
 	positional_strategy="$(word 2,$(MAKECMDGOALS))"; \
 	extra_args="$(BENCH_ARGS)"; \
