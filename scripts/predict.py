@@ -15,7 +15,8 @@ import importlib.util
 import json
 
 # Fournit dataclass pour regrouper des options de prédiction
-from dataclasses import dataclass
+# Fournit field pour définir des factories de dataclass
+from dataclasses import dataclass, field
 
 # Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
@@ -93,8 +94,28 @@ class PredictionOptions:
     raw_dir: Path = DEFAULT_RAW_DIR
     # Stocke la référence EEG à appliquer au chargement EDF
     eeg_reference: str | None = DEFAULT_EEG_REFERENCE
+    # Stocke la configuration de prétraitement pour filtrage/normalisation
+    preprocess_config: preprocessing.PreprocessingConfig = field(
+        # Utilise une factory pour éviter le partage d'instance
+        default_factory=preprocessing.PreprocessingConfig
+    )
     # Stocke les overrides de pipeline pour l'auto-train éventuel
     pipeline_overrides: Mapping[str, str] | None = None
+
+
+# Regroupe les chemins et réglages nécessaires à la génération des numpy
+@dataclass
+class NpyBuildContext:
+    """Encapsule les paramètres nécessaires à la génération des .npy."""
+
+    # Spécifie le répertoire contenant les données numpy
+    data_dir: Path
+    # Spécifie le répertoire des enregistrements EDF bruts
+    raw_dir: Path
+    # Définit la référence EEG à appliquer lors du chargement EDF
+    eeg_reference: str | None
+    # Regroupe les réglages de filtrage et de normalisation
+    preprocess_config: preprocessing.PreprocessingConfig
 
 
 # Regroupe les overrides résolus pour l'auto-train
@@ -114,10 +135,6 @@ class ResolvedOverrides:
 
 # Définit un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
 DEFAULT_MAX_PEAK_TO_PEAK = 200e-6
-# Fixe la bande passante MI recommandée pour la tâche motrice
-DEFAULT_BANDPASS_BAND = (8.0, 30.0)
-# Fixe la fréquence de notch pour supprimer la pollution secteur
-DEFAULT_NOTCH_FREQ = 50.0
 
 
 # Normalise un identifiant brut en appliquant un préfixe standard
@@ -283,6 +300,61 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_EEG_REFERENCE,
         help="Référence EEG appliquée au chargement (ex: average, none)",
     )
+    # Ajoute la borne basse du filtre passe-bande MI
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour la borne basse
+        "--bandpass-low",
+        # Type float pour accepter des fréquences décimales
+        type=float,
+        # Fixe la valeur par défaut alignée sur la bande MI
+        default=preprocessing.DEFAULT_BANDPASS_BAND[0],
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Fréquence basse du passe-bande MI (ex: 8.0)",
+    )
+    # Ajoute la borne haute du filtre passe-bande MI
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour la borne haute
+        "--bandpass-high",
+        # Type float pour accepter des fréquences décimales
+        type=float,
+        # Fixe la valeur par défaut alignée sur la bande MI
+        default=preprocessing.DEFAULT_BANDPASS_BAND[1],
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Fréquence haute du passe-bande MI (ex: 30.0)",
+    )
+    # Ajoute la fréquence de notch pour supprimer le bruit secteur
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour le notch
+        "--notch-freq",
+        # Type float pour autoriser 50 ou 60 Hz
+        type=float,
+        # Fixe la valeur par défaut compatible Europe
+        default=preprocessing.DEFAULT_NOTCH_FREQ,
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Fréquence de notch pour le bruit secteur (50 ou 60 Hz)",
+    )
+    # Ajoute la méthode de normalisation par canal des epochs
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour la normalisation canal
+        "--normalize-channels",
+        # Liste les méthodes acceptées pour sécuriser les entrées
+        choices=("zscore", "robust", "none"),
+        # Fixe la méthode par défaut alignée sur preprocessing
+        default=preprocessing.DEFAULT_NORMALIZE_METHOD,
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Normalisation par canal appliquée aux epochs (zscore/robust/none)",
+    )
+    # Ajoute l'epsilon de stabilisation pour la normalisation
+    parser.add_argument(
+        # Déclare le nom du flag CLI pour l'epsilon
+        "--normalize-epsilon",
+        # Type float pour accepter des epsilon personnalisés
+        type=float,
+        # Fixe la valeur par défaut alignée sur preprocessing
+        default=preprocessing.DEFAULT_NORMALIZE_EPSILON,
+        # Décrit l'usage utilisateur pour éviter les confusions
+        help="Epsilon de stabilité pour la normalisation par canal",
+    )
     # Retourne le parser configuré
     return parser
 
@@ -340,16 +412,21 @@ def _read_epoch_window_metadata(
 def _build_npy_from_edf(
     subject: str,
     run: str,
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str | None,
+    build_context: NpyBuildContext,
 ) -> tuple[Path, Path]:
     """Génère X (epochs brutes) et y depuis un fichier EDF Physionet."""
 
     # Calcule les chemins cibles pour les fichiers numpy
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    features_path, labels_path = _resolve_data_paths(
+        # Transmet l'identifiant de sujet pour les chemins
+        subject,
+        # Transmet l'identifiant de run pour les chemins
+        run,
+        # Transmet le répertoire de base des numpy
+        build_context.data_dir,
+    )
     # Calcule le chemin attendu du fichier EDF brut
-    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    raw_path = build_context.raw_dir / subject / f"{subject}{run}.edf"
     # Arrête l'exécution si l'EDF est introuvable
     if not raw_path.exists():
         # Signale explicitement le chemin absent pour guider l'utilisateur
@@ -358,17 +435,38 @@ def _build_npy_from_edf(
     features_path.parent.mkdir(parents=True, exist_ok=True)
     # Charge l'EDF en conservant les métadonnées essentielles
     raw, _ = preprocessing.load_physionet_raw(
+        # Transmet le chemin EDF brut
         raw_path,
-        reference=eeg_reference,
+        # Transmet la référence EEG configurée
+        reference=build_context.eeg_reference,
     )
     # Résout la fenêtre d'epochs alignée avec l'entraînement
-    epoch_window = _read_epoch_window_metadata(subject, run, data_dir)
-    # Applique un notch pour supprimer la pollution secteur
-    notched_raw = preprocessing.apply_notch_filter(raw, freq=DEFAULT_NOTCH_FREQ)
+    epoch_window = _read_epoch_window_metadata(
+        # Transmet l'identifiant de sujet pour le chemin JSON
+        subject,
+        # Transmet l'identifiant de run pour le chemin JSON
+        run,
+        # Transmet le répertoire de base des numpy
+        build_context.data_dir,
+    )
+    # Applique un notch si une fréquence valide est fournie
+    if build_context.preprocess_config.notch_freq > 0.0:
+        # Applique le notch pour supprimer la pollution secteur
+        notched_raw = preprocessing.apply_notch_filter(
+            # Transmet le signal brut chargé
+            raw,
+            # Transmet la fréquence de notch configurée
+            freq=build_context.preprocess_config.notch_freq,
+        )
+    else:
+        # Conserve le signal brut si le notch est désactivé
+        notched_raw = raw
     # Applique le filtrage bande-passante pour stabiliser les bandes MI
     filtered_raw = preprocessing.apply_bandpass_filter(
+        # Transmet le signal après notch (ou brut si désactivé)
         notched_raw,
-        freq_band=DEFAULT_BANDPASS_BAND,
+        # Transmet la bande passante configurée pour la MI
+        freq_band=build_context.preprocess_config.bandpass_band,
     )
     # Mappe les annotations en événements moteurs après filtrage
     events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
@@ -402,6 +500,17 @@ def _build_npy_from_edf(
         cleaned_labels = motor_labels
     # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
     epochs_data = cleaned_epochs.get_data(copy=True)
+    # Normalise les epochs par canal si la méthode est activée
+    if build_context.preprocess_config.normalize_method != "none":
+        # Applique la normalisation par canal sur chaque epoch
+        epochs_data = preprocessing.normalize_epoch_data(
+            # Transmet les epochs nettoyés pour la normalisation
+            epochs_data,
+            # Transmet la méthode de normalisation choisie
+            method=build_context.preprocess_config.normalize_method,
+            # Transmet l'epsilon de stabilité pour éviter les divisions nulles
+            epsilon=build_context.preprocess_config.normalize_epsilon,
+        )
     # Définit un mapping stable label → entier
     label_mapping = {
         label: idx for idx, label in enumerate(sorted(set(cleaned_labels)))
@@ -420,14 +529,19 @@ def _build_npy_from_edf(
 def _load_data(
     subject: str,
     run: str,
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str | None,
+    build_context: NpyBuildContext,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Charge ou construit les données et étiquettes pour un run."""
 
     # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(subject, run, data_dir)
+    features_path, labels_path = _resolve_data_paths(
+        # Transmet l'identifiant de sujet pour les chemins
+        subject,
+        # Transmet l'identifiant de run pour les chemins
+        run,
+        # Transmet le répertoire de base des numpy
+        build_context.data_dir,
+    )
 
     # Indique si nous devons régénérer les .npy
     needs_rebuild = False
@@ -455,11 +569,12 @@ def _load_data(
     if needs_rebuild:
         # Convertit l'EDF associé en fichiers numpy persistés
         features_path, labels_path = _build_npy_from_edf(
+            # Transmet l'identifiant de sujet pour reconstruire les numpy
             subject,
+            # Transmet l'identifiant de run pour reconstruire les numpy
             run,
-            data_dir,
-            raw_dir,
-            eeg_reference,
+            # Transmet le contexte de génération des numpy
+            build_context,
         )
 
     # Utilise numpy.load pour récupérer les features en mémoire
@@ -752,6 +867,8 @@ def _train_missing_pipeline(
     raw_dir = resolved_options.raw_dir
     # Extrait la référence EEG depuis les options
     eeg_reference = resolved_options.eeg_reference
+    # Extrait la configuration de prétraitement depuis les options
+    preprocess_config = resolved_options.preprocess_config
     # Extrait les overrides de pipeline depuis les options
     pipeline_overrides = resolved_options.pipeline_overrides
     # Résout la fréquence d'échantillonnage à partir de l'EDF si disponible
@@ -799,6 +916,8 @@ def _train_missing_pipeline(
         raw_dir=raw_dir,
         # Transmet la référence EEG pour aligner train et predict
         eeg_reference=eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
         # Désactive la recherche exhaustive pour accélérer l'auto-train
         enable_grid_search=False,
         # Fixe un nombre de splits raisonnable si la recherche est réactivée
@@ -825,13 +944,27 @@ def evaluate_run(
     raw_dir = resolved_options.raw_dir
     # Extrait la référence EEG depuis les options
     eeg_reference = resolved_options.eeg_reference
+    # Extrait la configuration de prétraitement depuis les options
+    preprocess_config = resolved_options.preprocess_config
+    # Construit le contexte de génération des numpy pour ce run
+    build_context = NpyBuildContext(
+        # Transmet le répertoire des numpy
+        data_dir=data_dir,
+        # Transmet le répertoire des EDF bruts
+        raw_dir=raw_dir,
+        # Transmet la référence EEG configurée
+        eeg_reference=eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
+    )
     # Charge ou génère les tableaux numpy nécessaires au scoring
     X, y = _load_data(
+        # Transmet l'identifiant de sujet pour le chargement
         subject,
+        # Transmet l'identifiant de run pour le chargement
         run,
-        data_dir,
-        raw_dir,
-        eeg_reference,
+        # Transmet le contexte de génération des numpy
+        build_context,
     )
     # Construit le dossier d'artefacts spécifique au sujet et au run
     target_dir = artifacts_dir / subject / run
@@ -942,6 +1075,23 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     # Parse les arguments fournis par l'utilisateur
     args = parser.parse_args(argv)
+    # Refuse une bande passante incohérente pour éviter un filtrage invalide
+    if args.bandpass_low >= args.bandpass_high:
+        # Informe l'utilisateur de l'erreur de configuration
+        print("ERREUR: bandpass_low doit être inférieur à bandpass_high.")
+        # Retourne un code d'erreur explicite pour la CLI
+        return 1
+    # Construit la configuration de prétraitement à partir des arguments
+    preprocess_config = preprocessing.PreprocessingConfig(
+        # Définit la bande passante MI configurée
+        bandpass_band=(args.bandpass_low, args.bandpass_high),
+        # Définit la fréquence de notch configurée
+        notch_freq=args.notch_freq,
+        # Définit la méthode de normalisation par canal
+        normalize_method=args.normalize_channels,
+        # Définit l'epsilon de stabilité pour la normalisation
+        normalize_epsilon=args.normalize_epsilon,
+    )
     # Évalue le run demandé et récupère la matrice W
     # Construit les overrides de pipeline à partir des arguments CLI
     pipeline_overrides = _build_pipeline_overrides_from_args(args)
@@ -951,6 +1101,8 @@ def main(argv: list[str] | None = None) -> int:
         raw_dir=args.raw_dir,
         # Transmet la référence EEG pour re-référencer au chargement
         eeg_reference=args.eeg_reference,
+        # Transmet la configuration de prétraitement
+        preprocess_config=preprocess_config,
         # Transmet les overrides pour l'auto-train en prédiction
         pipeline_overrides=pipeline_overrides,
     )

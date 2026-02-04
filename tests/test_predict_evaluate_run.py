@@ -237,14 +237,12 @@ def test_evaluate_run_skips_training_when_artifacts_present_and_forwards_raw_dir
     def fake_load_data(
         subject_arg: str,
         run_arg: str,
-        data_dir_arg: Path,
-        raw_dir_arg: Path,
-        eeg_reference: str | None,
+        build_context: predict_cli.NpyBuildContext,
     ) -> tuple[np.ndarray, np.ndarray]:
         assert subject_arg == subject
         assert run_arg == run
-        assert data_dir_arg == data_dir
-        load_calls.append((raw_dir_arg, eeg_reference))
+        assert build_context.data_dir == data_dir
+        load_calls.append((build_context.raw_dir, build_context.eeg_reference))
         return X, y
 
     monkeypatch.setattr(predict_cli, "_load_data", fake_load_data)
