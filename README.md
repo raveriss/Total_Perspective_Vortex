@@ -76,7 +76,6 @@ Cloner le projet depuis GitHub :
 git clone https://github.com/raveriss/Total_Perspective_Vortex.git
 cd Total_Perspective_Vortex
 ```
-
 ---
 
 # 🧠 Objectifs pédagogiques (42 / IA / ML)
@@ -107,6 +106,9 @@ Total_Perspective_Vortex/
 │   │   ├── image01.png
 │   │   └── image02.png
 │   ├── index.md
+│   ├── metrics
+│   │   ├── eval_payload.json
+│   │   └── eval_payload.npz
 │   ├── project
 │   │   ├── benchmark_results.json
 │   │   ├── benchmark_results.md
@@ -129,22 +131,17 @@ Total_Perspective_Vortex/
 ├── pyproject.toml
 ├── README.md
 ├── scripts
-│   ├── aggregate_accuracy.py
-│   ├── aggregate_scores.py
-│   ├── benchmark.py
-│   ├── fetch_physionet.py
-│   ├── import_murphy_issues.py
-│   ├── import_murphy_to_project.py
-│   ├── __init__.py
-│   ├── predict.py
-│   ├── prepare_physionet.py
-│   ├── __pycache__
-│   │   ├── __init__.cpython-310.pyc
-│   │   ├── predict.cpython-310.pyc
-│   │   └── train.cpython-310.pyc
-│   ├── sync_dataset.py
-│   ├── train.py
-│   └── visualize_raw_filtered.py
+│   ├── aggregate_accuracy.py
+│   ├── aggregate_experience_scores.py
+│   ├── aggregate_scores.py
+│   ├── benchmark.py
+│   ├── fetch_physionet.py
+│   ├── __init__.py
+│   ├── predict.py
+│   ├── prepare_physionet.py
+│   ├── sync_dataset.py
+│   ├── train.py
+│   └── visualize_raw_filtered.py
 ├── src
 │   └── tpv
 │       ├── classifier.py
@@ -154,32 +151,42 @@ Total_Perspective_Vortex/
 │       ├── pipeline.py
 │       ├── predict.py
 │       ├── preprocessing.py
-│       ├── __pycache__
-│       │   ├── classifier.cpython-310.pyc
-│       │   ├── dimensionality.cpython-310.pyc
-│       │   ├── features.cpython-310.pyc
-│       │   ├── __init__.cpython-310.pyc
-│       │   ├── pipeline.cpython-310.pyc
-│       │   ├── predict.cpython-310.pyc
-│       │   ├── preprocessing.cpython-310.pyc
-│       │   └── train.cpython-310.pyc
+│       ├── __pycache__
+│       │   ├── classifier.cpython-310.pyc
+│       │   ├── dimensionality.cpython-310.pyc
+│       │   ├── features.cpython-310.pyc
+│       │   ├── __init__.cpython-310.pyc
+│       │   ├── pipeline.cpython-310.pyc
+│       │   ├── preprocessing.cpython-310.pyc
+│       │   └── utils.cpython-310.pyc
 │       ├── realtime.py
 │       ├── train.py
 │       └── utils.py
-└─── tests
-    ├── test_benchmark.py
-    ├── test_classifier.py
-    ├── test_dimensionality.py
-    ├── test_features.py
-    ├── test_fetch_physionet.py
-    ├── test_mybci.py
-    ├── test_pipeline.py
-    ├── test_prepare_physionet.py
-    ├── test_preprocessing.py
-    ├── test_realtime.py
-    ├── test_scripts_roundtrip.py
-    ├── test_sync_dataset.py
-    └── test_visualize_raw_filtered.py
+└── tests
+    ├── test_aggregate_scores_cli.py
+    ├── test_benchmark.py
+    ├── test_classifier.py
+    ├── test_dimensionality.py
+    ├── test_docs.py
+    ├── test_experience_scores.py
+    ├── test_features.py
+    ├── test_fetch_physionet.py
+    ├── test_mybci.py
+    ├── test_pipeline.py
+    ├── test_predict_cli.py
+    ├── test_predict_evaluate_run.py
+    ├── test_predict_load_data.py
+    ├── test_predict_reports.py
+    ├── test_prepare_physionet.py
+    ├── test_preprocessing.py
+    ├── test_realtime.py
+    ├── test_scripts_roundtrip.py
+    ├── test_sync_dataset.py
+    ├── test_tpv_entrypoints.py
+    ├── test_train_cli.py
+    ├── test_train.py
+    ├── test_utils.py
+    └── test_visualize_raw_filtered.py
 ```
 
 ---
@@ -190,7 +197,6 @@ Le projet utilise **Poetry exclusivement** (aucun `requirements.txt`).
 Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 
 ---
-
 
 | Objectif | Commande recommandée | Commande équivalente |
 |---|---|---|
@@ -224,49 +230,11 @@ les avertissements "aucun modèle disponible", assurez-vous que
 make train 1 4
 ```
 
-### 🧪 Sélection d'hyperparamètres (split interne + CV finale)
-
-Activez la sélection interne avec une grille restreinte (CSP, C, Welch) :
-
-```bash
-make train 1 4 TRAIN_ARGS="--grid-search"
-```
-
-Ce mode :
-
-* utilise un split interne stratifié pour choisir les hyperparamètres ;
-* teste une **grille restreinte** :
-  * `CSP n_components` (valeurs compactes + valeur explicite si fournie),
-  * `C` pour **LogisticRegression** / **LinearSVC**,
-  * `nperseg` Welch (si `feature_strategy` inclut `welch`) ;
-* conserve **`cross_val_score` sur la pipeline complète** pour la validation finale.
-
 *Entraîner via Makefile avec une stratégie de features* :
 
 ```bash
 make train 1 3 wavelet
-# ou via variable Make explicite :
-make train 1 3 FEATURE_STRATEGY=wavelet
-# ou en passant des flags complets :
-make train 1 3 TRAIN_ARGS="--feature-strategy wavelet --dim-method pca"
 ```
-
-> ⚠️ GNU make interprète les options `--*` comme des flags de Make.
-> Utilisez un argument positionnel (`wavelet`/`welch`) ou bien
-> `FEATURE_STRATEGY` / `TRAIN_ARGS` pour transmettre les options
-> vers la CLI d'entraînement.
-
-*Boucler sur tous les runs avec un sujet donné (exemple 1)* :
-
-```bash
-for run in 3 4 5 6 7 8 9 10 11 12 13 14; do
-  make train 1 "${run}" TRAIN_ARGS="--feature-strategy fft --dim-method pca"
-done
-```
-
-Répétez la commande pour les sujets nécessaires jusqu'à ce que chaque
-run dispose d'un modèle dans `artifacts/`. Les moyennes affichées par
-`mybci.py` excluront automatiquement les expériences sans artefacts.
 
 ---
 
@@ -281,22 +249,7 @@ run dispose d'un modèle dans `artifacts/`. Les moyennes affichées par
 **Structure locale attendue** (non versionnée) : `data/<subject>/<run>.edf`.
 Vérifiez l’intégrité et le nombre de runs avant tout parsing :
 
-```bash
-poetry run python - <<'PY'
-from pathlib import Path
-from tpv.preprocessing import verify_dataset_integrity
-print(verify_dataset_integrity(Path('data')))
-PY
-```
-
-Exemple :
-
-```bash
-poetry run python scripts/visualize_raw_filtered.py S001 R03 --data-root ./data --output-dir ./docs/viz
-# Si le fichier est absent, le message indique la structure attendue et les sujets/runs détectés.
-```
 ---
-
 
 ## 📊 Visualiser raw vs filtré
 
@@ -309,7 +262,7 @@ sur un couple **(subject, run)** avant d’enchaîner sur l’extraction de feat
 > Recommandé : exécuter via Poetry pour garantir l’environnement.
 
 ```bash
-python scripts/visualize_raw_filtered.py S001 R05
+make visualizer 1 3
 ```
 <div align="center">
   <img src="https://github.com/raveriss/Total_Perspective_Vortex/blob/main/docs/assets/image02.png" alt="scripts visualize">
@@ -342,7 +295,7 @@ Pour **visualiser l’impact** de ces choix (canaux + filtrage), utiliser le scr
 de comparaison brut/filtré :
 
 ```bash
-poetry run python scripts/visualize_raw_filtered.py S001 R03 --channels C3 Cz C4
+make visualizer 1 3 C3 Cz C4
 ```
 
 Ce graphique permet de vérifier visuellement que les canaux sensorimoteurs
@@ -372,14 +325,6 @@ Tu décides des features que tu veux envoyer à ta matrice X ∈ R^(d × N).
 * projection WᵀX → X'
 * tests de cohérence dimensionnelle
 
-Exemple :
-
-```python
-from tpv.dimensionality import CSP
-transformer = CSP(n_components=4)
-X_reduced = transformer.fit_transform(X, y)
-```
-
 ---
 
 # 🧠 4. Pipeline scikit-learn
@@ -389,15 +334,6 @@ Le sujet exige :
 * héritage de `baseEstimator` et `TransformerMixin`
 * pipeline → `[Preprocessing → Dimensionality → Classifier]`
 * utilisation de `cross_val_score`
-
-Exemple :
-
-```python
-pipeline = Pipeline([
-    ("reduce", CSP(n_components=4)),
-    ("clf", LinearDiscriminantAnalysis())
-])
-```
 
 ---
 
@@ -438,7 +374,6 @@ pipeline = Pipeline([
 La version complète et maintenable de cette matrice, incluant les références aux risques Murphy, est disponible dans [`docs/project/checklist_wbs_matrix.md`](docs/project/checklist_wbs_matrix.md).
 
 ---
-
 
 # ✅ Contraintes officielles du sujet
 
@@ -522,8 +457,6 @@ monotrial robuste :
 - 🏷️ [ICLabel — Tutoriel “EEG Independent Component Labeling”](https://labeling.ucsd.edu/tutorial/labels)
 - 📚 [MNE-Python — Tutoriels officiels](https://mne.tools/dev/auto_tutorials/index.html)
 - 📝 [Importing EEG data — blog / guide pratique](https://cbrnr.github.io/blog/importing-eeg-data/)
-
-
 
 ---
 
