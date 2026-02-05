@@ -265,7 +265,7 @@ sur un couple **(subject, run)** avant d’enchaîner sur l’extraction de feat
 make visualizer 1 3
 ```
 <div align="center">
-  <img src="https://github.com/raveriss/Total_Perspective_Vortex/blob/main/docs/assets/image02.png" alt="scripts visualize">
+  <img src="https://github.com/raveriss/Total_Perspective_Vortex/blob/main/docs/assets/image01.png" alt="scripts visualize">
 </div>
 
 ---

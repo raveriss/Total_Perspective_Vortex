@@ -1,0 +1,2 @@
+subject,run,data_dir,git_commit,cv_scores,cv_mean,sfreq,feature_strategy,feature_strategy_config,normalize_features,dim_method,n_components,classifier,scaler,csp_regularization
+S001,R09,data,d047e9a3d59640b70e0a4ca455d5b4d384c6ccf7,0.6666666666666666;0.6666666666666666;1.0;0.6666666666666666;0.3333333333333333;0.3333333333333333;1.0;0.0;1.0;0.3333333333333333,0.5999999999999999,160.0,"""fft""",null,true,"""csp""",null,"""lda""",null,0.1
