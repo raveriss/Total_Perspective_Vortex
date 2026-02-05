@@ -232,6 +232,8 @@ visualizer: ensure-venv
 	@set -euo pipefail; \
 	subject="$(word 2,$(MAKECMDGOALS))"; \
 	run="$(word 3,$(MAKECMDGOALS))"; \
+	extra_goals="$(wordlist 4,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))"; \
+	channels_args=""; \
 	if [[ -z "$$subject" || -z "$$run" ]]; then \
 		echo "Usage: make visualizer <subject> <run>" >&2; \
 		exit 0; \
@@ -240,7 +242,16 @@ visualizer: ensure-venv
 		echo "❌ <subject> et <run> doivent être des entiers (ex: make visualizer 3 8)" >&2; \
 		exit 0; \
 	fi; \
-	$(POETRY) python scripts/visualize_raw_filtered.py "$$subject" "$$run"
+	if [[ -n "$$extra_goals" ]]; then \
+		read -r -a channel_parts <<< "$$extra_goals"; \
+		if [[ "$${channel_parts[0]}" == "--channels" ]]; then \
+			channel_parts=("$${channel_parts[@]:1}"); \
+		fi; \
+		if [[ "$${#channel_parts[@]}" -gt 0 ]]; then \
+			channels_args="--channels $${channel_parts[*]}"; \
+		fi; \
+	fi; \
+	$(POETRY) python scripts/visualize_raw_filtered.py "$$subject" "$$run" $$channels_args
 
 # Évaluation globale : équivalent à `python mybci.py` du sujet
 mybci: ensure-venv
