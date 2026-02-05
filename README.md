@@ -203,6 +203,9 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 | Mutation | `make mut` | `MUTMUT_USE_COVERAGE=1 ... poetry run mutmut run` |
 | Entraîner | `make train` | `poetry run python mybci.py 109 3 train` *(par défaut)* |
 | Prédire | `make predict` | `poetry run python mybci.py 109 3 predict` *(par défaut)* |
+| Temps réel | `make realtime <subject> <run>` | `poetry run python src/tpv/realtime.py <subject> <run>` |
+| Visualiser brut/filtré | `make visualizer <subject> <run>` | `poetry run python scripts/visualize_raw_filtered.py <subject> <run>` |
+| Moyenne des moyennes | `make compute-mean-of-means` | `poetry run python scripts/aggregate_experience_scores.py` |
 | Benchmark global | `make mybci` | `poetry run python mybci.py` |
 | Nettoyer | `make clean` | supprime `./artifacts` + les `*.npy` (hors `.venv`, `.git`, `artifacts`) |
 
@@ -210,7 +213,7 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 
 ### 📦 Générer les artefacts manquants avant l'évaluation globale
 
-L'exécution de `poetry run python mybci.py` sans arguments déclenche
+L'exécution de `make mybci` sans arguments déclenche
 l'évaluation des 6 expériences (3 → 14) sur 109 sujets. Pour éviter
 les avertissements "aucun modèle disponible", assurez-vous que
 `artifacts/<subject>/<run>/model.joblib` existe pour chaque run visé.
@@ -218,7 +221,7 @@ les avertissements "aucun modèle disponible", assurez-vous que
 *Entraîner un modèle manquant pour un couple sujet/run* :
 
 ```bash
-poetry run python scripts/train.py 1 4
+make train 1 4
 ```
 
 ### 🧪 Sélection d'hyperparamètres (split interne + CV finale)
@@ -226,7 +229,7 @@ poetry run python scripts/train.py 1 4
 Activez la sélection interne avec une grille restreinte (CSP, C, Welch) :
 
 ```bash
-poetry run python scripts/train.py 1 4 --grid-search
+make train 1 4 TRAIN_ARGS="--grid-search"
 ```
 
 Ce mode :
@@ -257,7 +260,7 @@ make train 1 3 TRAIN_ARGS="--feature-strategy wavelet --dim-method pca"
 
 ```bash
 for run in 3 4 5 6 7 8 9 10 11 12 13 14; do
-  poetry run python scripts/train.py 1 "${run}" --feature-strategy fft --dim-method pca
+  make train 1 "${run}" TRAIN_ARGS="--feature-strategy fft --dim-method pca"
 done
 ```
 
