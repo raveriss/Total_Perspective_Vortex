@@ -9,6 +9,9 @@ import json
 # Importe math pour dimensionner la légende
 import math
 
+# Importe re pour nettoyer un suffixe parasite provenant de GNU Make
+import re
+
 # Importe dataclass pour encapsuler les paramètres de visualisation
 from dataclasses import dataclass
 
@@ -341,8 +344,15 @@ def _parse_subject(value: str) -> str:
 def _parse_run(value: str) -> str:
     """Normalise un identifiant de run en format Rxx."""
 
+    # Nettoie les suffixes alphabétiques collés par inadvertance via Make
+    cleaned_value = re.sub(r"(?i)^([r]?\d+)[a-z_]+$", r"\1", value.strip())
     # Délègue la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
+    return _normalize_identifier(
+        value=cleaned_value,
+        prefix="R",
+        width=2,
+        label="Run",
+    )
 
 
 # Centralise la construction du parseur pour harmoniser l'interface CLI
