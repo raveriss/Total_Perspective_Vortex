@@ -262,7 +262,7 @@ sur un couple **(subject, run)** avant d’enchaîner sur l’extraction de feat
 > Recommandé : exécuter via Poetry pour garantir l’environnement.
 
 ```bash
-make visualizer 1 3
+make visualizer 1 9
 ```
 <div align="center">
   <img src="https://github.com/raveriss/Total_Perspective_Vortex/blob/main/docs/assets/image01.png" alt="scripts visualize">
