@@ -349,6 +349,8 @@ Le sujet exige :
     évaluer la qualité sur l'ensemble du pipeline
 * CI GitHub Actions + Codecov
 
+---
+
 ### Matrice checklist → WBS → tests
 
 | Item checklist TPV | WBS / livrable | Test ou commande reproductible |
@@ -361,6 +363,8 @@ Le sujet exige :
 | Predict renvoie l’ID de classe | 1.2.x & 6.2.x | `poetry run pytest tests/test_classifier.py::test_predict_cli_main_covers_parser_and_report` |
 | Temps réel < 2 s | 8.2.x–8.3.x | `poetry run pytest tests/test_realtime.py::test_realtime_latency_threshold_enforced` |
 | Score ≥ 75 % (agrégation) | 7.2.x | `poetry run pytest tests/test_classifier.py::test_aggregate_scores_exports_files_and_thresholds` |
+
+---
 
 ### Définition du score global (scripts/aggregate_experience_scores.py)
 
@@ -399,6 +403,8 @@ Ces exigences doivent être **présentes et respectées** dans toute la document
 7. **Architecture** : fournir un script **train** et un script **predict** ; le dépôt final contient **uniquement le code Python** (pas le dataset).
 8. **Bonus facultatifs** : wavelets pour le spectre, classifieur maison ou autres datasets EEG.
 9. **Formalisme mathématique** : pour le transformer, avec X ∈ R^{d × N}, produire une matrice W telle que W^T X = X_{CSP}/X_{PCA}/X_{ICA}.
+
+---
 
 # 📚 Stack technique
 
