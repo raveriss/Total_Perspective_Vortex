@@ -56,6 +56,9 @@ LEGEND_MAX_CHANNELS = 12
 # Définit un bleu électrique unique pour un rendu cohérent
 ELECTRIC_BLUE = "#12127E"
 
+# Définit la conversion volt vers microvolt pour l'affichage homogène
+VOLTS_TO_MICROVOLTS = 1e6
+
 # Fixe la largeur standard des figures pour des snapshots stables
 FIGURE_WIDTH = 20
 
@@ -558,10 +561,10 @@ def plot_raw_vs_filtered(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     # Récupère les données temporelles pour la synchronisation des deux tracés
     times = raw.times
-    # Extrait les données brutes pour afficher chaque canal en amplitude microV
-    raw_data = raw.get_data()
-    # Extrait les données filtrées pour comparaison directe
-    filtered_data = filtered.get_data()
+    # Convertit les données brutes en µV pour un affichage explicite
+    raw_data = raw.get_data() * VOLTS_TO_MICROVOLTS
+    # Convertit les données filtrées en µV pour garder la même unité
+    filtered_data = filtered.get_data() * VOLTS_TO_MICROVOLTS
     # Détermine les régions par canal pour regrouper les tracés
     grouped = _group_channels_by_region(raw.ch_names)
     # Construit la liste ordonnée des régions pour la légende
@@ -654,9 +657,9 @@ def plot_raw_vs_filtered(
             alpha=0.2,
         )
     # Définit les labels Y pour les deux axes
-    raw_axis.set_ylabel("Amplitude (a.u.)")
+    raw_axis.set_ylabel("Amplitude (µV)")
     # Définit le label Y pour la version filtrée
-    filtered_axis.set_ylabel("Amplitude filtrée (a.u.)")
+    filtered_axis.set_ylabel("Amplitude filtrée (µV)")
     # Définit le label X pour la ligne du bas uniquement
     filtered_axis.set_xlabel("Temps (s)")
     # Détermine le titre brut en fonction du nombre de régions
