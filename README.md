@@ -324,8 +324,8 @@ C3/C1/Cz/C2/C4, CP3/CP1/CPz/CP2/CP4) du script
 `scripts/visualize_raw_filtered.py` et les recommandations classiques en BCI
 (Pfurtscheller & Neuper, 2001; Wolpaw et al., 2002).
 Références :
-* Pfurtscheller, G. & Neuper, C. (2001). Motor imagery and ERD/ERS.
-  https://doi.org/10.1016/S1388-2457(01)00579-1
+* Pfurtscheller, G. & Neuper, C. (2001). Motor imagery and direct brain-computer communication.
+  https://doi.org/10.1109/5.939829
 * Wolpaw, J. R. et al. (2002). Brain-computer interfaces for communication.
   https://doi.org/10.1016/S1388-2457(02)00057-3
 
