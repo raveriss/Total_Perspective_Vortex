@@ -618,8 +618,8 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
 
     # Capture times/data attendus pour comparer les arguments plot()
     expected_times = raw.times
-    expected_raw_data = raw.get_data()
-    expected_filtered_data = filtered.get_data()
+    expected_raw_data = raw.get_data() * 1e6
+    expected_filtered_data = filtered.get_data() * 1e6
 
     # Calcule la moyenne et l'écart-type attendus pour C3/C4
     expected_raw_mean = expected_raw_data.mean(axis=0)
@@ -711,12 +711,12 @@ def test_plot_raw_vs_filtered_creates_dirs_and_layout_is_stable(  # noqa: PLR091
     # Verrouille le label Y brut pour tuer None / texte altéré
     assert len(raw_axis.ylabel_calls) == 1
     raw_ylabel_args, _ = raw_axis.ylabel_calls[0]
-    assert raw_ylabel_args == ("Amplitude (a.u.)",)
+    assert raw_ylabel_args == ("Amplitude (µV)",)
 
     # Verrouille le label Y filtré pour tuer None / texte altéré
     assert len(filtered_axis.ylabel_calls) == 1
     filt_ylabel_args, _ = filtered_axis.ylabel_calls[0]
-    assert filt_ylabel_args == ("Amplitude filtrée (a.u.)",)
+    assert filt_ylabel_args == ("Amplitude filtrée (µV)",)
 
     # Verrouille le titre brut pour tuer None / texte altéré
     assert len(raw_axis.title_calls) == 1
