@@ -1279,3 +1279,10 @@ def test_build_parser_title_passes_explicit_default_none(
     assert "default" in captured[0]
     # Verrouille la valeur explicite default=None
     assert captured[0]["default"] is None
+
+
+def test_parse_run_accepts_make_goal_suffix_for_positional_usage() -> None:
+    """Accepte un suffixe parasite issu des goals Make pour éviter un faux KO."""
+
+    # Verrouille la tolérance vis-à-vis d'un suffixe concaténé après le run
+    assert visualize_raw_filtered._parse_run("9my") == "R09"
