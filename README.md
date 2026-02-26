@@ -217,14 +217,9 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 
 ---
 
-### 📦 Générer les artefacts manquants avant l'évaluation globale
+### 🖥️ Exemples d'exécution (sorties tronquées)
 
-L'exécution de `make mybci` sans arguments déclenche
-l'évaluation des 6 expériences (3 → 14) sur 109 sujets. Pour éviter
-les avertissements "aucun modèle disponible", assurez-vous que
-`artifacts/<subject>/<run>/model.joblib` existe pour chaque run visé.
-
-*Entraîner un modèle manquant pour un couple sujet/run* :
+#### `make train <subject> <run>`
 
 ```bash
 make train 1 4
@@ -235,6 +230,82 @@ make train 1 4
 ```bash
 make train 1 3 wavelet
 ```
+
+#### `make predict <subject> <run>`
+
+```bash
+$ make predict 1 3
+epoch nb: [prediction] [truth] equal?
+epoch 00: [1] [1] True
+epoch 01: [0] [0] True
+epoch 02: [0] [0] True
+...
+epoch 14: [0] [0] True
+Accuracy: 1.0000
+```
+
+#### `make realtime <subject> <run>`
+
+```bash
+$ make realtime 1 3
+realtime prediction window=0 offset=0.000s raw=1 (T2) smoothed=1 (T2) latency=0.000s
+realtime prediction window=1 offset=0.500s raw=1 (T2) smoothed=1 (T2) latency=0.000s
+realtime prediction window=2 offset=1.000s raw=1 (T2) smoothed=1 (T2) latency=0.000s
+...
+realtime prediction window=188 offset=94.000s raw=0 (T1) smoothed=0 (T1) latency=0.000s
+realtime prediction window=189 offset=94.500s raw=0 (T1) smoothed=0 (T1) latency=0.000s
+realtime prediction window=190 offset=95.000s raw=0 (T1) smoothed=0 (T1) latency=0.000s
+```
+
+#### `make mybci`
+
+```bash
+$ make mybci
+experiment 0: subject 001: accuracy = 1.0000
+INFO: modèle absent pour S002 R03, entraînement automatique en cours...
+experiment 0: subject 002: accuracy = 0.6923
+...
+experiment 5: subject 109: accuracy = 1.0000
+
+Mean accuracy of the six different experiments for all 109 subjects:
+experiment 0:		accuracy = 0.8894
+experiment 1:		accuracy = 0.8799
+experiment 2:		accuracy = 0.9056
+experiment 3:		accuracy = 0.9013
+experiment 4:		accuracy = 0.8935
+experiment 5:		accuracy = 0.8972
+
+Mean accuracy of 6 experiments: 0.8945
+```
+
+#### `make compute-mean-of-means`
+
+```bash
+$ make compute-mean-of-means
+Subject	T1	T2	T3	T4	Mean	Eligible(4/4)	MeetsThreshold_0p75
+S001	0.962	0.895	1.000	0.933	0.947	yes	yes
+S002	0.846	0.900	1.000	0.857	0.901	yes	yes
+...
+S108	0.833	1.000	0.900	0.917	0.912	yes	yes
+S109	0.900	0.933	1.000	0.867	0.925	yes	yes
+Global	0.891	0.889	0.906	0.901	0.897	109 subjects, bonus 5	yes
+Worst subjects by Mean (mean_of_means):
+- S092: 0.765
+- S066: 0.780
+- S059: 0.795
+- S089: 0.799
+- S045: 0.815
+```
+
+---
+
+### 📦 Générer les artefacts manquants avant l'évaluation globale
+
+L'exécution de `make mybci` sans arguments déclenche
+l'évaluation des 6 expériences (3 → 14) sur 109 sujets. Pour éviter
+les avertissements "aucun modèle disponible", assurez-vous que
+`artifacts/<subject>/<run>/model.joblib` existe pour chaque run visé.
+
 
 ---
 
