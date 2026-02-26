@@ -1,4 +1,4 @@
-# 🌌 Total Perspective Vortex — EEG Brain-Computer Interface (BCI)
+# EEG Brain-Computer Interface (BCI) - Total Perspective Vortex
 
 <div align="center">
 

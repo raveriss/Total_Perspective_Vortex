@@ -280,6 +280,7 @@ deactivate:
 	@echo "deactivate"
 
 clean: clean-artifacts clean-npy clean-epoch-json
+	clean
 
 clean-artifacts:
 	@rm -rf ./artifacts ./data/benchmarks
