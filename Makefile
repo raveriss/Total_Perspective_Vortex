@@ -17,6 +17,8 @@
 	train \
 	predict \
 	mybci \
+	show-activate \
+	show-deactivate \
 	activate \
 	deactivate \
 	clean-mutants \
@@ -269,15 +271,21 @@ mybci: ensure-venv
 	$(POETRY) python mybci.py $$extra_args \
 		| tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log
 
-# Affiche la commande pour activer le venv
-activate:
-	@echo "Pour activer manuellement cet environnement :"
+# Affiche la commande d'activation (make ne peut pas modifier le shell parent)
+show-activate:
+	@echo "Commande d'activation (a executer dans le shell courant) :"
 	@echo "source $$(poetry env info -p)/bin/activate"
 
-# Affiche la commande pour désactiver le venv
-deactivate:
-	@echo "Pour quitter l'environnement :"
+# Affiche la commande de desactivation
+show-deactivate:
+	@echo "Commande de desactivation (a executer dans le shell courant) :"
 	@echo "deactivate"
+
+# Alias historique pour compatibilite
+deactivate:
+	@echo "Note: 'make deactivate' est conserve pour compatibilite."
+	@echo "      Prefere: make show-deactivate"
+	@$(MAKE) --no-print-directory show-deactivate
 
 clean: clean-artifacts clean-npy clean-epoch-json
 	clear
