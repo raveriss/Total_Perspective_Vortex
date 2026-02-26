@@ -489,7 +489,7 @@ raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ source /home/raveri
 #### `make train <subject> <run>`
 
 ```bash
-make train 1 4
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make train 1 4
 CV_SPLITS: 10 (scores: 10)
 [0.6667 0.6667 0.6667 0.6667 0.3333 0.3333 0.6667 1.0000 0.6667 0.3333]
 cross_val_score: 0.6000
@@ -498,13 +498,19 @@ cross_val_score: 0.6000
 *Entraîner via Makefile avec une stratégie de features* :
 
 ```bash
-make train 1 3 wavelet
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make train 1 3 wavelet
+INFO: dim_method='csp/cssp' appliqué avant l'extraction des features.
+[⚡ TPV] Extracting wavelet features...
+CV_SPLITS: 10 (scores: 10)
+[0.6667 0.3333 0.3333 0.6667 1.0000 0.6667 0.6667 0.6667 0.3333 1.0000]
+cross_val_score: 0.6333
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ 
 ```
 
 #### `make predict <subject> <run>`
 
 ```bash
-$ make predict 1 3
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make predict 1 3
 epoch nb: [prediction] [truth] equal?
 epoch 00: [1] [1] True
 epoch 01: [0] [0] True
@@ -517,7 +523,7 @@ Accuracy: 1.0000
 #### `make realtime <subject> <run>`
 
 ```bash
-$ make realtime 1 3
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make realtime 1 3
 realtime prediction window=0 offset=0.000s raw=1 (T2) smoothed=1 (T2) latency=0.000s
 realtime prediction window=1 offset=0.500s raw=1 (T2) smoothed=1 (T2) latency=0.000s
 realtime prediction window=2 offset=1.000s raw=1 (T2) smoothed=1 (T2) latency=0.000s
@@ -530,7 +536,7 @@ realtime prediction window=190 offset=95.000s raw=0 (T1) smoothed=0 (T1) latency
 #### `make mybci`
 
 ```bash
-$ make mybci
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make mybci
 experiment 0: subject 001: accuracy = 1.0000
 INFO: modèle absent pour S002 R03, entraînement automatique en cours...
 experiment 0: subject 002: accuracy = 0.6923
@@ -551,7 +557,7 @@ Mean accuracy of 6 experiments: 0.8945
 #### `make compute-mean-of-means`
 
 ```bash
-$ make compute-mean-of-means
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make compute-mean-of-means
 Subject	T1	T2	T3	T4	Mean	Eligible(4/4)	MeetsThreshold_0p75
 S001	0.962	0.895	1.000	0.933	0.947	yes	yes
 S002	0.846	0.900	1.000	0.857	0.901	yes	yes
