@@ -497,6 +497,8 @@ cross_val_score: 0.6000
 
 *Entraîner via Makefile avec une stratégie de features* :
 
+#### `make train <subject> <run> <method>`
+
 ```bash
 (total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make train 1 3 wavelet
 INFO: dim_method='csp/cssp' appliqué avant l'extraction des features.
