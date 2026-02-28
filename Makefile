@@ -14,7 +14,7 @@
 	format \
 	type \
 	test \
-	cov \
+	cov \il manque dans la section
 	mut \
 	train \
 	predict \

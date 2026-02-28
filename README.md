@@ -200,7 +200,9 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 
 | Objectif | Commande recommandée | Commande équivalente |
 |---|---|---|
-| Installer | `make install` | `poetry install --with dev` |
+| Installer le projet + dataset | `make install` | `make install-deps && make download_dataset` |
+| Installer les dépendances | `make install-deps` | `poetry install --with dev` |
+| Télécharger / valider le dataset | `make download_dataset` | validation locale puis `wget -r -N -c ...` sur PhysioNet |
 | Linter | `make lint` | `poetry run ruff check .` |
 | Formatter | `make format` | `poetry run ruff format . && poetry run ruff check --fix .` |
 | Type-check | `make type` | `poetry run mypy src scripts tests` |
@@ -223,6 +225,9 @@ L'exécution de `make mybci` sans arguments déclenche
 l'évaluation des 6 expériences (3 → 14) sur 109 sujets. Pour éviter
 les avertissements "aucun modèle disponible", assurez-vous que
 `artifacts/<subject>/<run>/model.joblib` existe pour chaque run visé.
+L'appel `make mybci wavelet` relaie la stratégie
+`--feature-strategy wavelet` à la CLI globale tout en journalisant la sortie
+dans `data/benchmarks/bench_YYYYmmdd_HHMMSS.log`.
 
 ---
 
@@ -233,241 +238,42 @@ les avertissements "aucun modèle disponible", assurez-vous que
 ```bash
 raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make install
 poetry install --with dev
-Creating virtualenv total-perspective-vortex in /home/raveriss/Desktop/Total_Perspective_Vortex/.venv
 Installing dependencies from lock file
-
-Package operations: 87 installs, 1 update, 0 removals
-
-  - Updating pip (25.2 -> 25.3)
-  - Installing mdurl (0.1.2)
-  - Installing uc-micro-py (1.0.3)
-  - Installing boolean-py (5.0)
-  - Installing certifi (2025.11.12)
-  - Installing charset-normalizer (3.4.4)
-  - Installing defusedxml (0.7.1)
-  - Installing idna (3.11)
-  - Installing linkify-it-py (2.0.3)
-  - Installing markdown-it-py (4.0.0)
-  - Installing numpy (1.26.4)
-  - Installing pygments (2.19.2)
-  - Installing six (1.17.0)
-  - Installing typing-extensions (4.15.0)
-  - Installing urllib3 (2.6.3)
-  - Installing colorama (0.4.6): Installing...
-  - Installing colorama (0.4.6)
-  - Installing contourpy (1.3.2): Installing...
-  - Installing cycler (0.12.1)
-  - Installing distlib (0.4.0): Installing...
-  - Installing exceptiongroup (1.3.1)
-  - Installing filelock (3.20.3)
-  - Installing cycler (0.12.1)
-  - Installing distlib (0.4.0): Installing...
-  - Installing exceptiongroup (1.3.1)
-  - Installing filelock (3.20.3)
-  - Installing contourpy (1.3.2)
-  - Installing cycler (0.12.1)
-  - Installing distlib (0.4.0): Installing...
-  - Installing exceptiongroup (1.3.1)
-  - Installing filelock (3.20.3)
-  - Installing exceptiongroup (1.3.1)
-  - Installing filelock (3.20.3)
-  - Installing distlib (0.4.0)
-  - Installing exceptiongroup (1.3.1)
-  - Installing filelock (3.20.3)
-  - Installing fonttools (4.61.0): Pending...
-  - Installing iniconfig (2.3.0)
-  - Installing kiwisolver (1.4.9): Installing...
-  - Installing license-expression (30.4.4)
-  - Installing mando (0.7.1)
-  - Installing markupsafe (3.0.3)
-  - Installing mdit-py-plugins (0.5.0)
-  - Installing iniconfig (2.3.0)
-  - Installing kiwisolver (1.4.9): Installing...
-  - Installing license-expression (30.4.4)
-  - Installing mando (0.7.1)
-  - Installing markupsafe (3.0.3)
-  - Installing mdit-py-plugins (0.5.0)
-  - Installing fonttools (4.61.0): Installing...
-  - Installing iniconfig (2.3.0)
-  - Installing kiwisolver (1.4.9): Installing...
-  - Installing license-expression (30.4.4)
-  - Installing mando (0.7.1)
-  - Installing markupsafe (3.0.3)
-  - Installing mdit-py-plugins (0.5.0)
-  - Installing license-expression (30.4.4)
-  - Installing mando (0.7.1)
-  - Installing markupsafe (3.0.3)
-  - Installing mdit-py-plugins (0.5.0)
-  - Installing kiwisolver (1.4.9)
-  - Installing license-expression (30.4.4)
-  - Installing mando (0.7.1)
-  - Installing markupsafe (3.0.3)
-  - Installing mdit-py-plugins (0.5.0)
-  - Installing iniconfig (2.3.0)
-  - Installing kiwisolver (1.4.9)
-  - Installing license-expression (30.4.4)
-  - Installing mando (0.7.1)
-  - Installing markupsafe (3.0.3)
-  - Installing mdit-py-plugins (0.5.0)
-  - Installing fonttools (4.61.0)
-  - Installing iniconfig (2.3.0)
-  - Installing kiwisolver (1.4.9)
-  - Installing license-expression (30.4.4)
-  - Installing mando (0.7.1)
-  - Installing markupsafe (3.0.3)
-  - Installing mdit-py-plugins (0.5.0)
-  - Installing msgpack (1.1.2)
-  - Installing packageurl-python (0.17.6)
-  - Installing pillow (12.0.0)
-  - Installing platformdirs (4.5.0)
-  - Installing packaging (25.0)
-  - Installing pluggy (1.6.0)
-  - Installing py-serializable (2.1.0)
-  - Installing pyparsing (3.2.5)
-  - Installing python-dateutil (2.9.0.post0)
-  - Installing pyyaml (6.0.3)
-  - Installing requests (2.32.5)
-  - Installing rich (14.2.0)
-  - Installing sortedcontainers (2.4.0)
-  - Installing tomli (2.3.0)
-  - Installing cachecontrol (0.14.4): Installing...
-  - Installing cachecontrol (0.14.4)
-  - Installing cfgv (3.5.0)
-  - Installing click (8.3.1): Installing...
-  - Installing coverage (7.12.0): Installing...
-  - Installing coverage (7.12.0): Installing...
-  - Installing click (8.3.1)
-  - Installing coverage (7.12.0): Installing...
-  - Installing cyclonedx-python-lib (9.1.0): Installing...
-  - Installing decorator (5.2.1)
-  - Installing identify (2.6.15)
-  - Installing jinja2 (3.1.6)
-  - Installing joblib (1.5.2): Installing...
-  - Installing lazy-loader (0.4)
-  - Installing cyclonedx-python-lib (9.1.0): Installing...
-  - Installing decorator (5.2.1)
-  - Installing identify (2.6.15)
-  - Installing jinja2 (3.1.6)
-  - Installing joblib (1.5.2): Installing...
-  - Installing lazy-loader (0.4)
-  - Installing coverage (7.12.0)
-  - Installing cyclonedx-python-lib (9.1.0): Installing...
-  - Installing decorator (5.2.1)
-  - Installing identify (2.6.15)
-  - Installing jinja2 (3.1.6)
-  - Installing joblib (1.5.2): Installing...
-  - Installing lazy-loader (0.4)
-  - Installing libcst (1.8.6): Pending...
-  - Installing matplotlib (3.10.7): Pending...
-  - Installing mypy-extensions (1.1.0)
-  - Installing matplotlib (3.10.7): Pending...
-  - Installing mypy-extensions (1.1.0)
-  - Installing libcst (1.8.6): Installing...
-  - Installing matplotlib (3.10.7): Pending...
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing decorator (5.2.1)
-  - Installing identify (2.6.15)
-  - Installing jinja2 (3.1.6)
-  - Installing joblib (1.5.2): Installing...
-  - Installing lazy-loader (0.4)
-  - Installing libcst (1.8.6): Installing...
-  - Installing matplotlib (3.10.7): Pending...
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing cyclonedx-python-lib (9.1.0)
-  - Installing decorator (5.2.1)
-  - Installing identify (2.6.15)
-  - Installing jinja2 (3.1.6)
-  - Installing joblib (1.5.2): Installing...
-  - Installing lazy-loader (0.4)
-  - Installing libcst (1.8.6): Installing...
-  - Installing matplotlib (3.10.7): Pending...
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing pathspec (0.12.1)
-  - Installing pip-api (0.0.34)
-  - Installing lazy-loader (0.4)
-  - Installing libcst (1.8.6): Installing...
-  - Installing matplotlib (3.10.7): Pending...
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing pathspec (0.12.1)
-  - Installing pip-api (0.0.34)
-  - Installing joblib (1.5.2)
-  - Installing lazy-loader (0.4)
-  - Installing libcst (1.8.6): Installing...
-  - Installing matplotlib (3.10.7): Pending...
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing pathspec (0.12.1)
-  - Installing pip-api (0.0.34)
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing pathspec (0.12.1)
-  - Installing pip-api (0.0.34)
-  - Installing matplotlib (3.10.7): Installing...
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing pathspec (0.12.1)
-  - Installing pip-api (0.0.34)
-  - Installing matplotlib (3.10.7): Installing...
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing pathspec (0.12.1)
-  - Installing pip-api (0.0.34)
-  - Installing libcst (1.8.6)
-  - Installing matplotlib (3.10.7): Installing...
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing pathspec (0.12.1)
-  - Installing pip-api (0.0.34)
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing pathspec (0.12.1)
-  - Installing pip-api (0.0.34)
-  - Installing matplotlib (3.10.7)
-  - Installing mypy-extensions (1.1.0)
-  - Installing nodeenv (1.9.1)
-  - Installing pathspec (0.12.1)
-  - Installing pip-api (0.0.34)
-  - Installing pip-requirements-parser (32.0.1)
-  - Installing pooch (1.8.2)
-  - Installing pytest (8.4.2)
-  - Installing pytz (2025.2)
-  - Installing radon (6.0.1)
-  - Installing scipy (1.15.3)
-  - Installing setproctitle (1.3.7)
-  - Installing stevedore (5.6.0)
-  - Installing textual (6.6.0)
-  - Installing threadpoolctl (3.6.0)
-  - Installing toml (0.10.2)
-  - Installing tqdm (4.67.1)
-  - Installing tzdata (2025.2)
-  - Installing virtualenv (20.36.1)
-  - Installing bandit (1.9.2): Installing...
-  - Installing black (24.10.0): Pending...
-  - Installing black (24.10.0): Installing...
-  - Installing black (24.10.0): Installing...
-  - Installing bandit (1.9.2)
-  - Installing black (24.10.0): Installing...
-  - Installing black (24.10.0)
-  - Installing hypothesis (6.148.1)
-  - Installing isort (5.13.2)
-  - Installing mne (1.11.0)
-  - Installing mutmut (3.4.0)
-  - Installing mypy (1.18.2)
-  - Installing pandas (2.3.3)
-  - Installing pip-audit (2.9.0)
-  - Installing pre-commit (4.5.0)
-  - Installing pytest-cov (5.0.0)
-  - Installing pytest-randomly (3.16.0)
-  - Installing pytest-timeout (2.4.0)
-  - Installing ruff (0.6.9)
-  - Installing scikit-learn (1.7.2)
-  - Installing xenon (0.9.3)
-
+No dependencies to install or update
 Installing the current project: total-perspective-vortex (0.1.0)
+Dataset incomplet: dossier racine manquant (data).
+Téléchargement EEGMMIDB PhysioNet (~3.4GB), cela peut prendre du temps...
+Source: https://physionet.org/files/eegmmidb/1.0.0/
+...
+Dataset EEGMMIDB complet et validé dans data.
+```
+
+#### `make install-deps`
+
+```bash
+raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make install-deps
+poetry install --with dev
+Installing dependencies from lock file
+No dependencies to install or update
+Installing the current project: total-perspective-vortex (0.1.0)
+```
+
+#### `make download_dataset`
+
+```bash
+raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make download_dataset
+Dataset incomplet: dossier racine manquant (data).
+Téléchargement EEGMMIDB PhysioNet (~3.4GB), cela peut prendre du temps...
+Source: https://physionet.org/files/eegmmidb/1.0.0/
+...
+Dataset EEGMMIDB complet et validé dans data.
+```
+
+*Si le dataset est déjà présent et complet, la commande sort immédiatement :*
+
+```bash
+raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make download_dataset
+Dataset EEGMMIDB déjà complet dans data (aucun téléchargement).
 ```
 
 #### `make show-activate`
@@ -541,6 +347,28 @@ realtime prediction window=190 offset=95.000s raw=0 (T1) smoothed=0 (T1) latency
 (total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make mybci
 experiment 0: subject 001: accuracy = 1.0000
 INFO: modèle absent pour S002 R03, entraînement automatique en cours...
+experiment 0: subject 002: accuracy = 0.6923
+...
+experiment 5: subject 109: accuracy = 1.0000
+
+Mean accuracy of the six different experiments for all 109 subjects:
+experiment 0:		accuracy = 0.8894
+experiment 1:		accuracy = 0.8799
+experiment 2:		accuracy = 0.9056
+experiment 3:		accuracy = 0.9013
+experiment 4:		accuracy = 0.8935
+experiment 5:		accuracy = 0.8972
+
+Mean accuracy of 6 experiments: 0.8945
+```
+
+#### `make mybci wavelet`
+
+```bash
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make mybci wavelet
+experiment 0: subject 001: accuracy = 1.0000
+INFO: modèle absent pour S002 R03, entraînement automatique en cours...
+[⚡ TPV] Extracting wavelet features...
 experiment 0: subject 002: accuracy = 0.6923
 ...
 experiment 5: subject 109: accuracy = 1.0000
