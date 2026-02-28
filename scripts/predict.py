@@ -533,6 +533,66 @@ def _resolve_epoch_window_path(subject: str, run: str, data_dir: Path) -> Path:
     return window_path
 
 
+# Vérifie la présence des fichiers PhysioNet requis avant le chargement
+# pour éviter un échec tardif pendant le parsing EDF
+def _ensure_physionet_files_exist(
+    subject: str,
+    run: str,
+    raw_path: Path,
+    event_path: Path,
+) -> None:
+    """Valide que l'EDF et son fichier d'événement existent et sont non vides."""
+
+    # Arrête l'exécution si l'EDF est introuvable ou vide
+    if not raw_path.exists() or raw_path.stat().st_size == 0:
+        # Signale explicitement le chemin absent pour guider l'utilisateur
+        raise FileNotFoundError(
+            f"EDF introuvable pour {subject} {run}: {raw_path}. "
+            "Lancez `make download_dataset` ou pointez --raw-dir vers "
+            "un dataset EEGMMIDB complet."
+        )
+    # Arrête l'exécution si le fichier d'événements est absent ou vide
+    if not event_path.exists() or event_path.stat().st_size == 0:
+        # Signale explicitement l'absence du fichier .edf.event
+        raise FileNotFoundError(
+            f"Fichier événement introuvable pour {subject} {run}: {event_path}. "
+            "Le dataset semble incomplet: relancez `make download_dataset` "
+            f"ou définissez {DATA_DIR_ENV_VAR} vers un dossier valide."
+        )
+
+
+# Applique le contrôle qualité des epochs avec un fallback dédié
+# pour préserver la prédiction quand le QC supprime une classe
+def _summarize_epochs_with_missing_labels_fallback(
+    epochs: Any,
+    motor_labels: list[str],
+    subject: str,
+    run: str,
+) -> tuple[Any, list[str]]:
+    """Retourne les epochs nettoyés ou la version brute si labels manquants."""
+
+    # Applique un rejet d'artefacts pour limiter les essais aberrants
+    try:
+        # Utilise le filtrage par qualité pour supprimer les segments cassés
+        cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
+            epochs,
+            motor_labels,
+            (subject, run),
+            max_peak_to_peak=DEFAULT_MAX_PEAK_TO_PEAK,
+        )
+    except ValueError as error:
+        # Détecte l'absence de classe après filtrage pour éviter un crash
+        if "Missing labels" not in str(error):
+            # Relance l'erreur originale si elle ne concerne pas les labels
+            raise
+        # Conserve les epochs filtrées par annotations uniquement
+        cleaned_epochs = epochs
+        # Conserve les labels moteurs initiaux pour aligner les données
+        cleaned_labels = motor_labels
+    # Retourne les sorties d'epochs retenues pour la suite de la pipeline
+    return cleaned_epochs, cleaned_labels
+
+
 # Charge la fenêtre d'epochs persistée par l'entraînement
 def _read_epoch_window_metadata(
     subject: str,
@@ -576,22 +636,8 @@ def _build_npy_from_edf(
     # Calcule les chemins attendus des fichiers bruts PhysioNet
     raw_path = build_context.raw_dir / subject / f"{subject}{run}.edf"
     event_path = raw_path.with_suffix(".edf.event")
-    # Arrête l'exécution si l'EDF est introuvable ou vide
-    if not raw_path.exists() or raw_path.stat().st_size == 0:
-        # Signale explicitement le chemin absent pour guider l'utilisateur
-        raise FileNotFoundError(
-            f"EDF introuvable pour {subject} {run}: {raw_path}. "
-            "Lancez `make download_dataset` ou pointez --raw-dir vers "
-            "un dataset EEGMMIDB complet."
-        )
-    # Arrête l'exécution si le fichier d'événements est absent ou vide
-    if not event_path.exists() or event_path.stat().st_size == 0:
-        # Signale explicitement l'absence du fichier .edf.event
-        raise FileNotFoundError(
-            f"Fichier événement introuvable pour {subject} {run}: {event_path}. "
-            "Le dataset semble incomplet: relancez `make download_dataset` "
-            f"ou définissez {DATA_DIR_ENV_VAR} vers un dossier valide."
-        )
+    # Valide les fichiers bruts PhysioNet avant tout traitement de signal
+    _ensure_physionet_files_exist(subject, run, raw_path, event_path)
     # Crée l'arborescence cible pour déposer les .npy
     features_path.parent.mkdir(parents=True, exist_ok=True)
     # Charge l'EDF en conservant les métadonnées essentielles
@@ -641,24 +687,17 @@ def _build_npy_from_edf(
         tmin=epoch_window[0],
         tmax=epoch_window[1],
     )
-    # Applique un rejet d'artefacts pour limiter les essais aberrants
-    try:
-        # Utilise le filtrage par qualité pour supprimer les segments cassés
-        cleaned_epochs, _report, cleaned_labels = preprocessing.summarize_epoch_quality(
-            epochs,
-            motor_labels,
-            (subject, run),
-            max_peak_to_peak=DEFAULT_MAX_PEAK_TO_PEAK,
-        )
-    except ValueError as error:
-        # Détecte l'absence de classe après filtrage pour éviter un crash
-        if "Missing labels" not in str(error):
-            # Relance l'erreur originale si elle ne concerne pas les labels
-            raise
-        # Conserve les epochs filtrées par annotations uniquement
-        cleaned_epochs = epochs
-        # Conserve les labels moteurs initiaux pour aligner les données
-        cleaned_labels = motor_labels
+    # Sécurise le QC avec un fallback lorsque les labels manquent
+    cleaned_epochs, cleaned_labels = _summarize_epochs_with_missing_labels_fallback(
+        # Transmet les epochs découpés pour le contrôle qualité
+        epochs,
+        # Transmet les labels moteurs associés aux epochs
+        motor_labels,
+        # Transmet le sujet pour enrichir les messages d'erreur
+        subject,
+        # Transmet le run pour enrichir les messages d'erreur
+        run,
+    )
     # Récupère les données brutes des epochs (n_trials, n_channels, n_times)
     epochs_data = cleaned_epochs.get_data(copy=True)
     # Normalise les epochs par canal si la méthode est activée

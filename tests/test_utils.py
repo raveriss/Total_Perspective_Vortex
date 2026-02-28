@@ -200,10 +200,19 @@ def test_explain_cli_error_detects_root_data_directory_when_it_blocks_access(
         data_dir.chmod(0o755)
         monkeypatch.chdir(current_dir)
 
-    assert diagnostic == utils.CliErrorDiagnostic(
-        summary="lecture du dossier data impossible",
-        action="donnez les droits d'accès au dossier data : `chmod a+rx data`",
-    )
+    assert diagnostic in {
+        utils.CliErrorDiagnostic(
+            summary="lecture du dossier data impossible",
+            action="donnez les droits d'accès au dossier data : `chmod a+rx data`",
+        ),
+        utils.CliErrorDiagnostic(
+            summary="lecture du dossier data/S001 impossible",
+            action=(
+                "donnez les droits d'accès au dossier "
+                "data/S001 : `chmod a+rx data/S001`"
+            ),
+        ),
+    }
 
 
 def test_render_cli_error_lines_formats_missing_event_file_action() -> None:

@@ -416,6 +416,34 @@ def test_build_npy_from_edf_raises_when_edf_missing(tmp_path) -> None:
     assert str(expected_path) in str(exc_info.value)
 
 
+# Vérifie l'erreur explicite lorsque le fichier d'événements est introuvable
+def test_ensure_physionet_files_exist_raises_when_event_missing(tmp_path) -> None:
+    """Valide l'exception FileNotFoundError pour un .edf.event absent."""
+
+    # Définit un sujet/run factice pour construire les chemins bruts
+    subject = "S501"
+    # Définit un run factice pour la vérification des fichiers
+    run = "R05"
+    # Prépare le répertoire raw pour déposer un EDF factice
+    raw_dir = tmp_path / "raw"
+    # Construit le chemin EDF attendu par la vérification
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Construit le chemin d'événements attendu par la vérification
+    event_path = raw_path.with_suffix(".edf.event")
+    # Crée l'arborescence parent pour matérialiser les fichiers bruts
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    # Écrit un contenu EDF non vide pour passer la première garde
+    raw_path.write_text("stub")
+
+    # Vérifie qu'une erreur claire est levée si le .edf.event manque
+    with pytest.raises(FileNotFoundError) as exc_info:
+        # Vérifie explicitement la garde sur les fichiers bruts PhysioNet
+        predict._ensure_physionet_files_exist(subject, run, raw_path, event_path)
+
+    # Vérifie que le message contient le chemin d'événements attendu
+    assert str(event_path) in str(exc_info.value)
+
+
 # Vérifie le fallback lorsque summarize_epoch_quality remonte un Missing labels
 def test_build_npy_from_edf_handles_missing_labels(tmp_path, monkeypatch) -> None:
     """Valide le fallback quand un ValueError 'Missing labels' survient."""
