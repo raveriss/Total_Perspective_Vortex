@@ -10,6 +10,7 @@ import importlib
 
 # Préserve importlib pour détecter des dépendances installées
 import importlib.util
+import os
 
 # Préserve subprocess pour lancer les modules en sous-processus isolés
 import subprocess
@@ -34,6 +35,11 @@ from tqdm import tqdm
 
 # Assure l'accès à tpv via src lors d'une exécution locale
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
+
+# Définit le nom de la variable d'environnement pour la racine dataset
+DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
+# Définit la racine de données par défaut pour l'évaluation globale
+DEFAULT_DATA_DIR = Path(os.environ.get(DATA_DIR_ENV_VAR, "data")).expanduser()
 
 
 # Normalise un identifiant brut en appliquant un préfixe standard
@@ -703,11 +709,11 @@ def _run_global_evaluation(
     # Utilise les expériences par défaut si aucune liste n'est fournie
     experiment_definitions = list(experiments or _build_default_experiments())
     # Normalise les chemins racine de données pour les appels descendants
-    data_root = data_dir or Path("data")
+    data_root = data_dir or DEFAULT_DATA_DIR
     # Normalise le répertoire d'artefacts pour les modèles entraînés
     artifacts_root = artifacts_dir or Path("artifacts")
     # Normalise le répertoire des EDF bruts désormais stockés dans data/
-    raw_root = raw_dir or Path("data")
+    raw_root = raw_dir or DEFAULT_DATA_DIR
     # Construit la liste des identifiants attendus pour les 109 sujets
     expected_subjects = [_subject_identifier(idx) for idx in range(1, 110)]
     # Calcule la disponibilité des modèles pour chaque run

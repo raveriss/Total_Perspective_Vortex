@@ -1123,6 +1123,8 @@ def test_build_npy_from_edf_applies_notch_and_normalization(
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     # Écrit un fichier EDF factice pour passer le check d'existence
     raw_path.write_text("stub")
+    # Écrit un fichier .edf.event factice pour le contrôle d'intégrité
+    raw_path.with_suffix(".edf.event").write_text("stub")
 
     # Prépare une configuration de prétraitement avec notch et z-score
     preprocess_config = train.preprocessing.PreprocessingConfig(
@@ -1203,6 +1205,8 @@ def test_build_npy_from_edf_skips_notch_and_normalization(
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     # Écrit un fichier EDF factice pour passer le check d'existence
     raw_path.write_text("stub")
+    # Écrit un fichier .edf.event factice pour le contrôle d'intégrité
+    raw_path.with_suffix(".edf.event").write_text("stub")
 
     # Prépare une configuration de prétraitement sans notch ni normalisation
     preprocess_config = train.preprocessing.PreprocessingConfig(
@@ -1592,7 +1596,7 @@ def test_main_reports_invalid_bandpass(capsys: CaptureFixture[str]) -> None:
     # Capture la sortie standard pour vérifier le message
     captured = capsys.readouterr().out
     # Vérifie que la CLI signale une erreur
-    assert exit_code == 1
+    assert exit_code == train.HANDLED_CLI_ERROR_EXIT_CODE
     # Vérifie que le message d'erreur mentionne la bande passante
     assert "bandpass_low" in captured
 
@@ -1829,6 +1833,8 @@ def test_main_falls_back_when_cv_scores_is_not_an_ndarray(monkeypatch, capsys):
 
     # Remplace run_training pour isoler la sortie CLI
     monkeypatch.setattr(train, "run_training", fake_run_training)
+    # Neutralise l'accès au dataset réel pour garder le test hermétique
+    monkeypatch.setattr(train, "resolve_sampling_rate", lambda *_args, **_kwargs: 50.0)
 
     # Exécute la CLI avec les arguments minimaux
     exit_code = train.main(["S001", "R01"])
@@ -1858,6 +1864,8 @@ def test_main_falls_back_for_empty_cv_scores_array(monkeypatch, capsys):
 
     # Remplace run_training pour contrôler la sortie CLI
     monkeypatch.setattr(train, "run_training", fake_run_training)
+    # Neutralise l'accès au dataset réel pour garder le test hermétique
+    monkeypatch.setattr(train, "resolve_sampling_rate", lambda *_args, **_kwargs: 50.0)
 
     # Exécute la CLI avec les arguments minimaux
     exit_code = train.main(["S001", "R01"])
@@ -1895,6 +1903,8 @@ def test_main_keeps_dim_method_for_wavelet(monkeypatch, capsys):
 
     # Injecte le double dans le module train
     monkeypatch.setattr(train, "run_training", fake_run_training)
+    # Neutralise l'accès au dataset réel pour garder le test hermétique
+    monkeypatch.setattr(train, "resolve_sampling_rate", lambda *_args, **_kwargs: 50.0)
 
     # Exécute la CLI avec wavelet sans --dim-method explicite
     exit_code = train.main(["S001", "R01", "--feature-strategy", "wavelet"])
@@ -1924,6 +1934,8 @@ def test_main_prints_scores_for_singleton_cv_scores_array(monkeypatch, capsys):
 
     # Remplace run_training pour isoler l'output CLI
     monkeypatch.setattr(train, "run_training", fake_run_training)
+    # Neutralise l'accès au dataset réel pour garder le test hermétique
+    monkeypatch.setattr(train, "resolve_sampling_rate", lambda *_args, **_kwargs: 50.0)
 
     # Exécute la CLI avec les arguments minimaux
     exit_code = train.main(["S001", "R01"])
@@ -1950,12 +1962,113 @@ def test_main_returns_error_code_when_training_files_missing(monkeypatch, capsys
         raise FileNotFoundError("données manquantes pour S001 R01")
 
     monkeypatch.setattr(train, "run_training", fake_run_training)
+    # Neutralise l'accès au dataset réel pour garder le test hermétique
+    monkeypatch.setattr(train, "resolve_sampling_rate", lambda *_args, **_kwargs: 50.0)
 
     exit_code = train.main(["S001", "R01"])
 
     stdout = capsys.readouterr().out
-    assert exit_code == 1
-    assert "ERREUR: données manquantes pour S001 R01" in stdout
+    assert exit_code == train.HANDLED_CLI_ERROR_EXIT_CODE
+    assert "INFO: données manquantes pour S001 R01" in stdout
+
+
+def test_main_reports_permission_error_with_action(
+    monkeypatch: MonkeyPatch, capsys: CaptureFixture[str], tmp_path: Path
+) -> None:
+    # Fige la résolution sfreq pour éviter un bruit de sortie parasite
+    monkeypatch.setattr(train, "resolve_sampling_rate", lambda *_args, **_kwargs: 160.0)
+    # Prépare un payload identique à celui produit par preprocessing
+    error_payload = json.dumps(
+        {
+            "error": "MNE parse failure",
+            "path": str(tmp_path / "data" / "S001" / "S001R06.edf"),
+            "exception": "PermissionError",
+            "message": "File does not have read permissions",
+        }
+    )
+
+    def fake_run_training(_request: train.TrainingRequest) -> dict[str, object]:
+        raise ValueError(error_payload)
+
+    monkeypatch.setattr(train, "run_training", fake_run_training)
+
+    exit_code = train.main(["S001", "R06"])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == train.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture EDF impossible pour S001 R06",
+        (
+            "Action: donnez les droits de lecture aux fichiers nécessaires : "
+            "`chmod a+r "
+            + f"{tmp_path / 'data' / 'S001' / 'S001R06.edf'} "
+            + f"{tmp_path / 'data' / 'S001' / 'S001R06.edf.event'}`"
+        ),
+    ]
+
+
+def test_main_reports_data_directory_permission_error(
+    monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    """Affiche une action concise quand le dossier sujet est illisible."""
+
+    def fake_resolve_sampling_rate(*_args: object, **_kwargs: object) -> float:
+        raise PermissionError(13, "Permission denied", "data/S001/S001R06.edf")
+
+    monkeypatch.setattr(train, "resolve_sampling_rate", fake_resolve_sampling_rate)
+
+    exit_code = train.main(["S001", "R06"])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == train.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture du dossier data/S001 impossible",
+        (
+            "Action: donnez les droits d'accès au dossier "
+            "data/S001 : `chmod a+rx data/S001`"
+        ),
+    ]
+
+
+def test_resolve_sampling_rate_reports_concise_info_on_parse_error(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    # Prépare le couple sujet/run ciblé par la résolution de sfreq
+    subject = "S001"
+    run = "R06"
+    # Prépare le chemin EDF attendu par la logique de résolution
+    raw_dir = tmp_path / "data"
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_text("", encoding="utf-8")
+
+    def fake_loader(
+        *_args: object, **_kwargs: object
+    ) -> tuple[object, dict[str, object]]:
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "MNE parse failure",
+                    "path": str(raw_path),
+                    "exception": "PermissionError",
+                    "message": "File does not have read permissions",
+                }
+            )
+        )
+
+    monkeypatch.setattr(train.preprocessing, "load_physionet_raw", fake_loader)
+
+    resolved = train.resolve_sampling_rate(
+        subject,
+        run,
+        raw_dir,
+        train.DEFAULT_SAMPLING_RATE,
+        "average",
+    )
+
+    stdout = capsys.readouterr().out.strip()
+    assert resolved == train.DEFAULT_SAMPLING_RATE
+    assert stdout == ""
 
 
 def test_get_git_commit_returns_unknown_when_head_ref_has_double_space_separator(
@@ -2508,6 +2621,8 @@ def test_main_prints_cv_unavailability_reason(monkeypatch, capsys):
 
     # Remplace run_training pour isoler l'output CLI
     monkeypatch.setattr(train, "run_training", fake_run_training)
+    # Neutralise l'accès au dataset réel pour garder le test hermétique
+    monkeypatch.setattr(train, "resolve_sampling_rate", lambda *_args, **_kwargs: 50.0)
 
     # Exécute la CLI avec les arguments minimaux
     exit_code = train.main(["S001", "R01"])
@@ -2543,6 +2658,8 @@ def test_main_prints_cv_error_warning(monkeypatch, capsys):
 
     # Remplace run_training pour isoler l'output CLI
     monkeypatch.setattr(train, "run_training", fake_run_training)
+    # Neutralise l'accès au dataset réel pour garder le test hermétique
+    monkeypatch.setattr(train, "resolve_sampling_rate", lambda *_args, **_kwargs: 50.0)
 
     # Exécute la CLI avec les arguments minimaux
     exit_code = train.main(["S001", "R01"])

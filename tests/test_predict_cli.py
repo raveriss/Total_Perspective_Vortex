@@ -219,6 +219,59 @@ def test_main_renders_epoch_log_and_accuracy(monkeypatch, capsys, tmp_path):
     ]
 
 
+def test_main_reports_permission_error_without_traceback(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    error_payload = predict.json.dumps(
+        {
+            "error": "MNE parse failure",
+            "path": str(tmp_path / "data" / "S001" / "S001R06.edf"),
+            "exception": "PermissionError",
+            "message": "File does not have read permissions",
+        }
+    )
+
+    def fake_evaluate_run(*_args, **_kwargs):
+        raise ValueError(error_payload)
+
+    monkeypatch.setattr(predict, "evaluate_run", fake_evaluate_run)
+
+    exit_code = predict.main(["S001", "R06", "--data-dir", str(tmp_path / "data")])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == predict.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture EDF impossible pour S001 R06",
+        (
+            "Action: donnez les droits de lecture aux fichiers nécessaires : "
+            "`chmod a+r "
+            + f"{tmp_path / 'data' / 'S001' / 'S001R06.edf'} "
+            + f"{tmp_path / 'data' / 'S001' / 'S001R06.edf.event'}`"
+        ),
+    ]
+
+
+def test_main_reports_data_directory_permission_error(monkeypatch, capsys) -> None:
+    """Affiche une action concise quand le dossier sujet est illisible."""
+
+    def fake_evaluate_run(*_args, **_kwargs):
+        raise PermissionError(13, "Permission denied", "data/S001/R06_X.npy")
+
+    monkeypatch.setattr(predict, "evaluate_run", fake_evaluate_run)
+
+    exit_code = predict.main(["S001", "R06", "--data-dir", "data"])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == predict.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture du dossier data/S001 impossible",
+        (
+            "Action: donnez les droits d'accès au dossier "
+            "data/S001 : `chmod a+rx data/S001`"
+        ),
+    ]
+
+
 def test_parse_subject_rejects_empty_value() -> None:
     # Vérifie que l'ID sujet vide est refusé par la validation
     with pytest.raises(argparse.ArgumentTypeError):

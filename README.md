@@ -476,14 +476,14 @@ Installing the current project: total-perspective-vortex (0.1.0)
 raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make show-activate
 Commande d'activation (a executer dans le shell courant) :
 source /home/raveriss/Desktop/Total_Perspective_Vortex/.venv/bin/activate
-raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ 
+raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$
 ```
 
 #### `Activer l'environnement`
 
 ```bash
 raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ source /home/raveriss/Desktop/Total_Perspective_Vortex/.venv/bin/activate
-(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ 
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$
 ```
 
 #### `make train <subject> <run>`
@@ -506,7 +506,7 @@ INFO: dim_method='csp/cssp' appliqué avant l'extraction des features.
 CV_SPLITS: 10 (scores: 10)
 [0.6667 0.3333 0.3333 0.6667 1.0000 0.6667 0.6667 0.6667 0.3333 1.0000]
 cross_val_score: 0.6333
-(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ 
+(total-perspective-vortex-py3.10) raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$
 ```
 
 #### `make predict <subject> <run>`
@@ -813,6 +813,6 @@ MIT License.
 # 👤 Auteur
 
 **Rafael Verissimo**
-Étudiant IA/Data — École 42 Paris  
-GitHub : https://github.com/raveriss  
+Étudiant IA/Data — École 42 Paris
+GitHub : https://github.com/raveriss
 LinkedIn : https://www.linkedin.com/in/verissimo-rafael/

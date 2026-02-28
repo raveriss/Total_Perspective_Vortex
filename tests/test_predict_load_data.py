@@ -300,6 +300,7 @@ def test_build_npy_from_edf_uses_epoch_window_metadata(tmp_path, monkeypatch) ->
     raw_path = raw_dir / subject / f"{subject}{run}.edf"
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     raw_path.write_text("stub")
+    raw_path.with_suffix(".edf.event").write_text("stub")
 
     # Persiste une fenêtre custom pour ce run
     window_path = data_dir / subject / f"{run}_epoch_window.json"
@@ -433,6 +434,8 @@ def test_build_npy_from_edf_handles_missing_labels(tmp_path, monkeypatch) -> Non
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     # Écrit un contenu factice pour matérialiser l'EDF
     raw_path.write_text("stub")
+    # Écrit un fichier .edf.event factice pour le contrôle d'intégrité
+    raw_path.with_suffix(".edf.event").write_text("stub")
 
     # Définit des données d'epochs factices alignées sur deux labels
     epochs_data = np.ones((2, 1, 4), dtype=float)

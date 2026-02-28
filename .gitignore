@@ -216,5 +216,14 @@ cache/
 *.set
 *.vmrk
 
+# EEGMMIDB PhysioNet dataset (never commit raw data)
+data/**/*.edf
+data/**/*.edf.event
+data/S[0-9][0-9][0-9]/
+data/ANNOTATORS
+data/RECORDS
+data/SHA256SUMS.txt
+data/.eegmmidb.ok
+
 # Mutation testing artifacts
 mutants/poetry.lock

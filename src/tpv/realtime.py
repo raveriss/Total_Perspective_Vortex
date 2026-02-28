@@ -2,6 +2,7 @@
 
 # Centralise argparse pour exposer un parser CLI dédié
 import argparse
+import os
 
 # Fournit sys pour écrire les erreurs CLI sur stderr
 import sys
@@ -26,6 +27,11 @@ import numpy as np
 
 # Récupère la restauration du pipeline entraîné pour la prédiction
 from tpv.pipeline import load_pipeline
+
+# Définit le nom de la variable d'environnement pour la racine dataset
+DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
+# Définit la racine de données par défaut pour la CLI realtime
+DEFAULT_DATA_DIR = Path(os.environ.get(DATA_DIR_ENV_VAR, "data")).expanduser()
 
 
 # Définit une interface minimale pour les pipelines prédictifs
@@ -329,7 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("data"),
+        default=DEFAULT_DATA_DIR,
         help="Répertoire racine contenant les fichiers numpy",
     )
     # Ajoute une option pour configurer le répertoire d'artefacts
@@ -482,7 +488,10 @@ def _load_data(features_path: Path, labels_path: Path) -> tuple[np.ndarray, np.n
             # Invite à vérifier le répertoire de données cible
             f"- Action 2: Vérifiez le dossier {data_root}.\n"
             # Rappelle l'option de surcharge pour un autre emplacement
-            "- Action 3: Utilisez --data-dir si vos données sont ailleurs."
+            f"- Action 3: Utilisez --data-dir ou {DATA_DIR_ENV_VAR} "
+            "si vos données sont ailleurs.\n"
+            # Rappelle la commande de bootstrap dataset
+            "- Action 4: Lancez `make download_dataset` si le dataset est incomplet."
         )
         # Lève une erreur explicite pour interrompre le flux temps réel
         raise FileNotFoundError(message)

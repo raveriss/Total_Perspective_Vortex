@@ -1,68 +1,31 @@
 """CLI d'entraînement pour le pipeline TPV."""
 
-# Préserve argparse pour exposer une interface CLI homogène avec mybci
-# Expose les primitives d'analyse des arguments CLI
-# Fournit le parsing CLI pour aligner la signature mybci
 import argparse
 import csv
-
-# Fournit la sérialisation JSON pour exposer un manifeste exploitable
 import json
-
-# Accède aux arguments bruts pour détecter les flags fournis
+import os
 import sys
-
-# Rassemble la construction de structures immuables orientées données
 from dataclasses import asdict, dataclass, field
-
-# Garantit l'accès aux chemins portables pour données et artefacts
 from pathlib import Path
-
-# Expose cast pour documenter les conversions de types
-# Expose Sequence pour typer les fenêtres temporelles
 from typing import Sequence, cast
 
-# Offre la persistance dédiée aux objets scikit-learn pour inspection séparée
 import joblib
-
-# Centralise l'accès aux tableaux manipulés par scikit-learn
 import numpy as np
-
-# Fournit la validation croisée pour évaluer la pipeline complète
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression
-
-# Fournit la validation croisée pour évaluer la pipeline complète
-# isort: off
-# Expose la grille de recherche pour optimiser les hyperparamètres
-from sklearn.model_selection import GridSearchCV
-
-# Offre un splitter non stratifié pour les petits effectifs
-from sklearn.model_selection import ShuffleSplit
-
-# Offre un splitter stratifié pour préserver l'équilibre des classes
-from sklearn.model_selection import StratifiedShuffleSplit
-
-# Calcule les scores de validation croisée de la pipeline
-from sklearn.model_selection import cross_val_score
-
-from sklearn.model_selection import StratifiedKFold
-
-# isort: on
-
-# Fournit le type Pipeline pour typer les helpers de scoring
+from sklearn.model_selection import (
+    GridSearchCV,
+    ShuffleSplit,
+    StratifiedKFold,
+    StratifiedShuffleSplit,
+    cross_val_score,
+)
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.svm import LinearSVC
 
-# Centralise le parsing et le contrôle qualité des fichiers EDF
-# Extrait les features fréquentielles depuis des epochs EEG
 from tpv import preprocessing
-
-# Assemble la pipeline cohérente pour l'entraînement
 from tpv.classifier import CentroidClassifier
-
-# Permet de persister séparément la matrice W apprise
 from tpv.dimensionality import TPVDimReducer
 from tpv.pipeline import (
     PipelineConfig,
@@ -70,13 +33,13 @@ from tpv.pipeline import (
     build_search_pipeline,
     save_pipeline,
 )
-
-# Centralise la configuration des fenêtres d'epochs
 from tpv.utils import (
     DEFAULT_EPOCH_WINDOW,
+    HANDLED_CLI_ERROR_EXIT_CODE,
     EpochWindowConfig,
     default_epoch_window_config,
     load_epoch_window_config,
+    render_cli_error_lines,
     resolve_epoch_windows,
 )
 
@@ -108,8 +71,11 @@ MOTOR_RUNS = (
     "R14",
 )
 
+# Définit le nom de la variable d'environnement pour la racine dataset
+DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
+
 # Définit le répertoire par défaut où chercher les enregistrements
-DEFAULT_DATA_DIR = Path("data")
+DEFAULT_DATA_DIR = Path(os.environ.get(DATA_DIR_ENV_VAR, "data")).expanduser()
 
 # Fixe la dimension attendue pour les matrices de features en mémoire
 EXPECTED_FEATURES_DIMENSIONS = 3
@@ -118,7 +84,7 @@ EXPECTED_FEATURES_DIMENSIONS = 3
 DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 
 # Définit le répertoire par défaut où résident les fichiers EDF bruts
-DEFAULT_RAW_DIR = Path("data")
+DEFAULT_RAW_DIR = DEFAULT_DATA_DIR
 
 # Définit la référence EEG par défaut pour le re-référencement
 DEFAULT_EEG_REFERENCE = "average"
@@ -285,13 +251,12 @@ def resolve_sampling_rate(
             sampling_rate = requested_sfreq
         # Ferme explicitement le Raw pour libérer la mémoire
         raw.close()
-    except (FileNotFoundError, OSError, ValueError) as error:
-        # Signale la détection impossible sans interrompre l'entraînement
-        print(
-            "INFO: lecture EDF impossible pour "
-            f"{subject} {run} ({error}), "
-            "sfreq par défaut conservée."
-        )
+    except (FileNotFoundError, OSError, ValueError):
+        # Signale uniquement le fallback de fréquence pour éviter la redondance
+        # print(
+        #     "INFO: fréquence d'échantillonnage EDF indisponible pour "
+        #     f"{subject} {run}, sfreq par défaut conservée."
+        # )
         # Retourne la valeur demandée en cas d'échec de lecture
         return requested_sfreq
     # Retourne la fréquence détectée pour aligner les features
@@ -1368,16 +1333,26 @@ def _build_npy_from_edf(
         # Transmet le répertoire de base des numpy
         build_context.data_dir,
     )
-    # Calcule le chemin attendu du fichier EDF brut
+    # Calcule les chemins attendus des fichiers bruts PhysioNet
     raw_path = build_context.raw_dir / subject / f"{subject}{run}.edf"
+    event_path = raw_path.with_suffix(".edf.event")
 
-    # Interrompt tôt si l'EDF est absent
-    if not raw_path.exists():
+    # Interrompt tôt si l'EDF est absent ou vide
+    if not raw_path.exists() or raw_path.stat().st_size == 0:
         raise FileNotFoundError(
             "EDF introuvable pour "
             f"{subject} {run}: {raw_path}. "
-            "Téléchargez les enregistrements Physionet dans data ou "
-            "pointez --raw-dir vers un dossier déjà synchronisé."
+            "Lancez `make download_dataset` ou pointez --raw-dir vers "
+            "un dataset EEGMMIDB complet."
+        )
+
+    # Interrompt tôt si le fichier .edf.event est absent ou vide
+    if not event_path.exists() or event_path.stat().st_size == 0:
+        raise FileNotFoundError(
+            "Fichier événement introuvable pour "
+            f"{subject} {run}: {event_path}. "
+            "Le dataset semble incomplet: relancez `make download_dataset` "
+            f"ou définissez {DATA_DIR_ENV_VAR} vers un dossier valide."
         )
 
     # Crée l'arborescence cible pour déposer les .npy
@@ -2515,15 +2490,8 @@ def _build_training_request_from_args(
 def _execute_training_request(request: TrainingRequest) -> int:
     """Exécute run_training et imprime le résumé CLI."""
 
-    # Sécurise l'exécution pour afficher une erreur lisible sans trace
-    try:
-        # Lance l'entraînement et récupère le rapport pour afficher les scores
-        result = run_training(request)
-    except FileNotFoundError as error:
-        # Remonte l'erreur utilisateur de manière concise pour la CLI
-        print(f"ERREUR: {error}")
-        # Expose un code de sortie explicite pour signaler l'échec
-        return 1
+    # Lance l'entraînement et récupère le rapport pour afficher les scores
+    result = run_training(request)
 
     # Récupère les scores de validation croisée depuis le rapport
     cv_scores = result["cv_scores"]
@@ -2614,11 +2582,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         # Lance l'orchestration des étapes CLI
         return _run_from_args(args, argv)
-    except ValueError as error:
-        # Informe l'utilisateur d'une configuration invalide
-        print(f"ERREUR: {error}")
+    except (FileNotFoundError, PermissionError, ValueError) as error:
+        # Affiche une erreur lisible et actionnable sans traceback
+        for line in render_cli_error_lines(
+            error,
+            subject=args.subject,
+            run=args.run,
+        ):
+            print(line)
         # Retourne un code d'erreur explicite pour la CLI
-        return 1
+        return HANDLED_CLI_ERROR_EXIT_CODE
 
 
 # Protège l'exécution directe pour exposer un exit code explicite

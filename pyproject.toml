@@ -76,10 +76,12 @@ mutate_only_covered_lines = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src", ".", ".."]
+testpaths = ["tests"]
 addopts = [
   "--ignore=mutants",
 ]
 norecursedirs = [
+  "data",
   "mutants",
 ]
 

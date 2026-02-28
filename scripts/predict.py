@@ -13,6 +13,7 @@ import importlib.util
 
 # Fournit la sérialisation JSON pour tracer les rapports générés
 import json
+import os
 
 # Fournit dataclass pour regrouper des options de prédiction
 # Fournit field pour définir des factories de dataclass
@@ -53,7 +54,11 @@ from tpv.features import (
 from tpv.pipeline import PipelineConfig, load_pipeline
 
 # Centralise la fenêtre d'epoching par défaut
-from tpv.utils import DEFAULT_EPOCH_WINDOW
+from tpv.utils import (
+    DEFAULT_EPOCH_WINDOW,
+    HANDLED_CLI_ERROR_EXIT_CODE,
+    render_cli_error_lines,
+)
 
 
 # Charge dynamiquement scripts.train pour l'exécution directe
@@ -79,17 +84,20 @@ def _load_train_module() -> ModuleType:
 # Expose l'entraînement programmatique pour générer un modèle manquant
 train_module: Any = _load_train_module()
 
+# Définit le nom de la variable d'environnement pour la racine dataset
+DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
+
 # Définit le volume attendu des données EEG brutes (trials, canaux, temps)
 EXPECTED_FEATURES_DIMENSIONS = 3
 
 # Définit le répertoire par défaut où chercher les enregistrements
-DEFAULT_DATA_DIR = Path("data")
+DEFAULT_DATA_DIR = Path(os.environ.get(DATA_DIR_ENV_VAR, "data")).expanduser()
 
 # Définit le répertoire par défaut pour récupérer les artefacts
 DEFAULT_ARTIFACTS_DIR = Path("artifacts")
 
 # Définit le répertoire par défaut pour les fichiers EDF bruts
-DEFAULT_RAW_DIR = Path("data")
+DEFAULT_RAW_DIR = DEFAULT_DATA_DIR
 
 # Définit la référence EEG par défaut pour le re-référencement
 DEFAULT_EEG_REFERENCE = "average"
@@ -565,12 +573,25 @@ def _build_npy_from_edf(
         # Transmet le répertoire de base des numpy
         build_context.data_dir,
     )
-    # Calcule le chemin attendu du fichier EDF brut
+    # Calcule les chemins attendus des fichiers bruts PhysioNet
     raw_path = build_context.raw_dir / subject / f"{subject}{run}.edf"
-    # Arrête l'exécution si l'EDF est introuvable
-    if not raw_path.exists():
+    event_path = raw_path.with_suffix(".edf.event")
+    # Arrête l'exécution si l'EDF est introuvable ou vide
+    if not raw_path.exists() or raw_path.stat().st_size == 0:
         # Signale explicitement le chemin absent pour guider l'utilisateur
-        raise FileNotFoundError(f"EDF introuvable pour {subject} {run}: {raw_path}")
+        raise FileNotFoundError(
+            f"EDF introuvable pour {subject} {run}: {raw_path}. "
+            "Lancez `make download_dataset` ou pointez --raw-dir vers "
+            "un dataset EEGMMIDB complet."
+        )
+    # Arrête l'exécution si le fichier d'événements est absent ou vide
+    if not event_path.exists() or event_path.stat().st_size == 0:
+        # Signale explicitement l'absence du fichier .edf.event
+        raise FileNotFoundError(
+            f"Fichier événement introuvable pour {subject} {run}: {event_path}. "
+            "Le dataset semble incomplet: relancez `make download_dataset` "
+            f"ou définissez {DATA_DIR_ENV_VAR} vers un dossier valide."
+        )
     # Crée l'arborescence cible pour déposer les .npy
     features_path.parent.mkdir(parents=True, exist_ok=True)
     # Charge l'EDF en conservant les métadonnées essentielles
@@ -1252,7 +1273,7 @@ def main(argv: list[str] | None = None) -> int:
         # Informe l'utilisateur de l'erreur de configuration
         print("ERREUR: bandpass_low doit être inférieur à bandpass_high.")
         # Retourne un code d'erreur explicite pour la CLI
-        return 1
+        return HANDLED_CLI_ERROR_EXIT_CODE
     # Construit la configuration de prétraitement à partir des arguments
     preprocess_config = preprocessing.PreprocessingConfig(
         # Définit la bande passante MI configurée
@@ -1279,18 +1300,31 @@ def main(argv: list[str] | None = None) -> int:
         pipeline_overrides=pipeline_overrides,
     )
     # Évalue le run demandé et récupère la matrice W
-    result = evaluate_run(
-        # Relaye l'identifiant de sujet fourni par la CLI
-        args.subject,
-        # Relaye l'identifiant de run fourni par la CLI
-        args.run,
-        # Relaye le répertoire des données numpy
-        args.data_dir,
-        # Relaye le répertoire d'artefacts
-        args.artifacts_dir,
-        # Relaye les options de prédiction construites
-        options,
-    )
+    # Sécurise l'évaluation pour éviter un traceback brut côté CLI
+    try:
+        # Évalue le run demandé et récupère la matrice W
+        result = evaluate_run(
+            # Relaye l'identifiant de sujet fourni par la CLI
+            args.subject,
+            # Relaye l'identifiant de run fourni par la CLI
+            args.run,
+            # Relaye le répertoire des données numpy
+            args.data_dir,
+            # Relaye le répertoire d'artefacts
+            args.artifacts_dir,
+            # Relaye les options de prédiction construites
+            options,
+        )
+    except (FileNotFoundError, PermissionError, ValueError) as error:
+        # Affiche une erreur courte et actionnable sans traceback brut
+        for line in render_cli_error_lines(
+            error,
+            subject=args.subject,
+            run=args.run,
+        ):
+            print(line)
+        # Retourne un code d'échec explicite pour la CLI
+        return HANDLED_CLI_ERROR_EXIT_CODE
     # Construit le rapport structuré attendu par les tests
     _ = build_report(result)
 
