@@ -557,3 +557,46 @@ exit 99
     assert f"chmod a+rx {blocked_src_dir}" in combined_output
     assert "poetry should not run" not in combined_output
     assert "make: ***" not in combined_output
+
+
+def test_make_sanitizer_relays_default_command_to_script(tmp_path: Path) -> None:
+    result = run_make_goals(
+        tmp_path,
+        ["sanitizer"],
+        fake_poetry_body="""
+if [[ "$*" != "python scripts/sanitizer.py -- make -j1 mybci wavelet" ]]; then
+  printf 'unexpected args: %s\n' "$*" >&2
+  exit 9
+fi
+printf 'sanitizer ok\n'
+""",
+    )
+
+    combined_output = result.stdout + result.stderr
+
+    assert result.returncode == 0
+    assert "sanitizer ok" in combined_output
+    assert "unexpected args" not in combined_output
+
+
+def test_make_sanitizer_reports_script_permission_error(tmp_path: Path) -> None:
+    blocked_script = tmp_path / "blocked-sanitizer.py"
+    write_blocked_script(blocked_script)
+
+    result = run_make_goals(
+        tmp_path,
+        ["sanitizer"],
+        fake_poetry_body="""
+printf 'poetry should not run\n'
+exit 99
+""",
+        make_vars={"SANITIZER_SCRIPT": str(blocked_script)},
+    )
+
+    combined_output = result.stdout + result.stderr
+
+    assert result.returncode == 0
+    assert f"INFO: lecture du script {blocked_script} impossible" in combined_output
+    assert f"chmod a+rwx {blocked_script}" in combined_output
+    assert "poetry should not run" not in combined_output
+    assert "make: ***" not in combined_output

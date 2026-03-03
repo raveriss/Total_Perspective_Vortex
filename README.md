@@ -215,6 +215,7 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 | Visualiser brut/filtré | `make visualizer <subject> <run>` | `poetry run python scripts/visualize_raw_filtered.py <subject> <run>` |
 | Moyenne des moyennes | `make compute-mean-of-means` | `poetry run python scripts/aggregate_experience_scores.py` |
 | Benchmark global | `make mybci` | `poetry run python mybci.py` |
+| Sanitize benchmark / profiling | `make sanitizer` | `poetry run python scripts/sanitizer.py -- make -j1 mybci wavelet` |
 | Nettoyer | `make clean` | supprime `./artifacts` + les `*.npy` (hors `.venv`, `.git`, `artifacts`) |
 
 ---
@@ -228,6 +229,28 @@ les avertissements "aucun modèle disponible", assurez-vous que
 L'appel `make mybci wavelet` relaie la stratégie
 `--feature-strategy wavelet` à la CLI globale tout en journalisant la sortie
 dans `artifacts/benchmarks/bench_YYYYmmdd_HHMMSS.log`.
+
+---
+
+### 🧪 Diagnostiquer une commande avec `sanitizer`
+
+`make sanitizer` lance `scripts/sanitizer.py` sur la commande
+`make -j1 mybci wavelet` par défaut et produit un dossier
+`artifacts/sanitizer/<timestamp>/` contenant :
+
+* `summary.json` et `summary.md`
+* un sous-dossier par sonde (`A1.make`, `A2`, `F1`, `P1.make`, etc.)
+* les commandes rejouables, `stdout.log`, `stderr.log` et les artefacts
+  associés (`time.csv`, `time.jsonl`, `perf.csv`, `mprof.dat`, `pyspy.svg`...)
+
+Exemples :
+
+```bash
+make sanitizer
+make sanitizer SANITIZER_ARGS='--probe A2 --time-csv-runs 20'
+make sanitizer SANITIZER_COMMAND='make -j1 compute-mean-of-means'
+make sanitizer SANITIZER_ARGS="--probe F1 --python-command 'python mybci.py --feature-strategy wavelet'"
+```
 
 ---
 
@@ -640,7 +663,7 @@ MIT License.
 ---
 # 👤 Auteur
 
-**Rafael Verissimo**
-Étudiant IA/Data — École 42 Paris
-GitHub : https://github.com/raveriss
+**Rafael Verissimo**<br>
+Étudiant IA/Data — École 42 Paris<br>
+GitHub : https://github.com/raveriss<br>
 LinkedIn : https://www.linkedin.com/in/verissimo-rafael/

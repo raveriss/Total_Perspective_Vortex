@@ -26,6 +26,7 @@
 	clean-artifacts \
 	ensure-venv \
 	realtime \
+	sanitizer \
 	compute-mean-of-means \
 	visualizer \
 	clean-npy
@@ -63,6 +64,7 @@ SRC_DIR ?= src
 MYBCI_SCRIPT ?= mybci.py
 REALTIME_SCRIPT ?= src/tpv/realtime.py
 VISUALIZER_SCRIPT ?= scripts/visualize_raw_filtered.py
+SANITIZER_SCRIPT ?= scripts/sanitizer.py
 AGGREGATE_EXPERIENCE_SCORES_SCRIPT ?= scripts/aggregate_experience_scores.py
 TPV_SRC_DIR ?= src/tpv
 
@@ -282,6 +284,8 @@ FEATURE_STRATEGY ?=
 TRAIN_ARGS ?=
 PREDICT_ARGS ?=
 BENCH_ARGS ?=
+SANITIZER_ARGS ?=
+SANITIZER_COMMAND ?= make -j1 mybci wavelet
 
 # Entraînement : `make train <subject> <run>`
 train: ensure-venv
@@ -426,6 +430,12 @@ mybci: ensure-venv
 		exit 0; \
 	fi; \
 	exit "$$status"
+
+# Diagnostic / benchmark / profiling autour d'une commande cible
+sanitizer: ensure-venv
+	@set -euo pipefail; \
+	$(call ENSURE_SCRIPT_READABLE,$(SANITIZER_SCRIPT)); \
+	$(POETRY) python $(SANITIZER_SCRIPT) $(SANITIZER_ARGS) -- $(SANITIZER_COMMAND)
 
 # Affiche la commande d'activation (make ne peut pas modifier le shell parent)
 show-activate:
