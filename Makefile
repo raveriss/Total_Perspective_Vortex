@@ -45,7 +45,8 @@ STAMP = $(VENV)/.poetry-installed
 export POETRY_VIRTUALENVS_IN_PROJECT := true
 
 # --- Benchmarks ---------------------------------------------------------------
-BENCH_DIR   := data/benchmarks
+# Journalise les runs globaux hors dataset pour éviter les collisions de droits
+BENCH_DIR   := artifacts/benchmarks
 BENCH_CSVS  := $(wildcard $(BENCH_DIR)/*.csv)
 
 # --- Dataset ------------------------------------------------------------------
@@ -58,6 +59,53 @@ HANDLED_CLI_ERROR_EXIT_CODE ?= 2
 
 # Utilisation raccourcie de Poetry
 POETRY = poetry run
+SRC_DIR ?= src
+MYBCI_SCRIPT ?= mybci.py
+REALTIME_SCRIPT ?= src/tpv/realtime.py
+VISUALIZER_SCRIPT ?= scripts/visualize_raw_filtered.py
+AGGREGATE_EXPERIENCE_SCORES_SCRIPT ?= scripts/aggregate_experience_scores.py
+TPV_SRC_DIR ?= src/tpv
+
+define ENSURE_SCRIPT_READABLE
+script_path="$(1)"; \
+if [[ ! -r "$$script_path" ]]; then \
+	printf 'INFO: lecture du script %s impossible\n' "$$script_path"; \
+	printf '%s\n' "Action: redonnez les droits d'accès au script $$script_path : \`chmod a+rwx $$script_path\`"; \
+	exit 0; \
+fi; \
+true
+endef
+
+define ENSURE_TPV_SOURCES_READABLE
+src_dir="$(SRC_DIR)"; \
+tpv_dir="$(TPV_SRC_DIR)"; \
+if [[ -d "$$src_dir" && ( ! -r "$$src_dir" || ! -x "$$src_dir" ) ]]; then \
+	printf 'INFO: lecture du dossier %s impossible\n' "$$src_dir"; \
+	printf '%s\n' "Action: redonnez les droits d'accès au dossier $$src_dir : \`chmod a+rx $$src_dir\`"; \
+	exit 0; \
+fi; \
+if [[ -d "$$tpv_dir" ]]; then \
+	if [[ ! -r "$$tpv_dir" || ! -x "$$tpv_dir" ]]; then \
+		printf 'INFO: lecture du dossier %s impossible\n' "$$tpv_dir"; \
+		printf '%s\n' "Action: redonnez les droits d'accès au dossier $$tpv_dir et à son contenu : \`chmod -R a+rX $$tpv_dir\`"; \
+		exit 0; \
+	fi; \
+	shopt -s nullglob; \
+	blocked_tpv_path=""; \
+	for candidate in "$$tpv_dir"/*.py; do \
+		if [[ ! -r "$$candidate" ]]; then \
+			blocked_tpv_path="$$candidate"; \
+			break; \
+		fi; \
+	done; \
+	if [[ -n "$$blocked_tpv_path" ]]; then \
+		printf 'INFO: lecture du script %s impossible\n' "$$blocked_tpv_path"; \
+		printf '%s\n' "Action: redonnez les droits d'accès au dossier $$tpv_dir et à son contenu : \`chmod -R a+rX $$tpv_dir\`"; \
+		exit 0; \
+	fi; \
+fi; \
+true
+endef
 
 # Désactive le chargement automatique des plugins pytest globaux (ROS, etc.)
 PYTEST_ENV = PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
@@ -258,6 +306,7 @@ train: ensure-venv
 	if [[ -z "$$feature_strategy" && -n "$$positional_strategy" ]]; then \
 		feature_strategy="$$positional_strategy"; \
 	fi; \
+	$(call ENSURE_TPV_SOURCES_READABLE); \
 		if [[ -n "$$feature_strategy" ]]; then \
 			extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
 		fi; \
@@ -291,6 +340,7 @@ predict: ensure-venv
 		if [[ -z "$$feature_strategy" && -n "$$positional_strategy" ]]; then \
 			feature_strategy="$$positional_strategy"; \
 	fi; \
+		$(call ENSURE_TPV_SOURCES_READABLE); \
 		if [[ -n "$$feature_strategy" ]]; then \
 			extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
 		fi; \
@@ -314,12 +364,16 @@ realtime: ensure-venv
 		echo "❌ <subject> et <run> doivent être des entiers (ex: make predict 3 8)" >&2; \
 		exit 0; \
 	fi; \
-	$(POETRY) python src/tpv/realtime.py "$$subject" "$$run"
+	$(call ENSURE_TPV_SOURCES_READABLE); \
+	$(call ENSURE_SCRIPT_READABLE,$(REALTIME_SCRIPT)); \
+	$(POETRY) python $(REALTIME_SCRIPT) "$$subject" "$$run"
 
 # score : `make score`
 compute-mean-of-means: ensure-venv
 	@set -euo pipefail; \
-	$(POETRY) python scripts/aggregate_experience_scores.py
+	$(call ENSURE_TPV_SOURCES_READABLE); \
+	$(call ENSURE_SCRIPT_READABLE,$(AGGREGATE_EXPERIENCE_SCORES_SCRIPT)); \
+	$(POETRY) python $(AGGREGATE_EXPERIENCE_SCORES_SCRIPT)
 
 
 # realtime : `make visualizer <subject> <run>`
@@ -346,7 +400,9 @@ visualizer: ensure-venv
 			channels_args="--channels $${channel_parts[*]}"; \
 		fi; \
 	fi; \
-	$(POETRY) python scripts/visualize_raw_filtered.py "$$subject" "$$run" $$channels_args
+	$(call ENSURE_TPV_SOURCES_READABLE); \
+	$(call ENSURE_SCRIPT_READABLE,$(VISUALIZER_SCRIPT)); \
+	$(POETRY) python $(VISUALIZER_SCRIPT) "$$subject" "$$run" $$channels_args
 
 # Évaluation globale : équivalent à `python mybci.py` du sujet
 mybci: ensure-venv
@@ -360,9 +416,16 @@ mybci: ensure-venv
 	if [[ -n "$$feature_strategy" ]]; then \
 		extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
 	fi; \
+	$(call ENSURE_TPV_SOURCES_READABLE); \
+	$(call ENSURE_SCRIPT_READABLE,$(MYBCI_SCRIPT)); \
 	mkdir -p $(BENCH_DIR); \
-	$(POETRY) python mybci.py $$extra_args \
-		| tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log
+	status=0; \
+	$(POETRY) python $(MYBCI_SCRIPT) $$extra_args \
+		| tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log || status=$$?; \
+	if [[ "$$status" -eq "$(HANDLED_CLI_ERROR_EXIT_CODE)" ]]; then \
+		exit 0; \
+	fi; \
+	exit "$$status"
 
 # Affiche la commande d'activation (make ne peut pas modifier le shell parent)
 show-activate:

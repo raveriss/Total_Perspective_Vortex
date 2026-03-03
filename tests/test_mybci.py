@@ -1,6 +1,9 @@
 # Préserve argparse pour vérifier les valeurs par défaut des options
 import argparse
 
+# Préserve json pour construire les payloads d'erreur structurés
+import json
+
 # Préserve sys pour récupérer l'interpréteur courant dans les assertions
 import sys
 
@@ -318,6 +321,164 @@ def test_evaluate_experiments_reports_subject_accuracy(capsys, monkeypatch):
     assert "experiment 0: subject 001: accuracy = 0.5000" in stdout
     # Vérifie l'affichage de l'accuracy pour le sujet 2
     assert "experiment 0: subject 002: accuracy = 0.5000" in stdout
+
+
+def test_evaluate_experiments_wraps_permission_failure_with_subject_run(
+    monkeypatch, tmp_path
+):
+    # Prépare une expérience unique ciblant le run en défaut
+    experiments = [mybci.ExperimentDefinition(index=3, run="R06")]
+    # Simule un seul sujet disponible pour simplifier le contexte
+    available_subjects_by_run = {"R06": [1]}
+
+    def fake_evaluate(*_args, **_kwargs) -> float:
+        raise PermissionError(13, "Permission denied", "data/S001/S001R06.edf")
+
+    # Injecte une PermissionError brute pour vérifier le wrapping global
+    monkeypatch.setattr(mybci, "_evaluate_experiment_subject", fake_evaluate)
+
+    # Construit les chemins requis par la fonction sous test
+    paths = mybci.EvaluationPaths(
+        data_root=tmp_path / "data",
+        artifacts_root=tmp_path / "artifacts",
+        raw_root=tmp_path / "data",
+    )
+
+    # Vérifie que le wrapper global transporte bien le couple sujet/run
+    with pytest.raises(mybci.GlobalEvaluationCliError) as exc_info:
+        mybci._evaluate_experiments(experiments, available_subjects_by_run, paths, None)
+
+    error = exc_info.value
+    assert error.subject == "S001"
+    assert error.run == "R06"
+    assert isinstance(error.error, PermissionError)
+
+
+def test_main_reports_global_permission_error_with_action(
+    monkeypatch, capsys, tmp_path
+):
+    # Prépare un payload identique à celui produit par preprocessing via MNE
+    error_payload = json.dumps(
+        {
+            "error": "MNE parse failure",
+            "path": str(tmp_path / "data" / "S001" / "S001R06.edf"),
+            "exception": "PermissionError",
+            "message": "File does not have read permissions",
+        }
+    )
+
+    def fake_runner(**_kwargs) -> int:
+        raise mybci.GlobalEvaluationCliError(
+            ValueError(error_payload),
+            subject="S001",
+            run="R06",
+        )
+
+    # Force le runner global à échouer avec une erreur dataset contextualisée
+    monkeypatch.setattr(mybci, "_run_global_evaluation", fake_runner)
+
+    exit_code = mybci.main([])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == mybci.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture EDF impossible pour S001 R06",
+        (
+            "Action: donnez les droits de lecture aux fichiers nécessaires : "
+            "`chmod a+r "
+            + f"{tmp_path / 'data' / 'S001' / 'S001R06.edf'} "
+            + f"{tmp_path / 'data' / 'S001' / 'S001R06.edf.event'}`"
+        ),
+    ]
+
+
+def test_main_reports_global_data_directory_permission_error(monkeypatch, capsys):
+    def fake_runner(**_kwargs) -> int:
+        raise mybci.GlobalEvaluationCliError(
+            PermissionError(13, "Permission denied", "data"),
+            subject="S001",
+            run="R06",
+        )
+
+    monkeypatch.setattr(mybci, "_run_global_evaluation", fake_runner)
+
+    exit_code = mybci.main([])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == mybci.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture du dossier data impossible",
+        "Action: donnez les droits d'accès au dossier data : `chmod a+rx data`",
+    ]
+
+
+def test_find_tpv_source_access_issue_handles_blocked_src_directory(tmp_path) -> None:
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    src_dir.chmod(0)
+    try:
+        problem_path = mybci._find_tpv_source_access_issue(src_dir, src_dir / "tpv")
+    finally:
+        src_dir.chmod(0o755)
+
+    assert problem_path == src_dir
+
+
+def test_main_reports_src_directory_permission_error(monkeypatch, capsys):
+    monkeypatch.setattr(
+        mybci,
+        "_find_tpv_source_access_issue",
+        lambda: mybci.SRC_DIR,
+    )
+
+    exit_code = mybci.main([])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == mybci.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture du dossier src impossible",
+        "Action: redonnez les droits d'accès au dossier src : `chmod a+rx src`",
+    ]
+
+
+def test_main_reports_tpv_source_directory_permission_error(monkeypatch, capsys):
+    monkeypatch.setattr(
+        mybci,
+        "_find_tpv_source_access_issue",
+        lambda: mybci.TPV_SRC_DIR,
+    )
+
+    exit_code = mybci.main([])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == mybci.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture du dossier src/tpv impossible",
+        (
+            "Action: redonnez les droits d'accès au dossier src/tpv et à son "
+            "contenu : `chmod -R a+rX src/tpv`"
+        ),
+    ]
+
+
+def test_main_reports_tpv_source_file_permission_error(monkeypatch, capsys):
+    monkeypatch.setattr(
+        mybci,
+        "_find_tpv_source_access_issue",
+        lambda: mybci.TPV_SRC_DIR / "utils.py",
+    )
+
+    exit_code = mybci.main(["S001", "R06", "train"])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == mybci.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture du script src/tpv/utils.py impossible",
+        (
+            "Action: redonnez les droits d'accès au dossier src/tpv et à son "
+            "contenu : `chmod -R a+rX src/tpv`"
+        ),
+    ]
 
 
 def test_build_parser_metadata():

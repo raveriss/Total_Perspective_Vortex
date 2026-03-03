@@ -36,6 +36,16 @@ from tqdm import tqdm
 # Assure l'accès à tpv via src lors d'une exécution locale
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
 
+# Réserve le code de sortie des erreurs CLI déjà rendues lisiblement
+HANDLED_CLI_ERROR_EXIT_CODE = 2
+
+# Définit la racine du dépôt pour homogénéiser les messages CLI
+PROJECT_ROOT = Path(__file__).resolve().parent
+# Définit l'emplacement du dossier source parent utilisé par les imports TPV
+SRC_DIR = PROJECT_ROOT / "src"
+# Définit l'emplacement des modules TPV importés par les CLI
+TPV_SRC_DIR = PROJECT_ROOT / "src" / "tpv"
+
 # Définit le nom de la variable d'environnement pour la racine dataset
 DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
 # Définit la racine de données par défaut pour l'évaluation globale
@@ -383,6 +393,19 @@ class ExperimentDefinition:
     run: str
 
 
+# Transporte une erreur globale avec le sujet/run responsable
+class GlobalEvaluationCliError(RuntimeError):
+    """Encapsule une erreur CLI globale avec le contexte sujet/run."""
+
+    def __init__(self, error: Exception, *, subject: str, run: str) -> None:
+        """Stocke l'erreur source et le couple sujet/run incriminé."""
+
+        super().__init__(str(error))
+        self.error = error
+        self.subject = subject
+        self.run = run
+
+
 # Construit la liste des six expériences décrites dans le sujet
 def _build_default_experiments() -> list[ExperimentDefinition]:
     """Expose les six expériences demandées par la consigne."""
@@ -554,6 +577,8 @@ def _evaluate_experiments(
             continue
         # Parcourt l'ensemble des sujets disposant d'un modèle
         for subject_index in available_subjects:
+            # Calcule l'identifiant du sujet pour les erreurs et l'affichage
+            subject = _subject_identifier(subject_index)
             # Évalue le sujet courant sur l'expérience en cours
             try:
                 # Calcule l'accuracy en rechargeant le modèle entraîné
@@ -566,18 +591,24 @@ def _evaluate_experiments(
                 # Informe l'utilisateur qu'un prérequis manque pour ce run
                 print(f"AVERTISSEMENT: {error}")
                 # Calcule l'identifiant du sujet manquant pour le récapitulatif
-                subject = _subject_identifier(subject_index)
                 # Ajoute l'entrée manquante pour un récapitulatif final
                 missing_entries.append(f"{subject}:{experiment.run}")
                 # Ignore ce sujet pour poursuivre l'exploration globale
                 continue
+            except (PermissionError, ValueError) as error:
+                # Stoppe l'évaluation globale avec un message CLI contextualisé
+                raise GlobalEvaluationCliError(
+                    error,
+                    subject=subject,
+                    run=experiment.run,
+                ) from error
             finally:
                 # Actualise la barre de progression lorsqu'elle est activée
                 if progress is not None:
                     # Incrémente la progression d'un sujet évalué ou tenté
                     progress.update(1)
-            # Formate l'index sujet en trois chiffres pour la sortie demandée
-            subject_label = f"{subject_index:03d}"
+            # Prépare la partie numérique du sujet pour la sortie demandée
+            subject_label = subject.removeprefix("S")
             # Prépare le préfixe pour éviter une ligne trop longue
             prefix = f"experiment {experiment.index}: subject {subject_label}: "
             # Prépare le suffixe avec l'accuracy formatée
@@ -750,6 +781,166 @@ def _run_global_evaluation(
     return 0
 
 
+# Convertit un chemin absolu du repo en chemin CLI lisible
+def _display_cli_path(path: Path) -> str:
+    """Retourne un chemin relatif au repo lorsque c'est possible."""
+
+    # Essaie de raccourcir les chemins internes au dépôt pour la CLI
+    try:
+        return str(path.relative_to(PROJECT_ROOT))
+    # Conserve le chemin original lorsqu'il pointe hors dépôt
+    except ValueError:
+        return str(path)
+
+
+# Détecte un problème d'accès aux modules src/tpv requis par la CLI
+def _find_tpv_source_access_issue(
+    src_dir: Path = SRC_DIR,
+    tpv_src_dir: Path = TPV_SRC_DIR,
+) -> Path | None:
+    """Retourne le premier dossier/fichier src ou src/tpv inaccessible."""
+
+    # Initialise l'absence de problème d'accès par défaut
+    problem_path: Path | None = None
+    # Ignore la vérification quand le dossier src n'existe pas dans ce contexte
+    if not src_dir.is_dir():
+        return problem_path
+    # Signale d'abord un dossier src non traversable ou non lisible
+    if not os.access(src_dir, os.R_OK | os.X_OK):
+        problem_path = src_dir
+    else:
+        # Ignore la vérification quand le répertoire tpv n'existe pas dans ce contexte
+        try:
+            tpv_dir_exists = tpv_src_dir.is_dir()
+        # Signale un parent bloqué sans laisser remonter un traceback Python
+        except PermissionError:
+            problem_path = tpv_src_dir
+        else:
+            # Continue uniquement si src/tpv est réellement présent
+            if tpv_dir_exists:
+                # Signale d'abord un dossier non traversable ou non lisible
+                if not os.access(tpv_src_dir, os.R_OK | os.X_OK):
+                    problem_path = tpv_src_dir
+                else:
+                    # Recherche ensuite un module Python illisible dans src/tpv
+                    try:
+                        candidates = sorted(tpv_src_dir.glob("*.py"))
+                    # Signale un tpv bloqué sans traceback lors du glob
+                    except PermissionError:
+                        problem_path = tpv_src_dir
+                    else:
+                        for candidate in candidates:
+                            if not os.access(candidate, os.R_OK):
+                                problem_path = candidate
+                                break
+    # Confirme que tous les modules sont lisibles
+    return problem_path
+
+
+# Rend un problème d'accès src/tpv avec une action CLI unique
+def _render_tpv_source_access_issue(problem_path: Path) -> int:
+    """Affiche un diagnostic court pour un chmod bloquant sur src/tpv."""
+
+    # Prépare les chemins affichés dans un format CLI court
+    display_problem = _display_cli_path(problem_path)
+    display_dir = _display_cli_path(TPV_SRC_DIR)
+    display_src_dir = _display_cli_path(SRC_DIR)
+    # Différencie src, src/tpv et un module individuel bloqué
+    if problem_path == SRC_DIR:
+        print(f"INFO: lecture du dossier {display_src_dir} impossible")
+        print(
+            "Action: redonnez les droits d'accès au dossier "
+            f"{display_src_dir} : `chmod a+rx {display_src_dir}`"
+        )
+        return HANDLED_CLI_ERROR_EXIT_CODE
+    if problem_path == TPV_SRC_DIR:
+        print(f"INFO: lecture du dossier {display_dir} impossible")
+    else:
+        print(f"INFO: lecture du script {display_problem} impossible")
+    # Propose une commande unique qui répare le dossier et ses modules
+    print(
+        "Action: redonnez les droits d'accès au dossier "
+        f"{display_dir} et à son contenu : `chmod -R a+rX {display_dir}`"
+    )
+    # Retourne le code réservé aux erreurs CLI déjà rendues
+    return HANDLED_CLI_ERROR_EXIT_CODE
+
+
+# Coupe tôt une exécution CLI si les modules src/tpv sont inaccessibles
+def _abort_if_tpv_sources_are_unreadable() -> int | None:
+    """Retourne un code CLI si src/tpv est bloqué, sinon None."""
+
+    # Recherche un éventuel problème d'accès avant de déléguer plus loin
+    problem_path = _find_tpv_source_access_issue()
+    # Laisse l'exécution se poursuivre quand tout est lisible
+    if problem_path is None:
+        return None
+    # Rend immédiatement un message utilisateur court et actionnable
+    return _render_tpv_source_access_issue(problem_path)
+
+
+# Rend une erreur globale en sortie CLI sans traceback Python
+def _render_global_cli_error(
+    error: Exception,
+    *,
+    subject: str | None = None,
+    run: str | None = None,
+) -> int:
+    """Affiche une erreur globale courte et retourne le code CLI géré."""
+
+    # Importe localement le renderer pour éviter un crash bootstrap sur src/tpv
+    from tpv.utils import render_cli_error_lines  # noqa: PLC0415
+
+    # Imprime chaque ligne du diagnostic court et actionnable
+    for line in render_cli_error_lines(error, subject=subject, run=run):
+        print(line)
+    # Retourne le code réservé aux erreurs déjà rendues côté CLI
+    return HANDLED_CLI_ERROR_EXIT_CODE
+
+
+# Lance l'évaluation globale avec conversion des erreurs dataset en sortie CLI
+def _run_global_evaluation_cli(
+    *,
+    experiments: Sequence[ExperimentDefinition] | None = None,
+    data_dir: Path | None = None,
+    artifacts_dir: Path | None = None,
+    raw_dir: Path | None = None,
+    pipeline_overrides: Mapping[str, str] | None = None,
+) -> int:
+    """Exécute l'évaluation globale avec gestion d'erreur utilisateur."""
+
+    # Encadre l'évaluation pour éviter les tracebacks sur erreurs gérées
+    try:
+        # Préserve l'appel historique sans kwargs quand rien n'est surchargé
+        if (
+            experiments is None
+            and data_dir is None
+            and artifacts_dir is None
+            and raw_dir is None
+            and pipeline_overrides is None
+        ):
+            # Délègue l'exécution nominale simple pour les tests et la CLI nue
+            return _run_global_evaluation()
+        # Délègue la logique nominale au runner global principal
+        return _run_global_evaluation(
+            experiments=experiments,
+            data_dir=data_dir,
+            artifacts_dir=artifacts_dir,
+            raw_dir=raw_dir,
+            pipeline_overrides=pipeline_overrides,
+        )
+    except GlobalEvaluationCliError as error:
+        # Réinjecte le contexte sujet/run pour un message plus lisible
+        return _render_global_cli_error(
+            error.error,
+            subject=error.subject,
+            run=error.run,
+        )
+    except (FileNotFoundError, PermissionError, ValueError) as error:
+        # Rend aussi lisibles les erreurs globales sans sujet/run précis
+        return _render_global_cli_error(error)
+
+
 # Imprime les prédictions epoch par epoch dans un format compact
 def _print_epoch_predictions(
     y_true: Sequence[int],
@@ -889,6 +1080,73 @@ def _build_module_args(args: argparse.Namespace) -> list[str]:
     return module_args
 
 
+# Lance l'évaluation globale après validation d'accès aux modules TPV
+def _run_global_cli_from_args(global_args: argparse.Namespace) -> int:
+    """Exécute l'évaluation globale avec les overrides demandés."""
+
+    # Stoppe proprement si les modules TPV ne sont plus lisibles
+    access_error = _abort_if_tpv_sources_are_unreadable()
+    if access_error is not None:
+        return access_error
+    # Construit les overrides explicites pour l'auto-train global
+    pipeline_overrides = _build_pipeline_overrides(global_args)
+    # Extrait le répertoire des données s'il est explicitement fourni
+    data_dir = getattr(global_args, "data_dir", None)
+    # Extrait le répertoire des artefacts s'il est explicitement fourni
+    artifacts_dir = getattr(global_args, "artifacts_dir", None)
+    # Extrait le répertoire des EDF bruts s'il est explicitement fourni
+    raw_dir = getattr(global_args, "raw_dir", None)
+    # Lance l'évaluation globale avec les overrides éventuels
+    return _run_global_evaluation_cli(
+        # Conserve les expériences par défaut si non spécifiées
+        experiments=None,
+        # Transmet le répertoire de données si demandé
+        data_dir=data_dir,
+        # Transmet le répertoire d'artefacts si demandé
+        artifacts_dir=artifacts_dir,
+        # Transmet le répertoire des EDF bruts si demandé
+        raw_dir=raw_dir,
+        # Transmet les overrides de pipeline pour l'auto-train
+        pipeline_overrides=pipeline_overrides,
+    )
+
+
+# Route train/predict après validation d'accès aux modules TPV
+def _run_mode_cli(args: argparse.Namespace) -> int:
+    """Route le mode demandé vers le module TPV correspondant."""
+
+    # Stoppe proprement si les modules TPV ne sont plus lisibles
+    access_error = _abort_if_tpv_sources_are_unreadable()
+    if access_error is not None:
+        return access_error
+    # Interrompt avec un message actionnable si scikit-learn manque
+    _ensure_ml_dependencies()
+    # Traduit les options explicites avant de déléguer aux modules dédiés
+    module_args = _build_module_args(args)
+    # Construit la configuration de pipeline commune
+    config = ModuleCallConfig(
+        subject=args.subject,
+        run=args.run,
+        module_args=module_args,
+    )
+    # Appelle le module train si le mode le demande
+    if args.mode == "train":
+        # Retourne le code retour du module train avec la configuration
+        return _call_module(
+            "tpv.train",
+            config,
+        )
+    # Appelle le module predict pour préserver la sortie CLI attendue
+    if args.mode == "predict":
+        # Retourne le code retour du module predict avec la configuration
+        return _call_module(
+            "tpv.predict",
+            config,
+        )
+    # Retourne un code explicite si aucun mode valide n'est routé
+    return 1
+
+
 # Point d'entrée principal de la CLI
 def main(argv: Sequence[str] | None = None) -> int:
     """Point d'entrée exécutable de mybci."""
@@ -898,63 +1156,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Lance le runner global lorsque la commande ne fournit aucun argument
     if not provided_args:
         # Exécute la boucle des six expériences sur les 109 sujets
-        return _run_global_evaluation()
+        return _run_global_cli_from_args(argparse.Namespace())
     # Parse les options globales pour détecter un run sans positionnels
     global_args, unknown_args = _parse_global_args(provided_args)
     # Déclenche l'évaluation globale si aucun argument inconnu n'est présent
     if not unknown_args:
-        # Construit les overrides explicites pour l'auto-train global
-        pipeline_overrides = _build_pipeline_overrides(global_args)
-        # Extrait le répertoire des données s'il est explicitement fourni
-        data_dir = getattr(global_args, "data_dir", None)
-        # Extrait le répertoire des artefacts s'il est explicitement fourni
-        artifacts_dir = getattr(global_args, "artifacts_dir", None)
-        # Extrait le répertoire des EDF bruts s'il est explicitement fourni
-        raw_dir = getattr(global_args, "raw_dir", None)
-        # Lance l'évaluation globale avec les overrides éventuels
-        return _run_global_evaluation(
-            # Conserve les expériences par défaut si non spécifiées
-            experiments=None,
-            # Transmet le répertoire de données si demandé
-            data_dir=data_dir,
-            # Transmet le répertoire d'artefacts si demandé
-            artifacts_dir=artifacts_dir,
-            # Transmet le répertoire des EDF bruts si demandé
-            raw_dir=raw_dir,
-            # Transmet les overrides de pipeline pour l'auto-train
-            pipeline_overrides=pipeline_overrides,
-        )
+        return _run_global_cli_from_args(global_args)
     # Parse les arguments fournis par l'utilisateur
     args = parse_args(provided_args)
     # Vérifie les dépendances ML pour les modes qui en ont besoin
     if args.mode in {"train", "predict"}:
-        # Interrompt avec un message actionnable si scikit-learn manque
-        _ensure_ml_dependencies()
-
-    # Traduit les options explicites avant de déléguer aux modules dédiés
-    module_args = _build_module_args(args)
-    # Construit la configuration de pipeline commune
-    config = ModuleCallConfig(
-        subject=args.subject,
-        run=args.run,
-        module_args=module_args,
-    )
-
-    # Appelle le module train si le mode le demande
-    if args.mode == "train":
-        # Retourne le code retour du module train avec la configuration
-        return _call_module(
-            "tpv.train",
-            config,
-        )
-
-    # Appelle le module predict pour préserver la sortie CLI attendue
-    if args.mode == "predict":
-        # Retourne le code retour du module predict avec la configuration
-        return _call_module(
-            "tpv.predict",
-            config,
-        )
+        return _run_mode_cli(args)
 
     # Retourne un code explicite si aucun mode valide n'est routé
     return 1

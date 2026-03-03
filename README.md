@@ -227,7 +227,7 @@ les avertissements "aucun modèle disponible", assurez-vous que
 `artifacts/<subject>/<run>/model.joblib` existe pour chaque run visé.
 L'appel `make mybci wavelet` relaie la stratégie
 `--feature-strategy wavelet` à la CLI globale tout en journalisant la sortie
-dans `data/benchmarks/bench_YYYYmmdd_HHMMSS.log`.
+dans `artifacts/benchmarks/bench_YYYYmmdd_HHMMSS.log`.
 
 ---
 
