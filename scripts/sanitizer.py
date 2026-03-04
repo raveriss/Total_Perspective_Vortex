@@ -11,18 +11,20 @@ import json
 import os
 import shlex
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from statistics import mean, median, pstdev
-from typing import Callable, Sequence
+from typing import IO, Any, Callable, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_COMMAND = ("make", "-j1", "mybci", "wavelet")
 DEFAULT_OUTPUT_ROOT = Path("artifacts") / "sanitizer"
 POETRY_PREFIX = ("poetry", "run")
+BASH_EXECUTABLE = "/usr/bin/bash"
+SUDO_EXECUTABLE = "/usr/bin/sudo"
 PAIR_ITEMS = 2
 TRIPLE_ITEMS = 3
 SKIP_EXIT_CODE = 90
@@ -119,6 +121,19 @@ class TimedRunResult:
     stderr: str
     row: TimeCsvRow | None
     action: str | None = None
+
+
+@dataclass(frozen=True)
+class ShellProbeExecution:
+    """Résultat brut d'une commande shell de sonde."""
+
+    stdout: str
+    stderr: str
+    exit_code: int | None
+    status: str
+    summary: str
+    action: str | None
+    action_commands: tuple[str, ...]
 
 
 def _timestamp_slug() -> str:
@@ -225,6 +240,45 @@ def _status_wrapped(
         lines.append('if [[ "$status" -ne 0 ]]; then ' + "".join(action_payload) + "fi")
     lines.append('exit "$status"')
     return "; ".join(lines)
+
+
+def _run_subprocess(
+    command: Sequence[str],
+    *,
+    env: dict[str, str] | None = None,
+    timeout: int | None = None,
+    stdout: int | IO[Any] | None = None,
+    stderr: int | IO[Any] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    if stdout is None and stderr is None:
+        return subprocess.run(  # nosec B603
+            list(command),
+            cwd=REPO_ROOT,
+            env=env,
+            timeout=timeout,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    return subprocess.run(  # nosec B603
+        list(command),
+        cwd=REPO_ROOT,
+        env=env,
+        timeout=timeout,
+        text=True,
+        stdout=stdout,
+        stderr=stderr,
+        check=False,
+    )
+
+
+def _check_output_subprocess(command: Sequence[str]) -> str:
+    return subprocess.check_output(  # nosec B603
+        list(command),
+        cwd=REPO_ROOT,
+        stderr=subprocess.STDOUT,
+        text=True,
+    ).strip()
 
 
 def _probe_timeout(config: SanitizerConfig, probe: ProbeDefinition) -> int:
@@ -463,12 +517,10 @@ def _read_ptrace_scope() -> int | None:
 
 def _sudo_non_interactive_available() -> bool:
     try:
-        completed = subprocess.run(
-            ["sudo", "-n", "true"],
-            cwd=REPO_ROOT,
+        completed = _run_subprocess(
+            [SUDO_EXECUTABLE, "-n", "true"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            check=False,
         )
     except FileNotFoundError:
         return False
@@ -476,7 +528,7 @@ def _sudo_non_interactive_available() -> bool:
 
 
 def _sudo_env_prefix() -> str:
-    return "sudo -n env " f"PATH={shlex.quote(os.environ.get('PATH', ''))}"
+    return f"{SUDO_EXECUTABLE} -n env PATH={shlex.quote(os.environ.get('PATH', ''))}"
 
 
 def _sudo_chown_command(paths: Sequence[Path]) -> str:
@@ -597,44 +649,65 @@ def _require_perf(
     return _check
 
 
+def _extract_make_goals(command: Sequence[str]) -> list[str] | None:
+    if not command or command[0] != "make":
+        return None
+    goals = [token for token in command[1:] if not token.startswith("-")]
+    return goals or None
+
+
+def _append_feature_strategy(tokens: list[str], extras: Sequence[str]) -> list[str]:
+    feature_choices = {"fft", "welch", "wavelet", "pca", "csp", "cssp", "svd"}
+    if extras and extras[0] in feature_choices:
+        tokens.extend(["--feature-strategy", extras[0]])
+    return tokens
+
+
+def _infer_pair_script_command(
+    script_path: str,
+    extras: Sequence[str],
+) -> list[str] | None:
+    if len(extras) < PAIR_ITEMS:
+        return None
+    return [sys.executable, script_path, extras[0], extras[1]]
+
+
+def _infer_make_target_command(target: str, extras: Sequence[str]) -> list[str] | None:
+    command: list[str] | None = None
+    if target == "mybci":
+        command = _append_feature_strategy([sys.executable, "mybci.py"], extras)
+    elif target == "compute-mean-of-means":
+        command = [sys.executable, "scripts/aggregate_experience_scores.py"]
+    elif target in {"train", "predict"}:
+        command = _infer_pair_script_command(f"scripts/{target}.py", extras)
+        if command is None:
+            return None
+        command = _append_feature_strategy(command, extras[PAIR_ITEMS:])
+    elif target == "visualizer":
+        command = _infer_pair_script_command(
+            "scripts/visualize_raw_filtered.py",
+            extras,
+        )
+    elif target == "realtime":
+        command = _infer_pair_script_command("src/tpv/realtime.py", extras)
+    return command
+
+
 def infer_python_command(command: Sequence[str]) -> list[str] | None:
     """Tente d'inférer une commande Python directe à profiler."""
 
-    resolved: list[str] | None = None
     if not command:
         return None
     if command[0] != "make":
         return list(command)
 
-    goals = [token for token in command[1:] if not token.startswith("-")]
+    goals = _extract_make_goals(command)
     if not goals:
         return None
 
     target = goals[0]
     extras = goals[1:]
-    feature_choices = {"fft", "welch", "wavelet", "pca", "csp", "cssp", "svd"}
-
-    if target == "mybci":
-        resolved = [sys.executable, "mybci.py"]
-        if extras and extras[0] in feature_choices:
-            resolved.extend(["--feature-strategy", extras[0]])
-    elif target == "compute-mean-of-means":
-        resolved = [sys.executable, "scripts/aggregate_experience_scores.py"]
-    elif target in {"train", "predict"} and len(extras) >= PAIR_ITEMS:
-        resolved = [sys.executable, f"scripts/{target}.py", extras[0], extras[1]]
-        if len(extras) >= TRIPLE_ITEMS and extras[2] in feature_choices:
-            resolved.extend(["--feature-strategy", extras[2]])
-    elif target == "visualizer" and len(extras) >= PAIR_ITEMS:
-        resolved = [
-            sys.executable,
-            "scripts/visualize_raw_filtered.py",
-            extras[0],
-            extras[1],
-        ]
-    elif target == "realtime" and len(extras) >= PAIR_ITEMS:
-        resolved = [sys.executable, "src/tpv/realtime.py", extras[0], extras[1]]
-
-    return resolved
+    return _infer_make_target_command(target, extras)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1913,10 +1986,11 @@ def _normalize_process_output(payload: bytes | str | None) -> str:
     return payload
 
 
-def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeResult:
-    probe_dir = config.output_dir / probe.identifier
-    probe_dir.mkdir(parents=True, exist_ok=True)
-
+def _build_shell_probe_skip(
+    config: SanitizerConfig,
+    probe: ProbeDefinition,
+    probe_dir: Path,
+) -> ProbeResult | None:
     if probe.preflight is not None:
         preflight = probe.preflight(config)
         if not preflight.ready:
@@ -1927,7 +2001,6 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
                 action=preflight.action,
                 action_commands=preflight.action_commands,
             )
-
     if probe.command_builder is None:
         return _build_skip_result(
             config=config,
@@ -1936,67 +2009,119 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
             action="Implémentez le builder de commande avant de relancer.",
             action_commands=(),
         )
+    return None
 
-    command = probe.command_builder(config, probe_dir)
-    _write_text(probe_dir / "command.sh", command + "\n")
-    action_commands: list[str] = []
 
-    try:
-        completed = subprocess.run(
-            ["bash", "-lc", command],
-            cwd=REPO_ROOT,
-            env={**os.environ, "MPLBACKEND": "Agg"},
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=_probe_timeout(config, probe),
-        )
-        stdout = completed.stdout
-        stderr = completed.stderr
-        exit_code = completed.returncode
-        if exit_code == 0 or probe.allow_nonzero_exit:
-            status = "ok"
-        elif exit_code == SKIP_EXIT_CODE:
-            status = "skipped"
-        else:
-            status = "warn"
-        payload = stdout + "\n" + stderr
-        summary = _extract_tagged_line(payload, "SUMMARY:")
-        if summary is None:
-            if status == "ok":
-                summary = "Sonde terminée."
-            elif status == "skipped":
-                summary = "Sonde ignorée."
-            else:
-                summary = f"Sonde terminée avec exit={exit_code}."
-        action = _extract_tagged_line(payload, "ACTION:")
-        action_commands = _extract_tagged_lines(payload, "ACTION_CMD:")
-    except subprocess.TimeoutExpired as exc:
-        stdout = _normalize_process_output(exc.stdout)
-        stderr = _normalize_process_output(exc.stderr)
-        exit_code = None
-        status = "warn"
-        summary = f"Timeout après {exc.timeout} secondes."
-        action = (
+def _probe_status_from_exit_code(exit_code: int, allow_nonzero_exit: bool) -> str:
+    if exit_code == 0 or allow_nonzero_exit:
+        return "ok"
+    if exit_code == SKIP_EXIT_CODE:
+        return "skipped"
+    return "warn"
+
+
+def _probe_summary_from_payload(
+    payload: str,
+    status: str,
+    exit_code: int | None,
+) -> str:
+    summary = _extract_tagged_line(payload, "SUMMARY:")
+    if summary is not None:
+        return summary
+    if status == "ok":
+        return "Sonde terminée."
+    if status == "skipped":
+        return "Sonde ignorée."
+    return f"Sonde terminée avec exit={exit_code}."
+
+
+def _build_shell_probe_execution(
+    completed: subprocess.CompletedProcess[str],
+    probe: ProbeDefinition,
+) -> ShellProbeExecution:
+    status = _probe_status_from_exit_code(
+        completed.returncode, probe.allow_nonzero_exit
+    )
+    payload = completed.stdout + "\n" + completed.stderr
+    return ShellProbeExecution(
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+        exit_code=completed.returncode,
+        status=status,
+        summary=_probe_summary_from_payload(payload, status, completed.returncode),
+        action=_extract_tagged_line(payload, "ACTION:"),
+        action_commands=tuple(_extract_tagged_lines(payload, "ACTION_CMD:")),
+    )
+
+
+def _build_timeout_execution(exc: subprocess.TimeoutExpired) -> ShellProbeExecution:
+    return ShellProbeExecution(
+        stdout=_normalize_process_output(exc.stdout),
+        stderr=_normalize_process_output(exc.stderr),
+        exit_code=None,
+        status="warn",
+        summary=f"Timeout après {exc.timeout} secondes.",
+        action=(
             "Réduisez le nombre de runs, ciblez moins de sondes ou augmentez "
             "`--timeout-seconds`."
-        )
-        action_commands = []
+        ),
+        action_commands=(),
+    )
 
+
+def _write_probe_logs(probe_dir: Path, stdout: str, stderr: str) -> tuple[Path, Path]:
     stdout_path = probe_dir / "stdout.log"
     stderr_path = probe_dir / "stderr.log"
     _write_text(stdout_path, stdout)
     _write_text(stderr_path, stderr)
+    return stdout_path, stderr_path
+
+
+def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeResult:
+    probe_dir = config.output_dir / probe.identifier
+    probe_dir.mkdir(parents=True, exist_ok=True)
+    skipped_result = _build_shell_probe_skip(config, probe, probe_dir)
+    if skipped_result is not None:
+        return skipped_result
+
+    command_builder = probe.command_builder
+    if command_builder is None:
+        return _build_skip_result(
+            config,
+            probe,
+            "warn",
+            "Sonde shell mal configurée: commande absente.",
+        )
+    command = command_builder(config, probe_dir)
+    _write_text(probe_dir / "command.sh", command + "\n")
+
+    try:
+        execution = _build_shell_probe_execution(
+            _run_subprocess(
+                [BASH_EXECUTABLE, "-lc", command],
+                env={**os.environ, "MPLBACKEND": "Agg"},
+                timeout=_probe_timeout(config, probe),
+            ),
+            probe,
+        )
+    except subprocess.TimeoutExpired as exc:
+        execution = _build_timeout_execution(exc)
+
+    stdout_path, stderr_path = _write_probe_logs(
+        probe_dir,
+        execution.stdout,
+        execution.stderr,
+    )
 
     result = ProbeResult(
         identifier=probe.identifier,
         title=probe.title,
         category=probe.category,
-        status=status,
-        summary=summary,
-        action=action,
-        action_commands=action_commands,
-        exit_code=exit_code,
+        status=execution.status,
+        summary=execution.summary,
+        action=execution.action,
+        action_commands=list(execution.action_commands),
+        exit_code=execution.exit_code,
         command=command,
         output_dir=str(probe_dir),
         stdout_log=str(stdout_path),
@@ -2007,7 +2132,7 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
         result = _normalize_pyspy_result(
             result=result,
             probe_dir=probe_dir,
-            stdout=stdout,
+            stdout=execution.stdout,
         )
     return _finalize_result(probe_dir, result)
 
@@ -2057,22 +2182,18 @@ def _run_a2_iteration(
     metrics_path: Path,
 ) -> TimedRunResult:
     try:
-        completed = subprocess.run(
+        completed = _run_subprocess(
             [
                 "/usr/bin/time",
                 "-f",
                 "wall=%e,user=%U,sys=%S,cpu=%P,rss_kb=%M,exit=%x",
                 "-o",
                 str(metrics_path),
-                "bash",
+                BASH_EXECUTABLE,
                 "-lc",
                 command,
             ],
-            cwd=REPO_ROOT,
             env={**os.environ, "MPLBACKEND": "Agg"},
-            capture_output=True,
-            check=False,
-            text=True,
             timeout=config.timeout_seconds,
         )
         stdout = completed.stdout
@@ -2259,12 +2380,7 @@ def _run_a2_probe(  # noqa: PLR0915
 
 def _safe_capture(command: Sequence[str]) -> str | None:
     try:
-        return subprocess.check_output(
-            command,
-            cwd=REPO_ROOT,
-            stderr=subprocess.STDOUT,
-            text=True,
-        ).strip()
+        return _check_output_subprocess(command)
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
 
@@ -2344,21 +2460,22 @@ def _escape_markdown_cell(value: str | None) -> str:
     return value.replace("|", "\\|").replace("\n", " ")
 
 
-def _write_session_summary(
-    config: SanitizerConfig,
-    results: list[ProbeResult],
-    started_at: datetime,
-    finished_at: datetime,
-) -> tuple[str, Path, Path]:
+def _count_probe_statuses(results: Sequence[ProbeResult]) -> dict[str, int]:
     counts = {"ok": 0, "warn": 0, "skipped": 0}
     for result in results:
         counts[result.status] = counts.get(result.status, 0) + 1
+    return counts
 
-    overall_status = "ok" if counts.get("warn", 0) == 0 else "warn"
-    summary_json = config.output_dir / "summary.json"
-    summary_md = config.output_dir / "summary.md"
 
-    payload = {
+def _build_summary_payload(
+    config: SanitizerConfig,
+    results: Sequence[ProbeResult],
+    overall_status: str,
+    counts: dict[str, int],
+    timestamps: tuple[datetime, datetime],
+) -> dict[str, object]:
+    started_at, finished_at = timestamps
+    return {
         "overall_status": overall_status,
         "started_at": started_at.isoformat(timespec="seconds"),
         "finished_at": finished_at.isoformat(timespec="seconds"),
@@ -2373,22 +2490,26 @@ def _write_session_summary(
         "counts": counts,
         "results": [asdict(result) for result in results],
     }
-    _write_text(summary_json, json.dumps(payload, indent=2))
 
-    lines = [
+
+def _build_summary_header_lines(
+    config: SanitizerConfig,
+    overall_status: str,
+    counts: dict[str, int],
+    started_at: datetime,
+    finished_at: datetime,
+) -> list[str]:
+    direct_python_command = (
+        _shell_join(config.direct_python_command)
+        if config.direct_python_command is not None
+        else "None"
+    )
+    return [
         "# Sanitizer Summary",
         "",
         f"- overall_status: `{overall_status}`",
         f"- target_command: `{_shell_join(config.command)}`",
-        (
-            "- direct_python_command: `"
-            + (
-                _shell_join(config.direct_python_command)
-                if config.direct_python_command is not None
-                else "None"
-            )
-            + "`"
-        ),
+        f"- direct_python_command: `{direct_python_command}`",
         f"- allow_privileged_tools: `{config.allow_privileged_tools}`",
         f"- pyspy_duration_seconds: `{config.pyspy_duration_seconds}`",
         f"- started_at: `{started_at.isoformat(timespec='seconds')}`",
@@ -2398,24 +2519,59 @@ def _write_session_summary(
         "| Probe | Status | Summary | Action |",
         "|---|---|---|---|",
     ]
-    for result in results:
-        lines.append(
-            "| {probe} | {status} | {summary} | {action} |".format(
-                probe=_escape_markdown_cell(result.identifier),
-                status=_escape_markdown_cell(result.status),
-                summary=_escape_markdown_cell(result.summary),
-                action=_escape_markdown_cell(result.action),
-            )
+
+
+def _build_summary_table_lines(results: Sequence[ProbeResult]) -> list[str]:
+    return [
+        "| {probe} | {status} | {summary} | {action} |".format(
+            probe=_escape_markdown_cell(result.identifier),
+            status=_escape_markdown_cell(result.status),
+            summary=_escape_markdown_cell(result.summary),
+            action=_escape_markdown_cell(result.action),
         )
+        for result in results
+    ]
 
+
+def _build_summary_action_lines(results: Sequence[ProbeResult]) -> list[str]:
     actionable = [result for result in results if result.action]
-    if actionable:
-        lines.extend(["", "## Next Actions", ""])
-        for result in actionable:
-            lines.append(f"- `{result.identifier}`: {result.action}")
-            for action_command in result.action_commands:
-                lines.append(f"  - `{_escape_markdown_cell(action_command)}`")
+    if not actionable:
+        return []
+    lines = ["", "## Next Actions", ""]
+    for result in actionable:
+        lines.append(f"- `{result.identifier}`: {result.action}")
+        for action_command in result.action_commands:
+            lines.append(f"  - `{_escape_markdown_cell(action_command)}`")
+    return lines
 
+
+def _write_session_summary(
+    config: SanitizerConfig,
+    results: list[ProbeResult],
+    started_at: datetime,
+    finished_at: datetime,
+) -> tuple[str, Path, Path]:
+    counts = _count_probe_statuses(results)
+    overall_status = "ok" if counts.get("warn", 0) == 0 else "warn"
+    summary_json = config.output_dir / "summary.json"
+    summary_md = config.output_dir / "summary.md"
+    payload = _build_summary_payload(
+        config=config,
+        results=results,
+        overall_status=overall_status,
+        counts=counts,
+        timestamps=(started_at, finished_at),
+    )
+    _write_text(summary_json, json.dumps(payload, indent=2))
+    lines = _build_summary_header_lines(
+        config=config,
+        overall_status=overall_status,
+        counts=counts,
+        started_at=started_at,
+        finished_at=finished_at,
+    )
+    lines.extend(_build_summary_table_lines(results))
+    lines.extend(_build_summary_action_lines(results))
     _write_text(summary_md, "\n".join(lines) + "\n")
     return overall_status, summary_json, summary_md
 
@@ -2433,30 +2589,30 @@ def _list_probes(catalog: Sequence[ProbeDefinition]) -> None:
         print(f"{probe.identifier}: [{probe.category}] {probe.title}")
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Point d'entrée CLI du sanitizer."""
+def _normalize_cli_command(raw_command: Sequence[str]) -> tuple[str, ...]:
+    return tuple(raw_command[1:] if raw_command[:1] == ("--",) else raw_command)
 
-    parser = build_parser()
-    args = parser.parse_args(argv)
 
-    catalog = _build_probe_catalog()
-    if args.list_probes:
-        _list_probes(catalog)
-        return 0
-
-    raw_command = tuple(args.command) if args.command else DEFAULT_COMMAND
-    command = raw_command[1:] if raw_command[:1] == ("--",) else raw_command
+def _resolve_direct_python_command(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+    command: Sequence[str],
+) -> tuple[str, ...] | None:
+    if args.python_command is not None:
+        return tuple(shlex.split(args.python_command))
     inferred_python_command = infer_python_command(command)
-    direct_python_command = (
-        tuple(shlex.split(args.python_command))
-        if args.python_command is not None
-        else (
-            tuple(inferred_python_command)
-            if inferred_python_command is not None
-            else None
-        )
-    )
+    if inferred_python_command is None:
+        return None
+    if not inferred_python_command:
+        parser.error("Commande Python directe inférée invalide.")
+    return tuple(inferred_python_command)
 
+
+def _resolve_selected_probe_ids(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+    catalog: Sequence[ProbeDefinition],
+) -> tuple[tuple[str, ...], dict[str, ProbeDefinition]]:
     selected_probe_ids = (
         tuple(args.probes)
         if args.probes
@@ -2468,8 +2624,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     ]
     if unknown:
         parser.error(f"Sonde(s) inconnue(s): {', '.join(unknown)}")
+    return selected_probe_ids, catalog_by_id
 
-    config = SanitizerConfig(
+
+def _build_config_from_args(
+    args: argparse.Namespace,
+    command: tuple[str, ...],
+    direct_python_command: tuple[str, ...] | None,
+    selected_probe_ids: tuple[str, ...],
+) -> SanitizerConfig:
+    return SanitizerConfig(
         command=command,
         direct_python_command=direct_python_command,
         output_dir=args.output_dir,
@@ -2486,6 +2650,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         time_csv_runs=args.time_csv_runs,
         allow_privileged_tools=args.allow_privileged_tools,
         pyspy_duration_seconds=max(1, args.pyspy_duration_seconds),
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Point d'entrée CLI du sanitizer."""
+
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    catalog = _build_probe_catalog()
+    if args.list_probes:
+        _list_probes(catalog)
+        return 0
+
+    raw_command = tuple(args.command) if args.command else DEFAULT_COMMAND
+    command = _normalize_cli_command(raw_command)
+    direct_python_command = _resolve_direct_python_command(parser, args, command)
+    selected_probe_ids, catalog_by_id = _resolve_selected_probe_ids(
+        parser,
+        args,
+        catalog,
+    )
+    config = _build_config_from_args(
+        args=args,
+        command=command,
+        direct_python_command=direct_python_command,
+        selected_probe_ids=selected_probe_ids,
     )
 
     config.output_dir.mkdir(parents=True, exist_ok=True)

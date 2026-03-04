@@ -1,6 +1,7 @@
 # Vérifie le script sanitizer et ses sorties structurées.
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -878,3 +879,285 @@ def test_main_returns_zero_when_summary_is_warn(
 
     assert exit_code == 0
     assert summary["overall_status"] == "warn"
+
+
+def test_helper_branches_cover_make_and_python_resolution_paths() -> None:
+    assert sanitizer._enable_make_sanitizer_mode(
+        ["make", "TPV_SANITIZER=1", "mybci"]
+    ) == ("make", "TPV_SANITIZER=1", "mybci")
+    assert sanitizer._dedupe_commands(("a", "a", "b")) == ("a", "b")
+
+    assert sanitizer._extract_make_goals(["python", "tool.py"]) is None
+    assert sanitizer._resolve_python_invocation(["poetry", "run"]) is None
+    assert sanitizer._resolve_python_script_invocation(["python"]) is None
+    assert (
+        sanitizer._resolve_python_script_invocation(["python", "-m", "module"]) is None
+    )
+
+    assert sanitizer._infer_pair_script_command("scripts/train.py", ("1",)) is None
+    assert sanitizer._infer_make_target_command("train", ("1",)) is None
+    assert sanitizer._infer_make_target_command("visualizer", ("1",)) is None
+    assert sanitizer._infer_make_target_command("realtime", ("1",)) is None
+
+
+def test_subprocess_and_sudo_helper_branches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    completed = sanitizer._run_subprocess(
+        [sys.executable, "-c", "print('ok')"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    assert completed.returncode == 0
+
+    def _raise_file_not_found(
+        *_args: object, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError
+
+    monkeypatch.setattr(sanitizer, "_run_subprocess", _raise_file_not_found)
+    assert sanitizer._sudo_non_interactive_available() is False
+
+    monkeypatch.setattr(
+        sanitizer,
+        "_run_subprocess",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=["sudo", "-n", "true"],
+            returncode=1,
+            stdout="",
+            stderr="",
+        ),
+    )
+    assert sanitizer._sudo_non_interactive_available() is False
+
+    sudo_chown = sanitizer._sudo_chown_command((tmp_path / "a", tmp_path / "b"))
+    assert "sudo -n chown " in sudo_chown
+
+
+def test_pyspy_and_probe_summary_helpers_cover_warn_paths(tmp_path: Path) -> None:
+    assert sanitizer._extract_pyspy_sample_count("line without marker") is None
+    assert sanitizer._extract_pyspy_sample_count("Samples: not-a-number") is None
+
+    ok_result = sanitizer.ProbeResult(
+        identifier="F3",
+        title="py-spy",
+        category="F",
+        status="ok",
+        summary="already ok",
+        action=None,
+        exit_code=0,
+        command="echo ok",
+        output_dir=str(tmp_path / "F3"),
+        stdout_log=None,
+        stderr_log=None,
+    )
+    unchanged = sanitizer._normalize_pyspy_result(
+        ok_result, tmp_path / "F3", "Samples: 5"
+    )
+    assert unchanged.status == "ok"
+
+    warn_result = sanitizer.ProbeResult(
+        identifier="F3",
+        title="py-spy",
+        category="F",
+        status="warn",
+        summary="warn",
+        action="inspect",
+        exit_code=1,
+        command="echo warn",
+        output_dir=str(tmp_path / "F3"),
+        stdout_log=None,
+        stderr_log=None,
+    )
+    still_warn = sanitizer._normalize_pyspy_result(
+        warn_result,
+        tmp_path / "F3",
+        "Samples: 0",
+    )
+    assert still_warn.status == "warn"
+
+    assert sanitizer._probe_status_from_exit_code(1, allow_nonzero_exit=True) == "ok"
+    assert (
+        sanitizer._probe_status_from_exit_code(
+            sanitizer.SKIP_EXIT_CODE,
+            allow_nonzero_exit=False,
+        )
+        == "skipped"
+    )
+    assert sanitizer._probe_summary_from_payload("", "ok", 0) == "Sonde terminée."
+    assert sanitizer._probe_summary_from_payload(
+        "", "skipped", sanitizer.SKIP_EXIT_CODE
+    ) == ("Sonde ignorée.")
+    assert (
+        sanitizer._probe_summary_from_payload("", "warn", 7)
+        == "Sonde terminée avec exit=7."
+    )
+
+
+def test_builders_handle_absent_direct_python_command(tmp_path: Path) -> None:
+    config = sanitizer.SanitizerConfig(
+        command=("make", "-j1", "mybci"),
+        direct_python_command=None,
+        output_dir=tmp_path,
+        selected_probes=("F1", "F2", "F3"),
+        timeout_seconds=5,
+        pyperf_warmups=1,
+        pyperf_runs=1,
+        hyperfine_warmups=1,
+        hyperfine_runs=1,
+        cpu_core=0,
+        ps_interval_seconds=0.1,
+        psrecord_interval_seconds=0.1,
+        memory_limit_kib=1024,
+        time_csv_runs=1,
+    )
+    assert "Commande Python directe absente" in sanitizer._build_cprofile_command(
+        config, tmp_path / "F1"
+    )
+    assert "Commande Python directe absente" in sanitizer._build_f2_command(
+        config, tmp_path / "F2"
+    )
+    assert "Commande Python directe absente" in sanitizer._build_f3_command(
+        config, tmp_path / "F3"
+    )
+
+
+def test_build_p3_command_adds_sudo_chown_in_privileged_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _build_config(tmp_path, ("P3",))
+    monkeypatch.setattr(sanitizer, "_should_use_privileged_perf", lambda _config: True)
+    monkeypatch.setattr(
+        sanitizer, "_sudo_chown_command", lambda _paths: "sudo -n chown me"
+    )
+
+    command = sanitizer._build_p3_command(config, tmp_path / "P3")
+
+    assert "sudo -n chown me" in command
+
+
+def test_shell_probe_skip_and_time_helpers_cover_remaining_branches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _build_config(tmp_path, ("A2",))
+    blocked_probe = sanitizer.ProbeDefinition(
+        identifier="Z1",
+        title="blocked",
+        category="Z",
+        highlights=(),
+        preflight=lambda _config: sanitizer.PreflightResult(
+            ready=False,
+            summary="blocked",
+            action="fix it",
+        ),
+        command_builder=lambda _config, _dir: "echo blocked",
+    )
+    blocked = sanitizer._build_shell_probe_skip(config, blocked_probe, tmp_path / "Z1")
+    assert blocked is not None
+    assert blocked.status == "skipped"
+
+    missing_builder_probe = sanitizer.ProbeDefinition(
+        identifier="Z2",
+        title="missing-builder",
+        category="Z",
+        highlights=(),
+        command_builder=None,
+    )
+    missing_builder = sanitizer._build_shell_probe_skip(
+        config, missing_builder_probe, tmp_path / "Z2"
+    )
+    assert missing_builder is not None
+    assert missing_builder.status == "skipped"
+
+    assert sanitizer._merge_preflights(
+        sanitizer.PreflightResult(ready=True),
+        sanitizer.PreflightResult(ready=True),
+    ).ready
+    assert sanitizer._parse_time_metrics("wall=1.0,user=1.0") is None
+    assert sanitizer._parse_time_metrics("garbage,wall=1.0,user=1.0") is None
+
+    timeout_exc = subprocess.TimeoutExpired(
+        cmd=["bash", "-lc", "true"],
+        timeout=1,
+        output=b"out",
+        stderr=b"err",
+    )
+    monkeypatch.setattr(
+        sanitizer,
+        "_run_subprocess",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(timeout_exc),
+    )
+    timed = sanitizer._run_a2_iteration(
+        command="echo 1",
+        run_index=1,
+        config=config,
+        metrics_path=tmp_path / "A2-iter" / "metrics.txt",
+    )
+    assert timed.row is None
+    assert timed.action is not None
+
+
+def test_time_summary_and_safe_capture_and_direct_command_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    summary_empty, _ = sanitizer._build_time_summary([], run_count=1)
+    assert "Aucun run A2 exploitable." in summary_empty
+
+    rows = (
+        sanitizer.TimeCsvRow(
+            run=1,
+            wall_s=1.0,
+            user_s=0.5,
+            sys_s=0.2,
+            cpu="50%",
+            rss_kb=1234,
+            exit=0,
+        ),
+    )
+    summary_single, _ = sanitizer._build_time_summary(rows, run_count=1)
+    assert "--time-csv-runs 20" in summary_single
+
+    monkeypatch.setattr(
+        sanitizer,
+        "_check_output_subprocess",
+        lambda _command: (_ for _ in ()).throw(FileNotFoundError),
+    )
+    assert sanitizer._safe_capture(["tool"]) is None
+
+    monkeypatch.setattr(
+        sanitizer,
+        "_check_output_subprocess",
+        lambda _command: (_ for _ in ()).throw(
+            subprocess.CalledProcessError(returncode=1, cmd="tool")
+        ),
+    )
+    assert sanitizer._safe_capture(["tool"]) is None
+
+    parser = sanitizer.build_parser()
+    args = parser.parse_args(
+        ["--python-command", "python demo.py", "--", "make", "mybci"]
+    )
+    assert sanitizer._resolve_direct_python_command(
+        parser=parser,
+        args=args,
+        command=("make", "mybci"),
+    ) == ("python", "demo.py")
+
+    args_without_override = parser.parse_args(["--", "unknown", "target"])
+    monkeypatch.setattr(sanitizer, "infer_python_command", lambda _command: None)
+    assert (
+        sanitizer._resolve_direct_python_command(
+            parser=parser,
+            args=args_without_override,
+            command=("unknown", "target"),
+        )
+        is None
+    )
+
+    monkeypatch.setattr(sanitizer, "infer_python_command", lambda _command: [])
+    with pytest.raises(SystemExit):
+        sanitizer._resolve_direct_python_command(
+            parser=parser,
+            args=args_without_override,
+            command=("unknown", "target"),
+        )
