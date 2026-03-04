@@ -26,6 +26,9 @@ POETRY_PREFIX = ("poetry", "run")
 PAIR_ITEMS = 2
 TRIPLE_ITEMS = 3
 SKIP_EXIT_CODE = 90
+PERF_PARANOID_BLOCKED_THRESHOLD = 2
+NON_FATAL_PROBE_STATUSES = frozenset({"ok", "warn", "skipped"})
+DEFAULT_PYSPY_DURATION_SECONDS = 3
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,8 @@ class SanitizerConfig:
     psrecord_interval_seconds: float
     memory_limit_kib: int
     time_csv_runs: int
+    allow_privileged_tools: bool = False
+    pyspy_duration_seconds: int = DEFAULT_PYSPY_DURATION_SECONDS
 
 
 @dataclass(frozen=True)
@@ -55,6 +60,7 @@ class PreflightResult:
     ready: bool
     summary: str | None = None
     action: str | None = None
+    action_commands: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -89,6 +95,7 @@ class ProbeResult:
     stderr_log: str | None
     artifacts: list[str] = field(default_factory=list)
     highlights: list[str] = field(default_factory=list)
+    action_commands: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -126,8 +133,31 @@ def _shell_join(tokens: Sequence[str]) -> str:
     return shlex.join(list(tokens))
 
 
+def _enable_make_sanitizer_mode(command: Sequence[str]) -> tuple[str, ...]:
+    """Injecte un flag make dédié pour supprimer les effets de bord du sanitizer."""
+
+    tokens = list(command)
+    if not tokens or tokens[0] != "make":
+        return tuple(tokens)
+    if "TPV_SANITIZER=1" in tokens:
+        return tuple(tokens)
+
+    goals = [token for token in tokens[1:] if not token.startswith("-")]
+    if "mybci" not in goals:
+        return tuple(tokens)
+
+    option_count = 0
+    for token in tokens[1:]:
+        if token.startswith("-"):
+            option_count += 1
+            continue
+        break
+    insert_index = 1 + option_count
+    return tuple(tokens[:insert_index] + ["TPV_SANITIZER=1"] + tokens[insert_index:])
+
+
 def _target_shell(config: SanitizerConfig) -> str:
-    return _shell_join(config.command)
+    return _shell_join(_enable_make_sanitizer_mode(config.command))
 
 
 def _with_poetry(command: Sequence[str]) -> tuple[str, ...]:
@@ -137,7 +167,7 @@ def _with_poetry(command: Sequence[str]) -> tuple[str, ...]:
 
 
 def _poetry_target_shell(config: SanitizerConfig) -> str:
-    return _shell_join(_with_poetry(config.command))
+    return _shell_join(_with_poetry(_enable_make_sanitizer_mode(config.command)))
 
 
 def _preferred_profile_shell(config: SanitizerConfig) -> str:
@@ -154,19 +184,46 @@ def _quote_path(path: Path) -> str:
     return shlex.quote(str(path))
 
 
-def _status_wrapped(command: str, summary: str, action: str | None = None) -> str:
+def _inspect_path_command(path: Path, line_count: int = 120) -> str:
+    return f"sed -n '1,{line_count}p' {_quote_path(path)}"
+
+
+def _dedupe_commands(commands: Sequence[str]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for command in commands:
+        if command in seen:
+            continue
+        seen.add(command)
+        ordered.append(command)
+    return tuple(ordered)
+
+
+def _status_wrapped(
+    command: str,
+    summary: str,
+    action: str | None = None,
+    action_commands: Sequence[str] = (),
+    post_actions: Sequence[str] = (),
+) -> str:
     lines = [
         "status=0",
         f"{command} || status=$?",
-        f"printf 'SUMMARY: %s (exit=%s)\\n' {shlex.quote(summary)} \"$status\"",
     ]
-    if action is not None:
-        lines.append(
-            "if [[ \"$status\" -ne 0 ]]; then "
-            f"printf 'ACTION: %s\\n' {shlex.quote(action)}; "
-            "fi"
-        )
-    lines.append("exit \"$status\"")
+    lines.extend(post_actions)
+    lines.append(
+        f"printf 'SUMMARY: %s (exit=%s)\\n' {shlex.quote(summary)} \"$status\""
+    )
+    if action is not None or action_commands:
+        action_payload: list[str] = []
+        if action is not None:
+            action_payload.append(f"printf 'ACTION: %s\\n' {shlex.quote(action)}; ")
+        for action_command in action_commands:
+            action_payload.append(
+                f"printf 'ACTION_CMD: %s\\n' {shlex.quote(action_command)}; "
+            )
+        lines.append('if [[ "$status" -ne 0 ]]; then ' + "".join(action_payload) + "fi")
+    lines.append('exit "$status"')
     return "; ".join(lines)
 
 
@@ -186,6 +243,14 @@ def _extract_tagged_line(payload: str, prefix: str) -> str | None:
         if line.startswith(prefix):
             return line[len(prefix) :].strip()
     return None
+
+
+def _extract_tagged_lines(payload: str, prefix: str) -> list[str]:
+    return [
+        line[len(prefix) :].strip()
+        for line in payload.splitlines()
+        if line.startswith(prefix)
+    ]
 
 
 def _collect_artifacts(probe_dir: Path) -> list[str]:
@@ -208,6 +273,7 @@ def _build_skip_result(
     probe: ProbeDefinition,
     summary: str,
     action: str | None,
+    action_commands: Sequence[str] = (),
 ) -> ProbeResult:
     probe_dir = config.output_dir / probe.identifier
     probe_dir.mkdir(parents=True, exist_ok=True)
@@ -218,6 +284,7 @@ def _build_skip_result(
         status="skipped",
         summary=summary,
         action=action,
+        action_commands=list(action_commands),
         exit_code=SKIP_EXIT_CODE,
         command=None,
         output_dir=str(probe_dir),
@@ -237,7 +304,9 @@ def _python_module_available(name: str) -> bool:
 
 
 def _require_command(
-    command: str, action: str
+    command: str,
+    action: str,
+    action_commands: Sequence[str] = (),
 ) -> Callable[[SanitizerConfig], PreflightResult]:
     def _check(_config: SanitizerConfig) -> PreflightResult:
         if _command_available(command):
@@ -246,13 +315,16 @@ def _require_command(
             ready=False,
             summary=f"Outil absent: `{command}`",
             action=action,
+            action_commands=tuple(action_commands),
         )
 
     return _check
 
 
 def _require_path(
-    path: Path, action: str
+    path: Path,
+    action: str,
+    action_commands: Sequence[str] = (),
 ) -> Callable[[SanitizerConfig], PreflightResult]:
     def _check(_config: SanitizerConfig) -> PreflightResult:
         if path.exists():
@@ -261,13 +333,16 @@ def _require_path(
             ready=False,
             summary=f"Chemin absent: `{path}`",
             action=action,
+            action_commands=tuple(action_commands),
         )
 
     return _check
 
 
 def _require_python_module(
-    module_name: str, action: str
+    module_name: str,
+    action: str,
+    action_commands: Sequence[str] = (),
 ) -> Callable[[SanitizerConfig], PreflightResult]:
     def _check(_config: SanitizerConfig) -> PreflightResult:
         if _python_module_available(module_name):
@@ -276,12 +351,16 @@ def _require_python_module(
             ready=False,
             summary=f"Module Python absent: `{module_name}`",
             action=action,
+            action_commands=tuple(action_commands),
         )
 
     return _check
 
 
-def _require_poetry(action: str) -> Callable[[SanitizerConfig], PreflightResult]:
+def _require_poetry(
+    action: str,
+    action_commands: Sequence[str] = (),
+) -> Callable[[SanitizerConfig], PreflightResult]:
     def _check(config: SanitizerConfig) -> PreflightResult:
         if tuple(config.command[: len(POETRY_PREFIX)]) == POETRY_PREFIX:
             return PreflightResult(ready=True)
@@ -291,12 +370,16 @@ def _require_poetry(action: str) -> Callable[[SanitizerConfig], PreflightResult]
             ready=False,
             summary="Poetry absent pour la variante `poetry run`.",
             action=action,
+            action_commands=tuple(action_commands),
         )
 
     return _check
 
 
-def _require_direct_python(action: str) -> Callable[[SanitizerConfig], PreflightResult]:
+def _require_direct_python(
+    action: str,
+    action_commands: Sequence[str] = (),
+) -> Callable[[SanitizerConfig], PreflightResult]:
     def _check(config: SanitizerConfig) -> PreflightResult:
         if config.direct_python_command is not None:
             return PreflightResult(ready=True)
@@ -304,6 +387,7 @@ def _require_direct_python(action: str) -> Callable[[SanitizerConfig], Preflight
             ready=False,
             summary="Commande Python directe introuvable pour ce target.",
             action=action,
+            action_commands=tuple(action_commands),
         )
 
     return _check
@@ -323,6 +407,194 @@ def _resolve_python_invocation(
     if not executable_name.startswith("python"):
         return None
     return prefix, tokens
+
+
+def _resolve_python_script_invocation(command: Sequence[str]) -> list[str] | None:
+    resolved = _resolve_python_invocation(command)
+    if resolved is None:
+        return None
+    _prefix, python_tokens = resolved
+    if len(python_tokens) < PAIR_ITEMS:
+        return None
+    script_path = python_tokens[1]
+    if script_path.startswith("-"):
+        return None
+    return python_tokens
+
+
+def _require_direct_python_script(
+    action: str,
+    action_commands: Sequence[str] = (),
+) -> Callable[[SanitizerConfig], PreflightResult]:
+    def _check(config: SanitizerConfig) -> PreflightResult:
+        if config.direct_python_command is None:
+            return PreflightResult(
+                ready=False,
+                summary="Commande Python directe introuvable pour ce target.",
+                action=action,
+                action_commands=tuple(action_commands),
+            )
+        if _resolve_python_script_invocation(config.direct_python_command) is not None:
+            return PreflightResult(ready=True)
+        return PreflightResult(
+            ready=False,
+            summary="Commande Python directe incompatible: un script `.py` est requis.",
+            action=action,
+            action_commands=tuple(action_commands),
+        )
+
+    return _check
+
+
+def _read_perf_event_paranoid() -> int | None:
+    return _read_linux_int(Path("/proc/sys/kernel/perf_event_paranoid"))
+
+
+def _read_linux_int(path: Path) -> int | None:
+    try:
+        return int(path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _read_ptrace_scope() -> int | None:
+    return _read_linux_int(Path("/proc/sys/kernel/yama/ptrace_scope"))
+
+
+def _sudo_non_interactive_available() -> bool:
+    try:
+        completed = subprocess.run(
+            ["sudo", "-n", "true"],
+            cwd=REPO_ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False
+    return completed.returncode == 0
+
+
+def _sudo_env_prefix() -> str:
+    return "sudo -n env " f"PATH={shlex.quote(os.environ.get('PATH', ''))}"
+
+
+def _sudo_chown_command(paths: Sequence[Path]) -> str:
+    owner = f"{os.getuid()}:{os.getgid()}"
+    quoted_paths = " ".join(_quote_path(path) for path in paths)
+    return f"sudo -n chown {owner} {quoted_paths}"
+
+
+def _should_use_privileged_perf(config: SanitizerConfig) -> bool:
+    perf_event_paranoid = _read_perf_event_paranoid()
+    return (
+        config.allow_privileged_tools
+        and perf_event_paranoid is not None
+        and perf_event_paranoid > PERF_PARANOID_BLOCKED_THRESHOLD
+        and _sudo_non_interactive_available()
+    )
+
+
+def _perf_command_prefix(config: SanitizerConfig) -> str:
+    if _should_use_privileged_perf(config):
+        return f"{_sudo_env_prefix()} perf"
+    return "perf"
+
+
+def _extract_pyspy_sample_count(payload: str) -> int | None:
+    for line in payload.splitlines():
+        if "Samples:" not in line:
+            continue
+        sample_fragment = line.split("Samples:", 1)[1].strip().split(" ", 1)[0]
+        try:
+            return int(sample_fragment)
+        except ValueError:
+            return None
+    return None
+
+
+def _normalize_pyspy_result(
+    result: ProbeResult,
+    probe_dir: Path,
+    stdout: str,
+) -> ProbeResult:
+    if result.status != "warn":
+        return result
+    svg_path = probe_dir / "pyspy.svg"
+    sample_count = _extract_pyspy_sample_count(stdout)
+    if sample_count is None or sample_count <= 0 or not svg_path.exists():
+        return result
+    result.status = "ok"
+    result.summary = (
+        "Profil py-spy terminé "
+        f"({sample_count} samples capturés, artefact SVG valide)."
+    )
+    result.action = None
+    result.action_commands = []
+    result.exit_code = 0
+    return result
+
+
+def _require_perf(
+    missing_action: str,
+    missing_commands: Sequence[str],
+    blocked_action: str,
+    blocked_commands: Sequence[str],
+) -> Callable[[SanitizerConfig], PreflightResult]:
+    def _check(config: SanitizerConfig) -> PreflightResult:
+        if not _command_available("perf"):
+            return PreflightResult(
+                ready=False,
+                summary="Outil absent: `perf`",
+                action=missing_action,
+                action_commands=tuple(missing_commands),
+            )
+        perf_event_paranoid = _read_perf_event_paranoid()
+        if (
+            perf_event_paranoid is not None
+            and perf_event_paranoid > PERF_PARANOID_BLOCKED_THRESHOLD
+        ):
+            privileged_commands = (
+                "sudo -v",
+                (
+                    "make sanitizer SANITIZER_ALLOW_PRIVILEGED_TOOLS=1 "
+                    "SANITIZER_ARGS='--probe P1.make --probe P1.poetry "
+                    "--probe P2 --probe P3'"
+                ),
+            )
+            if config.allow_privileged_tools:
+                if _sudo_non_interactive_available():
+                    return PreflightResult(ready=True)
+                return PreflightResult(
+                    ready=False,
+                    summary=(
+                        "`perf` détecté mais bloqué par "
+                        f"`perf_event_paranoid={perf_event_paranoid}` et "
+                        "`sudo -n` n'est pas prêt"
+                    ),
+                    action=(
+                        "Amorcez les credentials sudo avec `sudo -v`, puis "
+                        "relancez en mode privilégié ou utilisez les fallbacks "
+                        "utilisateur."
+                    ),
+                    action_commands=_dedupe_commands(
+                        privileged_commands + tuple(blocked_commands)
+                    ),
+                )
+            return PreflightResult(
+                ready=False,
+                summary=(
+                    "`perf` détecté mais bloqué par "
+                    f"`perf_event_paranoid={perf_event_paranoid}`"
+                ),
+                action=blocked_action,
+                action_commands=_dedupe_commands(
+                    tuple(blocked_commands) + privileged_commands
+                ),
+            )
+        return PreflightResult(ready=True)
+
+    return _check
 
 
 def infer_python_command(command: Sequence[str]) -> list[str] | None:
@@ -398,7 +670,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Commande Python directe pour les sondes F*. "
-            "Ex: \"python mybci.py --feature-strategy wavelet\""
+            'Ex: "python mybci.py --feature-strategy wavelet"'
         ),
     )
     parser.add_argument(
@@ -462,11 +734,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Nombre de runs pour la sonde A2 et ses exports CSV / JSONL.",
     )
     parser.add_argument(
+        "--allow-privileged-tools",
+        action="store_true",
+        help=(
+            "Autorise les sondes système à utiliser `sudo -n` après un `sudo -v` "
+            "préparatoire dans le shell appelant."
+        ),
+    )
+    parser.add_argument(
+        "--pyspy-duration-seconds",
+        type=int,
+        default=DEFAULT_PYSPY_DURATION_SECONDS,
+        help=(
+            "Durée d'échantillonnage pour F3/py-spy. Une durée bornée évite les "
+            "faux négatifs si le process se termine juste avant la fin de capture."
+        ),
+    )
+    parser.add_argument(
         "command",
         nargs=argparse.REMAINDER,
-        help=(
-            "Commande cible après `--`. Défaut: `make -j1 mybci wavelet`."
-        ),
+        help=("Commande cible après `--`. Défaut: `make -j1 mybci wavelet`."),
     )
     return parser
 
@@ -483,17 +770,18 @@ def _build_time_verbose_command(target_shell: str) -> str:
 
 
 def _build_pyperf_command(target_shell: str, config: SanitizerConfig) -> str:
+    python_bin = shlex.quote(sys.executable)
     return _status_wrapped(
         (
-            "python -m pyperf command "
+            f"{python_bin} -m pyperf command "
+            "--processes 1 "
             f"-w {config.pyperf_warmups} "
             f"-n {config.pyperf_runs} "
+            "--loops 1 "
             f"-- bash -lc {shlex.quote(target_shell)}"
         ),
         "Benchmark pyperf terminé",
-        (
-            "Inspectez la médiane, l'écart-type et les outliers dans stdout.log."
-        ),
+        ("Inspectez la médiane, l'écart-type et les outliers dans stdout.log."),
     )
 
 
@@ -528,15 +816,15 @@ def _build_b4_command(config: SanitizerConfig, probe_dir: Path) -> str:
         f"done ) > {_quote_path(sample_path)} 2>&1 & "
         "sampler=$!; "
         f"{_bash_shell(_target_shell(config))} || status=$?; "
-        "kill \"$sampler\" 2>/dev/null || true; "
-        "wait \"$sampler\" 2>/dev/null || true; "
+        'kill "$sampler" 2>/dev/null || true; '
+        'wait "$sampler" 2>/dev/null || true; '
         "printf 'SUMMARY: %s (exit=%s)\\n' "
         "'Sampling ps terminé' \"$status\"; "
-        "if [[ \"$status\" -ne 0 ]]; then "
+        'if [[ "$status" -ne 0 ]]; then '
         "printf 'ACTION: %s\\n' "
         "'Inspectez ps_top.txt puis corrigez la commande cible si elle échoue.'; "
         "fi; "
-        "exit \"$status\""
+        'exit "$status"'
     )
 
 
@@ -554,19 +842,26 @@ def _build_c1_command(config: SanitizerConfig) -> str:
 def _build_c2_command(config: SanitizerConfig, probe_dir: Path) -> str:
     data_path = probe_dir / "mprof.dat"
     plot_path = probe_dir / "mprof.png"
+    stderr_path = probe_dir / "stderr.log"
     return _status_wrapped(
         (
             "MPLBACKEND=Agg mprof run --include-children "
+            "--exit-code "
             f"--output {_quote_path(data_path)} "
-            f"-- bash -lc {shlex.quote(_target_shell(config))} "
-            f"&& mprof peak --file {_quote_path(data_path)} "
-            f"&& MPLBACKEND=Agg mprof plot --file {_quote_path(data_path)} "
-            f"-o {_quote_path(plot_path)}"
+            f"bash -lc {shlex.quote(_target_shell(config))} "
+            f"&& mprof peak {_quote_path(data_path)} "
+            f"&& MPLBACKEND=Agg mprof plot {_quote_path(data_path)} "
+            f"--output {_quote_path(plot_path)}"
         ),
         "Profil mémoire mprof terminé",
         (
             "Consultez mprof.dat, le pic RSS et le graphe PNG pour localiser un "
             "pic ou une fuite mémoire."
+        ),
+        action_commands=(
+            _inspect_path_command(stderr_path),
+            f"test -f {_quote_path(data_path)} && mprof peak {_quote_path(data_path)}",
+            f"test -f {_quote_path(plot_path)} && ls -lh {_quote_path(plot_path)}",
         ),
     )
 
@@ -580,20 +875,20 @@ def _build_c3_command(config: SanitizerConfig, probe_dir: Path) -> str:
         f"( {_bash_shell(_target_shell(config))} ) & pid=$!; "
         f"printf '%s\\n' \"$pid\" > {_quote_path(pid_path)}; "
         "MPLBACKEND=Agg psrecord "
-        f"\"$pid\" --interval {config.psrecord_interval_seconds} "
+        f'"$pid" --interval {config.psrecord_interval_seconds} '
         f"--log {_quote_path(csv_path)} --plot {_quote_path(plot_path)} || status=$?; "
-        "wait \"$pid\" || target_status=$?; "
-        "if [[ \"$status\" -eq 0 && \"$target_status\" -ne 0 ]]; then "
-        "status=\"$target_status\"; "
+        'wait "$pid" || target_status=$?; '
+        'if [[ "$status" -eq 0 && "$target_status" -ne 0 ]]; then '
+        'status="$target_status"; '
         "fi; "
         "printf 'SUMMARY: %s (exit=%s)\\n' "
         "'Capture psrecord terminée' \"$status\"; "
-        "if [[ \"$status\" -ne 0 ]]; then "
+        'if [[ "$status" -ne 0 ]]; then '
         "printf 'ACTION: %s\\n' "
         "'Si le PID surveillé est trop court ou peu représentatif, "
         "préférez C2/mprof --include-children.'; "
         "fi; "
-        "exit \"$status\""
+        'exit "$status"'
     )
 
 
@@ -611,23 +906,23 @@ def _build_d1_command(config: SanitizerConfig, probe_dir: Path) -> str:
         "status=0; "
         f"( {_bash_shell(target_shell)} ) & pid=$!; "
         "sleep 0.2; "
-        "if [[ -r \"/proc/$pid/io\" ]]; then "
-        f"cat \"/proc/$pid/io\" | tee {_quote_path(proc_io_path)}; "
+        'if [[ -r "/proc/$pid/io" ]]; then '
+        f'cat "/proc/$pid/io" | tee {_quote_path(proc_io_path)}; '
         "else "
         "printf 'SUMMARY: %s\\n' 'Fallback /proc/<PID>/io indisponible'; "
         "printf 'ACTION: %s\\n' "
         "'Relancez avec strace (D2) si /proc/<PID>/io devient inaccessible.'; "
-        "wait \"$pid\" || status=$?; "
-        "exit \"$status\"; "
+        'wait "$pid" || status=$?; '
+        'exit "$status"; '
         "fi; "
-        "wait \"$pid\" || status=$?; "
+        'wait "$pid" || status=$?; '
         "printf 'SUMMARY: %s (exit=%s)\\n' "
         "'Fallback /proc/<PID>/io terminé' \"$status\"; "
-        "if [[ \"$status\" -ne 0 ]]; then "
+        'if [[ "$status" -ne 0 ]]; then '
         "printf 'ACTION: %s\\n' "
         "'Inspectez proc_io.txt puis corrigez la commande cible si elle échoue.'; "
         "fi; "
-        "exit \"$status\""
+        'exit "$status"'
     )
 
 
@@ -664,20 +959,20 @@ def _build_e2_command(config: SanitizerConfig, probe_dir: Path) -> str:
         f"( {_bash_shell(_target_shell(config))} ) & pid=$!; "
         f"printf 'sample,fd_count\\n' > {_quote_path(csv_path)}; "
         "sample=0; "
-        "while kill -0 \"$pid\" 2>/dev/null; do "
-        "count=$(find \"/proc/$pid/fd\" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l); "
-        f"printf '%s,%s\\n' \"$sample\" \"$count\" >> {_quote_path(csv_path)}; "
+        'while kill -0 "$pid" 2>/dev/null; do '
+        'count=$(find "/proc/$pid/fd" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l); '
+        f'printf \'%s,%s\\n\' "$sample" "$count" >> {_quote_path(csv_path)}; '
         "sample=$((sample+1)); "
         "sleep 0.2; "
         "done; "
-        "wait \"$pid\" || status=$?; "
+        'wait "$pid" || status=$?; '
         "printf 'SUMMARY: %s (exit=%s)\\n' "
         "'Capture nombre de FD terminée' \"$status\"; "
-        "if [[ \"$status\" -ne 0 ]]; then "
+        'if [[ "$status" -ne 0 ]]; then '
         "printf 'ACTION: %s\\n' "
         "'Inspectez fd_counts.csv pour détecter une fuite de descripteurs.'; "
         "fi; "
-        "exit \"$status\""
+        'exit "$status"'
     )
 
 
@@ -731,7 +1026,7 @@ def _build_cprofile_command(config: SanitizerConfig, probe_dir: Path) -> str:
         "-c",
         (
             "import pstats; "
-            f"stats = pstats.Stats({output_path!r}); "
+            f"stats = pstats.Stats({str(output_path)!r}); "
             "stats.sort_stats('cumtime').print_stats(40)"
         ),
     ]
@@ -742,33 +1037,107 @@ def _build_cprofile_command(config: SanitizerConfig, probe_dir: Path) -> str:
         ),
         "Profil cProfile terminé",
         "Inspectez cprofile_top.txt pour les hotspots CPU cumulatifs.",
+        action_commands=(
+            _inspect_path_command(report_path, line_count=80),
+            _inspect_path_command(probe_dir / "stderr.log"),
+        ),
     )
 
 
 def _build_f2_command(config: SanitizerConfig, probe_dir: Path) -> str:
+    retry_command = (
+        'make sanitizer SANITIZER_ARGS="--probe F2 --python-command '
+        "'python mybci.py --feature-strategy wavelet'\""
+    )
+    if config.direct_python_command is None:
+        return (
+            f"printf 'SUMMARY: %s\\n' 'Commande Python directe absente'; "
+            f"printf 'ACTION: %s\\n' "
+            f"{shlex.quote('Passez --python-command pour activer F2/Scalene.')}; "
+            f"printf 'ACTION_CMD: %s\\n' "
+            f"{shlex.quote(retry_command)}; "
+            f"exit {SKIP_EXIT_CODE}"
+        )
+    python_tokens = _resolve_python_script_invocation(config.direct_python_command)
+    if python_tokens is None:
+        return (
+            "printf 'SUMMARY: %s\\n' "
+            "'Commande Python directe non compatible avec Scalene'; "
+            f"printf 'ACTION: %s\\n' "
+            f"{shlex.quote('Passez une commande du type `python script.py ...`.')}; "
+            f"printf 'ACTION_CMD: %s\\n' "
+            f"{shlex.quote(retry_command)}; "
+            f"exit {SKIP_EXIT_CODE}"
+        )
     out_path = probe_dir / "scalene.txt"
+    script_path = shlex.quote(python_tokens[1])
+    script_args = ""
+    if python_tokens[2:]:
+        script_args = " --- " + _shell_join(python_tokens[2:])
     return _status_wrapped(
         (
-            "scalene --cpu --memory --profile-all --reduced-profile "
+            f"{shlex.quote(sys.executable)} -m scalene "
+            "--cpu --memory --profile-all --reduced-profile --cli "
             f"--outfile {_quote_path(out_path)} "
-            f"-- {_bash_shell(_preferred_profile_shell(config))}"
+            f"{script_path}{script_args}"
         ),
         "Profil Scalene terminé",
         "Inspectez scalene.txt pour les hotspots CPU et allocations mémoire.",
+        action_commands=(
+            _inspect_path_command(out_path, line_count=120),
+            _inspect_path_command(probe_dir / "stderr.log"),
+        ),
     )
 
 
 def _build_f3_command(config: SanitizerConfig, probe_dir: Path) -> str:
+    retry_command = (
+        'make sanitizer SANITIZER_ARGS="--probe F3 --python-command '
+        "'python mybci.py --feature-strategy wavelet'\""
+    )
+    retry_with_longer_duration = (
+        "make sanitizer "
+        "SANITIZER_ARGS="
+        f"'--probe F3 --pyspy-duration-seconds "
+        f"{max(config.pyspy_duration_seconds + 2, 5)}'"
+    )
+    if config.direct_python_command is None:
+        return (
+            f"printf 'SUMMARY: %s\\n' 'Commande Python directe absente'; "
+            f"printf 'ACTION: %s\\n' "
+            f"{shlex.quote('Passez --python-command pour activer F3/py-spy.')}; "
+            f"printf 'ACTION_CMD: %s\\n' "
+            f"{shlex.quote(retry_command)}; "
+            f"exit {SKIP_EXIT_CODE}"
+        )
+    python_tokens = _resolve_python_script_invocation(config.direct_python_command)
+    if python_tokens is None:
+        return (
+            "printf 'SUMMARY: %s\\n' "
+            "'Commande Python directe non compatible avec py-spy'; "
+            f"printf 'ACTION: %s\\n' "
+            f"{shlex.quote('Passez une commande du type `python script.py ...`.')}; "
+            f"printf 'ACTION_CMD: %s\\n' "
+            f"{shlex.quote(retry_command)}; "
+            f"exit {SKIP_EXIT_CODE}"
+        )
     svg_path = probe_dir / "pyspy.svg"
     return _status_wrapped(
         (
             "py-spy record "
-            f"-o {_quote_path(svg_path)} "
-            f"-- {_bash_shell(_preferred_profile_shell(config))}"
+            f"--duration {config.pyspy_duration_seconds} "
+            f"--output {_quote_path(svg_path)} "
+            f"-- {_shell_join(python_tokens)}"
         ),
         "Profil py-spy terminé",
-        (
-            "Si py-spy échoue avec ptrace, basculez vers F2/scalene ou F1/cProfile."
+        ("Si py-spy échoue avec ptrace, basculez vers F2/scalene ou F1/cProfile."),
+        action_commands=(
+            _inspect_path_command(probe_dir / "stderr.log"),
+            f"test -f {_quote_path(svg_path)} && ls -lh {_quote_path(svg_path)}",
+            "cat /proc/sys/kernel/yama/ptrace_scope",
+            retry_with_longer_duration,
+            "make sanitizer SANITIZER_ARGS='--probe F2'",
+            "make sanitizer SANITIZER_ARGS='--probe F1'",
         ),
     )
 
@@ -789,7 +1158,7 @@ def _build_g4_command(config: SanitizerConfig, probe_dir: Path) -> str:
             f"{_bash_shell(_target_shell(config))}; "
             "status=$?; "
             f"ls -lh core* 2>/dev/null | tee {_quote_path(listing_path)} || true; "
-            "exit \"$status\""
+            'exit "$status"'
         ),
         "Vérification core dump terminée",
         (
@@ -802,7 +1171,7 @@ def _build_g4_command(config: SanitizerConfig, probe_dir: Path) -> str:
 def _build_h1_command(config: SanitizerConfig) -> str:
     return _status_wrapped(
         (
-            "env -i HOME=\"$HOME\" PATH=\"$PATH\" LANG=C LC_ALL=C "
+            'env -i HOME="$HOME" PATH="$PATH" LANG=C LC_ALL=C '
             "PYTHONHASHSEED=0 "
             f"{_bash_shell(_target_shell(config))}"
         ),
@@ -828,11 +1197,17 @@ def _build_p0_command(probe_dir: Path) -> str:
     )
 
 
-def _build_p1_command(target_shell: str) -> str:
+def _build_p1_command(target_shell: str, config: SanitizerConfig) -> str:
     return _status_wrapped(
-        f"perf stat -d -- {_bash_shell(target_shell)}",
+        f"{_perf_command_prefix(config)} stat -d -- {_bash_shell(target_shell)}",
         "Capture perf stat terminée",
         "Inspectez task-clock, context-switches, IPC et cache-misses.",
+        action_commands=(
+            "cat /proc/sys/kernel/perf_event_paranoid",
+            "sudo -v",
+            "make sanitizer SANITIZER_ARGS='--probe A3.make'",
+            "make sanitizer SANITIZER_ARGS='--probe F1 --probe F2 --probe D2'",
+        ),
     )
 
 
@@ -840,28 +1215,62 @@ def _build_p2_command(config: SanitizerConfig, probe_dir: Path) -> str:
     csv_path = probe_dir / "perf.csv"
     return _status_wrapped(
         (
-            "perf stat -x, "
+            f"{_perf_command_prefix(config)} stat -x, "
             f"-o {_quote_path(csv_path)} "
             f"-d -- {_bash_shell(_target_shell(config))}"
         ),
         "Capture perf CSV terminée",
         "Graphez perf.csv pour comparer les runs.",
+        action_commands=(
+            "cat /proc/sys/kernel/perf_event_paranoid",
+            "sudo -v",
+            (
+                f"test -f {_quote_path(csv_path)} && "
+                f"sed -n '1,40p' {_quote_path(csv_path)}"
+            ),
+            "make sanitizer SANITIZER_ARGS='--probe A3.make'",
+        ),
+        post_actions=(
+            (
+                (
+                    f"if [[ -f {_quote_path(csv_path)} ]]; then "
+                    f"{_sudo_chown_command((csv_path,))} >/dev/null 2>&1 || true; "
+                    "fi"
+                ),
+            )
+            if _should_use_privileged_perf(config)
+            else ()
+        ),
     )
 
 
 def _build_p3_command(config: SanitizerConfig, probe_dir: Path) -> str:
     data_path = probe_dir / "perf.data"
     report_path = probe_dir / "perf_report.txt"
+    record_command = (
+        f"{_perf_command_prefix(config)} record "
+        f"-o {_quote_path(data_path)} "
+        f"-g -- {_bash_shell(_target_shell(config))}"
+    )
+    if _should_use_privileged_perf(config):
+        record_command += f" && {_sudo_chown_command((data_path,))}"
     return _status_wrapped(
         (
-            "perf record "
-            f"-o {_quote_path(data_path)} "
-            f"-g -- {_bash_shell(_target_shell(config))} "
+            f"{record_command} "
             f"&& perf report --input {_quote_path(data_path)} --stdio | "
             f"head -n 60 > {_quote_path(report_path)}"
         ),
         "Capture perf record terminée",
         "Inspectez perf_report.txt pour les hotspots symboliques.",
+        action_commands=(
+            "cat /proc/sys/kernel/perf_event_paranoid",
+            "sudo -v",
+            (
+                f"test -f {_quote_path(report_path)} && "
+                f"sed -n '1,80p' {_quote_path(report_path)}"
+            ),
+            "make sanitizer SANITIZER_ARGS='--probe F2 --probe D2'",
+        ),
     )
 
 
@@ -880,36 +1289,118 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
         "Vérifiez que `/usr/bin/time` est disponible sur Ubuntu puis relancez."
     )
     pyperf_action = (
-        "Installez pyperf dans l'environnement actif avec "
-        "`poetry run python -m pip install pyperf` ou en user-site avec "
-        "`python -m pip install --user pyperf`."
+        "Installez les dépendances dev Poetry puis vérifiez `pyperf` "
+        "dans le venv du projet."
     )
     hyperfine_action = (
-        "Installez hyperfine avec `cargo install hyperfine --locked` ou utilisez "
-        "A3/pyperf."
+        "Hyperfine n'est pas un package Poetry: installez-le hors venv "
+        "ou utilisez A3/pyperf."
     )
     poetry_action = "Installez Poetry ou retirez la variante `poetry run`."
     memory_profiler_action = (
-        "Installez memory_profiler pour obtenir `mprof` "
-        "(`poetry run python -m pip install memory_profiler`)."
+        "Installez les dépendances dev Poetry pour exposer `mprof`."
     )
     psrecord_action = (
-        "Installez psrecord (`poetry run python -m pip install psrecord`) ou "
-        "utilisez C2/mprof."
+        "Installez les dépendances dev Poetry pour exposer `psrecord`, "
+        "ou utilisez C2/mprof."
     )
     strace_action = "Installez `strace` puis relancez les sondes D2/E1."
+    taskset_action = "Installez `taskset` (util-linux) ou utilisez B2/B3."
+    ss_action = "Installez `ss` (iproute2) puis relancez D3."
     scalene_action = (
-        "Installez scalene (`poetry run python -m pip install scalene`) ou "
-        "utilisez F1/F3."
+        "Installez les dépendances dev Poetry pour exposer `scalene`, ou utilisez F1."
     )
     pyspy_action = (
-        "Installez py-spy (`poetry run python -m pip install py-spy`) et vérifiez "
-        "les restrictions ptrace."
+        "Installez les dépendances dev Poetry pour exposer `py-spy`, "
+        "puis vérifiez les restrictions ptrace."
     )
-    perf_action = "Vérifiez que `perf` est installé et autorisé par le noyau."
+    perf_missing_action = (
+        "Installez `perf` si disponible, sinon utilisez les sondes utilisateur."
+    )
+    perf_blocked_action = (
+        "Le noyau bloque `perf` pour un utilisateur non privilégié "
+        "sur cette machine; utilisez les fallbacks utilisateur ou le mode "
+        "privilégié explicite."
+    )
     direct_python_action = (
-        "Fournissez `--python-command 'python mybci.py --feature-strategy wavelet'` "
-        "ou une commande Python équivalente."
+        "Fournissez `--python-command 'python mybci.py "
+        "--feature-strategy wavelet'` ou une commande Python équivalente."
+    )
+    time_commands = (
+        "command -v /usr/bin/time",
+        "sudo apt-get update && sudo apt-get install -y time",
+    )
+    pyperf_commands = (
+        "poetry install --with dev",
+        "poetry run pyperf --help",
+    )
+    hyperfine_commands = (
+        "sudo apt-get update && sudo apt-get install -y hyperfine",
+        "cargo install hyperfine --locked",
+        (
+            "make sanitizer SANITIZER_ARGS='--probe A3.make "
+            "--pyperf-warmups 3 --pyperf-runs 20'"
+        ),
+    )
+    poetry_commands = ("poetry --version",)
+    memory_profiler_commands = (
+        "poetry install --with dev",
+        "poetry run mprof run --help",
+    )
+    psrecord_commands = (
+        "poetry install --with dev",
+        "poetry run psrecord --help",
+    )
+    taskset_commands = (
+        "command -v taskset",
+        "sudo apt-get update && sudo apt-get install -y util-linux",
+        "make sanitizer SANITIZER_ARGS='--probe B2 --probe B3'",
+    )
+    ss_commands = (
+        "command -v ss",
+        "sudo apt-get update && sudo apt-get install -y iproute2",
+    )
+    strace_commands = (
+        "command -v strace",
+        "sudo apt-get update && sudo apt-get install -y strace",
+    )
+    scalene_commands = (
+        "poetry install --with dev",
+        "poetry run scalene --help",
+    )
+    pyspy_commands = (
+        "poetry install --with dev",
+        "poetry run py-spy record --help",
+        "cat /proc/sys/kernel/yama/ptrace_scope",
+    )
+    perf_missing_commands = (
+        "command -v perf",
+        (
+            "sudo apt-get update && sudo apt-get install -y "
+            "linux-tools-common linux-tools-generic linux-tools-$(uname -r)"
+        ),
+        (
+            "make sanitizer SANITIZER_ARGS='--probe A3.make "
+            "--probe F1 --probe F2 --probe D2'"
+        ),
+    )
+    perf_blocked_commands = (
+        "cat /proc/sys/kernel/perf_event_paranoid",
+        "sudo -v",
+        (
+            "make sanitizer SANITIZER_ALLOW_PRIVILEGED_TOOLS=1 "
+            "SANITIZER_ARGS='--probe P1.make --probe P1.poetry --probe P2 --probe P3'"
+        ),
+        (
+            "make sanitizer SANITIZER_ARGS='--probe A3.make "
+            "--probe F1 --probe F2 --probe D2'"
+        ),
+    )
+    direct_python_commands = (
+        (
+            'make sanitizer SANITIZER_ARGS="--probe F1 '
+            "--python-command 'python mybci.py --feature-strategy wavelet'\""
+        ),
     )
 
     return (
@@ -925,7 +1416,7 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
             command_builder=lambda config, _dir: _build_time_verbose_command(
                 _target_shell(config)
             ),
-            preflight=_require_path(Path("/usr/bin/time"), time_action),
+            preflight=_require_path(Path("/usr/bin/time"), time_action, time_commands),
         ),
         ProbeDefinition(
             identifier="A1.poetry",
@@ -939,8 +1430,10 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 _poetry_target_shell(config)
             ),
             preflight=lambda config: _merge_preflights(
-                _require_path(Path("/usr/bin/time"), time_action)(config),
-                _require_poetry(poetry_action)(config),
+                _require_path(Path("/usr/bin/time"), time_action, time_commands)(
+                    config
+                ),
+                _require_poetry(poetry_action, poetry_commands)(config),
             ),
         ),
         ProbeDefinition(
@@ -951,7 +1444,7 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "CSV/JSONL ready-to-plot",
                 "Median, stdev, p90 si plusieurs runs",
             ],
-            preflight=_require_path(Path("/usr/bin/time"), time_action),
+            preflight=_require_path(Path("/usr/bin/time"), time_action, time_commands),
             runner=_run_a2_probe,
         ),
         ProbeDefinition(
@@ -965,7 +1458,11 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
             command_builder=lambda config, _dir: _build_pyperf_command(
                 _target_shell(config), config
             ),
-            preflight=_require_python_module("pyperf", pyperf_action),
+            preflight=_require_python_module(
+                "pyperf",
+                pyperf_action,
+                pyperf_commands,
+            ),
             timeout_resolver=_timeout_for_pyperf,
         ),
         ProbeDefinition(
@@ -979,8 +1476,10 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 _poetry_target_shell(config), config
             ),
             preflight=lambda config: _merge_preflights(
-                _require_python_module("pyperf", pyperf_action)(config),
-                _require_poetry(poetry_action)(config),
+                _require_python_module("pyperf", pyperf_action, pyperf_commands)(
+                    config
+                ),
+                _require_poetry(poetry_action, poetry_commands)(config),
             ),
             timeout_resolver=_timeout_for_pyperf,
         ),
@@ -995,7 +1494,11 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
             command_builder=lambda config, _dir: _build_hyperfine_command(
                 _target_shell(config), config
             ),
-            preflight=_require_command("hyperfine", hyperfine_action),
+            preflight=_require_command(
+                "hyperfine",
+                hyperfine_action,
+                hyperfine_commands,
+            ),
             timeout_resolver=_timeout_for_hyperfine,
         ),
         ProbeDefinition(
@@ -1009,9 +1512,7 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
             command_builder=lambda config, _dir: _build_taskset_command(
                 _target_shell(config), config
             ),
-            preflight=_require_command(
-                "taskset", "Installez `taskset` ou utilisez B2/B3."
-            ),
+            preflight=_require_command("taskset", taskset_action, taskset_commands),
         ),
         ProbeDefinition(
             identifier="B1.poetry",
@@ -1024,10 +1525,8 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 _poetry_target_shell(config), config
             ),
             preflight=lambda config: _merge_preflights(
-                _require_command(
-                    "taskset", "Installez `taskset` ou utilisez B2/B3."
-                )(config),
-                _require_poetry(poetry_action)(config),
+                _require_command("taskset", taskset_action, taskset_commands)(config),
+                _require_poetry(poetry_action, poetry_commands)(config),
             ),
         ),
         ProbeDefinition(
@@ -1090,7 +1589,11 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "Inclut les enfants via --include-children",
             ],
             command_builder=_build_c2_command,
-            preflight=_require_command("mprof", memory_profiler_action),
+            preflight=_require_command(
+                "mprof",
+                memory_profiler_action,
+                memory_profiler_commands,
+            ),
         ),
         ProbeDefinition(
             identifier="C3",
@@ -1101,7 +1604,11 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "À comparer avec C2 si le PID make masque le vrai worker",
             ],
             command_builder=_build_c3_command,
-            preflight=_require_command("psrecord", psrecord_action),
+            preflight=_require_command(
+                "psrecord",
+                psrecord_action,
+                psrecord_commands,
+            ),
         ),
         ProbeDefinition(
             identifier="D1",
@@ -1122,7 +1629,7 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "Latences de syscalls fichier",
             ],
             command_builder=_build_d2_command,
-            preflight=_require_command("strace", strace_action),
+            preflight=_require_command("strace", strace_action, strace_commands),
         ),
         ProbeDefinition(
             identifier="D3",
@@ -1136,7 +1643,7 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "Snapshot réseau terminé",
                 "Inspectez stdout.log pour repérer des connexions inattendues.",
             ),
-            preflight=_require_command("ss", "Le binaire `ss` est requis."),
+            preflight=_require_command("ss", ss_action, ss_commands),
         ),
         ProbeDefinition(
             identifier="E1",
@@ -1147,7 +1654,7 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "Logique de recherche des chemins",
             ],
             command_builder=_build_e1_command,
-            preflight=_require_command("strace", strace_action),
+            preflight=_require_command("strace", strace_action, strace_commands),
         ),
         ProbeDefinition(
             identifier="E2",
@@ -1178,7 +1685,10 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
             command_builder=lambda config, probe_dir: _build_cprofile_command(
                 config, probe_dir
             ),
-            preflight=_require_direct_python(direct_python_action),
+            preflight=_require_direct_python(
+                direct_python_action,
+                direct_python_commands,
+            ),
         ),
         ProbeDefinition(
             identifier="F2",
@@ -1188,7 +1698,19 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "Hotspots CPU et mémoire",
             ],
             command_builder=_build_f2_command,
-            preflight=_require_command("scalene", scalene_action),
+            preflight=lambda config: _merge_preflights(
+                _require_command("scalene", scalene_action, scalene_commands)(config),
+                _require_direct_python_script(
+                    direct_python_action,
+                    (
+                        (
+                            'make sanitizer SANITIZER_ARGS="--probe F2 '
+                            "--python-command 'python mybci.py "
+                            "--feature-strategy wavelet'\""
+                        ),
+                    ),
+                )(config),
+            ),
         ),
         ProbeDefinition(
             identifier="F3",
@@ -1199,7 +1721,19 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "Peut échouer si ptrace est restreint",
             ],
             command_builder=_build_f3_command,
-            preflight=_require_command("py-spy", pyspy_action),
+            preflight=lambda config: _merge_preflights(
+                _require_command("py-spy", pyspy_action, pyspy_commands)(config),
+                _require_direct_python_script(
+                    direct_python_action,
+                    (
+                        (
+                            'make sanitizer SANITIZER_ARGS="--probe F3 '
+                            "--python-command 'python mybci.py "
+                            "--feature-strategy wavelet'\""
+                        ),
+                    ),
+                )(config),
+            ),
         ),
         ProbeDefinition(
             identifier="F4",
@@ -1302,9 +1836,14 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "task-clock, context-switches, IPC, cache-misses",
             ],
             command_builder=lambda config, _dir: _build_p1_command(
-                _target_shell(config)
+                _target_shell(config), config
             ),
-            preflight=_require_command("perf", perf_action),
+            preflight=_require_perf(
+                perf_missing_action,
+                perf_missing_commands,
+                perf_blocked_action,
+                perf_blocked_commands,
+            ),
         ),
         ProbeDefinition(
             identifier="P1.poetry",
@@ -1314,11 +1853,16 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "Comparer make vs poetry run côté compteurs CPU",
             ],
             command_builder=lambda config, _dir: _build_p1_command(
-                _poetry_target_shell(config)
+                _poetry_target_shell(config), config
             ),
             preflight=lambda config: _merge_preflights(
-                _require_command("perf", perf_action)(config),
-                _require_poetry(poetry_action)(config),
+                _require_perf(
+                    perf_missing_action,
+                    perf_missing_commands,
+                    perf_blocked_action,
+                    perf_blocked_commands,
+                )(config),
+                _require_poetry(poetry_action, poetry_commands)(config),
             ),
         ),
         ProbeDefinition(
@@ -1329,7 +1873,12 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "CSV prêt à grapher",
             ],
             command_builder=_build_p2_command,
-            preflight=_require_command("perf", perf_action),
+            preflight=_require_perf(
+                perf_missing_action,
+                perf_missing_commands,
+                perf_blocked_action,
+                perf_blocked_commands,
+            ),
         ),
         ProbeDefinition(
             identifier="P3",
@@ -1339,7 +1888,12 @@ def _build_probe_catalog() -> tuple[ProbeDefinition, ...]:
                 "perf.data et top symboles",
             ],
             command_builder=_build_p3_command,
-            preflight=_require_command("perf", perf_action),
+            preflight=_require_perf(
+                perf_missing_action,
+                perf_missing_commands,
+                perf_blocked_action,
+                perf_blocked_commands,
+            ),
         ),
     )
 
@@ -1371,6 +1925,7 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
                 probe=probe,
                 summary=preflight.summary or "Pré-requis manquant.",
                 action=preflight.action,
+                action_commands=preflight.action_commands,
             )
 
     if probe.command_builder is None:
@@ -1379,10 +1934,12 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
             probe=probe,
             summary="Aucune commande définie pour cette sonde.",
             action="Implémentez le builder de commande avant de relancer.",
+            action_commands=(),
         )
 
     command = probe.command_builder(config, probe_dir)
     _write_text(probe_dir / "command.sh", command + "\n")
+    action_commands: list[str] = []
 
     try:
         completed = subprocess.run(
@@ -1403,7 +1960,8 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
             status = "skipped"
         else:
             status = "warn"
-        summary = _extract_tagged_line(stdout + "\n" + stderr, "SUMMARY:")
+        payload = stdout + "\n" + stderr
+        summary = _extract_tagged_line(payload, "SUMMARY:")
         if summary is None:
             if status == "ok":
                 summary = "Sonde terminée."
@@ -1411,7 +1969,8 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
                 summary = "Sonde ignorée."
             else:
                 summary = f"Sonde terminée avec exit={exit_code}."
-        action = _extract_tagged_line(stdout + "\n" + stderr, "ACTION:")
+        action = _extract_tagged_line(payload, "ACTION:")
+        action_commands = _extract_tagged_lines(payload, "ACTION_CMD:")
     except subprocess.TimeoutExpired as exc:
         stdout = _normalize_process_output(exc.stdout)
         stderr = _normalize_process_output(exc.stderr)
@@ -1422,6 +1981,7 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
             "Réduisez le nombre de runs, ciblez moins de sondes ou augmentez "
             "`--timeout-seconds`."
         )
+        action_commands = []
 
     stdout_path = probe_dir / "stdout.log"
     stderr_path = probe_dir / "stderr.log"
@@ -1435,6 +1995,7 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
         status=status,
         summary=summary,
         action=action,
+        action_commands=action_commands,
         exit_code=exit_code,
         command=command,
         output_dir=str(probe_dir),
@@ -1442,6 +2003,12 @@ def _run_shell_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeRe
         stderr_log=str(stderr_path),
         highlights=list(probe.highlights),
     )
+    if probe.identifier == "F3":
+        result = _normalize_pyspy_result(
+            result=result,
+            probe_dir=probe_dir,
+            stdout=stdout,
+        )
     return _finalize_result(probe_dir, result)
 
 
@@ -1597,6 +2164,10 @@ def _run_a2_probe(  # noqa: PLR0915
     preflight = _require_path(
         Path("/usr/bin/time"),
         "Vérifiez que `/usr/bin/time` est installé puis relancez A2.",
+        (
+            "command -v /usr/bin/time",
+            "sudo apt-get update && sudo apt-get install -y time",
+        ),
     )(config)
     if not preflight.ready:
         return _build_skip_result(
@@ -1707,9 +2278,13 @@ def _run_h2_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeResul
         "python": _safe_capture([sys.executable, "-V"]),
         "poetry": _safe_capture(["poetry", "--version"]),
         "target_command": list(config.command),
-        "direct_python_command": list(config.direct_python_command)
-        if config.direct_python_command is not None
-        else None,
+        "direct_python_command": (
+            list(config.direct_python_command)
+            if config.direct_python_command is not None
+            else None
+        ),
+        "allow_privileged_tools": config.allow_privileged_tools,
+        "pyspy_duration_seconds": config.pyspy_duration_seconds,
         "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
     }
 
@@ -1729,6 +2304,8 @@ def _run_h2_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeResul
                 else "None"
             )
         ),
+        f"allow_privileged_tools={config.allow_privileged_tools}",
+        f"pyspy_duration_seconds={config.pyspy_duration_seconds}",
     ]
     _write_text(text_path, "\n".join(text_lines) + "\n")
 
@@ -1751,10 +2328,13 @@ def _run_h2_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeResul
 
 def _run_probe(config: SanitizerConfig, probe: ProbeDefinition) -> ProbeResult:
     runner = probe.runner or _run_shell_probe
+    print(f"[{probe.identifier}] START - {probe.title}", flush=True)
     result = runner(config, probe)
     print(f"[{probe.identifier}] {result.status.upper()} - {result.summary}")
     if result.action:
         print(f"  action: {result.action}")
+    for action_command in result.action_commands:
+        print(f"  command: {action_command}")
     return result
 
 
@@ -1783,9 +2363,13 @@ def _write_session_summary(
         "started_at": started_at.isoformat(timespec="seconds"),
         "finished_at": finished_at.isoformat(timespec="seconds"),
         "target_command": list(config.command),
-        "direct_python_command": list(config.direct_python_command)
-        if config.direct_python_command is not None
-        else None,
+        "direct_python_command": (
+            list(config.direct_python_command)
+            if config.direct_python_command is not None
+            else None
+        ),
+        "allow_privileged_tools": config.allow_privileged_tools,
+        "pyspy_duration_seconds": config.pyspy_duration_seconds,
         "counts": counts,
         "results": [asdict(result) for result in results],
     }
@@ -1805,6 +2389,8 @@ def _write_session_summary(
             )
             + "`"
         ),
+        f"- allow_privileged_tools: `{config.allow_privileged_tools}`",
+        f"- pyspy_duration_seconds: `{config.pyspy_duration_seconds}`",
         f"- started_at: `{started_at.isoformat(timespec='seconds')}`",
         f"- finished_at: `{finished_at.isoformat(timespec='seconds')}`",
         f"- counts: `{counts}`",
@@ -1827,9 +2413,19 @@ def _write_session_summary(
         lines.extend(["", "## Next Actions", ""])
         for result in actionable:
             lines.append(f"- `{result.identifier}`: {result.action}")
+            for action_command in result.action_commands:
+                lines.append(f"  - `{_escape_markdown_cell(action_command)}`")
 
     _write_text(summary_md, "\n".join(lines) + "\n")
     return overall_status, summary_json, summary_md
+
+
+def _session_exit_code(results: Sequence[ProbeResult]) -> int:
+    """Retourne 0 tant que les sondes n'ont émis que des états non fatals."""
+
+    return (
+        0 if all(result.status in NON_FATAL_PROBE_STATUSES for result in results) else 1
+    )
 
 
 def _list_probes(catalog: Sequence[ProbeDefinition]) -> None:
@@ -1861,14 +2457,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     )
 
-    selected_probe_ids = tuple(args.probes) if args.probes else tuple(
-        probe.identifier for probe in catalog
+    selected_probe_ids = (
+        tuple(args.probes)
+        if args.probes
+        else tuple(probe.identifier for probe in catalog)
     )
     catalog_by_id = {probe.identifier: probe for probe in catalog}
     unknown = [
-        probe_id
-        for probe_id in selected_probe_ids
-        if probe_id not in catalog_by_id
+        probe_id for probe_id in selected_probe_ids if probe_id not in catalog_by_id
     ]
     if unknown:
         parser.error(f"Sonde(s) inconnue(s): {', '.join(unknown)}")
@@ -1888,6 +2484,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         psrecord_interval_seconds=args.psrecord_interval_seconds,
         memory_limit_kib=args.memory_limit_kib,
         time_csv_runs=args.time_csv_runs,
+        allow_privileged_tools=args.allow_privileged_tools,
+        pyspy_duration_seconds=max(1, args.pyspy_duration_seconds),
     )
 
     config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -1906,7 +2504,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print(f"summary_json: {summary_json}")
     print(f"summary_md: {summary_md}")
-    return 0 if overall_status == "ok" else 1
+    return _session_exit_code(results)
 
 
 if __name__ == "__main__":

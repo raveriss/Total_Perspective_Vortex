@@ -36,6 +36,11 @@ xenon = "^0.9"
 pre-commit = "^4.0"
 pip-audit = "^2.7"
 coverage = "^7.6"
+pyperf = "^2.9.0"
+memory-profiler = "^0.61.0"
+psrecord = "^1.4"
+scalene = "^1.5.51"
+py-spy = "^0.4.1"
 
 [tool.black]
 line-length = 88
@@ -78,6 +83,8 @@ mutate_only_covered_lines = true
 pythonpath = ["src", ".", ".."]
 testpaths = ["tests"]
 addopts = [
+  "-p", "no:launch_testing",
+  "-p", "no:launch_ros",
   "--ignore=mutants",
 ]
 norecursedirs = [

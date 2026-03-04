@@ -250,7 +250,21 @@ make sanitizer
 make sanitizer SANITIZER_ARGS='--probe A2 --time-csv-runs 20'
 make sanitizer SANITIZER_COMMAND='make -j1 compute-mean-of-means'
 make sanitizer SANITIZER_ARGS="--probe F1 --python-command 'python mybci.py --feature-strategy wavelet'"
+make sanitizer SANITIZER_ALLOW_PRIVILEGED_TOOLS=1 SANITIZER_ARGS='--probe P1.make --probe P1.poetry --probe P2 --probe P3'
+make sanitizer-privileged SANITIZER_ARGS='--probe P1.make --probe P1.poetry --probe P2 --probe P3'
 ```
+
+Quand une sonde affiche `SKIPPED` ou `WARN`, `summary.md` et la sortie console
+incluent désormais des `command:` structurés :
+
+* commandes d'installation Poetry (`poetry install --with dev`) pour les outils Python
+* commandes système Ubuntu (`sudo apt-get install ...`) pour les binaires hors venv
+* commandes de fallback ou de re-run ciblé
+* commandes privilégiées explicites (`sudo -v`, puis `SANITIZER_ALLOW_PRIVILEGED_TOOLS=1`)
+
+Le mode privilégié reste **opt-in**. Il est utile sur un poste perso pour
+`perf`, mais n'est pas activé par défaut afin de préserver le comportement
+canonique Ubuntu/no-sudo de la CI et des machines 42.
 
 ---
 

@@ -27,6 +27,7 @@
 	ensure-venv \
 	realtime \
 	sanitizer \
+	sanitizer-privileged \
 	compute-mean-of-means \
 	visualizer \
 	clean-npy
@@ -47,7 +48,8 @@ export POETRY_VIRTUALENVS_IN_PROJECT := true
 
 # --- Benchmarks ---------------------------------------------------------------
 # Journalise les runs globaux hors dataset pour éviter les collisions de droits
-BENCH_DIR   := artifacts/benchmarks
+ARTIFACTS_DIR ?= artifacts
+BENCH_DIR   ?= $(ARTIFACTS_DIR)/benchmarks
 BENCH_CSVS  := $(wildcard $(BENCH_DIR)/*.csv)
 
 # --- Dataset ------------------------------------------------------------------
@@ -103,6 +105,31 @@ if [[ -d "$$tpv_dir" ]]; then \
 	if [[ -n "$$blocked_tpv_path" ]]; then \
 		printf 'INFO: lecture du script %s impossible\n' "$$blocked_tpv_path"; \
 		printf '%s\n' "Action: redonnez les droits d'accès au dossier $$tpv_dir et à son contenu : \`chmod -R a+rX $$tpv_dir\`"; \
+		exit 0; \
+	fi; \
+fi; \
+true
+endef
+
+define ENSURE_ARTIFACTS_TREE_READABLE
+artifacts_dir="$(ARTIFACTS_DIR)"; \
+if [[ -d "$$artifacts_dir" ]]; then \
+	if [[ ! -r "$$artifacts_dir" || ! -x "$$artifacts_dir" ]]; then \
+		printf 'INFO: lecture du dossier %s impossible\n' "$$artifacts_dir"; \
+		printf '%s\n' "Action: donnez les droits d'accès au dossier $$artifacts_dir : \`chmod a+rx $$artifacts_dir\`"; \
+		exit 0; \
+	fi; \
+	shopt -s nullglob; \
+	blocked_artifacts_dir=""; \
+	for candidate in "$$artifacts_dir"/S*; do \
+		if [[ -d "$$candidate" && ( ! -r "$$candidate" || ! -x "$$candidate" ) ]]; then \
+			blocked_artifacts_dir="$$candidate"; \
+			break; \
+		fi; \
+	done; \
+	if [[ -n "$$blocked_artifacts_dir" ]]; then \
+		printf 'INFO: lecture du dossier %s impossible\n' "$$blocked_artifacts_dir"; \
+		printf '%s\n' "Action: donnez les droits d'accès au dossier $$blocked_artifacts_dir : \`chmod a+rx $$blocked_artifacts_dir\`"; \
 		exit 0; \
 	fi; \
 fi; \
@@ -286,6 +313,8 @@ PREDICT_ARGS ?=
 BENCH_ARGS ?=
 SANITIZER_ARGS ?=
 SANITIZER_COMMAND ?= make -j1 mybci wavelet
+SANITIZER_ALLOW_PRIVILEGED_TOOLS ?= 0
+TPV_SANITIZER ?= 0
 
 # Entraînement : `make train <subject> <run>`
 train: ensure-venv
@@ -413,6 +442,7 @@ mybci: ensure-venv
 	@set -euo pipefail; \
 	positional_strategy="$(word 2,$(MAKECMDGOALS))"; \
 	extra_args="$(BENCH_ARGS)"; \
+	sanitizer_mode="$(TPV_SANITIZER)"; \
 	feature_strategy="$(FEATURE_STRATEGY)"; \
 	if [[ -z "$$feature_strategy" && -n "$$positional_strategy" ]]; then \
 		feature_strategy="$$positional_strategy"; \
@@ -422,10 +452,15 @@ mybci: ensure-venv
 	fi; \
 	$(call ENSURE_TPV_SOURCES_READABLE); \
 	$(call ENSURE_SCRIPT_READABLE,$(MYBCI_SCRIPT)); \
-	mkdir -p $(BENCH_DIR); \
+	$(call ENSURE_ARTIFACTS_TREE_READABLE); \
 	status=0; \
-	$(POETRY) python $(MYBCI_SCRIPT) $$extra_args \
-		| tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log || status=$$?; \
+	if [[ "$$sanitizer_mode" == "1" ]]; then \
+		$(POETRY) python $(MYBCI_SCRIPT) $$extra_args || status=$$?; \
+	else \
+		mkdir -p $(BENCH_DIR); \
+		$(POETRY) python $(MYBCI_SCRIPT) $$extra_args \
+			| tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log || status=$$?; \
+	fi; \
 	if [[ "$$status" -eq "$(HANDLED_CLI_ERROR_EXIT_CODE)" ]]; then \
 		exit 0; \
 	fi; \
@@ -435,7 +470,15 @@ mybci: ensure-venv
 sanitizer: ensure-venv
 	@set -euo pipefail; \
 	$(call ENSURE_SCRIPT_READABLE,$(SANITIZER_SCRIPT)); \
-	$(POETRY) python $(SANITIZER_SCRIPT) $(SANITIZER_ARGS) -- $(SANITIZER_COMMAND)
+	privileged_flag=""; \
+	if [[ "$(SANITIZER_ALLOW_PRIVILEGED_TOOLS)" == "1" ]]; then \
+		sudo -v; \
+		privileged_flag="--allow-privileged-tools"; \
+	fi; \
+	$(POETRY) -- python $(SANITIZER_SCRIPT) $$privileged_flag $(SANITIZER_ARGS) -- $(SANITIZER_COMMAND)
+
+sanitizer-privileged: ensure-venv
+	@$(MAKE) sanitizer SANITIZER_ALLOW_PRIVILEGED_TOOLS=1 SANITIZER_ARGS="$(SANITIZER_ARGS)" SANITIZER_COMMAND="$(SANITIZER_COMMAND)"
 
 # Affiche la commande d'activation (make ne peut pas modifier le shell parent)
 show-activate:

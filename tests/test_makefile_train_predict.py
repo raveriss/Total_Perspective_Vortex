@@ -67,15 +67,46 @@ def run_make_goals_with_blocked_src_dir(
         blocked_src_dir.chmod(0o755)
 
 
+def run_make_goals_with_blocked_artifacts_dir(
+    tmp_path: Path,
+    goals: list[str],
+    *,
+    fake_poetry_body: str,
+    block_subject_dir: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    blocked_dir = artifacts_dir
+    if block_subject_dir:
+        blocked_dir = artifacts_dir / "S001"
+        blocked_dir.mkdir()
+    blocked_dir.chmod(0)
+    try:
+        return run_make_goals(
+            tmp_path,
+            goals,
+            fake_poetry_body=fake_poetry_body,
+            make_vars={
+                "ARTIFACTS_DIR": str(artifacts_dir),
+                "BENCH_DIR": str(artifacts_dir / "benchmarks"),
+            },
+        )
+    finally:
+        blocked_dir.chmod(0o755)
+
+
 def run_make_goals(
     tmp_path: Path,
     goals: list[str],
     *,
     fake_poetry_body: str,
+    fake_sudo_body: str | None = None,
     make_vars: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     fake_poetry = tmp_path / "bin" / "fake-poetry"
     write_fake_poetry(fake_poetry, fake_poetry_body)
+    if fake_sudo_body is not None:
+        write_fake_poetry(tmp_path / "bin" / "sudo", fake_sudo_body)
     env = os.environ.copy()
     env["PATH"] = f"{fake_poetry.parent}:{env['PATH']}"
     make_args = [
@@ -241,6 +272,77 @@ exit 2
     assert "INFO: lecture du dossier data impossible" in combined_output
     assert "unexpected args" not in combined_output
     assert "chmod a+rx data" in combined_output
+    assert "make: ***" not in combined_output
+
+
+def test_make_mybci_skips_bench_log_when_sanitizer_mode_is_enabled(
+    tmp_path: Path,
+) -> None:
+    bench_dir = tmp_path / "benchmarks"
+    result = run_make_goals(
+        tmp_path,
+        ["mybci", "wavelet"],
+        fake_poetry_body="""
+if [[ "$*" != "python mybci.py --feature-strategy wavelet" ]]; then
+  printf 'unexpected args: %s\n' "$*" >&2
+  exit 9
+fi
+printf 'sanitizer run\n'
+exit 0
+""",
+        make_vars={"TPV_SANITIZER": "1"},
+    )
+
+    combined_output = result.stdout + result.stderr
+
+    assert result.returncode == 0
+    assert "sanitizer run" in combined_output
+    assert not bench_dir.exists()
+    assert "make: ***" not in combined_output
+
+
+def test_make_mybci_reports_artifacts_subject_directory_permission_error(
+    tmp_path: Path,
+) -> None:
+    result = run_make_goals_with_blocked_artifacts_dir(
+        tmp_path,
+        ["mybci"],
+        fake_poetry_body="""
+printf 'poetry should not run\n'
+exit 99
+""",
+        block_subject_dir=True,
+    )
+
+    combined_output = result.stdout + result.stderr
+
+    assert result.returncode == 0
+    assert "INFO: lecture du dossier" in combined_output
+    assert "artifacts/S001 impossible" in combined_output
+    assert "chmod a+rx" in combined_output
+    assert "poetry should not run" not in combined_output
+    assert "make: ***" not in combined_output
+
+
+def test_make_mybci_wavelet_reports_artifacts_root_permission_error(
+    tmp_path: Path,
+) -> None:
+    result = run_make_goals_with_blocked_artifacts_dir(
+        tmp_path,
+        ["mybci", "wavelet"],
+        fake_poetry_body="""
+printf 'poetry should not run\n'
+exit 99
+""",
+    )
+
+    combined_output = result.stdout + result.stderr
+
+    assert result.returncode == 0
+    assert "INFO: lecture du dossier" in combined_output
+    assert "artifacts impossible" in combined_output
+    assert "chmod a+rx" in combined_output
+    assert "poetry should not run" not in combined_output
     assert "make: ***" not in combined_output
 
 
@@ -564,7 +666,7 @@ def test_make_sanitizer_relays_default_command_to_script(tmp_path: Path) -> None
         tmp_path,
         ["sanitizer"],
         fake_poetry_body="""
-if [[ "$*" != "python scripts/sanitizer.py -- make -j1 mybci wavelet" ]]; then
+if [[ "$*" != "-- python scripts/sanitizer.py -- make -j1 mybci wavelet" ]]; then
   printf 'unexpected args: %s\n' "$*" >&2
   exit 9
 fi
@@ -577,6 +679,62 @@ printf 'sanitizer ok\n'
     assert result.returncode == 0
     assert "sanitizer ok" in combined_output
     assert "unexpected args" not in combined_output
+
+
+def test_make_sanitizer_relays_probe_args_to_script(tmp_path: Path) -> None:
+    result = run_make_goals(
+        tmp_path,
+        ["sanitizer"],
+        fake_poetry_body="""
+if [[ "$*" != "-- python scripts/sanitizer.py --probe A3.make --pyperf-warmups 1 --pyperf-runs 1 -- make -j1 mybci wavelet" ]]; then
+  printf 'unexpected args: %s\n' "$*" >&2
+  exit 9
+fi
+printf 'sanitizer args ok\n'
+""",
+        make_vars={
+            "SANITIZER_ARGS": "--probe A3.make --pyperf-warmups 1 --pyperf-runs 1"
+        },
+    )
+
+    combined_output = result.stdout + result.stderr
+
+    assert result.returncode == 0
+    assert "sanitizer args ok" in combined_output
+    assert "unexpected args" not in combined_output
+
+
+def test_make_sanitizer_prepares_sudo_and_flag_for_privileged_mode(
+    tmp_path: Path,
+) -> None:
+    sudo_log = tmp_path / "sudo.log"
+
+    result = run_make_goals(
+        tmp_path,
+        ["sanitizer"],
+        fake_poetry_body="""
+if [[ "$*" != "-- python scripts/sanitizer.py --allow-privileged-tools --probe P1.make -- make -j1 mybci wavelet" ]]; then
+  printf 'unexpected args: %s\n' "$*" >&2
+  exit 9
+fi
+printf 'sanitizer privileged ok\n'
+""",
+        fake_sudo_body=f"""
+printf '%s\\n' "$*" >> {sudo_log}
+exit 0
+""",
+        make_vars={
+            "SANITIZER_ALLOW_PRIVILEGED_TOOLS": "1",
+            "SANITIZER_ARGS": "--probe P1.make",
+        },
+    )
+
+    combined_output = result.stdout + result.stderr
+
+    assert result.returncode == 0
+    assert "sanitizer privileged ok" in combined_output
+    assert "unexpected args" not in combined_output
+    assert sudo_log.read_text(encoding="utf-8").strip() == "-v"
 
 
 def test_make_sanitizer_reports_script_permission_error(tmp_path: Path) -> None:

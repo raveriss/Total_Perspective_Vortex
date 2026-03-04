@@ -412,6 +412,29 @@ def test_main_reports_global_data_directory_permission_error(monkeypatch, capsys
     ]
 
 
+def test_main_reports_global_artifacts_subject_permission_error(monkeypatch, capsys):
+    def fake_runner(**_kwargs) -> int:
+        raise mybci.GlobalEvaluationCliError(
+            PermissionError(13, "Permission denied", "artifacts/S001/R03/model.joblib"),
+            subject="S001",
+            run="R03",
+        )
+
+    monkeypatch.setattr(mybci, "_run_global_evaluation", fake_runner)
+
+    exit_code = mybci.main([])
+
+    stdout_lines = capsys.readouterr().out.splitlines()
+    assert exit_code == mybci.HANDLED_CLI_ERROR_EXIT_CODE
+    assert stdout_lines == [
+        "INFO: lecture du dossier artifacts/S001 impossible",
+        (
+            "Action: donnez les droits d'accès au dossier artifacts/S001 : "
+            "`chmod a+rx artifacts/S001`"
+        ),
+    ]
+
+
 def test_find_tpv_source_access_issue_handles_blocked_src_directory(tmp_path) -> None:
     src_dir = tmp_path / "src"
     src_dir.mkdir()

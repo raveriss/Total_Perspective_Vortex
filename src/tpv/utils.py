@@ -134,7 +134,7 @@ def _build_permission_targets(path: Path) -> tuple[str, ...]:
     return tuple(_format_cli_path(target) for target in unique_targets)
 
 
-# Déduit la racine dataset à débloquer lorsqu'un chemin interne est illisible
+# Déduit une racine de travail à débloquer lorsqu'un chemin interne est illisible
 def _find_blocking_directory(path: Path) -> Path | None:
     """Retourne le dossier le plus probable qui bloque la traversée."""
 
@@ -171,16 +171,18 @@ def _find_blocking_directory(path: Path) -> Path | None:
     return None
 
 
-# Déduit la racine dataset à débloquer lorsqu'un chemin interne est illisible
+# Déduit la racine data/artifacts à débloquer lorsqu'un chemin interne est illisible
 def _infer_data_directory_target(
     path: Path,
     *,
     subject: str | None = None,
 ) -> Path | None:
-    """Retourne le dossier dataset probable à rendre traversable."""
+    """Retourne le dossier data/artifacts probable à rendre traversable."""
 
     # Normalise le chemin reçu pour raisonner sur une représentation stable
     normalized_path = path.expanduser()
+    # Limite la déduction aux racines de travail connues pour garder un message clair
+    known_root_names = {"data", "artifacts"}
     # Cherche d'abord le niveau exact qui bloque réellement la traversée
     blocked_directory = _find_blocking_directory(normalized_path)
     if blocked_directory is not None:
@@ -190,14 +192,14 @@ def _infer_data_directory_target(
         for parent in normalized_path.parents:
             if parent.name == subject:
                 return parent
-    # Garde un traitement explicite pour le répertoire `data`
-    if normalized_path.name == "data":
+    # Garde un traitement explicite pour les racines connues du projet
+    if normalized_path.name in known_root_names:
         return normalized_path
-    # Remonte au premier ancêtre nommé `data` si présent
+    # Remonte au premier ancêtre `data` ou `artifacts` si présent
     for parent in (normalized_path, *normalized_path.parents):
-        if parent.name == "data":
+        if parent.name in known_root_names:
             return parent
-    # Retourne None lorsqu'aucune racine dataset claire n'est déductible
+    # Retourne None lorsqu'aucune racine de travail claire n'est déductible
     return None
 
 
@@ -218,9 +220,9 @@ def _explain_permission_error(
         )
     # Recompose un objet Path pour déduire le bon chmod à proposer
     denied_path = Path(str(filename))
-    dataset_dir = _infer_data_directory_target(denied_path, subject=subject)
-    if dataset_dir is not None:
-        display_dir = _format_cli_path(dataset_dir)
+    blocked_dir = _infer_data_directory_target(denied_path, subject=subject)
+    if blocked_dir is not None:
+        display_dir = _format_cli_path(blocked_dir)
         return CliErrorDiagnostic(
             summary=f"lecture du dossier {display_dir} impossible",
             action=(

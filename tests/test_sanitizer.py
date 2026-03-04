@@ -45,13 +45,23 @@ def test_infer_python_command_supports_compute_mean_of_means() -> None:
     assert inferred == [sys.executable, "scripts/aggregate_experience_scores.py"]
 
 
+def test_enable_make_sanitizer_mode_marks_make_mybci_target() -> None:
+    command = sanitizer._enable_make_sanitizer_mode(["make", "-j1", "mybci", "wavelet"])
+
+    assert command == ("make", "-j1", "TPV_SANITIZER=1", "mybci", "wavelet")
+
+
+def test_enable_make_sanitizer_mode_leaves_other_targets_unchanged() -> None:
+    command = sanitizer._enable_make_sanitizer_mode(["make", "compute-mean-of-means"])
+
+    assert command == ("make", "compute-mean-of-means")
+
+
 def test_run_probe_skips_when_hyperfine_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _build_config(tmp_path, ("A4",))
-    catalog = {
-        probe.identifier: probe for probe in sanitizer._build_probe_catalog()
-    }
+    catalog = {probe.identifier: probe for probe in sanitizer._build_probe_catalog()}
     monkeypatch.setattr(
         sanitizer,
         "_command_available",
@@ -62,8 +72,204 @@ def test_run_probe_skips_when_hyperfine_is_missing(
 
     assert result.status == "skipped"
     assert result.action is not None
-    assert "hyperfine" in result.action
+    assert "hyperfine" in result.action.lower()
+    assert "cargo install hyperfine --locked" in result.action_commands
+    assert any("A3.make" in command for command in result.action_commands)
     assert Path(result.output_dir, "result.json").exists()
+
+
+def test_run_probe_announces_start_before_result(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = _build_config(tmp_path, ("demo",))
+    probe = sanitizer.ProbeDefinition(
+        identifier="demo",
+        title="probe demo",
+        category="Z",
+        highlights=(),
+        runner=lambda _config, _probe: sanitizer.ProbeResult(
+            identifier="demo",
+            title="probe demo",
+            category="Z",
+            status="ok",
+            summary="done",
+            action=None,
+            exit_code=0,
+            command="true",
+            output_dir=str(tmp_path / "demo"),
+            stdout_log=None,
+            stderr_log=None,
+        ),
+    )
+
+    result = sanitizer._run_probe(config, probe)
+
+    output_lines = capsys.readouterr().out.splitlines()
+    assert result.status == "ok"
+    assert output_lines == [
+        "[demo] START - probe demo",
+        "[demo] OK - done",
+    ]
+
+
+def test_poetry_target_shell_propagates_sanitizer_mode_for_make_mybci(
+    tmp_path: Path,
+) -> None:
+    config = _build_config(tmp_path, ("A3.poetry",))
+    config = sanitizer.SanitizerConfig(
+        command=("make", "-j1", "mybci", "wavelet"),
+        direct_python_command=config.direct_python_command,
+        output_dir=config.output_dir,
+        selected_probes=config.selected_probes,
+        timeout_seconds=config.timeout_seconds,
+        pyperf_warmups=config.pyperf_warmups,
+        pyperf_runs=config.pyperf_runs,
+        hyperfine_warmups=config.hyperfine_warmups,
+        hyperfine_runs=config.hyperfine_runs,
+        cpu_core=config.cpu_core,
+        ps_interval_seconds=config.ps_interval_seconds,
+        psrecord_interval_seconds=config.psrecord_interval_seconds,
+        memory_limit_kib=config.memory_limit_kib,
+        time_csv_runs=config.time_csv_runs,
+    )
+
+    shell_command = sanitizer._poetry_target_shell(config)
+
+    assert shell_command == "poetry run make -j1 TPV_SANITIZER=1 mybci wavelet"
+
+
+def test_build_pyperf_command_uses_current_python_interpreter(tmp_path: Path) -> None:
+    config = _build_config(tmp_path, ("A3.make",))
+
+    command = sanitizer._build_pyperf_command(
+        "make -j1 TPV_SANITIZER=1 mybci wavelet", config
+    )
+
+    assert f"{sys.executable} -m pyperf command" in command
+    assert "--processes 1" in command
+    assert "--loops 1" in command
+    assert "python -m pyperf command" not in command.replace(
+        f"{sys.executable} -m pyperf command",
+        "",
+    )
+
+
+def test_build_c2_command_uses_mprof_positional_program(tmp_path: Path) -> None:
+    config = _build_config(tmp_path, ("C2",))
+
+    command = sanitizer._build_c2_command(config, tmp_path / "C2")
+
+    assert "mprof run --include-children --exit-code --output" in command
+    assert " -- bash -lc" not in command
+    assert "ACTION_CMD:" in command
+
+
+def test_build_cprofile_command_uses_string_stats_path(tmp_path: Path) -> None:
+    config = _build_config(tmp_path, ("F1",))
+
+    command = sanitizer._build_cprofile_command(config, tmp_path / "F1")
+
+    assert "PosixPath(" not in command
+    assert "ACTION_CMD:" in command
+
+
+def test_build_f2_and_f3_commands_use_direct_python_script(tmp_path: Path) -> None:
+    script_path = tmp_path / "demo.py"
+    script_path.write_text("print(42)\n", encoding="utf-8")
+    config = sanitizer.SanitizerConfig(
+        command=("make", "-j1", "mybci", "wavelet"),
+        direct_python_command=(sys.executable, str(script_path), "--demo"),
+        output_dir=tmp_path,
+        selected_probes=("F2", "F3"),
+        timeout_seconds=5,
+        pyperf_warmups=1,
+        pyperf_runs=1,
+        hyperfine_warmups=1,
+        hyperfine_runs=1,
+        cpu_core=0,
+        ps_interval_seconds=0.1,
+        psrecord_interval_seconds=0.1,
+        memory_limit_kib=1024,
+        time_csv_runs=1,
+    )
+
+    scalene_command = sanitizer._build_f2_command(config, tmp_path / "F2")
+    pyspy_command = sanitizer._build_f3_command(config, tmp_path / "F3")
+
+    assert f"{sys.executable} -m scalene" in scalene_command
+    assert "bash -lc" not in scalene_command
+    assert str(script_path) in scalene_command
+    assert " --- --demo" in scalene_command
+    assert "ACTION_CMD:" in scalene_command
+
+    assert "py-spy record " in pyspy_command
+    assert "bash -lc" not in pyspy_command
+    assert "--subprocesses" not in pyspy_command
+    assert f"--duration {config.pyspy_duration_seconds}" in pyspy_command
+    assert config.direct_python_command is not None
+    assert f"-- {sanitizer._shell_join(config.direct_python_command)}" in pyspy_command
+    assert "ACTION_CMD:" in pyspy_command
+
+
+def test_build_p1_command_uses_sudo_prefixed_perf_when_requested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = sanitizer.SanitizerConfig(
+        command=("make", "-j1", "mybci", "wavelet"),
+        direct_python_command=(
+            sys.executable,
+            "mybci.py",
+            "--feature-strategy",
+            "wavelet",
+        ),
+        output_dir=tmp_path,
+        selected_probes=("P1.make",),
+        timeout_seconds=5,
+        pyperf_warmups=1,
+        pyperf_runs=1,
+        hyperfine_warmups=1,
+        hyperfine_runs=1,
+        cpu_core=0,
+        ps_interval_seconds=0.1,
+        psrecord_interval_seconds=0.1,
+        memory_limit_kib=1024,
+        time_csv_runs=1,
+        allow_privileged_tools=True,
+    )
+    monkeypatch.setattr(sanitizer, "_read_perf_event_paranoid", lambda: 4)
+    monkeypatch.setattr(sanitizer, "_sudo_non_interactive_available", lambda: True)
+
+    command = sanitizer._build_p1_command(
+        "make -j1 TPV_SANITIZER=1 mybci wavelet", config
+    )
+
+    assert "sudo -n env PATH=" in command
+    assert "perf stat -d" in command
+
+
+def test_run_shell_probe_promotes_valid_pyspy_svg_to_ok(tmp_path: Path) -> None:
+    config = _build_config(tmp_path, ("F3",))
+    probe_dir = tmp_path / "F3"
+    probe = sanitizer.ProbeDefinition(
+        identifier="F3",
+        title="py-spy",
+        category="F",
+        highlights=(),
+        command_builder=lambda _config, _dir: (
+            f"printf 'py-spy> Wrote flamegraph data to {probe_dir / 'pyspy.svg'}. "
+            "Samples: 17 Errors: 0\\n'; "
+            f"printf '<svg></svg>' > {sanitizer._quote_path(probe_dir / 'pyspy.svg')}; "
+            "printf 'SUMMARY: Profil py-spy terminé (exit=1)\\n'; "
+            "exit 1"
+        ),
+    )
+
+    result = sanitizer._run_shell_probe(config, probe)
+
+    assert result.status == "ok"
+    assert "17 samples" in result.summary
+    assert result.exit_code == 0
+    assert result.action is None
 
 
 def test_main_runs_a2_and_writes_csv_jsonl_and_summary(tmp_path: Path) -> None:
@@ -138,11 +344,31 @@ def test_preflight_helpers_report_missing_requirements(
     monkeypatch.setattr(sanitizer, "_command_available", lambda _name: False)
     monkeypatch.setattr(sanitizer, "_python_module_available", lambda _name: False)
 
-    command_result = sanitizer._require_command("hyperfine", "install hyperfine")(config)
-    module_result = sanitizer._require_python_module("pyperf", "install pyperf")(config)
-    path_result = sanitizer._require_path(missing_path, "create path")(config)
-    poetry_result = sanitizer._require_poetry("install poetry")(config)
-    direct_python_result = sanitizer._require_direct_python("pass command")(
+    command_result = sanitizer._require_command(
+        "hyperfine",
+        "install hyperfine",
+        ("cargo install hyperfine --locked",),
+    )(config)
+    module_result = sanitizer._require_python_module(
+        "pyperf",
+        "install pyperf",
+        ("poetry install --with dev",),
+    )(config)
+    path_result = sanitizer._require_path(
+        missing_path,
+        "create path",
+        ("mkdir -p missing-tool",),
+    )(config)
+    poetry_result = sanitizer._require_poetry(
+        "install poetry",
+        ("poetry --version",),
+    )(config)
+    direct_python_result = sanitizer._require_direct_python(
+        "pass command",
+        (
+            "make sanitizer SANITIZER_ARGS=\"--probe F1 --python-command 'python mybci.py'\"",
+        ),
+    )(
         sanitizer.SanitizerConfig(
             command=("make", "-j1", "mybci"),
             direct_python_command=None,
@@ -168,6 +394,11 @@ def test_preflight_helpers_report_missing_requirements(
     assert not poetry_result.ready
     assert not direct_python_result.ready
     assert not merged.ready
+    assert command_result.action_commands == ("cargo install hyperfine --locked",)
+    assert module_result.action_commands == ("poetry install --with dev",)
+    assert path_result.action_commands == ("mkdir -p missing-tool",)
+    assert poetry_result.action_commands == ("poetry --version",)
+    assert any("python mybci.py" in cmd for cmd in direct_python_result.action_commands)
 
 
 def test_resolve_python_invocation_supports_poetry_and_rejects_non_python() -> None:
@@ -235,6 +466,29 @@ def test_run_shell_probe_marks_timeout_as_warn(tmp_path: Path) -> None:
     assert "Timeout" in result.summary
 
 
+def test_run_shell_probe_extracts_action_commands(tmp_path: Path) -> None:
+    config = _build_config(tmp_path, ("custom-action",))
+    probe = sanitizer.ProbeDefinition(
+        identifier="custom-action",
+        title="action",
+        category="Z",
+        highlights=(),
+        command_builder=lambda _config, _dir: (
+            "printf 'SUMMARY: failed (exit=1)\\n'; "
+            "printf 'ACTION: inspect\\n'; "
+            "printf 'ACTION_CMD: cmd1\\n'; "
+            "printf 'ACTION_CMD: cmd2\\n'; "
+            "exit 1"
+        ),
+    )
+
+    result = sanitizer._run_shell_probe(config, probe)
+
+    assert result.status == "warn"
+    assert result.action == "inspect"
+    assert result.action_commands == ["cmd1", "cmd2"]
+
+
 def test_write_session_summary_writes_markdown_and_json(tmp_path: Path) -> None:
     config = _build_config(tmp_path, ("A2",))
     result = sanitizer.ProbeResult(
@@ -294,7 +548,9 @@ def test_misc_helper_branches_are_exercised(tmp_path: Path) -> None:
         "run",
         "make",
     )
-    assert sanitizer._preferred_profile_shell(config) == "make -j1 mybci"
+    assert (
+        sanitizer._preferred_profile_shell(config) == "make -j1 TPV_SANITIZER=1 mybci"
+    )
     assert sanitizer._probe_timeout(config, probe) == 8
     assert sanitizer._extract_tagged_line("SUMMARY: ok", "SUMMARY:") == "ok"
     assert sanitizer._extract_tagged_line("plain text", "SUMMARY:") is None
@@ -354,15 +610,17 @@ def test_main_list_probes_and_unknown_probe_paths(
         )
 
 
-def test_run_a2_probe_handles_preflight_skip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_a2_probe_handles_preflight_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     config = _build_config(tmp_path, ("A2",))
-    catalog = {
-        probe.identifier: probe for probe in sanitizer._build_probe_catalog()
-    }
+    catalog = {probe.identifier: probe for probe in sanitizer._build_probe_catalog()}
     monkeypatch.setattr(
         sanitizer,
         "_require_path",
-        lambda _path, _action: (lambda _config: sanitizer.PreflightResult(False, "skip", "fix")),
+        lambda _path, _action, _commands=(): (
+            lambda _config: sanitizer.PreflightResult(False, "skip", "fix")
+        ),
     )
 
     result = sanitizer._run_a2_probe(config, catalog["A2"])
@@ -375,9 +633,7 @@ def test_run_a2_probe_marks_missing_rows_and_nonzero_exit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _build_config(tmp_path, ("A2",))
-    catalog = {
-        probe.identifier: probe for probe in sanitizer._build_probe_catalog()
-    }
+    catalog = {probe.identifier: probe for probe in sanitizer._build_probe_catalog()}
     results = iter(
         [
             sanitizer.TimedRunResult(stdout="one", stderr="", row=None, action=None),
@@ -423,6 +679,7 @@ def test_write_session_summary_includes_next_actions(tmp_path: Path) -> None:
         output_dir=str(tmp_path / "A2"),
         stdout_log=None,
         stderr_log=None,
+        action_commands=["poetry install --with dev", "poetry run pyperf --help"],
     )
 
     _, _, summary_md = sanitizer._write_session_summary(
@@ -432,4 +689,192 @@ def test_write_session_summary_includes_next_actions(tmp_path: Path) -> None:
         finished_at=sanitizer.datetime.utcnow(),
     )
 
-    assert "## Next Actions" in summary_md.read_text(encoding="utf-8")
+    summary_text = summary_md.read_text(encoding="utf-8")
+    assert "## Next Actions" in summary_text
+    assert "`poetry install --with dev`" in summary_text
+
+
+def test_require_perf_skips_when_kernel_blocks_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _build_config(tmp_path, ("P1.make",))
+    monkeypatch.setattr(
+        sanitizer,
+        "_command_available",
+        lambda name: True if name == "perf" else False,
+    )
+    monkeypatch.setattr(sanitizer, "_read_perf_event_paranoid", lambda: 4)
+
+    result = sanitizer._require_perf(
+        "install perf",
+        ("command -v perf",),
+        "use fallback",
+        ("cat /proc/sys/kernel/perf_event_paranoid",),
+    )(config)
+
+    assert not result.ready
+    assert result.summary is not None
+    assert "perf_event_paranoid=4" in result.summary
+    assert result.action == "use fallback"
+    assert "cat /proc/sys/kernel/perf_event_paranoid" in result.action_commands
+    assert "sudo -v" in result.action_commands
+
+
+def test_require_perf_allows_privileged_mode_when_sudo_is_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = sanitizer.SanitizerConfig(
+        command=("make", "-j1", "mybci"),
+        direct_python_command=(sys.executable, "mybci.py"),
+        output_dir=tmp_path,
+        selected_probes=("P1.make",),
+        timeout_seconds=5,
+        pyperf_warmups=1,
+        pyperf_runs=1,
+        hyperfine_warmups=1,
+        hyperfine_runs=1,
+        cpu_core=0,
+        ps_interval_seconds=0.1,
+        psrecord_interval_seconds=0.1,
+        memory_limit_kib=1024,
+        time_csv_runs=1,
+        allow_privileged_tools=True,
+    )
+    monkeypatch.setattr(
+        sanitizer,
+        "_command_available",
+        lambda name: True if name == "perf" else False,
+    )
+    monkeypatch.setattr(sanitizer, "_read_perf_event_paranoid", lambda: 4)
+    monkeypatch.setattr(sanitizer, "_sudo_non_interactive_available", lambda: True)
+
+    result = sanitizer._require_perf(
+        "install perf",
+        ("command -v perf",),
+        "use fallback",
+        ("cat /proc/sys/kernel/perf_event_paranoid",),
+    )(config)
+
+    assert result.ready
+
+
+def test_require_perf_requests_sudo_warmup_when_not_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = sanitizer.SanitizerConfig(
+        command=("make", "-j1", "mybci"),
+        direct_python_command=(sys.executable, "mybci.py"),
+        output_dir=tmp_path,
+        selected_probes=("P1.make",),
+        timeout_seconds=5,
+        pyperf_warmups=1,
+        pyperf_runs=1,
+        hyperfine_warmups=1,
+        hyperfine_runs=1,
+        cpu_core=0,
+        ps_interval_seconds=0.1,
+        psrecord_interval_seconds=0.1,
+        memory_limit_kib=1024,
+        time_csv_runs=1,
+        allow_privileged_tools=True,
+    )
+    monkeypatch.setattr(
+        sanitizer,
+        "_command_available",
+        lambda name: True if name == "perf" else False,
+    )
+    monkeypatch.setattr(sanitizer, "_read_perf_event_paranoid", lambda: 4)
+    monkeypatch.setattr(sanitizer, "_sudo_non_interactive_available", lambda: False)
+
+    result = sanitizer._require_perf(
+        "install perf",
+        ("command -v perf",),
+        "use fallback",
+        ("cat /proc/sys/kernel/perf_event_paranoid",),
+    )(config)
+
+    assert not result.ready
+    assert result.action is not None
+    assert "sudo -v" in result.action_commands
+
+
+def test_session_exit_code_keeps_warn_non_fatal(tmp_path: Path) -> None:
+    result = sanitizer.ProbeResult(
+        identifier="F1",
+        title="profile",
+        category="F",
+        status="warn",
+        summary="hotspots",
+        action="inspect logs",
+        exit_code=1,
+        command="echo warn",
+        output_dir=str(tmp_path / "F1"),
+        stdout_log=None,
+        stderr_log=None,
+    )
+
+    assert sanitizer._session_exit_code([result]) == 0
+
+
+def test_session_exit_code_fails_on_unknown_fatal_status(tmp_path: Path) -> None:
+    result = sanitizer.ProbeResult(
+        identifier="Z9",
+        title="fatal",
+        category="Z",
+        status="error",
+        summary="fatal",
+        action="fix",
+        exit_code=2,
+        command="echo fatal",
+        output_dir=str(tmp_path / "Z9"),
+        stdout_log=None,
+        stderr_log=None,
+    )
+
+    assert sanitizer._session_exit_code([result]) == 1
+
+
+def test_main_returns_zero_when_summary_is_warn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probe = sanitizer.ProbeDefinition(
+        identifier="F1",
+        title="profile",
+        category="F",
+        highlights=(),
+        command_builder=lambda _config, _dir: "true",
+    )
+    warned_result = sanitizer.ProbeResult(
+        identifier="F1",
+        title="profile",
+        category="F",
+        status="warn",
+        summary="hotspots",
+        action="inspect logs",
+        exit_code=1,
+        command="echo warn",
+        output_dir=str(tmp_path / "F1"),
+        stdout_log=None,
+        stderr_log=None,
+    )
+
+    monkeypatch.setattr(sanitizer, "_build_probe_catalog", lambda: (probe,))
+    monkeypatch.setattr(sanitizer, "_run_probe", lambda _config, _probe: warned_result)
+
+    exit_code = sanitizer.main(
+        [
+            "--output-dir",
+            str(tmp_path),
+            "--probe",
+            "F1",
+            "--",
+            sys.executable,
+            "-c",
+            "print(1)",
+        ]
+    )
+
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert summary["overall_status"] == "warn"

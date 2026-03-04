@@ -177,6 +177,35 @@ def test_explain_cli_error_formats_data_directory_permission_error() -> None:
     )
 
 
+def test_explain_cli_error_formats_artifacts_subject_permission_error() -> None:
+    """Déduit le dossier sujet artifacts lorsqu'un modèle devient inaccessible."""
+
+    error = PermissionError(13, "Permission denied", "artifacts/S001/R03/model.joblib")
+
+    diagnostic = utils.explain_cli_error(error, subject="S001", run="R03")
+
+    assert diagnostic == utils.CliErrorDiagnostic(
+        summary="lecture du dossier artifacts/S001 impossible",
+        action=(
+            "donnez les droits d'accès au dossier "
+            "artifacts/S001 : `chmod a+rx artifacts/S001`"
+        ),
+    )
+
+
+def test_explain_cli_error_formats_artifacts_root_permission_error() -> None:
+    """Déduit la racine artifacts lorsqu'elle bloque la traversée."""
+
+    error = PermissionError(13, "Permission denied", "artifacts")
+
+    diagnostic = utils.explain_cli_error(error)
+
+    assert diagnostic == utils.CliErrorDiagnostic(
+        summary="lecture du dossier artifacts impossible",
+        action="donnez les droits d'accès au dossier artifacts : `chmod a+rx artifacts`",
+    )
+
+
 def test_explain_cli_error_detects_root_data_directory_when_it_blocks_access(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
