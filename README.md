@@ -202,7 +202,7 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 |---|---|---|
 | Installer le projet + dataset | `make install` | `make install-deps && make download_dataset` |
 | Installer les dépendances | `make install-deps` | `poetry install --with dev` |
-| Télécharger / valider le dataset | `make download_dataset` | validation locale puis `wget -r -N -c ...` sur PhysioNet |
+| Télécharger / valider le dataset | `make download_dataset` | validation locale puis `scripts/download_dataset.py` (sources officielles PhysioNet) |
 | Linter | `make lint` | `poetry run ruff check .` |
 | Formatter | `make format` | `poetry run ruff format . && poetry run ruff check --fix .` |
 | Type-check | `make type` | `poetry run mypy src scripts tests` |
@@ -311,6 +311,32 @@ Dataset EEGMMIDB complet et validé dans data.
 ```bash
 raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make download_dataset
 Dataset EEGMMIDB déjà complet dans data (aucun téléchargement).
+```
+
+*Si la connexion internet est indisponible (DNS/route), la commande échoue avec un diagnostic actionnable :*
+
+```bash
+raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make download_dataset
+Dataset incomplet: dossier sujet manquant (data/S001).
+❌ Connexion internet indisponible ou instable: impossible de joindre PhysioNet.
+- https://physionet.org/files/eegmmidb/1.0.0/ -> Temporary failure in name resolution
+- https://physionet.org/static/published-projects/eegmmidb/1.0.0/ -> Temporary failure in name resolution
+Diagnostic local automatique:
+- ping -c 1 1.1.1.1 -> code retour 2
+  stderr: ping: connect: Network is unreachable
+- getent hosts physionet.org -> code retour 2
+  sortie: aucune réponse
+Cause probable: la machine n'a plus d'accès réseau sortant.
+Action: rétablissez la connexion réseau (Wi-Fi, câble, VPN ou routage), puis relancez make download_dataset.
+```
+
+*`make download_dataset` n'utilise plus d'URL configurable dans le `Makefile` : le script choisit dynamiquement une source officielle PhysioNet parmi les endpoints supportés.*
+
+```bash
+raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make download_dataset
+Dataset incomplet: dossier sujet manquant (data/S001).
+Téléchargement EEGMMIDB PhysioNet (~3.4GB), cela peut prendre du temps...
+Source: https://physionet.org/files/eegmmidb/1.0.0/
 ```
 
 #### `make show-activate`

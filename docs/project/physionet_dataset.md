@@ -48,6 +48,8 @@ Le fichier `manifest.json` suit la structure :
 - Outils réseau standard (`curl` ou `wget`) opérationnels si vous utilisez les URLs HTTP(S).
 
 ## Script de récupération
+- Le script `scripts/download_dataset.py` choisit dynamiquement une source officielle PhysioNet (`/files/...` puis fallback `/static/published-projects/...`) et sert de backend à `make download_dataset`.
+- En cas d'erreur réseau, il exécute aussi un diagnostic local automatique (`ping -c 1 1.1.1.1`, `getent hosts physionet.org`) pour produire un message personnalisé, transparent et actionnable.
 - Le script `scripts/prepare_physionet.py` automatise le téléchargement ou la copie locale vers `data/`.
 - Il repose sur un manifeste JSON listant les fichiers attendus avec leurs métadonnées :
   ```json

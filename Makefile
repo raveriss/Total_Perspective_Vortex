@@ -53,7 +53,6 @@ BENCH_DIR   ?= $(ARTIFACTS_DIR)/benchmarks
 BENCH_CSVS  := $(wildcard $(BENCH_DIR)/*.csv)
 
 # --- Dataset ------------------------------------------------------------------
-EEGMMIDB_URL ?= https://physionet.org/files/eegmmidb/1.0.0/
 EEGMMIDB_DATA_DIR ?= data
 EEGMMIDB_SENTINEL := $(EEGMMIDB_DATA_DIR)/.eegmmidb.ok
 EEGMMIDB_SUBJECT_COUNT ?= 109
@@ -152,77 +151,10 @@ install-deps:
 	@touch $(STAMP)
 
 download_dataset:
-	@set -euo pipefail; \
-	data_dir="$(EEGMMIDB_DATA_DIR)"; \
-	sentinel="$(EEGMMIDB_SENTINEL)"; \
-	check_dataset_complete() { \
-		local root_dir="$$1"; \
-		local subject_index=0; \
-		local run_index=0; \
-		local subject=""; \
-		local run=""; \
-		local edf_path=""; \
-		local event_path=""; \
-		[[ -d "$$root_dir" ]] || { \
-			echo "Dataset incomplet: dossier racine manquant ($$root_dir)."; \
-			return 1; \
-		}; \
-		for subject_index in $$(seq 1 $(EEGMMIDB_SUBJECT_COUNT)); do \
-			subject="$$(printf "S%03d" "$$subject_index")"; \
-			[[ -d "$$root_dir/$$subject" ]] || { \
-				echo "Dataset incomplet: dossier sujet manquant ($$root_dir/$$subject)."; \
-				return 1; \
-			}; \
-			for run_index in $$(seq 1 $(EEGMMIDB_RUN_COUNT)); do \
-				run="$$(printf "R%02d" "$$run_index")"; \
-				edf_path="$$root_dir/$$subject/$${subject}$${run}.edf"; \
-				event_path="$$root_dir/$$subject/$${subject}$${run}.edf.event"; \
-				[[ -s "$$edf_path" ]] || { \
-					echo "Dataset incomplet: fichier manquant ou vide ($$edf_path)."; \
-					return 1; \
-				}; \
-				[[ -s "$$event_path" ]] || { \
-					echo "Dataset incomplet: fichier manquant ou vide ($$event_path)."; \
-					return 1; \
-				}; \
-			done; \
-		done; \
-		return 0; \
-	}; \
-	if check_dataset_complete "$$data_dir"; then \
-		mkdir -p "$$data_dir"; \
-		touch "$$sentinel"; \
-		echo "Dataset EEGMMIDB déjà complet dans $$data_dir (aucun téléchargement)."; \
-		exit 0; \
-	fi; \
-	rm -f "$$sentinel"; \
-	if ! command -v wget >/dev/null 2>&1; then \
-		echo "❌ wget introuvable. Installez wget puis relancez make download_dataset." >&2; \
-		exit 127; \
-	fi; \
-	mkdir -p "$$data_dir"; \
-	echo "Téléchargement EEGMMIDB PhysioNet (~3.4GB), cela peut prendre du temps..."; \
-	echo "Source: $(EEGMMIDB_URL)"; \
-	wget_status=0; \
-	wget -r -N -c -np -nH --cut-dirs=3 \
-		--accept '*.edf,*.edf.event' \
-		-R 'index.html*' \
-		-P "$$data_dir" \
-		"$(EEGMMIDB_URL)" || wget_status=$$?; \
-	if check_dataset_complete "$$data_dir"; then \
-		touch "$$sentinel"; \
-		if [[ "$$wget_status" -ne 0 ]]; then \
-			echo "⚠️ wget a retourné $$wget_status, mais le dataset local est complet." >&2; \
-		fi; \
-		echo "Dataset EEGMMIDB complet et validé dans $$data_dir."; \
-	else \
-		echo "❌ Dataset EEGMMIDB toujours incomplet après téléchargement." >&2; \
-		echo "Relancez make download_dataset pour reprendre (wget -c)." >&2; \
-		if [[ "$$wget_status" -ne 0 ]]; then \
-			exit "$$wget_status"; \
-		fi; \
-		exit 1; \
-	fi
+	@python3 scripts/download_dataset.py \
+		--destination "$(EEGMMIDB_DATA_DIR)" \
+		--subject-count "$(EEGMMIDB_SUBJECT_COUNT)" \
+		--run-count "$(EEGMMIDB_RUN_COUNT)"
 
 # ----------------------------------------------------------------------------------------
 # Bootstrap automatique du venv + deps (zéro activation manuelle)
