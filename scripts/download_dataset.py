@@ -1,46 +1,46 @@
 #!/usr/bin/env python3
 """Télécharge EEGMMIDB depuis les sources officielles PhysioNet."""
 
-# On expose une CLI standard pour l'appel depuis le Makefile.
+# Pour exposer une CLI stable utilisable depuis Makefile et les tests.
 import argparse
 
-# On groupe les signatures réseau pour des diagnostics cohérents.
+# Pour regrouper des signatures d'erreur hétérogènes sous des règles stables.
 import re
 
-# On vérifie la présence des outils système et des répertoires.
+# Pour tester la présence de wget sans dépendre d'un shell interactif.
 import shutil
 
-# On pilote wget et les diagnostics système au moment de l'échec runtime.
+# Pour piloter wget et les sondes locales sans ajouter de dépendance réseau.
 import subprocess  # nosec B404
 
-# On sépare stdout/stderr pour des messages utilisateur propres.
+# Pour séparer explicitement les erreurs métier du flux normal du terminal.
 import sys
 
-# On distingue les erreurs HTTP pour adapter le message affiché.
+# Pour distinguer les erreurs HTTP exploitables des autres pannes réseau.
 import urllib.error
 
-# On contacte PhysioNet sans dépendance Python supplémentaire.
+# Pour sonder PhysioNet avec la bibliothèque standard et rester léger.
 import urllib.request
 
-# On structure les diagnostics locaux pour garder un contrat stable.
+# Pour figer le contrat des diagnostics et stabiliser les tests associés.
 from dataclasses import dataclass
 
-# On manipule les chemins sans dépendre du shell courant.
+# Pour manipuler les chemins sans ambiguïté de séparateur ou de cwd.
 from pathlib import Path
 
-# On conserve un typage souple sur les doubles de tests.
+# Pour accepter des doubles de test sans rigidifier inutilement les signatures.
 from typing import Any
 
-# On limite volontairement les sources aux endpoints officiels supportés.
+# Pour limiter la confiance aux seuls endpoints officiels validés du projet.
 OFFICIAL_SOURCE_CANDIDATES = (
     "https://physionet.org/files/eegmmidb/1.0.0/",
     "https://physionet.org/static/published-projects/eegmmidb/1.0.0/",
 )
-# On tolère le fallback GET quand HEAD est refusé par le serveur.
+# Pour tolérer les serveurs qui refusent HEAD mais servent correctement GET.
 HTTP_METHOD_NOT_ALLOWED = 405
-# On traite explicitement le code wget dédié aux erreurs réseau.
+# Pour traiter le code réseau de wget comme un signal canonique de panne réseau.
 WGET_NETWORK_ERROR_STATUS = 4
-# On reconnaît les signatures réseau utiles à l'utilisateur final.
+# Pour garder un diagnostic cohérent malgré les variantes de messages système.
 NETWORK_ERROR_PATTERN = re.compile(
     r"Temporary failure in name resolution|"
     r"unable to resolve host address|"
@@ -53,224 +53,243 @@ NETWORK_ERROR_PATTERN = re.compile(
     r"TLS",
     re.IGNORECASE,
 )
-# On isole les erreurs HTTP source pour ne pas les confondre avec le réseau.
+# Pour éviter de qualifier une indisponibilité HTTP comme une panne internet.
 HTTP_SOURCE_ERROR_PATTERN = re.compile(
     r"404 Not Found|ERROR 404|403 Forbidden|ERROR 403|400 Bad Request|ERROR 400",
     re.IGNORECASE,
 )
-# On teste un accès IP brut pour distinguer réseau et DNS.
+# Pour tester la route réseau sans dépendre d'une résolution DNS préalable.
 NETWORK_TEST_IP = "1.1.1.1"
-# On vérifie le nom d'hôte exact réellement requis par le téléchargement.
+# Pour sonder exactement le nom d'hôte réellement requis par le téléchargement.
 PHYSIONET_HOSTNAME = "physionet.org"
-# On borne le diagnostic local pour éviter un script bloqué trop longtemps.
+# Pour empêcher qu'un diagnostic local bloque plus que l'erreur principale.
 DIAGNOSTIC_TIMEOUT_SECONDS = 5
 
 
-# On stabilise le format des diagnostics entre le script et les tests.
+# Pour figer un format sérialisable et prédictible des diagnostics locaux.
 @dataclass(frozen=True)
 class CommandDiagnostic:
     """Résultat structuré d'une commande de diagnostic locale."""
 
-    # On garde la commande pour expliquer précisément ce qui a été testé.
+    # Pour garder la commande exacte dans le message sans la reconstruire après coup.
     command: tuple[str, ...]
-    # On conserve le retour système pour inférer une cause probable.
+    # Pour distinguer commande absente, échec système et succès partiel.
     returncode: int | None
-    # On remonte stdout car certains outils y écrivent leur résultat utile.
+    # Pour préserver les outils qui écrivent leur résultat utile sur stdout.
     stdout: str
-    # On remonte stderr car les causes réseau y sont souvent décrites.
+    # Pour préserver les causes techniques souvent émises sur stderr.
     stderr: str
-    # On encode les échecs de lancement sans lever une erreur fatale.
+    # Pour représenter les échecs de lancement sans casser le flux principal.
     failure: str | None = None
 
-    # On expose une forme lisible de la commande pour les logs utilisateur.
+    # Pour exposer un rendu CLI lisible sans dupliquer cette logique partout.
     @property
     def display_command(self) -> str:
-        # On évite les structures tuple dans le message final.
+        # Pour garder un format de log proche de ce que l'utilisateur relancerait.
         return " ".join(self.command)
 
-    # On centralise l'agrégation des sorties pour l'inférence de cause.
+    # Pour centraliser l'analyse textuelle des diagnostics multi-canaux.
     @property
     def combined_output(self) -> str:
-        # On garde seulement les sorties réellement présentes.
+        # Pour éviter qu'une sortie vide ajoute du bruit aux heuristiques réseau.
         return "\n".join(part for part in (self.stdout, self.stderr) if part)
 
 
-# On distingue les erreurs déjà traduites des erreurs internes inattendues.
+# Pour marquer les erreurs déjà traduites et éviter une double interprétation.
 class HandledDownloadError(Exception):
-    """Erreur utilisateur déjà expliquée à afficher puis terminer proprement."""
+    """Erreur utilisateur déjà traduite en lignes directement affichables."""
 
-    # On conserve les lignes déjà prêtes pour éviter une retraduction plus bas.
+    # Pour transporter un message multi-lignes sans perdre sa structure finale.
     def __init__(self, lines: list[str]) -> None:
-        # On alimente Exception pour un débogage minimal si nécessaire.
+        # Pour conserver un message exploitable si l'exception remonte en debug.
         super().__init__("\n".join(lines))
-        # On garde la structure ligne par ligne pour l'affichage final.
+        # Pour réimprimer exactement les lignes préparées sans retraitement.
         self.lines = lines
 
 
-# On normalise les URLs pour rendre les comparaisons et les logs stables.
+# Pour imposer une représentation d'URL stable avant toute comparaison ou sonde.
 def _normalize_candidate(url: str) -> str:
     """Normalise une URL candidate en ajoutant un slash terminal."""
-    # On supprime les espaces parasites issus d'une configuration externe.
+    # Pour neutraliser les espaces parasites issus d'une configuration externe.
     normalized = url.strip()
-    # On force une forme unique pour éviter des probes incohérents.
+    # Pour éviter que deux URLs équivalentes divergent dans les probes et les logs.
     if not normalized.endswith("/"):
-        # On stabilise la concaténation des chemins côté PhysioNet.
+        # Pour garder une convention canonique lors des concaténations de chemin.
         normalized = f"{normalized}/"
-    # On renvoie une URL prête à être testée et affichée.
+    # Pour fournir à tous les appelants une URL déjà assainie et comparable.
     return normalized
 
 
-# On refuse les datasets partiels avant d'entraîner la suite du pipeline.
+# Pour refuser tout entraînement sur un dataset incomplet mais plausible en surface.
 def check_dataset_complete(
     data_dir: Path, subject_count: int, run_count: int
 ) -> tuple[bool, str | None]:
     """Vérifie la présence des sujets et runs attendus."""
-    # On évite de lancer la boucle si la racine n'existe même pas.
+    # Pour échouer tôt quand la racine attendue n'existe même pas.
     if not data_dir.is_dir():
-        # On donne une cause immédiate et actionnable à l'utilisateur.
+        # Pour remonter immédiatement le premier manque structurel réellement utile.
         return False, f"Dataset incomplet: dossier racine manquant ({data_dir})."
-    # On verrouille la présence de tous les sujets attendus par la soutenance.
+    # Pour garantir que la validation couvre bien tout le périmètre contractuel.
     for subject_index in range(1, subject_count + 1):
-        # On conserve la nomenclature canonique PhysioNet dans les chemins.
+        # Pour rester aligné sur la nomenclature canonique de PhysioNet.
         subject = f"S{subject_index:03d}"
-        # On travaille sur un chemin explicite pour produire un message précis.
+        # Pour produire ensuite des messages qui pointent le chemin exact en défaut.
         subject_dir = data_dir / subject
-        # On échoue dès le premier sujet manquant pour un diagnostic court.
+        # Pour arrêter le diagnostic au premier sujet manquant réellement bloquant.
         if not subject_dir.is_dir():
-            # On remonte le chemin concret à réparer ou à re-télécharger.
+            # Pour fournir un chemin précis à réparer plutôt qu'une erreur générique.
             return False, f"Dataset incomplet: dossier sujet manquant ({subject_dir})."
-        # On valide tous les runs pour garantir une base de données homogène.
+        # Pour garantir que chaque sujet possède l'ensemble des runs attendus.
         for run_index in range(1, run_count + 1):
-            # On garde la convention des noms de runs pour éviter les ambiguïtés.
+            # Pour rester cohérent avec la convention de nommage des runs EEGMMIDB.
             run = f"R{run_index:02d}"
-            # On exige l'EDF car c'est la matière première du pipeline EEG.
+            # Pour protéger le signal brut réellement exploité par le pipeline.
             edf_path = subject_dir / f"{subject}{run}.edf"
-            # On exige aussi l'event pour préserver le couplage signal/événements.
+            # Pour éviter un faux dataset complet sans événements ni labels temporels.
             event_path = subject_dir / f"{subject}{run}.edf.event"
-            # On refuse un EDF vide pour éviter un faux sentiment de complétude.
+            # Pour rejeter un fichier absent ou vide avant qu'il casse plus loin.
             if not edf_path.is_file() or edf_path.stat().st_size == 0:
-                # On pointe le fichier exact qui bloque la validation locale.
+                # Pour cibler précisément l'artefact manquant pour l'utilisateur.
                 return (
                     False,
                     f"Dataset incomplet: fichier manquant ou vide ({edf_path}).",
                 )
-            # On refuse un event vide pour protéger le découpage supervisé.
+            # Pour garantir que le signal reste exploitable dans le découpage supervisé.
             if not event_path.is_file() or event_path.stat().st_size == 0:
-                # On pointe le fichier exact qui empêche une exécution saine.
+                # Pour cibler exactement l'artefact qui rend le run inexploitable.
                 return (
                     False,
                     f"Dataset incomplet: fichier manquant ou vide ({event_path}).",
                 )
-    # On confirme une base locale utilisable sans nouveau téléchargement.
+    # Pour signaler explicitement que la base locale satisfait le contrat attendu.
     return True, None
 
 
-# On sonde la source avant wget pour éviter un download coûteux inutile.
+# Pour éliminer tôt une source officielle indisponible avant un transfert massif.
 def probe_source_url(source_url: str, opener: Any | None = None) -> None:
     """Valide qu'une source officielle répond avant le download massif."""
-    # On accepte un opener injecté pour tester les branches réseau finement.
+    # Pour permettre des doubles de test sans dépendre du réseau réel.
     http_opener = opener if opener is not None else urllib.request.build_opener()
-    # On privilégie HEAD pour un test léger avant un transfert de plusieurs Go.
+    # Pour sonder l'existence de la ressource avec un coût minimal côté réseau.
     head_request = urllib.request.Request(source_url, method="HEAD")
-    # On isole les réponses HTTP pour distinguer fallback et panne réelle.
+    # Pour distinguer proprement les erreurs HTTP des autres échecs de transport.
     try:
-        # On borne le probe pour éviter d'allonger inutilement l'expérience user.
+        # Pour borner la sonde et éviter un CLI bloqué avant même wget.
         with http_opener.open(head_request, timeout=10):
-            # On arrête le probe dès qu'une source répond correctement.
+            # Pour arrêter la recherche dès qu'un endpoint officiel répond sainement.
             return
-    # On tolère l'erreur HTTP afin de gérer le cas HEAD refusé proprement.
+    # Pour préserver le fallback GET sur les serveurs allergiques à HEAD.
     except urllib.error.HTTPError as error:
-        # On remonte toute erreur HTTP autre qu'un refus de méthode.
+        # Pour ne pas masquer une vraie indisponibilité HTTP derrière le fallback.
         if error.code != HTTP_METHOD_NOT_ALLOWED:
-            # On laisse l'appelant classifier cette erreur de manière adaptée.
+            # Pour laisser l'appelant classifier l'erreur avec plus de contexte.
             raise
-    # On retente en GET pour les serveurs qui n'acceptent pas HEAD.
+    # Pour confirmer la disponibilité réelle quand HEAD n'est pas accepté.
     with http_opener.open(source_url, timeout=10):
-        # On valide silencieusement la source dès qu'un GET fonctionne.
+        # Pour considérer l'endpoint comme valide dès qu'une requête légère aboutit.
         return
 
 
-# On exécute un diagnostic système sans transformer le script en outil fatal.
+# Pour garder un diagnostic local utile sans transformer la sonde en panne fatale.
 def run_command_diagnostic(
     command: tuple[str, ...], runner: Any = subprocess.run
 ) -> CommandDiagnostic:
     """Exécute une commande locale et capture un diagnostic exploitable."""
-    # On capture les erreurs locales pour conserver un message de haut niveau.
+    # Pour encapsuler aussi les absences d'outil et les timeouts dans un format stable.
     try:
-        # On borne le temps d'attente pour protéger la fluidité du CLI.
+        # Pour conserver les sorties complètes nécessaires au diagnostic utilisateur.
         result = runner(
+            # Pour accepter les runners de test qui attendent une séquence mutable.
             list(command),
+            # Pour laisser la commande échouer sans interrompre le script principal.
             check=False,
+            # Pour analyser la sortie après coup sans bruit terminal parasite.
             capture_output=True,
+            # Pour garder des chaînes directement injectables dans les logs utilisateur.
             text=True,
+            # Pour empêcher un outil local lent de masquer l'erreur réseau initiale.
             timeout=DIAGNOSTIC_TIMEOUT_SECONDS,
         )
-    # On remonte l'absence de binaire au lieu d'échouer brutalement.
+    # Pour signaler l'absence de binaire sans dégrader l'erreur principale.
     except FileNotFoundError:
-        # On encode l'échec dans le résultat pour garder un log homogène.
+        # Pour conserver un objet homogène même quand la commande ne démarre pas.
         return CommandDiagnostic(
+            # Pour rappeler exactement quelle sonde locale a échoué à se lancer.
             command=command,
+            # Pour distinguer clairement ce cas d'un code retour système réel.
             returncode=None,
+            # Pour éviter d'inventer une sortie qui n'a jamais existé.
             stdout="",
+            # Pour éviter d'inventer une erreur système qui n'a jamais existé.
             stderr="",
+            # Pour garder un message directement exploitable côté utilisateur.
             failure=f"commande introuvable: {command[0]}",
         )
-    # On signale un diagnostic bloqué sans empêcher la suite du message.
+    # Pour empêcher une sonde lente de noyer le diagnostic réellement important.
     except subprocess.TimeoutExpired:
-        # On garde un état neutre plutôt qu'une exception non traitée.
+        # Pour conserver un objet homogène même quand la sonde dépasse le délai.
         return CommandDiagnostic(
+            # Pour rattacher le timeout à la commande réellement concernée.
             command=command,
+            # Pour distinguer un timeout d'un code retour explicite.
             returncode=None,
+            # Pour éviter de simuler un stdout qui n'est pas fiable.
             stdout="",
+            # Pour éviter de simuler un stderr qui n'est pas fiable.
             stderr="",
+            # Pour rendre le bloc de diagnostic directement actionnable.
             failure="diagnostic expiré",
         )
-    # On normalise les sorties pour faciliter l'affichage ultérieur.
+    # Pour normaliser la sortie des sondes avant toute logique d'inférence.
     return CommandDiagnostic(
+        # Pour préserver l'identité de la commande dans le diagnostic final.
         command=command,
+        # Pour garder le signal brut utile aux heuristiques de cause probable.
         returncode=result.returncode,
+        # Pour éviter que les fins de ligne perturbent le rendu ou les tests.
         stdout=result.stdout.strip(),
+        # Pour éviter que les fins de ligne perturbent le rendu ou les tests.
         stderr=result.stderr.strip(),
     )
 
 
-# On transforme le diagnostic brut en lignes prêtes à afficher.
+# Pour transformer un diagnostic brut en lignes directement injectables aux logs.
 def format_command_diagnostic(result: CommandDiagnostic) -> list[str]:
     """Formate un diagnostic local pour le message utilisateur."""
-    # On garde un rendu court quand la commande n'a même pas démarré.
+    # Pour court-circuiter tout traitement normal quand la sonde n'a pas démarré.
     if result.failure is not None:
-        # On indique exactement quelle commande manque ou a expiré.
+        # Pour afficher une ligne immédiatement lisible et relançable par l'utilisateur.
         return [f"- {result.display_command} -> {result.failure}"]
-    # On expose le code retour pour éviter un diagnostic opaque.
+    # Pour toujours exposer le code retour, même si aucune sortie textuelle n'existe.
     lines = [f"- {result.display_command} -> code retour {result.returncode}"]
-    # On garde stdout quand l'outil y écrit l'information utile.
+    # Pour conserver les cas où l'information utile n'est émise que sur stdout.
     if result.stdout:
-        # On donne la preuve textuelle qui motive l'action proposée.
+        # Pour rattacher explicitement la preuve textuelle à la bonne commande.
         lines.append(f"  stdout: {result.stdout}")
-    # On garde stderr car les causes réseau y sont souvent plus explicites.
+    # Pour conserver les cas où l'information utile n'est émise que sur stderr.
     if result.stderr:
-        # On montre la phrase exacte émise par l'outil système.
+        # Pour rattacher explicitement la preuve textuelle à la bonne commande.
         lines.append(f"  stderr: {result.stderr}")
-    # On évite un diagnostic vide qui laisserait l'utilisateur sans contexte.
+    # Pour faire de l'absence de sortie un signal explicite plutôt qu'un blanc ambigu.
     if not result.stdout and not result.stderr:
-        # On rend visible l'absence totale de réponse du système.
+        # Pour éviter qu'un diagnostic vide soit interprété comme un oubli d'affichage.
         lines.append("  sortie: aucune réponse")
-    # On renvoie des lignes directement injectables dans le message final.
+    # Pour fournir à l'appelant un bloc déjà cohérent et ordonné.
     return lines
 
 
-# On déduit une action ciblée pour éviter des conseils trop génériques.
+# Pour convertir deux sondes locales en cause probable et action ciblée.
 def infer_network_failure_cause(
     ping_result: CommandDiagnostic, dns_result: CommandDiagnostic
 ) -> tuple[str, str]:
     """Déduit une cause probable et une action à partir des diagnostics."""
-    # On compare sur une forme homogène pour éviter les variations de casse.
+    # Pour neutraliser les variations de casse des messages système selon l'outil.
     ping_output = ping_result.combined_output.lower()
-    # On compare sur une forme homogène pour reconnaître la panne DNS.
+    # Pour neutraliser les variations de casse des messages système selon l'outil.
     dns_output = dns_result.combined_output.lower()
-    # On priorise une panne de route car elle bloque tout le reste.
+    # Pour prioriser une panne de route qui rend aussi le DNS secondairement invalide.
     if "network is unreachable" in ping_output:
-        # On formule une cause directement corrélée au retour système observé.
+        # Pour proposer une action alignée avec une coupure réseau globale observée.
         return (
             "Cause probable: la machine n'a plus d'accès réseau sortant.",
             (
@@ -279,9 +298,9 @@ def infer_network_failure_cause(
                 "make download_dataset."
             ),
         )
-    # On isole le cas où internet marche mais pas la résolution de nom.
+    # Pour distinguer un DNS cassé d'un internet globalement indisponible.
     if ping_result.returncode == 0 and not dns_result.stdout:
-        # On évite d'accuser le réseau général quand seul le DNS est en faute.
+        # Pour éviter de conseiller à tort une reconnexion physique du poste.
         return (
             (
                 "Cause probable: internet répond mais la résolution DNS de "
@@ -292,9 +311,9 @@ def infer_network_failure_cause(
                 "réseau, puis relancez make download_dataset."
             ),
         )
-    # On reconnaît explicitement la signature classique de panne DNS.
+    # Pour reconnaître le motif DNS même si ping n'a fourni aucun indice utile.
     if "temporary failure in name resolution" in dns_output:
-        # On donne une action cohérente avec ce signal faible mais utile.
+        # Pour garder une action ciblée malgré une télémétrie locale incomplète.
         return (
             (
                 "Cause probable: la résolution DNS de "
@@ -305,7 +324,7 @@ def infer_network_failure_cause(
                 "puis relancez make download_dataset."
             ),
         )
-    # On conserve un fallback explicite si aucun motif fort n'est reconnu.
+    # Pour terminer sur une hypothèse prudente plutôt qu'un message vide.
     return (
         (
             "Cause probable: la machine ne parvient pas à joindre internet "
@@ -318,21 +337,21 @@ def infer_network_failure_cause(
     )
 
 
-# On centralise les diagnostics locaux pour tous les chemins réseau.
+# Pour enrichir toutes les pannes réseau avec le même bloc de diagnostic local.
 def collect_runtime_network_diagnostics(
     runner: Any = subprocess.run,
 ) -> list[str]:
     """Collecte les diagnostics locaux ajoutés aux erreurs réseau."""
-    # On teste l'accès IP brut pour savoir si la route internet existe.
+    # Pour séparer une panne de route globale d'une simple panne DNS.
     ping_result = run_command_diagnostic(("ping", "-c", "1", NETWORK_TEST_IP), runner)
-    # On teste la résolution DNS réellement requise par PhysioNet.
+    # Pour valider précisément la résolution du nom requis par PhysioNet.
     dns_result = run_command_diagnostic(
         ("getent", "hosts", PHYSIONET_HOSTNAME),
         runner,
     )
-    # On produit une cause unique pour éviter des actions contradictoires.
+    # Pour dériver une synthèse unique et éviter des conseils contradictoires.
     cause_line, action_line = infer_network_failure_cause(ping_result, dns_result)
-    # On assemble un bloc prêt à injecter dans les erreurs utilisateur.
+    # Pour renvoyer un bloc directement concaténable aux messages d'erreur finaux.
     return [
         "Diagnostic local automatique:",
         *format_command_diagnostic(ping_result),
@@ -342,10 +361,10 @@ def collect_runtime_network_diagnostics(
     ]
 
 
-# On garantit un message réseau complet et homogène sur toutes les branches.
+# Pour garantir un message réseau homogène quel que soit l'endroit de détection.
 def build_network_failure_lines(network_diagnostics: list[str]) -> list[str]:
     """Construit un message réseau complet avec diagnostics locaux."""
-    # On annonce d'abord le symptôme métier observé côté utilisateur.
+    # Pour regrouper symptôme distant et diagnostic local dans un ordre lisible.
     return [
         (
             "❌ Connexion internet indisponible ou instable: impossible "
@@ -356,42 +375,42 @@ def build_network_failure_lines(network_diagnostics: list[str]) -> list[str]:
     ]
 
 
-# On choisit dynamiquement une source officielle réellement joignable.
+# Pour choisir dynamiquement un endpoint officiel réellement joignable.
 def select_official_source(
     opener: Any | None = None, probe_func: Any = probe_source_url
 ) -> str:
     """Choisit dynamiquement une source officielle PhysioNet disponible."""
-    # On accumule les symptômes réseau pour expliquer l'échec final.
+    # Pour accumuler des preuves réseau si aucun endpoint ne répond.
     network_diagnostics: list[str] = []
-    # On accumule les symptômes HTTP pour distinguer source et connectivité.
+    # Pour accumuler séparément les erreurs HTTP qui exigent un autre message.
     http_diagnostics: list[str] = []
-    # On parcourt les endpoints officiels dans l'ordre du plus direct au fallback.
+    # Pour tester les endpoints dans l'ordre défini comme préférence projet.
     for candidate in OFFICIAL_SOURCE_CANDIDATES:
-        # On homogénéise l'URL avant probe et affichage utilisateur.
+        # Pour imposer une URL comparable avant affichage et avant sonde.
         normalized_candidate = _normalize_candidate(candidate)
-        # On tente un probe léger avant le vrai téléchargement massif.
+        # Pour conserver la distinction réseau/HTTP portée par urllib.
         try:
-            # On délègue le probe pour faciliter les doubles de tests.
+            # Pour permettre aux tests d'injecter une sonde contrôlée.
             probe_func(normalized_candidate, opener=opener)
-        # On classe séparément les erreurs HTTP pour un message précis.
+        # Pour mémoriser les erreurs source sans les confondre avec le réseau.
         except urllib.error.HTTPError as error:
-            # On conserve la source et le code qui ont réellement échoué.
+            # Pour documenter quel endpoint officiel renvoie quel statut HTTP.
             http_diagnostics.append(
                 f"- {normalized_candidate} -> HTTP {error.code} {error.reason}"
             )
-        # On classe séparément les erreurs réseau pour lancer le bon diagnostic.
+        # Pour mémoriser les erreurs réseau avant de construire le message final.
         except urllib.error.URLError as error:
-            # On préserve la cause système exacte remontée par urllib.
+            # Pour conserver la cause exacte remontée par urllib dans le log final.
             network_diagnostics.append(f"- {normalized_candidate} -> {error.reason}")
-        # On choisit immédiatement la première source officielle utilisable.
+        # Pour s'arrêter dès qu'une source officielle devient exploitable.
         else:
-            # On arrête les probes pour éviter des délais inutiles.
+            # Pour éviter des probes supplémentaires inutiles et rallongeant le CLI.
             return normalized_candidate
-    # On injecte un diagnostic local si toutes les sources échouent par réseau.
+    # Pour ne lancer les sondes locales que si l'échec paraît vraiment réseau.
     if network_diagnostics and not http_diagnostics:
-        # On lève une erreur déjà traduite pour garder un flux simple dans main.
+        # Pour réutiliser un message réseau homogène déjà standardisé.
         raise HandledDownloadError(build_network_failure_lines(network_diagnostics))
-    # On conserve un message distinct quand PhysioNet répond mais ne sert pas la source.
+    # Pour distinguer clairement une indisponibilité PhysioNet d'une panne locale.
     raise HandledDownloadError(
         [
             "❌ Sources officielles EEGMMIDB indisponibles sur PhysioNet.",
@@ -403,72 +422,91 @@ def select_official_source(
     )
 
 
-# On délègue le transfert à wget pour bénéficier de la reprise native.
+# Pour déléguer le transfert massif à wget et préserver sa reprise native.
 def run_wget_download(
     source_url: str, destination_dir: Path, popen_factory: Any = subprocess.Popen
 ) -> tuple[int, str]:
     """Exécute wget en relayant la sortie vers le terminal."""
-    # On garde les options au même endroit pour stabiliser le comportement CLI.
+    # Pour centraliser les options et stabiliser le comportement CLI du projet.
     command = [
+        # Pour répliquer l'arborescence distante utile au dataset complet.
         "wget",
         "-r",
+        # Pour éviter de retraiter les fichiers déjà à jour lors des relances.
         "-N",
+        # Pour permettre la reprise après coupure réseau ou arrêt volontaire.
         "-c",
+        # Pour éviter une attente infinie sur un endpoint défaillant.
         "--tries=3",
+        # Pour borner les blocages globaux pendant le transfert.
         "--timeout=20",
+        # Pour échouer vite sur une résolution DNS cassée.
         "--dns-timeout=15",
+        # Pour échouer vite sur un hôte joignable mais non connectable.
         "--connect-timeout=15",
+        # Pour éviter un gel prolongé sur une lecture réseau bloquée.
         "--read-timeout=30",
+        # Pour ne pas remonter au-dessus de l'arborescence dataset attendue.
         "-np",
+        # Pour éviter d'introduire un préfixe d'hôte dans la structure locale.
         "-nH",
+        # Pour réaligner l'arborescence téléchargée sur `data/Sxxx/...`.
         "--cut-dirs=3",
+        # Pour restreindre le transfert aux fichiers réellement utiles au pipeline.
         "--accept",
         "*.edf,*.edf.event",
+        # Pour exclure les index HTML qui fausseraient la complétude perçue.
         "-R",
         "index.html*",
+        # Pour garder tous les fichiers téléchargés sous la destination validée.
         "-P",
         str(destination_dir),
+        # Pour laisser visible dans la commande la source réellement retenue.
         source_url,
     ]
-    # On capture la sortie pour l'afficher et la classifier ensuite.
+    # Pour conserver la sortie brute utile au diagnostic post-échec.
     process = popen_factory(
+        # Pour transmettre exactement la stratégie de téléchargement décidée ici.
         command,
+        # Pour consommer la sortie ligne à ligne sans shell intermédiaire.
         stdout=subprocess.PIPE,
+        # Pour garder un flux unique ordonné et plus simple à afficher.
         stderr=subprocess.STDOUT,
+        # Pour relayer au terminal des chaînes directement imprimables.
         text=True,
     )
-    # On garde l'historique pour construire un diagnostic lisible après échec.
+    # Pour reconstruire ensuite une trace exploitable sans relire un fichier externe.
     output_lines: list[str] = []
-    # On protège la boucle contre un stdout absent sur certains doubles.
+    # Pour tolérer les doubles de tests qui ne fournissent pas toujours stdout.
     if process.stdout is not None:
-        # On stream la sortie pour ne pas figer le terminal pendant le download.
+        # Pour éviter qu'un long transfert apparaisse comme un gel silencieux.
         for line in process.stdout:
-            # On laisse l'utilisateur voir la progression réelle de wget.
+            # Pour exposer la progression réelle et les erreurs wget au fil de l'eau.
             print(line, end="")
-            # On mémorise la ligne pour le diagnostic post-mortem.
+            # Pour rejouer en fin de traitement un diagnostic fidèle à la sortie brute.
             output_lines.append(line)
-    # On renvoie le statut et la trace complète pour la classification.
+    # Pour laisser la validation finale s'appuyer sur le statut et la trace complète.
     return process.wait(), "".join(output_lines)
 
 
-# On traduit les statuts wget en messages métier actionnables.
+# Pour traduire les codes et sorties wget en messages métier cohérents.
 def classify_wget_error(wget_status: int, wget_output: str) -> list[str] | None:
     """Traduit les échecs wget en diagnostics utilisateur actionnables."""
-    # On ne fabrique aucun message d'erreur si wget a terminé correctement.
+    # Pour éviter de fabriquer un message d'erreur quand wget a réussi.
     if wget_status == 0:
-        # On laisse l'appelant poursuivre la validation normale du dataset.
+        # Pour laisser la validation de complétude décider seule de l'état final.
         return None
-    # On cherche une signature réseau explicite dans la sortie brute.
+    # Pour s'appuyer d'abord sur la trace réelle quand elle contient un motif fiable.
     diagnostic_match = NETWORK_ERROR_PATTERN.search(wget_output)
-    # On traite le code réseau wget comme une panne réseau même sans motif texte.
+    # Pour couvrir aussi les cas où le texte varie mais le code 4 reste stable.
     if diagnostic_match is not None or wget_status == WGET_NETWORK_ERROR_STATUS:
-        # On privilégie le texte réel pour un log plus transparent.
+        # Pour privilégier le symptôme réel quand wget en fournit un exploitable.
         diagnostic = (
             diagnostic_match.group(0)
             if diagnostic_match
             else "erreur réseau signalée par wget."
         )
-        # On enrichit le message avec les diagnostics locaux automatiques.
+        # Pour enrichir immédiatement la panne réseau avec le diagnostic local.
         return [
             (
                 "❌ Dataset EEGMMIDB incomplet: téléchargement interrompu "
@@ -477,9 +515,9 @@ def classify_wget_error(wget_status: int, wget_output: str) -> list[str] | None:
             f"Diagnostic wget: {diagnostic}",
             *collect_runtime_network_diagnostics(),
         ]
-    # On garde un message dédié quand la source répond en erreur HTTP.
+    # Pour distinguer une réponse HTTP invalide d'un poste sans internet.
     if HTTP_SOURCE_ERROR_PATTERN.search(wget_output) is not None:
-        # On évite de parler de réseau quand c'est une indisponibilité source.
+        # Pour orienter l'utilisateur vers la disponibilité de la source officielle.
         return [
             "❌ Sources officielles EEGMMIDB indisponibles sur PhysioNet.",
             (
@@ -489,71 +527,71 @@ def classify_wget_error(wget_status: int, wget_output: str) -> list[str] | None:
             "Action 1: vérifiez que PhysioNet publie bien EEGMMIDB v1.0.0.",
             "Action 2: relancez make download_dataset plus tard.",
         ]
-    # On laisse l'appelant gérer les autres cas non classés.
+    # Pour laisser un fallback générique traiter les cas encore non classifiés.
     return None
 
 
-# On centralise l'affichage final pour garder un code retour toujours neutre.
+# Pour centraliser l'affichage des erreurs déjà expliquées et garder `make` calme.
 def print_error_lines(lines: list[str]) -> int:
     """Affiche une erreur déjà traitée sans faire échouer make."""
-    # On écrit sur stderr pour distinguer l'information métier du flux normal.
+    # Pour préserver l'ordre préparé par la logique de diagnostic en amont.
     for line in lines:
-        # On conserve l'ordre exact des lignes préparées en amont.
+        # Pour distinguer l'erreur métier du flux normal du script.
         print(line, file=sys.stderr)
-    # On neutralise le code retour car l'erreur a déjà été expliquée.
+    # Pour garder un code retour neutre quand l'erreur a déjà été rendue actionnable.
     return 0
 
 
-# On évite un téléchargement inutile si le dataset local est déjà complet.
+# Pour éviter tout accès réseau si l'état local satisfait déjà le contrat dataset.
 def ensure_dataset_state(
     data_dir: Path, sentinel: Path, subject_count: int, run_count: int
 ) -> tuple[bool, int]:
     """Affiche l'état courant du dataset avant tout download."""
-    # On valide la structure locale avant de toucher au réseau.
+    # Pour fonder la décision sur l'état réel du disque plutôt que sur un sentinel seul.
     is_complete, missing_message = check_dataset_complete(
         data_dir,
         subject_count,
         run_count,
     )
-    # On matérialise le sentinel seulement si la validation est totale.
+    # Pour court-circuiter tout téléchargement si le dataset est déjà exploitable.
     if is_complete:
-        # On garantit l'existence du dossier pour un état local cohérent.
+        # Pour garantir l'existence du dossier même après nettoyages partiels externes.
         data_dir.mkdir(parents=True, exist_ok=True)
-        # On marque explicitement le dataset comme vérifié localement.
+        # Pour matérialiser explicitement un état local déjà validé.
         sentinel.touch()
-        # On explique pourquoi aucun accès réseau n'a été tenté.
+        # Pour expliquer pourquoi aucun accès réseau n'est tenté dans ce cas.
         print(f"Dataset EEGMMIDB déjà complet dans {data_dir} (aucun téléchargement).")
-        # On indique à main qu'il peut sortir immédiatement sans erreur.
+        # Pour permettre à `main` de sortir sans logique supplémentaire.
         return True, 0
-    # On affiche la première incohérence locale détectée pour guider l'utilisateur.
+    # Pour afficher le premier défaut concret avant de passer à la phase réseau.
     if missing_message is not None:
-        # On garde ce message sur stdout comme état courant du dataset.
+        # Pour laisser visible l'état local ayant motivé la tentative de téléchargement.
         print(missing_message)
-    # On laisse l'appelant poursuivre vers la phase réseau.
+    # Pour garder un contrat de retour uniforme avant la phase réseau.
     return False, 0
 
 
-# On vérifie les dépendances runtime au plus près de leur utilisation réelle.
+# Pour vérifier wget au dernier moment utile et réagir au contexte réel du poste.
 def ensure_runtime_prerequisites() -> None:
     """Valide les prérequis runtime avant de lancer wget."""
-    # On échoue proprement si wget manque sur le poste évalué.
+    # Pour échouer avec un message métier plutôt qu'un FileNotFoundError brut.
     if shutil.which("wget") is None:
-        # On lève une erreur déjà traduite pour conserver un seul flux de sortie.
+        # Pour réutiliser le même canal d'erreur propre que les autres cas traités.
         raise HandledDownloadError(
             ["❌ wget introuvable. Installez wget puis relancez make download_dataset."]
         )
 
 
-# On isole la résolution de source pour simplifier le point d'entrée.
+# Pour isoler la sélection de source et limiter la complexité du point d'entrée.
 def resolve_source_url() -> str:
     """Résout une source officielle utilisable au moment de l'exécution."""
-    # On vérifie d'abord l'outil de transfert réellement requis.
+    # Pour éviter d'entamer une résolution réseau si l'outil requis manque déjà.
     ensure_runtime_prerequisites()
-    # On choisit ensuite la première source officielle effectivement joignable.
+    # Pour ne transmettre à wget qu'une source officielle réellement probée.
     return select_official_source()
 
 
-# On décide une seule fois du message final après wget.
+# Pour décider le message final à partir du résultat réel du disque et de wget.
 def finalize_download(
     data_dir: Path,
     sentinel: Path,
@@ -561,132 +599,132 @@ def finalize_download(
     download_result: tuple[int, str],
 ) -> int:
     """Valide le dataset après wget et imprime le diagnostic final."""
-    # On rend les deux composantes explicites pour les branches suivantes.
+    # Pour nommer explicitement les deux signaux utilisés dans les branches suivantes.
     wget_status, wget_output = download_result
-    # On revérifie le dataset réel plutôt que de faire confiance au code retour.
+    # Pour faire primer l'état du dataset sur un code retour potentiellement pessimiste.
     is_complete, _ = check_dataset_complete(
         data_dir,
         args.subject_count,
         args.run_count,
     )
-    # On préfère l'état des fichiers locaux au statut brut de wget.
+    # Pour considérer l'objectif métier atteint dès que les fichiers attendus sont là.
     if is_complete:
-        # On matérialise le succès validé localement pour les relances futures.
+        # Pour matérialiser un état validé localement pour les relances futures.
         sentinel.touch()
-        # On signale toute incohérence mineure sans invalider un dataset complet.
+        # Pour signaler un décalage utile au debug sans invalider un dataset complet.
         if wget_status != 0:
-            # On documente l'écart pour un débogage éventuel ultérieur.
+            # Pour documenter qu'un code retour wget n'est pas toujours bloquant.
             print(
                 f"⚠️ wget a retourné {wget_status}, mais le dataset local est complet.",
                 file=sys.stderr,
             )
-        # On confirme explicitement que la base locale est prête à l'emploi.
+        # Pour confirmer explicitement que le dataset est prêt côté utilisateur.
         print(f"Dataset EEGMMIDB complet et validé dans {data_dir}.")
-        # On termine sans erreur car l'objectif métier est atteint.
+        # Pour terminer proprement dès que la garantie métier est satisfaite.
         return 0
-    # On tente d'abord une traduction métier de l'échec wget.
+    # Pour traduire prioritairement les échecs connus en messages actionnables.
     handled_lines = classify_wget_error(wget_status, wget_output)
-    # On privilégie le message expert déjà prêt si on a classé la panne.
+    # Pour réutiliser un message expert déjà construit quand il existe.
     if handled_lines is not None:
-        # On délègue l'affichage standardisé à l'utilitaire dédié.
+        # Pour préserver un rendu d'erreur uniforme sur tous les cas traités.
         return print_error_lines(handled_lines)
-    # On garde un fallback explicite pour tout cas encore non classé.
+    # Pour garder un fallback explicite quand aucun classifieur ne reconnaît l'échec.
     print(
         "❌ Dataset EEGMMIDB toujours incomplet après téléchargement.",
         file=sys.stderr,
     )
-    # On rappelle la reprise wget pour éviter une relance depuis zéro.
+    # Pour rappeler la reprise native de wget au lieu d'une relance depuis zéro.
     print("Relancez make download_dataset pour reprendre (wget -c).", file=sys.stderr)
-    # On n'imprime une trace wget que s'il y a bien eu un échec côté outil.
+    # Pour n'afficher une trace wget qu'en présence d'un échec côté outil.
     if wget_status != 0:
-        # On limite la verbosité au bas de trace le plus utile à l'utilisateur.
+        # Pour borner la verbosité à la portion la plus utile au diagnostic humain.
         tail_lines = [line for line in wget_output.strip().splitlines() if line][-5:]
-        # On évite un entête vide quand wget n'a presque rien produit.
+        # Pour éviter un en-tête de diagnostic vide quand wget n'a rien produit.
         if tail_lines:
-            # On annonce clairement la provenance des lignes suivantes.
+            # Pour signaler clairement l'origine des lignes affichées ensuite.
             print("Diagnostic wget (5 dernières lignes):", file=sys.stderr)
-            # On préserve l'ordre natif pour rester fidèle à la sortie réelle.
+            # Pour conserver l'ordre natif de la sortie lors du débogage manuel.
             for line in tail_lines:
-                # On relaie chaque ligne telle quelle pour un debug transparent.
+                # Pour restituer la preuve brute sans la déformer par un retraitement.
                 print(line, file=sys.stderr)
-    # On garde un code retour neutre car le cas a été expliqué à l'utilisateur.
+    # Pour garder un code retour neutre quand le cas a déjà été expliqué.
     return 0
 
 
-# On définit une petite CLI pour garder la recette Makefile minimale.
+# Pour offrir une interface scriptable sans réexposer la logique réseau au Makefile.
 def parse_args() -> argparse.Namespace:
     """Construit la CLI de téléchargement."""
-    # On documente le but du script à l'entrée utilisateur.
+    # Pour documenter l'intention globale dès `--help`.
     parser = argparse.ArgumentParser(
         description="Télécharge le dataset EEGMMIDB depuis les sources officielles."
     )
-    # On laisse la destination paramétrable sans exposer l'URL source.
+    # Pour laisser varier la cible locale sans ouvrir la porte au changement de source.
     parser.add_argument(
         "--destination",
         default="data",
         help="Répertoire cible pour les fichiers EDF et EDF.event",
     )
-    # On garde ce paramètre pour tester et valider des jeux réduits localement.
+    # Pour réutiliser le validateur sur des jeux réduits pendant les tests locaux.
     parser.add_argument(
         "--subject-count",
         type=int,
         default=109,
         help="Nombre de sujets attendus pour valider le dataset",
     )
-    # On garde ce paramètre pour réutiliser le validateur sur des cas réduits.
+    # Pour réutiliser le validateur sur des échantillons de runs en environnement test.
     parser.add_argument(
         "--run-count",
         type=int,
         default=14,
         help="Nombre de runs attendus par sujet pour valider le dataset",
     )
-    # On renvoie une structure stable pour le point d'entrée principal.
+    # Pour fournir au point d'entrée un objet stable déjà validé par argparse.
     return parser.parse_args()
 
 
-# On garde un point d'entrée très court pour limiter les effets de bord.
+# Pour garder la coordination globale lisible et limiter les effets de bord.
 def main() -> int:
     """Point d'entrée principal pour make download_dataset."""
-    # On récupère tous les paramètres avant d'accéder au système de fichiers.
+    # Pour figer les paramètres d'exécution avant toute interaction système.
     args = parse_args()
-    # On normalise la destination pour partager le même type partout.
+    # Pour partager un type de chemin unique dans tout le script.
     data_dir = Path(args.destination)
-    # On place le sentinel à côté du dataset pour refléter l'état local réel.
+    # Pour matérialiser l'état validé au plus près du dataset concerné.
     sentinel = data_dir / ".eegmmidb.ok"
-    # On vérifie d'abord si le dataset local évite tout accès réseau.
+    # Pour éviter tout accès réseau si le disque satisfait déjà le contrat.
     dataset_complete, exit_code = ensure_dataset_state(
         data_dir,
         sentinel,
         args.subject_count,
         args.run_count,
     )
-    # On sort immédiatement si la base locale est déjà exploitable.
+    # Pour sortir immédiatement dès que la base locale est déjà exploitable.
     if dataset_complete:
-        # On respecte le contrat de sortie décidé par le validateur local.
+        # Pour respecter le contrat de retour décidé par la validation locale.
         return exit_code
-    # On traduit les erreurs runtime de prérequis et de réseau en messages clairs.
+    # Pour transformer les erreurs runtime attendues en messages déjà prêts.
     try:
-        # On choisit une source officielle seulement si les prérequis sont satisfaits.
+        # Pour ne lancer wget qu'après sélection d'une source officielle joignable.
         source_url = resolve_source_url()
-    # On capte uniquement les erreurs déjà préparées pour l'utilisateur.
+    # Pour ne capturer ici que les erreurs déjà traduites pour l'utilisateur.
     except HandledDownloadError as error:
-        # On réutilise l'affichage standardisé et le code retour neutre.
+        # Pour garder une sortie uniforme et un code retour neutre.
         return print_error_lines(error.lines)
-    # On supprime tout ancien état vert avant un nouveau téléchargement.
+    # Pour éviter qu'un ancien état vert survive à un download ensuite incomplet.
     sentinel.unlink(missing_ok=True)
-    # On garantit que wget dispose bien d'une destination existante.
+    # Pour garantir à wget une destination existante et stable.
     data_dir.mkdir(parents=True, exist_ok=True)
-    # On annonce le coût attendu pour éviter une impression de blocage.
+    # Pour expliciter le coût attendu et éviter l'impression de gel du CLI.
     print("Téléchargement EEGMMIDB PhysioNet (~3.4GB), cela peut prendre du temps...")
-    # On rend visible la source réellement retenue pour la transparence.
+    # Pour rendre visible la source réellement retenue au moment de l'exécution.
     print(f"Source: {source_url}")
-    # On lance wget une seule fois et on garde sa sortie pour le diagnostic.
+    # Pour capturer une seule fois le statut et la trace brute du transfert.
     download_result = run_wget_download(source_url, data_dir)
-    # On délègue toute la décision finale à un validateur unique.
+    # Pour centraliser toute décision finale dans un unique validateur de sortie.
     return finalize_download(data_dir, sentinel, args, download_result)
 
 
-# On garde un comportement CLI explicite sans effet lors d'un import de tests.
+# Pour préserver un import sans effet de bord dans les tests et les autres modules.
 if __name__ == "__main__":
-    # On transmet le code retour au shell pour préserver le contrat CLI.
+    # Pour transmettre au shell le contrat de sortie décidé par `main`.
     raise SystemExit(main())

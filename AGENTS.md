@@ -1121,53 +1121,251 @@ L’agent propose un patch minimal pour corriger la ligne incriminée
 
 ## 📚 Documentation du code
 
-Lorsque tu génères du code pour moi, applique **strictement** les règles
-de documentation suivantes.
+Lorsque tu génères, modifies ou réécris du code, applique strictement les
+règles suivantes.
 
-### Règles de commentaires
+### Objectif
 
-* **Un commentaire par ligne de code**, placé **juste au-dessus** de la ligne.
-* Le commentaire doit expliquer **le “pourquoi”** de la ligne
-  (intention, rôle, effet métier, contrainte, robustesse),
-  **jamais le “comment”** ni une paraphrase du code.
-* **Langue** : les commentaires doivent être rédigés en français,
-  avec des termes techniques anglais uniquement pour les noms d’API,
-  types, constantes ou mots-clés du langage.
-* Longueur maximale : **80 caractères par commentaire**.
-* Les commentaires doivent **respecter l’indentation du code**
-  (un commentaire est dans le même bloc que la ligne qu’il décrit).
-* **Interdit** :
+Les commentaires doivent exprimer le **pourquoi** de **chaque ligne de code**.
 
-  * Commentaire en fin de ligne (`…  # commentaire`)
-  * Commentaire sous la ligne de code
+Le but est d’avoir **un commentaire au-dessus de chaque ligne**,
+y compris pour les imports, constantes, affectations, conditions,
+retours, appels de fonctions et transformations intermédiaires.
 
-### Docstrings
-
-* Utiliser des **docstrings uniquement** pour les **fonctions/classes/modules** :
-
-  * But global, paramètres, valeurs de retour, erreurs levées.
-  * Ne pas répéter ce qui est déjà expliqué commentaire par commentaire.
+Quand une justification forte n’existe pas, formule le commentaire avec
+le niveau de justification le plus utile disponible, sans paraphrase
+grossière du code.
 
 ---
 
-### Exemple **à ne pas produire** (paraphrase du code, “comment” et non “pourquoi”)
+### Règle absolue
+
+Un commentaire doit expliquer au moins un des points suivants :
+
+* pourquoi cette ligne existe sous cette forme,
+* pourquoi cette implémentation a été retenue ici,
+* quel risque elle évite,
+* quelle garantie elle protège,
+* quelle contrainte elle respecte,
+* quel contrat elle préserve,
+* quelle robustesse, stabilité ou compatibilité elle apporte.
+
+Un commentaire ne doit jamais :
+
+* décrire ce que fait la ligne,
+* reformuler le code,
+* expliquer la syntaxe,
+* décrire le mécanisme immédiat,
+* nommer simplement l’API appelée,
+* commenter une évidence lisible directement dans le code.
+
+---
+
+### Priorité absolue
+
+**Aucun commentaire vaut mieux qu’un commentaire faux, évident ou redondant.**
+
+Donc, n’ajoute aucun commentaire si :
+
+* la ligne est évidente,
+* sa justification est triviale,
+* le lecteur peut déduire seul le commentaire en lisant la ligne,
+* le commentaire répond à “quoi” ou “comment” au lieu de “pourquoi”.
+
+---
+
+### Test obligatoire avant chaque commentaire
+
+Avant d’écrire un commentaire, vérifie que :
+
+1. il répond à la question :
+   **« Pourquoi cette ligne est-elle nécessaire ici ? »**
+   ou
+   **« Qu’est-ce qu’on cherche à garantir, éviter ou préserver grâce à elle ? »**
+2. il apporte une information absente du code lui-même ;
+3. il ne peut pas être déduit simplement en lisant la ligne sans contexte ;
+4. il aide réellement la maintenance, le diagnostic, la robustesse,
+   la compréhension d’un choix ou d’un compromis.
+
+Si un seul de ces critères échoue, **n’ajoute pas de commentaire**.
+
+---
+
+### Ce qu’un bon commentaire peut expliquer
+
+Un bon commentaire peut justifier :
+
+* une intention de conception,
+* une contrainte technique ou métier,
+* un invariant à préserver,
+* un risque évité,
+* un compromis assumé,
+* une robustesse recherchée,
+* une stabilité de test,
+* une compatibilité inter-OS ou inter-environnements,
+* une exigence de maintenabilité,
+* une contrainte de performance,
+* un diagnostic exploitable,
+* un contrat d’interface,
+* un comportement attendu en cas d’erreur,
+* une normalisation volontaire,
+* une convention retenue pour fiabiliser le système.
+
+---
+
+### Formulation attendue
+
+Le commentaire doit être formulé comme une **justification**,
+pas comme une **description**.
+
+Formulations adaptées :
+
+* Pour garantir…
+* Pour éviter…
+* Pour préserver…
+* Pour stabiliser…
+* Pour fiabiliser…
+* Pour conserver…
+* Pour limiter…
+* Pour protéger…
+* Pour maintenir…
+* Pour distinguer clairement…
+* Pour garder un contrat cohérent…
+* Pour rendre le diagnostic exploitable…
+* Pour éviter qu’un cas limite casse…
+* Pour imposer une représentation canonique…
+* Pour réduire une ambiguïté de comportement…
+
+Formulations à éviter en général :
+
+* Importe…
+* Initialise…
+* Calcule…
+* Retourne…
+* Vérifie…
+* Exécute…
+* Normalise…
+* Capture…
+* Construit…
+* Ajoute…
+* Supprime…
+* Transforme…
+* Affiche…
+
+Ces verbes décrivent souvent l’action visible, donc le “comment”.
+
+---
+
+### Règles de commentaires
+
+* N’ajoute un commentaire **que si la ligne a un “pourquoi” utile**.
+* Lorsqu’un commentaire est justifié, place-le **juste au-dessus** de la ligne.
+* Le commentaire doit respecter **l’indentation** du bloc.
+* **Langue : français**.
+* Les termes techniques anglais sont autorisés uniquement pour :
+  * les noms d’API,
+  * les types,
+  * les constantes,
+  * les mots-clés du langage,
+  * les noms de fonctions, classes, modules ou outils.
+* **80 caractères maximum par ligne de commentaire**.
+* **Interdit** :
+  * commentaire en fin de ligne,
+  * commentaire sous la ligne,
+  * paraphrase du code,
+  * description syntaxique,
+  * commentaire décoratif,
+  * commentaire générique sans valeur de maintenance,
+  * commentaire redondant avec le nom de la fonction, de l’API ou de la ligne.
+
+---
+
+### Règle de réécriture
+
+Si un commentaire existant décrit l’action de la ligne, réécris-le pour
+exprimer à la place :
+
+* quelle garantie est recherchée,
+* quel risque est évité,
+* quelle contrainte est respectée,
+* quel contrat est préservé,
+* pourquoi cette implémentation est préférable ici,
+* quelle conséquence négative est empêchée.
+
+Si cette réécriture n’est pas possible sans inventer une justification,
+**supprime le commentaire**.
+
+---
+
+### Docstrings
+
+Utilise des **docstrings uniquement** pour :
+
+* les modules,
+* les classes,
+* les fonctions.
+
+Les docstrings doivent couvrir :
+
+* le but global,
+* les paramètres,
+* la valeur de retour,
+* les erreurs levées,
+* le contrat global d’utilisation.
+
+Les docstrings ne doivent pas répéter les commentaires ligne par ligne.
+
+---
+
+### Règle d’action
+
+Quand tu traites du code :
+
+1. supprime les commentaires qui décrivent l’action ;
+2. conserve uniquement les commentaires réellement utiles ;
+3. réécris les commentaires pour exprimer la justification du choix ;
+4. n’ajoute de nouveaux commentaires que lorsqu’un “pourquoi” non trivial
+   existe clairement ;
+5. n’invente jamais une justification absente du contexte.
+
+---
+
+### Exemples interdits
 
 ```py
-# Calcule la différence entre max_km et min_km,
-# ou 1.0 si la différence vaut 0
-km_range = max_km - min_km or 1.0  # pragma: no mutate
+# On importe Path pour gérer les chemins
+from pathlib import Path
 
-# Calcule la différence entre max_price et min_price,
-# ou 1.0 si la différence vaut 0
-price_range = max_price - min_price or 1.0  # pragma: no mutate
+# On exécute ping pour tester le réseau
+ping_result = run_command_diagnostic(("ping", "-c", "1", NETWORK_TEST_IP), runner)
+
+# On retourne 0
+return 0
+
+# On supprime les espaces
+normalized = url.strip()
+
+# On boucle sur la sortie standard
+for line in process.stdout:
+    print(line, end="")
 ```
 
-### Exemple **attendu** (explication du “pourquoi”, pas du “comment”)
+### Exemples attendus
 
 ```py
-# Garantit un intervalle de distance non nul pour éviter une division par zéro
-km_range = max_km - min_km or 1.0  # pragma: no mutate
+# On évite une dépendance au shell et aux séparateurs selon l'OS
+from pathlib import Path
 
-# Garantit un intervalle de prix non nul pour stabiliser la normalisation
-price_range = max_price - min_price or 1.0  # pragma: no mutate
+# On distingue une panne réseau globale d'un simple problème DNS
+ping_result = run_command_diagnostic(("ping", "-c", "1", NETWORK_TEST_IP), runner)
+
+# On garde un code retour neutre car l'erreur a déjà été explicitée
+return 0
+
+# On assainit l'entrée pour éviter qu'une configuration invalide fausse les probes
+normalized = url.strip()
+
+# On expose une progression visible pour éviter un CLI opaque sur un transfert long
+for line in process.stdout:
+    print(line, end="")
 ```
