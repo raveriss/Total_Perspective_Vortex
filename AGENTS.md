@@ -1126,72 +1126,116 @@ règles suivantes.
 
 ### Objectif
 
-Les commentaires doivent exprimer le **pourquoi utile** du code.
+Les commentaires doivent documenter **chaque ligne de code**.
 
-Le but n’est pas d’avoir mécaniquement un commentaire au-dessus de chaque
-ligne, mais d’ajouter un commentaire **uniquement** lorsqu’une information
-utile à la maintenance, au diagnostic, à la robustesse, au contrat ou au
-choix de conception **n’est pas déjà visible dans le code**.
+Le but est d’avoir **un commentaire juste au-dessus de chaque ligne**,
+y compris pour les imports, constantes, affectations, conditions,
+retours, appels de fonctions, transformations intermédiaires,
+boucles, compréhensions, structures de contrôle et expressions composées.
 
-Le code doit rester la source principale de clarté.
-Le commentaire n’intervient que lorsque le code seul ne suffit plus.
+Cette documentation doit aider :
+
+* un développeur qui reprend le code plus tard ;
+* un mainteneur occasionnel qui revient dessus dans 3 ou 5 ans ;
+* un lecteur non développeur qui doit malgré tout comprendre
+  le rôle local de chaque ligne ;
+* un futur modificateur qui doit identifier rapidement
+  **où intervenir** pour changer un comportement précis.
+
+Le code reste la source principale d’exécution,
+mais le commentaire devient la source principale d’**explication locale**.
 
 ---
 
 ### Principe fondamental
 
-**Le code doit porter le “quoi”.  
-Le commentaire doit porter le “pourquoi”.**
+**Le code doit rester lisible par lui-même.  
+Le commentaire doit rendre la lecture, la maintenance et la modification
+plus sûres.**
 
-Avant d’ajouter un commentaire, il faut toujours préférer, dans cet ordre :
+Chaque ligne doit être commentée.
+
+La priorité reste, dans cet ordre :
 
 1. un **meilleur nommage** ;
 2. une **variable intermédiaire explicite** ;
 3. une **extraction de fonction** ;
-4. un **commentaire**, seulement si le sens utile reste absent du code.
+4. un **commentaire au-dessus de la ligne**.
 
-Un commentaire ne doit jamais servir à compenser un code inutilement opaque
-qu’on aurait pu rendre plus clair autrement.
+Autrement dit :
+
+* on ne garde jamais un code opaque sous prétexte qu’il sera commenté ;
+* on améliore d’abord le code ;
+* puis on documente chaque ligne pour rendre son rôle clair,
+  même à un lecteur non expert.
+
+---
+
+### Hiérarchie de qualité d’un commentaire
+
+Pour chaque ligne, le commentaire doit chercher à fournir,
+dans cet ordre de priorité, le niveau le plus utile :
+
+1. **le pourquoi** de la ligne ;
+2. **le rôle utile** de la ligne dans le bloc ou l’algorithme ;
+3. **l’effet concret utile** de la ligne sur les données,
+   le contrat, la structure ou le flux ;
+4. **le point de repérage de maintenance** :
+   ce que cette ligne pilote, verrouille, influence ou contraint.
+
+Autrement dit :
+
+* si un vrai **pourquoi** existe, il faut l’écrire ;
+* sinon, on documente **à quoi sert la ligne ici** ;
+* sinon, on documente **ce qu’elle change concrètement** ;
+* sinon, on documente **où revenir pour modifier ce comportement**.
 
 ---
 
 ### Règle absolue
 
-Un commentaire doit expliquer au moins un des points suivants :
+Chaque commentaire doit apporter au moins une des informations suivantes :
 
-* pourquoi cette ligne ou ce bloc existe sous cette forme ;
+* pourquoi cette ligne existe sous cette forme ;
 * pourquoi cette implémentation a été retenue ici ;
-* quel risque est évité ;
-* quelle garantie est protégée ;
-* quelle contrainte est respectée ;
-* quel contrat est préservé ;
-* quelle robustesse, stabilité ou compatibilité est recherchée ;
-* quelle hypothèse, convention ou limite doit être connue du mainteneur.
+* quel rôle exact elle joue dans le flux ;
+* quel effet concret elle produit sur les données ou le comportement ;
+* quel risque elle évite ;
+* quelle garantie elle protège ;
+* quelle contrainte elle respecte ;
+* quel contrat elle préserve ;
+* quelle robustesse, stabilité ou compatibilité elle apporte ;
+* quel point de modification futur elle constitue.
 
 Un commentaire ne doit jamais :
 
-* décrire ce que fait la ligne ;
-* reformuler le code ;
-* expliquer la syntaxe ;
-* décrire le mécanisme immédiat ;
-* nommer simplement l’API appelée ;
-* commenter une évidence lisible directement dans le code ;
-* remplacer un meilleur nommage ou une meilleure structure.
+* se contenter de recopier mot à mot la ligne ;
+* paraphraser trivialement la syntaxe ;
+* être faux ou approximatif ;
+* nommer seulement l’API sans expliquer son intérêt ;
+* être décoratif ;
+* masquer un code inutilement opaque qu’on aurait pu mieux nommer.
 
 ---
 
-### Priorité absolue
+### Règle de couverture exhaustive
 
-**Aucun commentaire vaut mieux qu’un commentaire faux, évident, décoratif
-ou redondant.**
+Puisque l’objectif est d’avoir **un commentaire sur chaque ligne**,
+on n’utilise plus la règle :
 
-Donc, n’ajoute aucun commentaire si :
+> « ne commente pas si la ligne est évidente »
 
-* la ligne est évidente ;
-* sa justification est triviale ;
-* le lecteur peut déduire seul l’information en lisant le code ;
-* le commentaire répond à “quoi” ou “comment” au lieu de “pourquoi” ;
-* le commentaire n’apporte aucune aide réelle à la maintenance.
+À la place, on applique la règle suivante :
+
+> **Même si la ligne est simple, elle doit être documentée,
+> avec le niveau d’explication le plus utile disponible.**
+
+Cela signifie :
+
+* une ligne importante reçoit un commentaire riche ;
+* une ligne simple peut recevoir un commentaire court ;
+* une ligne évidente ne doit pas rester sans commentaire ;
+* mais son commentaire doit quand même aider la lecture future.
 
 ---
 
@@ -1199,23 +1243,24 @@ Donc, n’ajoute aucun commentaire si :
 
 Avant d’écrire un commentaire, vérifie que :
 
-1. il répond à la question :
-   **« Pourquoi cette ligne, ce bloc ou ce choix est-il nécessaire ici ? »**
-   ou
-   **« Qu’est-ce qu’on cherche à garantir, éviter, documenter ou préserver ? »**
-2. il apporte une information absente du code lui-même ;
-3. il ne peut pas être remplacé utilement par un meilleur nommage,
-   une variable intermédiaire ou une extraction de fonction ;
-4. il aide réellement la maintenance, le diagnostic, la robustesse,
-   la compréhension d’un choix, d’une contrainte ou d’un compromis.
+1. il aide à comprendre **pourquoi**, **à quoi sert**,
+   **ce que change** ou **où modifier** cette ligne ;
+2. il apporte au moins une information utile absente
+   de la simple lecture brute du code ;
+3. il reste intelligible pour un lecteur non expert ;
+4. il améliore réellement la maintenance, le diagnostic,
+   la robustesse ou la localisation d’un futur changement.
 
-Si un seul de ces critères échoue, **n’ajoute pas de commentaire**.
+Si un vrai “pourquoi” n’existe pas,
+n’abandonne pas le commentaire :
+descends au niveau suivant de la hiérarchie
+(rôle utile, effet concret, repérage de maintenance).
 
 ---
 
 ### Ce qu’un bon commentaire peut expliquer
 
-Un bon commentaire peut justifier :
+Un bon commentaire peut documenter :
 
 * une intention de conception ;
 * une contrainte technique ou métier ;
@@ -1235,15 +1280,22 @@ Un bon commentaire peut justifier :
 * une hypothèse d’entrée ou de format ;
 * une limite connue ;
 * une dette technique explicitement assumée ;
-* une contrainte imposée par une API, un protocole, un format ou un outil.
+* une contrainte imposée par une API, un protocole, un format ou un outil ;
+* la structure des données manipulées ;
+* le point exact à modifier pour changer un comportement.
 
 ---
 
 ### Formulation attendue
 
-Le commentaire doit être formulé comme une **justification**,
-une **contrainte**, une **garantie**, une **hypothèse** ou une **limite utile**,
-pas comme une description de l’action visible.
+Le commentaire doit être formulé, selon le cas, comme :
+
+* une **justification** ;
+* une **explication de rôle** ;
+* une **explication d’effet concret** ;
+* une **indication de repérage pour maintenance** ;
+* une **contrainte**, une **garantie**, une **hypothèse**
+  ou une **limite utile**.
 
 Formulations adaptées :
 
@@ -1262,6 +1314,13 @@ Formulations adaptées :
 * Pour éviter qu’un cas limite casse…
 * Pour imposer une représentation canonique…
 * Pour réduire une ambiguïté de comportement…
+* Cette ligne prépare…
+* Cette ligne aligne…
+* Cette ligne réutilise…
+* Cette ligne verrouille…
+* Cette ligne pilote…
+* Cette ligne sert de point d’entrée pour…
+* C’est ici qu’il faut intervenir pour modifier…
 * Convention imposée par…
 * Compatibilité requise avec…
 * Limite volontaire : …
@@ -1285,7 +1344,9 @@ Formulations à éviter en général :
 * Transforme…
 * Affiche…
 
-Ces verbes décrivent souvent l’action visible, donc le “comment”.
+Ces verbes ne sont pas interdits absolument,
+mais ils sont insuffisants s’ils décrivent seulement l’action visible
+sans expliquer son intérêt local.
 
 ---
 
@@ -1295,20 +1356,16 @@ Quand une ligne contient un attribut, une méthode, une fonction, un module,
 une librairie ou une notation dont le nom n’est **pas transparent par lui-même**
 (ex. symbole court, abréviation, convention mathématique, API cryptique,
 notation implicite comme `.T`, `.dot`, `.iloc`, `np`, `pd`, etc.),
-le commentaire peut exceptionnellement expliciter :
+le commentaire peut et doit expliciter :
 
-1. **ce que cet élément signifie concrètement** ;
+1. **ce que cet élément fait concrètement** ;
 2. **à quoi il sert ici** ;
-3. **pourquoi cette opération est utilisée dans ce contexte**.
+3. **pourquoi cette opération est utilisée dans ce contexte** ;
+4. **où il faut intervenir si l’on veut changer ce comportement**.
 
-Cette exception existe pour éviter qu’une notation compacte, connue des
-experts mais peu lisible pour un mainteneur futur, devienne un point
-d’opacité dans le code.
-
-La règle reste néanmoins la même :
-le commentaire ne doit pas devenir un mini-cours d’API ni une paraphrase
-grossière de la ligne ; il doit expliquer **la signification utile**
-de l’élément opaque et sa **raison d’être dans le code**.
+Cette exception est importante,
+car certaines notations sont compactes pour l’expert,
+mais opaques pour un futur lecteur ou modificateur.
 
 #### Ce qu’il faut faire dans ce cas
 
@@ -1320,138 +1377,71 @@ Quand un nom est opaque, le commentaire peut préciser :
 * pourquoi cette transformation est nécessaire ici ;
 * quelle compatibilité de dimensions, de contrat ou de représentation
   elle garantit ;
-* quel risque d’ambiguïté elle lève pour le lecteur.
+* quel risque d’ambiguïté elle lève pour le lecteur ;
+* à quel endroit il faudra revenir pour modifier cette logique.
 
 #### Exception autorisée pour les notations très opaques
 
 Pour des notations très compactes comme `.T` ou `.dot`,
-il est autorisé de mentionner **explicitement leur effet concret**,
-car leur nom seul ne suffit pas à informer clairement un lecteur
-qui reprend le code plusieurs années plus tard.
+il est autorisé de mentionner explicitement leur effet concret.
 
-Mais cette explication doit rester **utile, contextualisée et lisible**.
+Exemples de reformulations plus parlantes :
 
-Autrement dit, on ne s’arrête pas à :
+* `.T` :
+  échange lignes et colonnes pour réorienter la lecture des données ;
+* `.dot` :
+  combine des valeurs alignées entre deux structures numériques
+  pour produire un score, une somme pondérée ou une agrégation vectorisée.
 
-* “`.T` transpose la matrice”
-* “`.dot` fait un produit matriciel”
-
-car ces formulations restent souvent trop courtes ou trop techniques
-pour être réellement transparentes.
-
-On préfère expliquer de façon plus parlante :
-
-* que `.T` **réoriente les données en échangeant lignes et colonnes** ;
-* que `.dot` **combine les valeurs correspondantes selon leur alignement
-  pour produire une agrégation numérique unique ou vectorisée**.
-
-Le commentaire doit donc viser une compréhension exploitable, pas
-la simple récitation du terme académique.
+On ne se limite donc pas au terme académique ;
+on cherche une formulation compréhensible et exploitable.
 
 #### Ce qu’il ne faut pas faire
 
 Ne pas écrire un commentaire qui :
 
 * se contente de nommer l’API ;
-* répète le terme technique sans le rendre plus clair ;
+* répète un terme technique sans le rendre plus clair ;
 * décrit mécaniquement la syntaxe sans expliquer son intérêt ici ;
-* explique l’opération hors contexte alors que son rôle local est
-  la vraie information utile.
-
-Exemples insuffisants :
-
-* “`.T` transpose la matrice”
-* “`.dot` fait un produit matriciel”
-* “`np` est NumPy”
-* “`pd` est pandas”
-
-Ces formulations peuvent être exactes,
-mais elles restent trop pauvres si elles n’expliquent ni le sens concret,
-ni le rôle de l’opération dans la ligne.
+* oublie le rôle de la ligne dans le calcul ou dans la maintenance.
 
 #### Formulation attendue en cas de nom opaque
 
 Quand c’est utile, on peut combiner :
 
-1. **l’effet concret de l’élément opaque** ;
-2. **sa signification conceptuelle** ;
-3. **la raison de sa présence ici**.
+1. l’effet concret ;
+2. la signification conceptuelle ;
+3. la raison locale ;
+4. l’impact maintenance.
 
 Exemples de formulations adaptées :
 
-* Pour réorienter le tableau et raisonner par variable plutôt que par observation
-* Pour échanger lignes et colonnes avant l’agrégation du gradient
-* Pour combiner chaque erreur avec la bonne variable correspondante
-* Pour agréger les contributions numériques de toutes les observations
-* Pour obtenir une somme pondérée cohérente avec la formulation du modèle
-* Pour éviter une ambiguïté entre une multiplication élément par élément
-  et une combinaison globale des variables
+* Pour échanger lignes et colonnes avant d’agréger l’erreur par variable
+* Pour combiner chaque erreur avec la variable correspondante
+* Pour produire la somme pondérée utilisée par la mise à jour des poids
+* C’est ici que se joue l’alignement entre variables et erreurs
+* Modifier cette ligne change la manière dont les contributions sont agrégées
 
-#### Règle de priorité
+---
 
-Si l’élément opaque peut être rendu clair par un **meilleur nommage**
-ou par une **variable intermédiaire explicite**, préfère cette solution.
+### Règle spéciale de repérage pour futur modificateur
 
-Le commentaire devient nécessaire surtout quand :
+Comme cette documentation doit aussi servir à un futur lecteur
+qui voudra corriger ou faire évoluer le code,
+chaque commentaire peut indiquer, quand c’est pertinent :
 
-* l’opacité vient de l’API, de la convention ou de la notation ;
-* cette opacité gêne réellement la lecture ;
-* le futur mainteneur pourrait ne pas connaître immédiatement la notation ;
-* la clarification apporte une information utile à la maintenance,
-  à l’explication ou à l’évaluation du code.
+* ce que la ligne pilote ;
+* ce que sa modification changera ;
+* quel comportement dépend d’elle ;
+* quelle donnée, quelle règle ou quel format elle verrouille ;
+* dans quel bloc revenir pour changer une logique précise.
 
-#### Exemple interdit
+Exemples :
 
-```py
-# .T transpose la matrice et .dot fait le produit matriciel
-bias_and_standardized_discipline_scores_error_sum = (
-    student_discipline_scores_with_bias.T.dot(
-        prediction_error_by_student
-    )
-)
-````
-
-#### Exemple acceptable
-
-```py
-# On réoriente le tableau pour passer d'une lecture par élève
-# à une lecture par variable avant d'agréger l'erreur
-bias_and_standardized_discipline_scores_error_sum = (
-    student_discipline_scores_with_bias.T.dot(
-        prediction_error_by_student
-    )
-)
-```
-
-#### Exemple attendu
-
-```py
-# On échange lignes et colonnes pour aligner chaque variable
-# avec les erreurs associées au moment de l'agrégation
-bias_and_standardized_discipline_scores_error_sum = (
-    student_discipline_scores_with_bias.T.dot(
-        prediction_error_by_student
-    )
-)
-```
-
-#### Exemple plus explicite encore
-
-```py
-# On réoriente les scores pour raisonner par variable plutôt
-# que par observation, ce qui prépare l'agrégation du gradient
-transposed_student_scores_with_bias = (
-    student_discipline_scores_with_bias.T
-)
-
-# On combine chaque variable avec les erreurs correspondantes
-# pour obtenir la somme utilisée dans la mise à jour des poids
-bias_and_standardized_discipline_scores_error_sum = (
-    transposed_student_scores_with_bias.dot(
-        prediction_error_by_student
-    )
-)
-```
+* C’est ici que l’ordre des colonnes est figé
+* Modifier cette ligne changera la normalisation appliquée au test
+* Cette ligne impose le nom final de la colonne exportée
+* C’est ce bloc qu’il faut ajuster pour changer l’imputation des valeurs manquantes
 
 ---
 
@@ -1459,21 +1449,20 @@ bias_and_standardized_discipline_scores_error_sum = (
 
 #### 1. Commentaire de ligne
 
-À utiliser seulement si une ligne porte, à elle seule, une justification
-utile que le code n’exprime pas clairement.
+Obligatoire au-dessus de chaque ligne.
 
 #### 2. Commentaire de bloc
 
-À privilégier lorsque plusieurs lignes participent à une même intention,
-contrainte, garantie ou transformation.
+Autorisé en plus lorsqu’un ensemble de lignes participe
+à une même intention forte.
 
-Dans ce cas, un seul commentaire au-dessus du bloc vaut mieux qu’un
-commentaire artificiel au-dessus de chaque ligne.
+Le commentaire de bloc ne remplace pas les commentaires de ligne ;
+il les complète.
 
 #### 3. Docstring
 
 Réservée aux modules, classes et fonctions.
-Elle documente le **contrat global**, pas chaque ligne.
+Elle documente le **contrat global**.
 
 #### 4. Commentaire de convention ou de limite
 
@@ -1489,48 +1478,45 @@ Autorisé lorsqu’il faut signaler :
 
 ### Règles de commentaires
 
-* N’ajoute un commentaire **que si le code a un “pourquoi” utile à porter**.
-* Préfère un **commentaire de bloc** à plusieurs commentaires faibles ligne par ligne.
-* Lorsqu’un commentaire est justifié, place-le **juste au-dessus** de la ligne
-  ou du bloc concerné.
+* Ajoute un commentaire **au-dessus de chaque ligne de code**.
 * Le commentaire doit respecter **l’indentation** du bloc.
 * **Langue : français**.
 * Les termes techniques anglais sont autorisés uniquement pour :
-
   * les noms d’API ;
   * les types ;
   * les constantes ;
   * les mots-clés du langage ;
   * les noms de fonctions, classes, modules ou outils.
 * **80 caractères maximum par ligne de commentaire**.
+* Si une explication complète dépasse 80 caractères,
+  la répartir sur plusieurs lignes de commentaire.
 * **Interdit** :
-
   * commentaire en fin de ligne ;
   * commentaire sous la ligne ;
-  * paraphrase du code ;
-  * description syntaxique ;
+  * paraphrase brute du code ;
   * commentaire décoratif ;
-  * commentaire générique sans valeur de maintenance ;
-  * commentaire redondant avec le nom de la fonction, de l’API ou de la ligne ;
+  * commentaire faux ;
+  * commentaire générique sans utilité de lecture ou de maintenance ;
   * commentaire inventant une justification absente du contexte.
 
 ---
 
 ### Règle de réécriture
 
-Si un commentaire existant décrit l’action de la ligne, réécris-le pour
-exprimer à la place :
+Si un commentaire existant est trop faible,
+réécris-le pour exprimer à la place :
 
-* quelle garantie est recherchée ;
-* quel risque est évité ;
-* quelle contrainte est respectée ;
-* quel contrat est préservé ;
-* pourquoi cette implémentation est préférable ici ;
-* quelle conséquence négative est empêchée ;
-* quelle hypothèse, convention ou limite doit être connue.
+* pourquoi la ligne existe ;
+* à quoi elle sert dans le bloc ;
+* ce qu’elle change concrètement ;
+* ce qu’elle protège ;
+* ce qu’elle impose ;
+* ce qu’un futur modificateur doit savoir avant d’y toucher ;
+* où intervenir pour modifier le comportement concerné.
 
-Si cette réécriture n’est pas possible sans inventer une justification,
-**supprime le commentaire**.
+Si un vrai “pourquoi” ne peut pas être formulé,
+le commentaire doit au minimum documenter
+le **rôle utile** ou l’**effet concret** de la ligne.
 
 ---
 
@@ -1554,7 +1540,7 @@ Les docstrings doivent couvrir, selon le contexte :
 * les effets de bord notables ;
 * les conventions de format, d’unité ou de représentation si nécessaires.
 
-Les docstrings ne doivent pas répéter les commentaires ligne par ligne.
+Les docstrings ne remplacent pas les commentaires ligne par ligne.
 
 ---
 
@@ -1565,52 +1551,178 @@ Quand tu traites du code :
 1. améliore d’abord le nommage si le code est ambigu ;
 2. introduis une variable intermédiaire si elle clarifie l’intention ;
 3. extrais une fonction si cela rend le bloc plus lisible ;
-4. supprime les commentaires qui décrivent l’action ;
-5. conserve uniquement les commentaires réellement utiles ;
-6. réécris les commentaires pour exprimer la justification du choix ;
-7. n’ajoute de nouveaux commentaires que lorsqu’un “pourquoi”,
-   une contrainte, une hypothèse ou une limite non triviale existe clairement ;
-8. n’invente jamais une justification absente du contexte.
+4. ajoute ensuite un commentaire au-dessus de chaque ligne ;
+5. formule en priorité le pourquoi ;
+6. à défaut, formule le rôle utile de la ligne ;
+7. à défaut, formule son effet concret ;
+8. à défaut, formule son intérêt pour un futur modificateur ;
+9. n’invente jamais une justification absente du contexte ;
+10. garde des commentaires exacts, utiles et lisibles.
 
 ---
 
 ### Exemples interdits
 
+#### Exemple interdit 1 : paraphrase pauvre
+
 ```py
-# On importe Path pour gérer les chemins
+# On importe Path
 from pathlib import Path
 
-# On exécute ping pour tester le réseau
-ping_result = run_command_diagnostic(("ping", "-c", "1", NETWORK_TEST_IP), runner)
+# On supprime les espaces
+normalized_url = url.strip()
 
 # On retourne 0
 return 0
+````
 
-# On supprime les espaces
-normalized = url.strip()
+Pourquoi c’est interdit :
 
-# On boucle sur la sortie standard
-for line in process.stdout:
-    print(line, end="")
+* le commentaire répète l’action visible ;
+* il n’aide ni la maintenance, ni la compréhension ;
+* il ne dit pas pourquoi la ligne existe ici.
+
+#### Exemple interdit 2 : API opaque mal documentée
+
+```py
+# .T transpose la matrice
+transposed_scores = student_scores.T
+
+# .dot fait un produit matriciel
+error_sum = transposed_scores.dot(prediction_error_by_student)
 ```
+
+Pourquoi c’est interdit :
+
+* le terme technique est répété sans être rendu clair ;
+* le rôle local dans l’algorithme n’est pas expliqué ;
+* un futur modificateur ne sait pas ce que changerait cette ligne.
+
+#### Exemple interdit 3 : commentaire exhaustif mais inutile
+
+```py
+# On crée un parser
+argument_parser = argparse.ArgumentParser()
+
+# On ajoute un argument
+argument_parser.add_argument("--out")
+
+# On parse les arguments
+return argument_parser.parse_args()
+```
+
+Pourquoi c’est interdit :
+
+* chaque ligne est commentée ;
+* mais la documentation reste descriptive et superficielle ;
+* elle ne répond ni au pourquoi, ni au rôle, ni au repérage maintenance.
+
+---
 
 ### Exemples attendus
 
+#### Exemple attendu 1 : lignes simples mais utiles
+
 ```py
-# On évite une dépendance au shell et aux séparateurs selon l'OS
+# On évite une dépendance au shell et aux séparateurs propres a l'OS
 from pathlib import Path
 
-# On distingue une panne réseau globale d'un simple problème DNS
-ping_result = run_command_diagnostic(("ping", "-c", "1", NETWORK_TEST_IP), runner)
+# On assainit l'entree pour eviter qu'un espace parasite fausse la validation
+normalized_url = url.strip()
 
-# On garde un code retour neutre car l'erreur a déjà été explicitée
+# On garde un code retour neutre car l'erreur a deja ete explicitee avant
 return 0
-
-# On assainit l'entrée pour éviter qu'une configuration invalide fausse les probes
-normalized = url.strip()
-
-# On expose une progression visible pour éviter un CLI opaque sur un transfert long
-for line in process.stdout:
-    print(line, end="")
 ```
 
+#### Exemple attendu 2 : API opaque rendue claire
+
+```py
+# On reechange la lecture des donnees pour raisonner par variable
+# plutot que par observation avant l'agregation
+transposed_scores = student_scores.T
+
+# On combine chaque variable avec les erreurs correspondantes
+# pour produire la somme utilisee par la mise a jour
+error_sum = transposed_scores.dot(prediction_error_by_student)
+```
+
+#### Exemple attendu 3 : repere explicite pour futur modificateur
+
+```py
+# Cette ligne fige le nom de la colonne exportee ;
+# c'est ici qu'il faut intervenir pour changer le schema de sortie
+prediction_output = pd.DataFrame(
+    {"Index": index_list_of_students, "Hogwarts House": predicted_house_names}
+)
+
+# Cette ligne persiste le resultat final sans index pandas,
+# ce qui maintient le format attendu par l'evaluateur
+prediction_output.to_csv(output_csv_path, index=False)
+```
+
+---
+
+### Exemples attendus avec exigence “un commentaire sur chaque ligne”
+
+#### Exemple attendu 4 : bloc complet documente ligne par ligne
+
+```py
+# On recupere le nombre d'observations pour dimensionner la colonne de biais
+student_count = standardized_students_discipline_scores.shape[0]
+
+# On prepare une colonne de 1 pour reproduire la convention du modele appris
+bias_column = np.ones((student_count, 1))
+
+# On assemble biais et variables normalisees dans l'ordre attendu par les poids
+students_discipline_scores_with_bias = np.hstack(
+    # Cette sous-structure preserve la colonne de biais en premiere position
+    [bias_column, standardized_students_discipline_scores]
+)
+```
+
+#### Exemple attendu 5 : boucle documentee ligne par ligne
+
+```py
+# On parcourt chaque discipline pour reappliquer la logique du train colonne par colonne
+for discipline_index, discipline_name in enumerate(students_discipline_scores.columns):
+    # Cet indice sert a retrouver la bonne statistique de reference
+    reference_average_score = average_discipline_scores[discipline_index]
+
+    # On cible explicitement la colonne a corriger pour garder le schema intact
+    students_discipline_scores[discipline_name] = (
+        # On remplace les valeurs manquantes par la moyenne du train
+        # pour eviter une fuite de donnees provenant du jeu de test
+        students_discipline_scores[discipline_name].fillna(
+            # C'est ici qu'il faut intervenir si la strategie d'imputation change
+            reference_average_score
+        )
+    )
+```
+
+#### Exemple attendu 6 : condition documentee ligne par ligne
+
+```py
+# On verrouille la presence d'un identifiant stable avant toute prediction
+if "Index" not in raw_students_dataset.columns:
+    # Ce message cible directement la cause pour accelerer le diagnostic
+    raise ValueError("La colonne 'Index' est manquante dans le fichier CSV.")
+```
+
+---
+
+### Résumé opérationnel
+
+Chaque ligne doit être commentée.
+
+Le meilleur commentaire explique **pourquoi** la ligne existe.
+
+Si ce niveau n’est pas accessible,
+le commentaire doit au moins expliquer :
+
+* **à quoi sert la ligne ici** ;
+* **ce qu’elle change concrètement** ;
+* ou **pourquoi un futur mainteneur devra revenir à cet endroit**.
+
+Une ligne simple peut recevoir un commentaire court.
+Une ligne sensible doit recevoir un commentaire plus riche.
+Mais aucune ligne de code ne doit rester sans commentaire.
