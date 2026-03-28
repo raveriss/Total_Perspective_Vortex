@@ -1116,6 +1116,1456 @@ L’agent propose un patch minimal pour corriger la ligne incriminée
 > « ❌ CI potentiellement en échec : commit interdit tant que la checklist 2)
 > n’est pas entièrement verte. »
 
+---
+
+## 📚 Charte de nommage des fonctions, parametres, argumements et variables pédagogique
+
+### 1. Objectif
+
+Cette charte a pour but d’aider un étudiant à écrire du code Python :
+
+* lisible ;
+* cohérent ;
+* pédagogique ;
+* compréhensible par un lecteur non spécialiste.
+
+Le nommage ne sert pas seulement à faire fonctionner le code.
+Il sert à **rendre la logique visible**.
+
+Un bon nom doit permettre de comprendre :
+
+* ce que contient la donnée ;
+* à quoi elle sert ;
+* dans quel contexte elle existe ;
+* sans devoir relire toute la fonction.
+
+---
+
+### 2. Principe fondamental
+
+**Un bon nom évite au lecteur de devoir deviner.**
+
+Si le lecteur doit se demander :
+
+* “qu’est-ce que cette donnée contient ?”
+* “à quoi sert-elle ?”
+* “de quel domaine parle-t-on ?”
+* “s’agit-il d’une valeur, d’une collection, d’un compteur, d’un index, d’un chemin, d’un score, d’un coefficient ?”
+
+alors le nom est mauvais ou insuffisant.
+
+### 2.1. Niveau de force des règles
+
+Pour éviter les interprétations trop absolues, les règles de cette charte
+doivent être lues selon trois niveaux :
+
+* **à éviter fortement** : mauvais choix dans la majorité des cas ;
+* **acceptable selon le contexte** : peut convenir dans un code générique,
+  scientifique ou très local ;
+* **recommandé** : choix à privilégier dans un code pédagogique clair.
+
+La qualité d’un nom dépend toujours :
+* du domaine ;
+* du public visé ;
+* du niveau d’abstraction ;
+* du type de code.
+
+---
+
+### 3. Règle d’or
+
+**Nommer selon le sens réel, en fonction du contexte.**
+
+Par défaut, un bon nom décrit :
+
+1. la réalité du domaine ;
+2. le rôle de la donnée ;
+3. la nature exacte de la valeur.
+
+Il ne doit pas, sauf besoin réel :
+
+* décrire seulement une formule ;
+* décrire seulement une structure interne ;
+* utiliser un mot vague qui semble “assez correct” ;
+* recopier une notation de cours sans se demander si elle reste claire ici.
+
+#### À éviter fortement
+
+```python
+x
+y
+z
+k
+m
+n
+theta
+alpha
+res
+tmp
+df
+data
+input_data
+label
+labels
+result
+configuration
+row_count
+column_count
+```
+
+Les noms comme `feature_matrix`, `target_vector`, `gradient`,
+`prediction` ou `weights` ne sont pas faux en soi,
+mais deviennent insuffisants lorsqu’un nom plus métier
+ou plus précis est possible.
+
+#### Meilleur
+
+```python
+student_age
+student_house_index
+current_house_index
+student_count
+subject_count
+house_coefficients
+learning_rate
+predicted_house_indices
+temporary_file_path
+student_records
+current_house_coefficient_gradient
+training_settings
+student_subject_scores
+```
+
+---
+
+### 4. Priorité de décision
+
+Quand tu choisis un nom, applique cet ordre.
+
+#### 4.1. Le métier réel d’abord
+
+Nommer la réalité du domaine.
+
+#### Exemples
+
+```python
+student_house_index
+exam_score
+fuel_price
+invoice_total
+customer_email
+```
+
+Les exemples pédagogiques peuvent varier selon le domaine :
+éducation, finance, santé, logistique, industrie, web, data science, etc.
+La règle reste la même : nommer la réalité du domaine,
+pas un mot générique interchangeable.
+
+---
+
+#### 4.2. Le rôle réel ensuite
+
+Préciser la fonction de la donnée dans le programme.
+
+#### Exemples
+
+```python
+predicted_house_index
+validated_email
+selected_customer_email
+current_iteration
+training_configuration
+```
+
+---
+
+#### 4.3. La nature exacte de la valeur ensuite
+
+Préciser si c’est un compteur, un chemin, une probabilité, un coefficient, etc.
+
+#### Exemples
+
+```python
+student_count
+model_file_path
+predicted_probability
+house_index
+accuracy_score
+```
+
+---
+
+#### 4.4. La structure seulement si elle est utile
+
+**Règle par défaut :**
+la forme interne ne doit pas être le premier niveau de nommage
+quand le métier est connu.
+
+#### À éviter en premier choix
+
+```python
+matrix
+vector
+row
+column
+array
+list
+dict
+```
+
+#### À préférer si le métier est connu
+
+```python
+student_subject_scores
+house_names
+student_house_indices
+scores_by_house
+student_count
+```
+
+---
+
+#### 4.5. La notation mathématique en dernier recours
+
+Des mots comme `theta`, `alpha`, `beta`, `x`, `y`, `z`
+ne doivent être gardés que si :
+
+* le contexte est purement mathématique ;
+* le bloc est très local ;
+* le lecteur visé comprend déjà cette notation.
+
+Dans un projet pédagogique général, ils doivent être renommés.
+
+---
+
+### 5. Contextes de code
+
+La qualité d’un nom dépend du type de code.
+
+#### 5.1. Code pédagogique débutant
+
+Priorité maximale à la clarté immédiate.
+On évite fortement :
+
+* notations mathématiques ;
+* jargon trop compact ;
+* noms orientés structure ;
+* mots vagues.
+
+#### 5.2. Code métier applicatif
+
+On privilégie les noms du domaine métier.
+
+#### Exemples
+
+```python
+invoice_total
+customer_email
+shipping_address
+payment_status
+```
+
+#### 5.3. Code scientifique ou mathématique
+
+Certaines notations peuvent être acceptées **localement**
+si elles sont standards pour le public visé.
+Mais dès que le code sort d’une démonstration courte,
+il faut revenir à des noms explicites.
+
+#### 5.4. Code générique de librairie
+
+Quand le métier n’existe pas, n’est pas connu,
+ou ne doit volontairement pas apparaître,
+des noms plus structurels peuvent être légitimes.
+
+#### Exemples acceptables
+
+```python
+row_index
+column_index
+value_count
+input_values
+```
+
+#### Règle pratique
+
+**Plus le contexte métier est connu, plus le nom doit être métier.**
+**Plus le code est générique, plus un nom technique peut être `acceptable`.**
+
+---
+
+### 6. Langue à utiliser
+
+#### Règle
+
+Les identifiants Python doivent être écrits en **anglais**.
+
+#### Pourquoi
+
+* c’est la convention standard en Python ;
+* cela évite le mélange de langues ;
+* cela améliore la réutilisabilité du code ;
+* cela facilite la lecture par d’autres développeurs.
+
+#### Tolérance pédagogique
+
+Les commentaires et docstrings peuvent être écrits en français si le public est francophone.
+
+#### Interdit
+
+Mélanger les langues dans les identifiants.
+
+#### Mauvais
+
+```python
+maison_labels
+nombre_iterations
+current_theta
+```
+
+#### Correct
+
+```python
+house_indices
+iteration_count
+current_house_coefficients
+```
+
+---
+
+### 7. Qualités attendues d’un bon nom
+
+Un bon nom doit être :
+
+* **clair** : le sens apparaît vite ;
+* **simple** : il reste lisible ;
+* **précis** : il décrit bien ce qu’il représente ;
+* **cohérent** : il suit les mêmes règles que le reste du projet ;
+* **stable** : il ne devient pas faux au moindre changement interne ;
+* **orienté sens** : il parle du contenu avant de parler du contenant.
+
+---
+
+### 8. Ce qu’il faut éviter
+
+### 8.1. Les noms d’une lettre
+
+Sauf cas extrêmement local.
+
+#### Mauvais
+
+```python
+i = 0
+x = data
+y = labels
+m, n = scores.shape
+```
+
+#### Meilleur
+
+```python
+student_index = 0
+student_subject_scores = subject_scores
+student_house_indices = house_indices
+student_count, subject_count = student_subject_scores.shape
+```
+
+---
+
+### 8.2. Les abréviations opaques
+
+#### Mauvais
+
+```python
+num_iters
+grad
+preds
+cfg
+lbls
+res
+tmp
+```
+
+#### Meilleur
+
+```python
+iteration_count
+coefficient_gradient
+predicted_house_indices
+training_configuration
+house_indices
+prediction_result
+temporary_file_path
+```
+
+---
+
+### 8.3. Les noms trop génériques
+
+#### Mauvais
+
+```python
+data
+value
+item
+object
+thing
+result
+test
+var
+input
+label
+prediction
+configuration
+gradient
+```
+
+#### Pourquoi
+
+Ils ne disent pas ce que contient réellement la donnée.
+
+#### Meilleur
+
+```python
+student_records
+predicted_house_index
+input_file_path
+training_loss
+validated_email
+current_house_coefficient_gradient
+house_classifier_training_settings
+student_house_indices
+```
+
+---
+
+### 8.4. Les noms purement mathématiques
+
+#### Mauvais
+
+```python
+x
+y
+z
+theta
+alpha
+beta
+k
+```
+
+#### Meilleur
+
+```python
+student_subject_scores
+student_house_indices
+linear_scores
+house_coefficients
+learning_rate
+regularization_strength
+current_house_index
+```
+
+---
+
+### 8.5. Les noms trop longs
+
+Un nom ne doit pas devenir une phrase.
+
+#### Trop long
+
+```python
+normalized_student_subject_scores_with_bias_term_already_added
+```
+
+#### Mieux
+
+```python
+student_subject_scores_with_bias
+```
+
+Le détail complémentaire doit aller dans :
+
+* la docstring ;
+* le commentaire ;
+* le nom de la fonction ;
+* la documentation.
+
+---
+
+### 8.6. Les noms orientés structure au lieu du contenu
+
+#### Mauvais
+
+```python
+row_count
+column_count
+matrix
+vector
+table
+row_index
+column_index
+```
+
+#### Pourquoi
+
+Ils décrivent surtout la disposition interne.
+Ils deviennent insuffisants dès que le domaine métier est connu
+et qu’un nom plus concret est possible.
+
+#### Meilleur quand le métier est connu
+
+```python
+student_count
+subject_count
+student_subject_scores
+student_index
+subject_index
+house_names
+```
+
+#### Exception acceptable
+
+Quand le métier est inconnu, temporaire ou volontairement générique,
+un nom structurel peut être accepté.
+
+#### Exemple acceptable en code générique
+
+```python
+value_count
+row_index
+column_index
+```
+
+Mais dès que le domaine est connu, il faut renommer plus précisément.
+
+---
+
+### 8.7. Les mots corrects mais souvent pédagogiquement insuffisants
+
+Un mot peut être techniquement correct, mais rester insuffisant
+dans un code pédagogique si le contexte exige plus de précision.
+
+#### Souvent insuffisants seuls, selon le contexte
+
+```python
+data
+input
+label
+labels
+prediction
+predictions
+gradient
+result
+configuration
+score
+weights
+bias
+feature
+sample
+record
+output
+model_output
+```
+
+#### Pourquoi
+
+Ils ne disent pas assez :
+
+* de quoi on parle ;
+* quel est le domaine ;
+* quel est le rôle exact ;
+* quelle valeur ils portent.
+
+#### Meilleur selon contexte
+
+```python
+student_subject_scores
+student_house_indices
+predicted_house_indices
+current_house_coefficient_gradient
+house_classifier_training_settings
+exam_score
+house_coefficients
+bias_term
+selected_subject_names
+training_example_count
+student_record
+predicted_house_probability
+```
+
+---
+
+### 9. Faux amis, termes ambigus et mots trompeurs
+
+Choisir un mot anglais ne suffit pas.
+Il faut choisir un mot :
+
+* correct ;
+* compréhensible ;
+* non ambigu pour le public visé.
+
+#### Règle générale
+
+Avant de conserver un mot anglais dans un identifiant, vérifier :
+
+1. s’il ressemble fortement à un mot français ;
+2. si son sens technique anglais est bien le bon ;
+3. si un débutant francophone risque de mal l’interpréter ;
+4. s’il existe un terme plus explicite dans le contexte réel.
+
+Si un doute subsiste, il faut renommer.
+
+#### Problème pédagogique principal
+
+Un faux ami ne crée pas toujours une erreur d’exécution.
+Il crée souvent :
+
+* une mauvaise compréhension ;
+* un raisonnement flou ;
+* un apprentissage fragile ;
+* un code qui semble clair seulement pour son auteur.
+
+---
+
+### 10. Cas fréquents en informatique, data et IA
+
+Dans certains projets de machine learning, des termes comme
+`feature`, `label`, `weights` ou `bias` sont standards et acceptables.
+La règle pédagogique n’est pas de les interdire,
+mais de vérifier s’ils sont suffisamment précis pour le lecteur visé.
+
+#### `sample`
+
+Souvent trop vague.
+
+#### Mauvais
+
+```python
+sample_count
+samples
+sample_data
+```
+
+#### Meilleur selon le contexte
+
+```python
+observation_count
+training_example_count
+student_count
+record_count
+signal_window_count
+```
+
+---
+
+#### `feature`
+
+Très ambigu.
+
+#### Mauvais
+
+```python
+feature_matrix
+features
+selected_features
+```
+
+#### Meilleur selon le contexte
+
+```python
+student_subject_scores
+input_variables
+selected_subject_names
+predictor_values
+```
+
+---
+
+#### `label`
+
+Correct en ML, mais trop faible seul dans beaucoup de codes pédagogiques.
+
+#### Mauvais
+
+```python
+labels
+target_labels
+class_labels
+```
+
+#### Meilleur selon le contexte
+
+```python
+house_indices
+target_house_indices
+house_names
+expected_house_indices
+```
+
+---
+
+#### `score`
+
+Acceptable, mais souvent trop vague seul.
+
+#### Mauvais
+
+```python
+score
+scores
+final_score
+```
+
+#### Meilleur selon le contexte
+
+```python
+exam_score
+decision_score
+predicted_probability
+accuracy_score
+house_score
+```
+
+---
+
+#### `grade`
+
+Piégeux pour un francophone.
+
+#### Préférer selon contexte
+
+```python
+exam_score
+discipline_score
+student_score
+score_level
+```
+
+---
+
+#### `record`
+
+Utile, mais parfois ambigu pour un francophone.
+
+#### Acceptable selon contexte
+
+```python
+student_record
+student_records
+record_count
+```
+
+---
+
+#### `observation`
+
+Très bon terme en data science.
+
+#### Bon usage
+
+```python
+observation_count
+observations
+customer_observations
+```
+
+---
+
+#### `instance`
+
+Correct, mais ambigu en Python orienté objet.
+
+#### Préférer souvent
+
+```python
+observation
+record
+training_example
+```
+
+---
+
+#### `bias`
+
+Mot très ambigu.
+
+#### Mauvais
+
+```python
+bias
+bias_value
+```
+
+#### Meilleur selon le contexte
+
+```python
+bias_term
+intercept
+has_bias_term
+dataset_bias
+```
+
+---
+
+#### `weights`
+
+Mot standard en ML, parfois moins pédagogique qu’un autre.
+
+#### Acceptable
+
+```python
+model_weights
+```
+
+#### Parfois plus clair
+
+```python
+model_coefficients
+house_coefficients
+```
+
+---
+
+#### `actual`
+
+Très gros faux ami.
+
+#### Pour “réel”
+
+```python
+actual_cost
+actual_result
+```
+
+#### Pour “actuel”
+
+```python
+current_cost
+current_result
+```
+
+---
+
+#### `eventual` / `eventually`
+
+Très dangereux.
+
+Sens correct :
+
+* final ;
+* à terme ;
+* finalement.
+
+---
+
+#### `issue`
+
+Sur GitHub, signifie souvent :
+
+* problème ;
+* ticket ;
+* sujet de suivi.
+
+---
+
+#### `consistency`
+
+Signifie :
+
+* cohérence
+
+et non :
+
+* consistance
+
+---
+
+#### `comprehensive`
+
+Signifie :
+
+* complet ;
+* exhaustif
+
+et non :
+
+* compréhensif
+
+---
+
+### 11. Règle pratique de remplacement
+
+Quand un mot semble ambigu, remplace-le par un mot
+qui répond immédiatement à au moins une de ces questions :
+
+* qu’est-ce que cette donnée contient ?
+* de quel domaine parle-t-on ?
+* s’agit-il d’une valeur ou d’une collection ?
+* s’agit-il d’un compteur, d’un index, d’un score, d’une probabilité, d’un chemin, d’un coefficient ou d’un résultat ?
+
+---
+
+### 12. Règles par type d’élément
+
+### 12.1. Fichiers Python
+
+#### Convention
+
+`snake_case.py`
+
+#### Règle
+
+Le nom du fichier doit refléter ce qu’il contient réellement.
+
+#### Correct
+
+```python
+student_data_loader.py
+house_classifier.py
+model_training.py
+prediction_service.py
+csv_validator.py
+```
+
+#### Mauvais
+
+```python
+utils2.py
+test3.py
+script_final_v2.py
+mon_fichier.py
+stuff.py
+```
+
+#### À éviter
+
+* `final`
+* `new`
+* `temp`
+* `test`
+* `misc`
+* `utils` sans précision
+
+#### Préférer
+
+```python
+date_parser.py
+string_formatter.py
+path_helpers.py
+```
+
+---
+
+### 12.2. Classes
+
+#### Convention
+
+`PascalCase`
+
+#### Règle
+
+Le nom de classe doit désigner une entité, un rôle ou un concept.
+
+#### Correct
+
+```python
+StudentRecord
+HouseClassifier
+CsvReader
+PredictionResult
+TrainingConfiguration
+```
+
+#### Mauvais
+
+```python
+data
+manager2
+testClass
+myClass
+stuff
+```
+
+---
+
+### 12.3. Fonctions
+
+#### Convention
+
+`snake_case`
+
+#### Règle
+
+Le nom d’une fonction doit commencer par un verbe clair.
+
+#### Correct
+
+```python
+load_training_data
+validate_csv_columns
+train_house_classifier
+compute_accuracy_score
+save_model_coefficients
+predict_student_house
+```
+
+#### Mauvais
+
+```python
+data_training
+house_prediction
+csv
+model
+do_stuff
+process_data
+handle_event
+run
+```
+
+---
+
+### 12.4. Variables
+
+#### Convention
+
+`snake_case`
+
+#### Règle
+
+Une variable doit décrire ce qu’elle contient,
+pas seulement son type,
+pas seulement sa structure,
+pas seulement un rôle vague.
+
+#### Mauvais
+
+```python
+data_frame
+list_values
+string_value
+dict_result
+matrix
+labels
+result
+configuration
+```
+
+#### Meilleur
+
+```python
+student_records
+selected_house_names
+error_message
+house_score_by_student
+training_configuration
+predicted_house_indices
+```
+
+#### Rappel
+
+Le type n’est pas le sens.
+La structure n’est pas le sens.
+Un mot générique n’est pas une explication.
+
+---
+
+### 12.5. Constantes
+
+#### Convention
+
+`UPPER_CASE`
+
+#### Correct
+
+```python
+DEFAULT_LEARNING_RATE = 0.01
+MAX_ITERATION_COUNT = 1000
+REQUIRED_SUBJECT_NAMES = ["Arithmancy", "Astronomy", "Herbology"]
+MODEL_FILE_NAME = "weights.json"
+```
+
+---
+
+### 12.6. Booléens
+
+Un booléen doit pouvoir se lire comme une affirmation.
+
+#### Préfixes recommandés
+
+* `is_`
+* `has_`
+* `can_`
+* `should_`
+* `was_`
+
+#### Correct
+
+```python
+is_valid
+has_bias_term
+can_train_model
+should_save_output
+was_loaded_successfully
+```
+
+---
+
+### 12.7. Collections
+
+Le nom d’une collection doit indiquer ce qu’elle regroupe.
+
+#### Correct
+
+```python
+student_names
+house_indices
+valid_file_paths
+scores_by_house
+student_count_by_house
+```
+
+#### Bonne pratique pour les dictionnaires
+
+```python
+scores_by_house
+student_count_by_house
+coefficients_by_house
+```
+
+---
+
+### 12.8. Compteurs
+
+Le nom doit dire clairement ce qui est compté.
+
+#### Correct
+
+```python
+student_count
+subject_count
+iteration_count
+house_count
+error_count
+record_count
+```
+
+---
+
+### 12.9. Index
+
+Le nom doit préciser ce qu’il indexe.
+
+#### Correct
+
+```python
+student_index
+subject_index
+house_index
+iteration_index
+record_index
+```
+
+#### Exception tolérée
+
+Dans une boucle très courte, un nom simple mais explicite reste préférable à une lettre seule.
+
+```python
+for student_index, student_name in enumerate(student_names):
+    ...
+```
+
+---
+
+### 12.10. Chemins, fichiers, URLs
+
+#### Correct
+
+```python
+input_file_path
+output_directory_path
+model_file_path
+report_url
+csv_file_name
+```
+
+---
+
+### 12.11. Exceptions
+
+Une exception doit expliquer ce qui ne va pas.
+
+#### Correct
+
+```python
+InvalidCsvFormatError
+MissingSubjectColumnError
+ModelNotTrainedError
+EmptyDatasetError
+```
+
+---
+
+### 13. Métier avant technique
+
+Cette règle résume la logique générale de la charte :
+
+1. nommer d’abord le domaine ;
+2. préciser ensuite le rôle ;
+3. préciser enfin la nature exacte de la valeur ;
+4. ne faire apparaître la structure interne que si elle aide réellement.
+
+#### Trop technique
+
+```python
+feature_matrix
+target_vector
+parameter_array
+row_count
+column_count
+```
+
+#### Plus pédagogique
+
+```python
+student_subject_scores
+student_house_indices
+house_coefficients
+student_count
+subject_count
+```
+
+#### Encore mieux si le métier est connu
+
+```python
+student_exam_scores
+student_house_indices
+house_prediction_scores
+```
+
+---
+
+### 14. Singulier et pluriel
+
+Le nom doit refléter si la donnée contient une seule valeur ou plusieurs.
+
+#### Correct
+
+```python
+house_index
+house_indices
+student_name
+student_names
+prediction_score
+prediction_scores
+```
+
+#### Mauvais
+
+```python
+houses_label
+student
+scores_list
+```
+
+---
+
+### 15. Révision avant validation
+
+Avant de valider un nom, poser ces questions :
+
+1. Un débutant comprend-il ce que contient cette donnée ?
+2. Son rôle est-il clair sans relire toute la fonction ?
+3. Le nom exprime-t-il le sens plutôt que la formule ?
+4. Le nom exprime-t-il le contenu plutôt que la disposition ?
+5. Est-il assez précis pour éviter le doute ?
+6. Est-il assez court pour rester lisible ?
+7. Est-il cohérent avec le reste du projet ?
+8. Le mot choisi risque-t-il d’être ambigu pour le public visé ?
+9. Est-ce un nom adapté au type de code
+   (pédagogique, métier, scientifique, générique) ?
+
+Si une réponse pose problème, le nom doit être revu.
+
+---
+
+### 16. Labels d’erreur de nommage
+
+Cette liste peut servir de grille de relecture, de correction ou de feedback.
+Elle complète la charte, mais ne remplace pas le jugement de contexte.
+Un même nom peut être acceptable ou non selon le type de code,
+le public visé et le niveau de précision réellement nécessaire.
+
+#### `NOM-001` — Nom trop court
+
+#### `NOM-002` — Abréviation opaque
+
+#### `NOM-003` — Nom mathématique
+
+#### `NOM-004` — Mélange de langues
+
+#### `NOM-005` — Nom trop générique
+
+#### `NOM-006` — Jargon technique inutile
+
+#### `NOM-007` — Nom trompeur
+
+#### `NOM-008` — Nom trop long
+
+#### `NOM-009` — Singulier/pluriel incohérent
+
+#### `NOM-010` — Détail d’implémentation inutile
+
+#### `NOM-011` — Nom orienté structure
+
+#### `NOM-012` — Mot correct mais pédagogiquement flou
+
+#### `NOM-013` — Nom mal adapté au contexte de code
+
+---
+
+### 17. Méthode pratique de renommage
+
+Quand tu corriges un nom, fais-le dans cet ordre :
+
+1. identifier ce que la donnée représente réellement ;
+2. identifier son rôle dans le programme ;
+3. identifier le domaine précis ;
+4. choisir le mot le plus simple qui reste exact ;
+5. ajouter seulement la précision nécessaire ;
+6. vérifier que le nom reste lisible ;
+7. vérifier qu’il n’exprime pas seulement la structure ;
+8. vérifier qu’il est adapté au type de code.
+
+---
+
+### 18. Modèle de décision
+
+#### Mauvais raisonnement
+
+> “C’est ce qu’on voit dans le cours, donc je garde `X`, `y`, `theta`.”
+
+#### Mauvais raisonnement
+
+> “C’est mieux que `x`, donc `input_data`, `labels`, `result` suffisent.”
+
+#### Bon raisonnement
+
+> “Le lecteur doit comprendre ce que cette donnée représente, sans connaître la formule, sans deviner le domaine, et sans devoir interpréter un mot vague.”
+
+---
+
+### 19. Checklist opérationnelle
+
+#### À faire
+
+* utiliser l’anglais pour les identifiants ;
+* nommer selon le sens réel ;
+* préférer le métier à la structure ;
+* choisir des mots simples ;
+* préciser ce qui est compté ;
+* utiliser un verbe clair pour les fonctions ;
+* nommer les booléens comme des affirmations ;
+* rester cohérent dans tout le projet ;
+* adapter le nom au type de code.
+
+#### À éviter
+
+* lettres seules ;
+* abréviations ;
+* jargon inutile ;
+* mélange de langues ;
+* noms trop vagues ;
+* noms mathématiques ;
+* noms orientés structure ;
+* mots corrects mais flous ;
+* détails techniques inutiles dans le nom.
+
+---
+
+### 20. Version courte à mémoriser
+
+Par défaut, un bon nom doit dire :
+
+* ce que c’est ;
+* ce que ça contient ;
+* à quoi ça sert ;
+* de quel domaine on parle.
+
+Et si nécessaire, il doit aussi préciser :
+
+* s’il s’agit d’une valeur ou d’une collection ;
+* s’il s’agit d’un compteur, d’un index, d’un score,
+  d’un chemin, d’une probabilité ou d’un coefficient.
+
+S’il n’aide pas réellement le lecteur à comprendre,
+il faut le renommer.
+
+---
+
+### 21. Formule finale
+
+**Le nommage n’est pas une décoration.
+C’est une partie de l’explication du programme.**
+
+Le bon nom n’ajoute pas du style :
+il retire du doute.
+
+---
+
+### 22. Mini fiche mémo
+
+#### À éviter fortement dans un projet pédagogique
+
+```python
+x, y, z, i, j, k, df, tmp, res, obj, val, data
+label, labels, result, prediction, predictions
+gradient, configuration, matrix, vector, row, column
+```
+
+#### Recommandé
+
+```python
+student_subject_scores
+student_house_indices
+current_house_index
+student_count
+subject_count
+house_coefficients
+predicted_house_indices
+is_valid
+output_file_path
+training_configuration
+current_house_coefficient_gradient
+```
+
+#### Fonctions
+
+```python
+load_student_records
+validate_input_file
+train_house_classifier
+predict_house_indices
+save_prediction_results
+```
+
+#### Classes
+
+```python
+StudentRecord
+HouseClassifier
+TrainingConfiguration
+PredictionResult
+```
+
+#### Constantes
+
+```python
+DEFAULT_LEARNING_RATE
+MAX_ITERATION_COUNT
+REQUIRED_SUBJECT_NAMES
+MODEL_FILE_NAME
+```
+
 
 ---
 
