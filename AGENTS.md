@@ -1126,15 +1126,32 @@ règles suivantes.
 
 ### Objectif
 
-Les commentaires doivent exprimer le **pourquoi** de **chaque ligne de code**.
+Les commentaires doivent exprimer le **pourquoi utile** du code.
 
-Le but est d’avoir **un commentaire au-dessus de chaque ligne**,
-y compris pour les imports, constantes, affectations, conditions,
-retours, appels de fonctions et transformations intermédiaires.
+Le but n’est pas d’avoir mécaniquement un commentaire au-dessus de chaque
+ligne, mais d’ajouter un commentaire **uniquement** lorsqu’une information
+utile à la maintenance, au diagnostic, à la robustesse, au contrat ou au
+choix de conception **n’est pas déjà visible dans le code**.
 
-Quand une justification forte n’existe pas, formule le commentaire avec
-le niveau de justification le plus utile disponible, sans paraphrase
-grossière du code.
+Le code doit rester la source principale de clarté.
+Le commentaire n’intervient que lorsque le code seul ne suffit plus.
+
+---
+
+### Principe fondamental
+
+**Le code doit porter le “quoi”.  
+Le commentaire doit porter le “pourquoi”.**
+
+Avant d’ajouter un commentaire, il faut toujours préférer, dans cet ordre :
+
+1. un **meilleur nommage** ;
+2. une **variable intermédiaire explicite** ;
+3. une **extraction de fonction** ;
+4. un **commentaire**, seulement si le sens utile reste absent du code.
+
+Un commentaire ne doit jamais servir à compenser un code inutilement opaque
+qu’on aurait pu rendre plus clair autrement.
 
 ---
 
@@ -1142,35 +1159,39 @@ grossière du code.
 
 Un commentaire doit expliquer au moins un des points suivants :
 
-* pourquoi cette ligne existe sous cette forme,
-* pourquoi cette implémentation a été retenue ici,
-* quel risque elle évite,
-* quelle garantie elle protège,
-* quelle contrainte elle respecte,
-* quel contrat elle préserve,
-* quelle robustesse, stabilité ou compatibilité elle apporte.
+* pourquoi cette ligne ou ce bloc existe sous cette forme ;
+* pourquoi cette implémentation a été retenue ici ;
+* quel risque est évité ;
+* quelle garantie est protégée ;
+* quelle contrainte est respectée ;
+* quel contrat est préservé ;
+* quelle robustesse, stabilité ou compatibilité est recherchée ;
+* quelle hypothèse, convention ou limite doit être connue du mainteneur.
 
 Un commentaire ne doit jamais :
 
-* décrire ce que fait la ligne,
-* reformuler le code,
-* expliquer la syntaxe,
-* décrire le mécanisme immédiat,
-* nommer simplement l’API appelée,
-* commenter une évidence lisible directement dans le code.
+* décrire ce que fait la ligne ;
+* reformuler le code ;
+* expliquer la syntaxe ;
+* décrire le mécanisme immédiat ;
+* nommer simplement l’API appelée ;
+* commenter une évidence lisible directement dans le code ;
+* remplacer un meilleur nommage ou une meilleure structure.
 
 ---
 
 ### Priorité absolue
 
-**Aucun commentaire vaut mieux qu’un commentaire faux, évident ou redondant.**
+**Aucun commentaire vaut mieux qu’un commentaire faux, évident, décoratif
+ou redondant.**
 
 Donc, n’ajoute aucun commentaire si :
 
-* la ligne est évidente,
-* sa justification est triviale,
-* le lecteur peut déduire seul le commentaire en lisant la ligne,
-* le commentaire répond à “quoi” ou “comment” au lieu de “pourquoi”.
+* la ligne est évidente ;
+* sa justification est triviale ;
+* le lecteur peut déduire seul l’information en lisant le code ;
+* le commentaire répond à “quoi” ou “comment” au lieu de “pourquoi” ;
+* le commentaire n’apporte aucune aide réelle à la maintenance.
 
 ---
 
@@ -1179,13 +1200,14 @@ Donc, n’ajoute aucun commentaire si :
 Avant d’écrire un commentaire, vérifie que :
 
 1. il répond à la question :
-   **« Pourquoi cette ligne est-elle nécessaire ici ? »**
+   **« Pourquoi cette ligne, ce bloc ou ce choix est-il nécessaire ici ? »**
    ou
-   **« Qu’est-ce qu’on cherche à garantir, éviter ou préserver grâce à elle ? »**
+   **« Qu’est-ce qu’on cherche à garantir, éviter, documenter ou préserver ? »**
 2. il apporte une information absente du code lui-même ;
-3. il ne peut pas être déduit simplement en lisant la ligne sans contexte ;
+3. il ne peut pas être remplacé utilement par un meilleur nommage,
+   une variable intermédiaire ou une extraction de fonction ;
 4. il aide réellement la maintenance, le diagnostic, la robustesse,
-   la compréhension d’un choix ou d’un compromis.
+   la compréhension d’un choix, d’une contrainte ou d’un compromis.
 
 Si un seul de ces critères échoue, **n’ajoute pas de commentaire**.
 
@@ -1195,28 +1217,33 @@ Si un seul de ces critères échoue, **n’ajoute pas de commentaire**.
 
 Un bon commentaire peut justifier :
 
-* une intention de conception,
-* une contrainte technique ou métier,
-* un invariant à préserver,
-* un risque évité,
-* un compromis assumé,
-* une robustesse recherchée,
-* une stabilité de test,
-* une compatibilité inter-OS ou inter-environnements,
-* une exigence de maintenabilité,
-* une contrainte de performance,
-* un diagnostic exploitable,
-* un contrat d’interface,
-* un comportement attendu en cas d’erreur,
-* une normalisation volontaire,
-* une convention retenue pour fiabiliser le système.
+* une intention de conception ;
+* une contrainte technique ou métier ;
+* un invariant à préserver ;
+* un risque évité ;
+* un compromis assumé ;
+* une robustesse recherchée ;
+* une stabilité de test ;
+* une compatibilité inter-OS ou inter-environnements ;
+* une exigence de maintenabilité ;
+* une contrainte de performance ;
+* un diagnostic exploitable ;
+* un contrat d’interface ;
+* un comportement attendu en cas d’erreur ;
+* une normalisation volontaire ;
+* une convention retenue pour fiabiliser le système ;
+* une hypothèse d’entrée ou de format ;
+* une limite connue ;
+* une dette technique explicitement assumée ;
+* une contrainte imposée par une API, un protocole, un format ou un outil.
 
 ---
 
 ### Formulation attendue
 
 Le commentaire doit être formulé comme une **justification**,
-pas comme une **description**.
+une **contrainte**, une **garantie**, une **hypothèse** ou une **limite utile**,
+pas comme une description de l’action visible.
 
 Formulations adaptées :
 
@@ -1235,6 +1262,12 @@ Formulations adaptées :
 * Pour éviter qu’un cas limite casse…
 * Pour imposer une représentation canonique…
 * Pour réduire une ambiguïté de comportement…
+* Convention imposée par…
+* Compatibilité requise avec…
+* Limite volontaire : …
+* Hypothèse : …
+* Précondition : …
+* Postcondition attendue : …
 
 Formulations à éviter en général :
 
@@ -1256,27 +1289,175 @@ Ces verbes décrivent souvent l’action visible, donc le “comment”.
 
 ---
 
+### Règle spéciale pour attributs, méthodes, fonctions ou API au nom opaque
+
+Quand une ligne contient un attribut, une méthode, une fonction, un module,
+une librairie ou une notation dont le nom n’est **pas transparent par lui-même**
+(ex. symbole court, abréviation, convention mathématique, API cryptique,
+notation implicite comme `.T`, `.dot`, `.iloc`, `np`, `pd`, etc.),
+le commentaire peut exceptionnellement expliciter **la signification utile**
+de cet élément, mais **uniquement** si cette précision aide à comprendre
+le choix de conception, la contrainte ou la logique de l’algorithme.
+
+La règle reste la même :
+
+* ne pas décrire le geste syntaxique brut ;
+* ne pas faire un mini-cours d’API ;
+* ne pas paraphraser la ligne ;
+* ne pas expliquer “comment ça marche” au niveau mécanique ;
+* expliquer **pourquoi cette opération conceptuelle est utilisée ici**.
+
+#### Ce qu’il faut faire dans ce cas
+
+Quand un nom est opaque, le commentaire peut préciser :
+
+* la **signification conceptuelle** de l’opération ;
+* son **rôle mathématique, algorithmique ou structurel** ;
+* pourquoi cette transformation est nécessaire dans ce contexte ;
+* quelle compatibilité de dimensions, de contrat ou de représentation
+  elle garantit ;
+* quel risque d’ambiguïté elle lève pour le lecteur.
+
+#### Ce qu’il ne faut pas faire
+
+Ne pas écrire un commentaire du type :
+
+* “`.T` transpose la matrice”
+* “`.dot` fait un produit matriciel”
+* “`np` est NumPy”
+* “`pd` est pandas”
+
+Ces formulations nomment l’API ou décrivent l’action visible,
+mais n’expliquent pas pourquoi cette opération existe ici.
+
+#### Formulation attendue en cas de nom opaque
+
+Quand c’est utile, on peut combiner :
+
+1. la **signification utile** de l’élément opaque ;
+2. la **raison de sa présence ici**.
+
+Exemples de formulations adaptées :
+
+* Pour projeter les erreurs sur chaque variable plutôt que par observation
+* Pour réaligner les dimensions avant l’agrégation du gradient
+* Pour exprimer un produit matriciel cohérent avec la formulation du modèle
+* Pour conserver une écriture vectorisée alignée sur l’algèbre du calcul
+* Pour éviter une ambiguïté entre une opération élément par élément
+  et une agrégation linéaire globale
+
+#### Règle de priorité
+
+Si l’élément opaque peut être rendu clair par un **meilleur nommage**
+ou par une **variable intermédiaire explicite**, préfère cette solution.
+
+Le commentaire n’est autorisé que si :
+
+* l’opacité vient de l’API, de la convention ou de la notation ;
+* cette opacité gêne réellement la lecture ;
+* la clarification apporte une information utile à la maintenance.
+
+#### Exemple interdit
+
+```py
+# .T transpose la matrice et .dot fait le produit matriciel
+bias_and_standardized_discipline_scores_error_sum = (
+    student_discipline_scores_with_bias.T.dot(
+        prediction_error_by_student
+    )
+)
+````
+
+#### Exemple attendu
+
+```py
+# On projette l'erreur sur chaque variable pour obtenir l'agrégat
+# nécessaire à la mise à jour vectorisée des poids
+bias_and_standardized_discipline_scores_error_sum = (
+    student_discipline_scores_with_bias.T.dot(
+        prediction_error_by_student
+    )
+)
+```
+
+#### Exemple encore meilleur si une variable intermédiaire clarifie le rôle
+
+```py
+# On rend explicite la matrice réorientée utilisée pour agréger
+# l'erreur par variable plutôt que par observation
+transposed_student_scores_with_bias = (
+    student_discipline_scores_with_bias.T
+)
+
+# On obtient la somme vectorisée des contributions d'erreur
+# nécessaire au calcul du gradient
+bias_and_standardized_discipline_scores_error_sum = (
+    transposed_student_scores_with_bias.dot(
+        prediction_error_by_student
+    )
+)
+```
+
+---
+
+### Types de commentaires autorisés
+
+#### 1. Commentaire de ligne
+
+À utiliser seulement si une ligne porte, à elle seule, une justification
+utile que le code n’exprime pas clairement.
+
+#### 2. Commentaire de bloc
+
+À privilégier lorsque plusieurs lignes participent à une même intention,
+contrainte, garantie ou transformation.
+
+Dans ce cas, un seul commentaire au-dessus du bloc vaut mieux qu’un
+commentaire artificiel au-dessus de chaque ligne.
+
+#### 3. Docstring
+
+Réservée aux modules, classes et fonctions.
+Elle documente le **contrat global**, pas chaque ligne.
+
+#### 4. Commentaire de convention ou de limite
+
+Autorisé lorsqu’il faut signaler :
+
+* une convention imposée ;
+* une hypothèse non évidente ;
+* une limite volontaire ;
+* une compatibilité requise ;
+* une dette technique connue.
+
+---
+
 ### Règles de commentaires
 
-* N’ajoute un commentaire **que si la ligne a un “pourquoi” utile**.
-* Lorsqu’un commentaire est justifié, place-le **juste au-dessus** de la ligne.
+* N’ajoute un commentaire **que si le code a un “pourquoi” utile à porter**.
+* Préfère un **commentaire de bloc** à plusieurs commentaires faibles ligne par ligne.
+* Lorsqu’un commentaire est justifié, place-le **juste au-dessus** de la ligne
+  ou du bloc concerné.
 * Le commentaire doit respecter **l’indentation** du bloc.
 * **Langue : français**.
 * Les termes techniques anglais sont autorisés uniquement pour :
-  * les noms d’API,
-  * les types,
-  * les constantes,
-  * les mots-clés du langage,
+
+  * les noms d’API ;
+  * les types ;
+  * les constantes ;
+  * les mots-clés du langage ;
   * les noms de fonctions, classes, modules ou outils.
 * **80 caractères maximum par ligne de commentaire**.
 * **Interdit** :
-  * commentaire en fin de ligne,
-  * commentaire sous la ligne,
-  * paraphrase du code,
-  * description syntaxique,
-  * commentaire décoratif,
-  * commentaire générique sans valeur de maintenance,
-  * commentaire redondant avec le nom de la fonction, de l’API ou de la ligne.
+
+  * commentaire en fin de ligne ;
+  * commentaire sous la ligne ;
+  * paraphrase du code ;
+  * description syntaxique ;
+  * commentaire décoratif ;
+  * commentaire générique sans valeur de maintenance ;
+  * commentaire redondant avec le nom de la fonction, de l’API ou de la ligne ;
+  * commentaire inventant une justification absente du contexte.
 
 ---
 
@@ -1285,12 +1466,13 @@ Ces verbes décrivent souvent l’action visible, donc le “comment”.
 Si un commentaire existant décrit l’action de la ligne, réécris-le pour
 exprimer à la place :
 
-* quelle garantie est recherchée,
-* quel risque est évité,
-* quelle contrainte est respectée,
-* quel contrat est préservé,
-* pourquoi cette implémentation est préférable ici,
-* quelle conséquence négative est empêchée.
+* quelle garantie est recherchée ;
+* quel risque est évité ;
+* quelle contrainte est respectée ;
+* quel contrat est préservé ;
+* pourquoi cette implémentation est préférable ici ;
+* quelle conséquence négative est empêchée ;
+* quelle hypothèse, convention ou limite doit être connue.
 
 Si cette réécriture n’est pas possible sans inventer une justification,
 **supprime le commentaire**.
@@ -1301,17 +1483,21 @@ Si cette réécriture n’est pas possible sans inventer une justification,
 
 Utilise des **docstrings uniquement** pour :
 
-* les modules,
-* les classes,
+* les modules ;
+* les classes ;
 * les fonctions.
 
-Les docstrings doivent couvrir :
+Les docstrings doivent couvrir, selon le contexte :
 
-* le but global,
-* les paramètres,
-* la valeur de retour,
-* les erreurs levées,
-* le contrat global d’utilisation.
+* le but global ;
+* les paramètres ;
+* la valeur de retour ;
+* les erreurs levées ;
+* le contrat global d’utilisation ;
+* les préconditions utiles ;
+* les postconditions utiles ;
+* les effets de bord notables ;
+* les conventions de format, d’unité ou de représentation si nécessaires.
 
 Les docstrings ne doivent pas répéter les commentaires ligne par ligne.
 
@@ -1321,12 +1507,15 @@ Les docstrings ne doivent pas répéter les commentaires ligne par ligne.
 
 Quand tu traites du code :
 
-1. supprime les commentaires qui décrivent l’action ;
-2. conserve uniquement les commentaires réellement utiles ;
-3. réécris les commentaires pour exprimer la justification du choix ;
-4. n’ajoute de nouveaux commentaires que lorsqu’un “pourquoi” non trivial
-   existe clairement ;
-5. n’invente jamais une justification absente du contexte.
+1. améliore d’abord le nommage si le code est ambigu ;
+2. introduis une variable intermédiaire si elle clarifie l’intention ;
+3. extrais une fonction si cela rend le bloc plus lisible ;
+4. supprime les commentaires qui décrivent l’action ;
+5. conserve uniquement les commentaires réellement utiles ;
+6. réécris les commentaires pour exprimer la justification du choix ;
+7. n’ajoute de nouveaux commentaires que lorsqu’un “pourquoi”,
+   une contrainte, une hypothèse ou une limite non triviale existe clairement ;
+8. n’invente jamais une justification absente du contexte.
 
 ---
 
@@ -1369,3 +1558,4 @@ normalized = url.strip()
 for line in process.stdout:
     print(line, end="")
 ```
+
