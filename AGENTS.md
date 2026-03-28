@@ -1295,67 +1295,110 @@ Quand une ligne contient un attribut, une méthode, une fonction, un module,
 une librairie ou une notation dont le nom n’est **pas transparent par lui-même**
 (ex. symbole court, abréviation, convention mathématique, API cryptique,
 notation implicite comme `.T`, `.dot`, `.iloc`, `np`, `pd`, etc.),
-le commentaire peut exceptionnellement expliciter **la signification utile**
-de cet élément, mais **uniquement** si cette précision aide à comprendre
-le choix de conception, la contrainte ou la logique de l’algorithme.
+le commentaire peut exceptionnellement expliciter :
 
-La règle reste la même :
+1. **ce que cet élément signifie concrètement** ;
+2. **à quoi il sert ici** ;
+3. **pourquoi cette opération est utilisée dans ce contexte**.
 
-* ne pas décrire le geste syntaxique brut ;
-* ne pas faire un mini-cours d’API ;
-* ne pas paraphraser la ligne ;
-* ne pas expliquer “comment ça marche” au niveau mécanique ;
-* expliquer **pourquoi cette opération conceptuelle est utilisée ici**.
+Cette exception existe pour éviter qu’une notation compacte, connue des
+experts mais peu lisible pour un mainteneur futur, devienne un point
+d’opacité dans le code.
+
+La règle reste néanmoins la même :
+le commentaire ne doit pas devenir un mini-cours d’API ni une paraphrase
+grossière de la ligne ; il doit expliquer **la signification utile**
+de l’élément opaque et sa **raison d’être dans le code**.
 
 #### Ce qu’il faut faire dans ce cas
 
 Quand un nom est opaque, le commentaire peut préciser :
 
-* la **signification conceptuelle** de l’opération ;
-* son **rôle mathématique, algorithmique ou structurel** ;
-* pourquoi cette transformation est nécessaire dans ce contexte ;
+* ce que l’élément fait en termes simples et concrets ;
+* quel changement de représentation il produit ;
+* quel rôle mathématique, algorithmique ou structurel il joue ;
+* pourquoi cette transformation est nécessaire ici ;
 * quelle compatibilité de dimensions, de contrat ou de représentation
   elle garantit ;
 * quel risque d’ambiguïté elle lève pour le lecteur.
 
+#### Exception autorisée pour les notations très opaques
+
+Pour des notations très compactes comme `.T` ou `.dot`,
+il est autorisé de mentionner **explicitement leur effet concret**,
+car leur nom seul ne suffit pas à informer clairement un lecteur
+qui reprend le code plusieurs années plus tard.
+
+Mais cette explication doit rester **utile, contextualisée et lisible**.
+
+Autrement dit, on ne s’arrête pas à :
+
+* “`.T` transpose la matrice”
+* “`.dot` fait un produit matriciel”
+
+car ces formulations restent souvent trop courtes ou trop techniques
+pour être réellement transparentes.
+
+On préfère expliquer de façon plus parlante :
+
+* que `.T` **réoriente les données en échangeant lignes et colonnes** ;
+* que `.dot` **combine les valeurs correspondantes selon leur alignement
+  pour produire une agrégation numérique unique ou vectorisée**.
+
+Le commentaire doit donc viser une compréhension exploitable, pas
+la simple récitation du terme académique.
+
 #### Ce qu’il ne faut pas faire
 
-Ne pas écrire un commentaire du type :
+Ne pas écrire un commentaire qui :
+
+* se contente de nommer l’API ;
+* répète le terme technique sans le rendre plus clair ;
+* décrit mécaniquement la syntaxe sans expliquer son intérêt ici ;
+* explique l’opération hors contexte alors que son rôle local est
+  la vraie information utile.
+
+Exemples insuffisants :
 
 * “`.T` transpose la matrice”
 * “`.dot` fait un produit matriciel”
 * “`np` est NumPy”
 * “`pd` est pandas”
 
-Ces formulations nomment l’API ou décrivent l’action visible,
-mais n’expliquent pas pourquoi cette opération existe ici.
+Ces formulations peuvent être exactes,
+mais elles restent trop pauvres si elles n’expliquent ni le sens concret,
+ni le rôle de l’opération dans la ligne.
 
 #### Formulation attendue en cas de nom opaque
 
 Quand c’est utile, on peut combiner :
 
-1. la **signification utile** de l’élément opaque ;
-2. la **raison de sa présence ici**.
+1. **l’effet concret de l’élément opaque** ;
+2. **sa signification conceptuelle** ;
+3. **la raison de sa présence ici**.
 
 Exemples de formulations adaptées :
 
-* Pour projeter les erreurs sur chaque variable plutôt que par observation
-* Pour réaligner les dimensions avant l’agrégation du gradient
-* Pour exprimer un produit matriciel cohérent avec la formulation du modèle
-* Pour conserver une écriture vectorisée alignée sur l’algèbre du calcul
-* Pour éviter une ambiguïté entre une opération élément par élément
-  et une agrégation linéaire globale
+* Pour réorienter le tableau et raisonner par variable plutôt que par observation
+* Pour échanger lignes et colonnes avant l’agrégation du gradient
+* Pour combiner chaque erreur avec la bonne variable correspondante
+* Pour agréger les contributions numériques de toutes les observations
+* Pour obtenir une somme pondérée cohérente avec la formulation du modèle
+* Pour éviter une ambiguïté entre une multiplication élément par élément
+  et une combinaison globale des variables
 
 #### Règle de priorité
 
 Si l’élément opaque peut être rendu clair par un **meilleur nommage**
 ou par une **variable intermédiaire explicite**, préfère cette solution.
 
-Le commentaire n’est autorisé que si :
+Le commentaire devient nécessaire surtout quand :
 
 * l’opacité vient de l’API, de la convention ou de la notation ;
 * cette opacité gêne réellement la lecture ;
-* la clarification apporte une information utile à la maintenance.
+* le futur mainteneur pourrait ne pas connaître immédiatement la notation ;
+* la clarification apporte une information utile à la maintenance,
+  à l’explication ou à l’évaluation du code.
 
 #### Exemple interdit
 
@@ -1368,11 +1411,11 @@ bias_and_standardized_discipline_scores_error_sum = (
 )
 ````
 
-#### Exemple attendu
+#### Exemple acceptable
 
 ```py
-# On projette l'erreur sur chaque variable pour obtenir l'agrégat
-# nécessaire à la mise à jour vectorisée des poids
+# On réoriente le tableau pour passer d'une lecture par élève
+# à une lecture par variable avant d'agréger l'erreur
 bias_and_standardized_discipline_scores_error_sum = (
     student_discipline_scores_with_bias.T.dot(
         prediction_error_by_student
@@ -1380,17 +1423,29 @@ bias_and_standardized_discipline_scores_error_sum = (
 )
 ```
 
-#### Exemple encore meilleur si une variable intermédiaire clarifie le rôle
+#### Exemple attendu
 
 ```py
-# On rend explicite la matrice réorientée utilisée pour agréger
-# l'erreur par variable plutôt que par observation
+# On échange lignes et colonnes pour aligner chaque variable
+# avec les erreurs associées au moment de l'agrégation
+bias_and_standardized_discipline_scores_error_sum = (
+    student_discipline_scores_with_bias.T.dot(
+        prediction_error_by_student
+    )
+)
+```
+
+#### Exemple plus explicite encore
+
+```py
+# On réoriente les scores pour raisonner par variable plutôt
+# que par observation, ce qui prépare l'agrégation du gradient
 transposed_student_scores_with_bias = (
     student_discipline_scores_with_bias.T
 )
 
-# On obtient la somme vectorisée des contributions d'erreur
-# nécessaire au calcul du gradient
+# On combine chaque variable avec les erreurs correspondantes
+# pour obtenir la somme utilisée dans la mise à jour des poids
 bias_and_standardized_discipline_scores_error_sum = (
     transposed_student_scores_with_bias.dot(
         prediction_error_by_student
