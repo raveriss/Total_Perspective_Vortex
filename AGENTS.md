@@ -804,6 +804,166 @@ python mybci.py S001 R01 train
 python mybci.py S001 R01 predict
 ```
 
+### 4.2 bis Journalisation d’analyse (`AnalysisLogger`)
+
+Pour améliorer le diagnostic, la lisibilité des exécutions CLI et la
+maintenabilité du projet, l’agent peut créer et utiliser une classe
+partagée `AnalysisLogger` dédiée à la journalisation console d’analyse.
+
+#### Objectif
+
+`AnalysisLogger` sert exclusivement à produire des logs de diagnostic
+structurés, lisibles et visuellement homogènes pendant l’exécution
+du programme.
+
+Cette classe doit aider à :
+
+- suivre les grandes étapes d’exécution ;
+- faciliter le debug local ;
+- rendre les logs plus lisibles grâce à des séparateurs stables ;
+- localiser rapidement une phase fautive ;
+- améliorer la compréhension du flux d’exécution.
+
+#### Règles obligatoires
+
+1. **Implémentation centralisée**
+   - La logique de journalisation d’analyse doit être regroupée dans
+     une classe dédiée `AnalysisLogger`.
+   - L’agent doit éviter de dupliquer une logique de log similaire dans
+     plusieurs fichiers, sauf nécessité réelle clairement justifiée.
+
+2. **Activation optionnelle**
+   - La journalisation d’analyse doit être désactivée par défaut.
+   - Elle doit pouvoir être activée explicitement via un argument CLI,
+     un flag, une option de configuration ou un mécanisme équivalent.
+   - Son activation ne doit jamais modifier le comportement métier,
+     uniquement la verbosité et la lisibilité des sorties console.
+
+3. **Séparation stricte des responsabilités**
+   - `AnalysisLogger` ne doit contenir aucune logique métier.
+   - Il ne doit ni transformer les données, ni piloter le flux métier,
+     ni changer le résultat fonctionnel du programme.
+   - Son rôle est limité à l’affichage de diagnostics.
+
+4. **Injection explicite**
+   - Le logger doit être instancié au niveau du point d’entrée
+     principal, puis transmis explicitement aux composants qui en ont
+     besoin.
+   - L’agent doit éviter les variables globales cachées pour piloter
+     les logs.
+
+5. **Aucun `print()` d’analyse dispersé**
+   - Les affichages d’analyse ne doivent pas être éparpillés directement
+     dans le code métier.
+   - Hors messages utilisateur strictement nécessaires, les logs
+     d’analyse doivent passer par `AnalysisLogger`.
+
+6. **Style visuel stable**
+   - La classe doit fournir un style d’affichage constant :
+     séparateurs, titres, sous-sections, synthèses de valeurs.
+   - Les sorties doivent rester sobres, lisibles et homogènes d’une
+     exécution à l’autre.
+
+7. **Contenu attendu des logs**
+   - Les logs peuvent afficher, selon le contexte :
+     - nom de phase ;
+     - chemin de fichier ;
+     - paramètres d’entrée ;
+     - dimensions, shapes ou tailles ;
+     - statistiques synthétiques ;
+     - état d’avancement ;
+     - résultats intermédiaires utiles ;
+     - temps d’exécution ;
+     - informations de sauvegarde / chargement.
+   - Les logs doivent éviter les sorties trop volumineuses ou bruitées,
+     sauf besoin ponctuel clairement justifié.
+
+8. **Nommage explicite des méthodes**
+   - Les méthodes doivent décrire précisément leur rôle.
+   - Exemples :
+     - `log_header`
+     - `log_section_header`
+     - `log_input_summary`
+     - `log_configuration_summary`
+     - `log_processing_step`
+     - `log_output_summary`
+     - `log_save_summary`
+     - `log_warning_summary`
+   - Éviter les noms trop vagues comme `log_data`, `log_info`,
+     `log_step` s’ils ne sont pas suffisamment précis.
+
+9. **Robustesse**
+   - Si le logger est désactivé, ses méthodes doivent retourner
+     immédiatement sans produire d’effet parasite.
+   - Le logger ne doit jamais faire échouer le programme pour un simple
+     besoin de diagnostic console.
+
+10. **Testabilité**
+    - Le comportement du logger doit être testable.
+    - Les tests doivent vérifier au minimum :
+      - qu’aucune sortie n’est produite lorsqu’il est désactivé ;
+      - que les en-têtes et séparateurs attendus apparaissent quand il
+        est activé ;
+      - qu’il n’altère jamais le résultat fonctionnel du programme.
+
+11. **Compatibilité avec les sorties attendues**
+    - La journalisation d’analyse ne doit pas casser un format de sortie
+      attendu par des tests, un évaluateur ou un consommateur machine.
+    - Si une sortie standard doit rester strictement contrôlée, les logs
+      d’analyse doivent être désactivés par défaut ou redirigés selon le
+      contrat du projet.
+
+12. **Extensibilité**
+    - La classe doit être conçue pour accueillir de nouvelles méthodes
+      de log sans casser le code existant.
+    - Toute nouvelle phase importante du programme doit pouvoir recevoir
+      une méthode de log dédiée, explicite et cohérente avec le style
+      existant.
+
+#### Trame minimale attendue
+
+Cette trame constitue un noyau minimal.
+L’agent peut ensuite ajouter des méthodes spécialisées selon les
+besoins du projet.
+
+```py
+class AnalysisLogger:
+    """Logger verbeux dédié au diagnostic d’exécution."""
+
+    GRAPHICAL_SEPARATOR = "/*   -'-,-'-,-'-,-'-,-'-,-'-,-'-,-'-,-'-,-'-,-'-,-'-,-'-,-'-,-'-,-'-,-',-'   */"
+    VALUE_SEPARATOR = "--------------------------------------------------------------"
+
+    def __init__(self, enabled: bool = False) -> None:
+        self.enabled = enabled
+
+    def _log_graphical_separator(self) -> None:
+        if not self.enabled:
+            return
+        print(f"\n{self.GRAPHICAL_SEPARATOR}")
+
+    def log_header(self, title: str) -> None:
+        if not self.enabled:
+            return
+        print("")
+        self._log_graphical_separator()
+        print(f"/* {title.center(68)} */")
+        self._log_graphical_separator()
+
+    def log_key_value(self, label: str, value: object) -> None:
+        if not self.enabled:
+            return
+        print(f"{label}: {value}")
+```
+---
+Exemple d'appel dans le code source :
+```py
+# Pour accepter l'execution depuis le dossier scripts directement.
+from scripts.analysis_logger import AnalysisLogger
+
+# Pour afficher l'etat initial des donnees si le mode analyse est actif.
+analysis_logger.log_key_value("students_count", students_count)
+```
+
 ### 4.3 Persistance
 
 * Sauvegardes de modèles et paramètres dans un répertoire dédié (`models/`
