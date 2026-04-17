@@ -776,18 +776,69 @@ conclure par :
 
 ---
 
-
-
 ## 3) 🧪 Plan de tests (défense‑proof)
-**Objectifs** : >= 90 % couverture (branches + diff), **contrôle par fichier**, tests rapides.
+
+**Objectifs** : >= 90 % de couverture (`coverage report --fail-under=90`), contrôle par fichier, tests
+déterministes, exécution rapide, traçabilité WBS/Murphy.
+
+**Traçabilité WBS principale** : 2.2.5, 2.3.4, 3.2.4, 4.3.3, 5.3.4, 6.3.1, 6.3.2, 7.4.5, 8.3.1, 8.3.2,
+8.3.3, 9.2.1, 9.2.2, 9.3.1, 9.3.4.
+
+**Murphy prioritaires couverts** : TPV-021, TPV-022, TPV-023, TPV-024, TPV-026, TPV-029, TPV-030, TPV-
+031, TPV-034, TPV-036, TPV-038, TPV-048, TPV-700, TPV-708, TPV-725, TPV-737, TPV-750, TPV-756, TPV-758,
+TPV-759, TPV-762, TPV-764.
 
 ### 3.1 Unitaires
--
-...
+- Cibler tous les modules critiques : `preprocessing.py`, `features.py`, `dimensionality.py`,
+`pipeline.py`, `classifier.py`, `realtime.py`, `train.py`, `predict.py`, `utils.py`, `mybci.py`.
+- Vérifier les invariants de base : shapes, dtypes, absence de `NaN/Inf`, non-mutation des entrées,
+messages d’erreur explicites (`ERROR:`).
+- Vérifier les contrats sklearn : classes custom compatibles `BaseEstimator`/`TransformerMixin`, `fit`,
+`transform`, sérialisation et rechargement stables.
+- Vérifier la CLI : parsing strict des arguments, erreurs utilisateur lisibles, `main guard` (`if
+__name__ == "__main__": main()`).
+- Exiger le mode TDD : 1 test rouge minimal avant correctif, puis vert, puis refactor.
 
+### 3.2 Intégration pipeline ML (offline)
+- Tester le pipeline complet `sklearn.pipeline.Pipeline` de bout en bout, jamais une étape isolée pour
+le scoring.
+- Vérifier explicitement l’absence de fuite de données (`cross_val_score` sur pipeline complet, split
+train/val/test distinct, séparation par run/sujet quand nécessaire).
+- Vérifier la persistance d’artefacts : train → save → load → predict cohérent sur données identiques.
+- Vérifier la cohérence train/predict : mêmes hyperparamètres de prétraitement et de réduction (pas de
+divergence de config).
+- Ajouter un test de non-régression sur la moyenne des 6 runs avec données jamais vues.
+
+### 3.3 E2E / Scripts / Contrats I/O
+- Couvrir le flux nominal : `python mybci.py S001 R01 train` puis `python mybci.py S001 R01 predict`.
+- Couvrir les cibles Makefile associées (`make train`, `make predict`, `make cov`) et leurs erreurs I/O
+attendues.
+- Vérifier les scripts de données (`fetch/prepare/sync`) en cas nominal et en cas d’échec réseau/
+fichier manquant/corruption.
+- Vérifier le format des sorties (CSV/JSON), encodage UTF‑8, schéma de colonnes stable.
+- Vérifier que les datasets Physionet ne sont pas requis dans le repo versionné (pas de dépendance à
+des chemins absolus locaux).
+
+### 3.4 Temps réel / Performance / Robustesse opérationnelle
+- Simuler un flux progressif (playback) et mesurer la latence bout-en-bout par chunk.
+- Asserts temps réel obligatoires : latence moyenne `< 2.0 s`, latence max `< 2.2 s`, variance de
+latence bornée (jitter contrôlé).
+- Tester la stabilité du premier appel (`warm-up`) vs appels suivants pour éviter un pic de latence
+bloquant.
+- Tester les paramètres de fenêtrage (`window/stride/overlap`) pour éviter surcharge calculatoire et
+fuite d’information future.
+- Vérifier que le mode temps réel n’utilise jamais d’information postérieure au chunk courant.
 
 ### 3.5 Tolérances numériques (si tests internes)
--
+- Filtrage : aucun `NaN/Inf`, stabilité des filtres FIR/IIR, respect des bandes MI (8–40 Hz), gestion
+notch selon contexte bruité.
+- Bords de signal : contrôler les effets de bord (padding/trim), ratio amplitude bords/centre borné.
+- Réduction dimensionnelle : orthogonalité/normalisation de `W`, covariance régularisée, résultats
+reproductibles avec seed fixé.
+- Robustesse statistique : variance des scores de `cross_val_score` contrôlée, pas d’effondrement sur
+un fold isolé.
+- Critères de sûreté numérique : seuils explicites testés (ex. résidu de reconstruction, variance
+expliquée, epsilon anti-divisions nulles).
 ...
 
 ## 4) ⚙️ Spécifications d’implémentation
