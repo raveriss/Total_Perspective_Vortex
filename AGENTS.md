@@ -776,70 +776,116 @@ conclure par :
 
 ---
 
-## 3) 🧪 Plan de tests (défense‑proof)
+## 3) 🧪 Plan de tests (défense-proof)
+**Objectifs** : couverture `>= <...>%`
+(`coverage report --fail-under=<...>`), exécution déterministe, temps CI `<= <...>`, zéro crash sur cas nominaux et erreurs attendues, traçabilité complète vers WBS, risques et exigences projet.
 
-**Objectifs** : >= 90 % de couverture (`coverage report --fail-under=90`), contrôle par fichier, tests
-déterministes, exécution rapide, traçabilité WBS/Murphy.
-
-**Traçabilité WBS principale** : 2.2.5, 2.3.4, 3.2.4, 4.3.3, 5.3.4, 6.3.1, 6.3.2, 7.4.5, 8.3.1, 8.3.2,
-8.3.3, 9.2.1, 9.2.2, 9.3.1, 9.3.4.
-
-**Murphy prioritaires couverts** : TPV-021, TPV-022, TPV-023, TPV-024, TPV-026, TPV-029, TPV-030, TPV-
-031, TPV-034, TPV-036, TPV-038, TPV-048, TPV-700, TPV-708, TPV-725, TPV-737, TPV-750, TPV-756, TPV-758,
-TPV-759, TPV-762, TPV-764.
+**Traçabilité** : WBS `<WBS_IDs>`, risques `<RISK_IDs>`, issues `<ISSUE_refs>`, jeux de données `<DATASET_refs>`, artefacts `<ARTIFACT_refs>`, exigences `<SPEC_refs>`.
 
 ### 3.1 Unitaires
-- Cibler tous les modules critiques : `preprocessing.py`, `features.py`, `dimensionality.py`,
-`pipeline.py`, `classifier.py`, `realtime.py`, `train.py`, `predict.py`, `utils.py`, `mybci.py`.
-- Vérifier les invariants de base : shapes, dtypes, absence de `NaN/Inf`, non-mutation des entrées,
-messages d’erreur explicites (`ERROR:`).
-- Vérifier les contrats sklearn : classes custom compatibles `BaseEstimator`/`TransformerMixin`, `fit`,
-`transform`, sérialisation et rechargement stables.
-- Vérifier la CLI : parsing strict des arguments, erreurs utilisateur lisibles, `main guard` (`if
-__name__ == "__main__": main()`).
-- Exiger le mode TDD : 1 test rouge minimal avant correctif, puis vert, puis refactor.
+- Couvrir tous les composants critiques :
+  `<src/...>`, `<scripts/...>`, `<entrypoints>`, `<core_modules>`.
+- Vérifier les invariants :
+  shapes `<...>`, dtypes `<...>`, plages `<...>`, absence de `NaN/Inf`, non-mutation des entrées.
+- Vérifier les cas limites :
+  entrées vides, tailles minimales, valeurs extrêmes, colonnes absentes, types invalides, doublons, divisions nulles, labels inconnus, formats incohérents.
+- Vérifier les erreurs attendues :
+  messages `<ERROR_format>`, exceptions `<...>`, codes de retour `<...>`.
+- Vérifier les contrats API :
+  signatures stables, paramètres par défaut, compatibilité ascendante `<...>`, sérialisation/rechargement stables.
+- Vérifier la reproductibilité locale :
+  seed fixée, sorties stables, absence d’aléatoire non contrôlé.
 
-### 3.2 Intégration pipeline ML (offline)
-- Tester le pipeline complet `sklearn.pipeline.Pipeline` de bout en bout, jamais une étape isolée pour
-le scoring.
-- Vérifier explicitement l’absence de fuite de données (`cross_val_score` sur pipeline complet, split
-train/val/test distinct, séparation par run/sujet quand nécessaire).
-- Vérifier la persistance d’artefacts : train → save → load → predict cohérent sur données identiques.
-- Vérifier la cohérence train/predict : mêmes hyperparamètres de prétraitement et de réduction (pas de
-divergence de config).
-- Ajouter un test de non-régression sur la moyenne des 6 runs avec données jamais vues.
+### 3.2 Validation des données
+- Tester les schémas d’entrée :
+  colonnes/features obligatoires `<...>`, types `<...>`, plages `<...>`, cardinalités `<...>`.
+- Tester les données dégradées :
+  fichiers manquants, lignes corrompues, valeurs hors bornes, encodage invalide, timestamps incohérents, valeurs manquantes.
+- Vérifier la cohérence métier :
+  mapping labels/targets `<...>`, classes attendues `<...>`, règles métier bloquantes `<...>`.
+- Vérifier la prévention des fuites de données :
+  split strict `<group_key/time_key/sujet/session/...>`.
+- Vérifier les règles de nettoyage :
+  aucune suppression silencieuse, comptage avant/après, traçabilité des éléments rejetés.
 
-### 3.3 E2E / Scripts / Contrats I/O
-- Couvrir le flux nominal : `python mybci.py S001 R01 train` puis `python mybci.py S001 R01 predict`.
-- Couvrir les cibles Makefile associées (`make train`, `make predict`, `make cov`) et leurs erreurs I/O
-attendues.
-- Vérifier les scripts de données (`fetch/prepare/sync`) en cas nominal et en cas d’échec réseau/
-fichier manquant/corruption.
-- Vérifier le format des sorties (CSV/JSON), encodage UTF‑8, schéma de colonnes stable.
-- Vérifier que les datasets Physionet ne sont pas requis dans le repo versionné (pas de dépendance à
-des chemins absolus locaux).
+### 3.3 Intégration pipeline ML
+- Tester le pipeline complet :
+  `load -> validate -> preprocess -> features -> model -> postprocess`.
+- Vérifier que `train/fit` et `predict/infer` partagent exactement la même config `<config_source>`.
+- Vérifier la cohérence train/predict :
+  mêmes colonnes, même ordre, mêmes transformations, même normalisation/encodage, mêmes mappings.
+- Vérifier `save -> load -> predict` sans dérive sur données identiques.
+- Vérifier la compatibilité des composants custom avec `<framework_ml/interface_contract>`.
+- Ajouter un test de non-régression sur `<metric_principale>` avec données jamais vues.
 
-### 3.4 Temps réel / Performance / Robustesse opérationnelle
-- Simuler un flux progressif (playback) et mesurer la latence bout-en-bout par chunk.
-- Asserts temps réel obligatoires : latence moyenne `< 2.0 s`, latence max `< 2.2 s`, variance de
-latence bornée (jitter contrôlé).
-- Tester la stabilité du premier appel (`warm-up`) vs appels suivants pour éviter un pic de latence
-bloquant.
-- Tester les paramètres de fenêtrage (`window/stride/overlap`) pour éviter surcharge calculatoire et
-fuite d’information future.
-- Vérifier que le mode temps réel n’utilise jamais d’information postérieure au chunk courant.
+### 3.4 Évaluation modèle
+- Définir les métriques :
+  `<metric_1>`, `<metric_2>`, `<metric_calibration>`, `<...>`.
+- Définir les seuils d’acceptation :
+  `<metric_1> >= <...>`, `<metric_2> <= <...>`.
+- Exécuter la stratégie d’évaluation :
+  `<cv_strategy / holdout / temporal split / grouped split / ...>`.
+- Vérifier la robustesse inter-splits/inter-domaines :
+  `<subject/run/site/time_period/domain/...>`.
+- Vérifier la stabilité statistique :
+  variance des scores bornée, pas d’effondrement sur un fold isolé, cohérence des résultats entre runs.
 
-### 3.5 Tolérances numériques (si tests internes)
-- Filtrage : aucun `NaN/Inf`, stabilité des filtres FIR/IIR, respect des bandes MI (8–40 Hz), gestion
-notch selon contexte bruité.
-- Bords de signal : contrôler les effets de bord (padding/trim), ratio amplitude bords/centre borné.
-- Réduction dimensionnelle : orthogonalité/normalisation de `W`, covariance régularisée, résultats
-reproductibles avec seed fixé.
-- Robustesse statistique : variance des scores de `cross_val_score` contrôlée, pas d’effondrement sur
-un fold isolé.
-- Critères de sûreté numérique : seuils explicites testés (ex. résidu de reconstruction, variance
-expliquée, epsilon anti-divisions nulles).
-...
+### 3.5 E2E / CLI / I/O
+- Tester le flux nominal :
+  `<command_train>` puis `<command_predict>` puis `<command_eval>`.
+- Tester les modes dégradés :
+  artefact absent, permissions insuffisantes, dépendance manquante, dataset introuvable, config invalide, environnement incomplet.
+- Vérifier les sorties :
+  formats `<csv/json/parquet/pkl/joblib/...>`, encodage UTF-8, schéma stable, contenu minimal attendu.
+- Vérifier les entrypoints associés :
+  `make <...>`, `poetry run <...>`, `<runner_cmd>`.
+- Vérifier l’absence de dépendance à des chemins absolus locaux ou à un état machine implicite.
+- Vérifier que les logs restent lisibles, structurés, utiles au debug, sans polluer les sorties contractuelles.
+
+### 3.6 Performance / Robustesse opérationnelle
+- Mesurer et borner :
+  temps d’entraînement `<= <...>`, latence moyenne `<= <...>`, latence max `<= <...>`, mémoire max `<= <...>`, throughput `>= <...>`, taille artefact `<= <...>`.
+- Vérifier la stabilité du premier appel (`warm-up`) vs appels suivants.
+- Vérifier la tenue à l’échelle :
+  `<N lignes>`, `<N features>`, `<N classes>`, `<N fichiers>`, `<N batches>`.
+- Vérifier l’absence de régression de performance entre versions critiques.
+- Vérifier que toute optimisation n’introduit ni fuite de données, ni approximation métier invalide, ni comportement non déterministe.
+
+### 3.7 Reproductibilité / Auditabilité / Sécurité
+- Fixer et tester les seeds globales :
+  `<numpy>`, `<framework_ml>`, `<python_random>`, `<...>`.
+- Versionner datasets, configs et artefacts :
+  `<data_versioning_strategy>`.
+- Vérifier la reproductibilité inter-machines :
+  écart métrique toléré `<= <...>`.
+- Enregistrer le fingerprint d’exécution :
+  commit, config hash, dataset hash, environnement, seed, date, métriques finales.
+- Vérifier la sûreté des écritures :
+  création de dossier si nécessaire, refus propre si permissions insuffisantes, pas d’écrasement silencieux non prévu.
+- Scanner dépendances et vulnérabilités :
+  `<tool_security_scan>`.
+- Vérifier les contraintes de conformité ou de confidentialité si applicables :
+  `<PII/GDPR/...>`.
+
+### 3.8 Gate qualité avant merge/release
+- Exécuter systématiquement :
+  `<lint_cmd>`, `<format_cmd>`, `<typecheck_cmd>`, `<test_cmd>`, `<coverage_cmd>`, `<benchmark_cmd>`, `<audit_cmd>`.
+- Bloquer le merge si un seuil échoue :
+  couverture, métriques, performance, sécurité, reproductibilité, conformité I/O.
+- Exiger les preuves de validation :
+  rapports `<coverage>`, `<benchmark>`, `<eval_report>`, `<risk_report>`, `<artifact_manifest>`.
+- Déclarer explicitement le statut final :
+  `Release autorisée : ✅/❌`.
+
+### 3.9 Critères de validation finaux
+- Aucun crash sur cas nominal, erreurs utilisateur attendues et données invalides.
+- Toutes les sorties contractuelles sont produites au bon format avec le bon schéma et le bon contenu minimal.
+- La métrique principale `<metric_principale>` atteint au minimum `<...>`.
+- Les contraintes de performance `<...>` sont respectées.
+- Les tests sont automatisables en local et en CI.
+- Les preuves restent traçables vers WBS, risques, exigences, datasets et artefacts.
+
+---
 
 ## 4) ⚙️ Spécifications d’implémentation
 
