@@ -20,7 +20,8 @@
 
 </div>
 
----
+##### Ce projet fait partie de mon [`🔗 PORTFOLIO`](https://raveriss.dev/) orienté **Data / IA / Software Engineering**
+
 ## 📑 Table des matières
 
 - [🌌 Total Perspective Vortex — EEG Brain-Computer Interface (BCI)](#total-perspective-vortex--eeg-brain-computer-interface-bci)
@@ -707,4 +708,5 @@ MIT License.
 **Rafael Verissimo**<br>
 Étudiant IA/Data — École 42 Paris<br>
 GitHub : https://github.com/raveriss<br>
-LinkedIn : https://www.linkedin.com/in/verissimo-rafael/
+LinkedIn : https://www.linkedin.com/in/verissimo-rafael/<br>
+Portfolio : https://github.com/raveriss
