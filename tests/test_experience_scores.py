@@ -1,8 +1,12 @@
+# Sérialise les manifests et rapports reproductibles simulés.
+import json
+
 # Centralise l'aide de cast pour les tests typés mypy
 from typing import cast
 
 # Centralise NumPy pour les moyennes attendues
 import numpy as np
+import pytest
 
 # Expose le type TrainingRequest pour les casts mypy
 # Valide le mapping run -> expérience pour le scoring global
@@ -160,6 +164,18 @@ def test_aggregate_experience_scores_averages_by_subject(tmp_path, monkeypatch) 
     assert report["global_experience_mean"] is not None
     # Vérifie que le bonus est calculé pour la moyenne globale
     assert report["bonus_points"] >= 0
+    # Vérifie que le rapport documente la méthode d'évaluation officielle
+    assert report["evaluation_method"] == "cross_validation"
+    # Vérifie que ce rapport partiel ne peut pas être présenté comme complet
+    assert report["complete"] is False
+    # Vérifie que le format de preuve est explicitement versionné.
+    assert report["schema_version"] == 1
+    # Vérifie que la preuve énumère l'intégralité des sujets officiels.
+    assert report["expected_subject_ids"] == [
+        f"S{subject_index:03d}" for subject_index in range(1, 110)
+    ]
+    # Vérifie que la configuration demandée accompagne toujours les résultats.
+    assert report["requested_configuration"]["feature_strategy"] == "fft"
 
 
 # Vérifie que les bonus sont nuls lorsque la moyenne est absente
@@ -178,6 +194,137 @@ def test_compute_bonus_points_returns_zero_at_threshold() -> None:
     bonus = aggregate_experience_scores.compute_bonus_points(threshold)
     # Vérifie que le bonus est nul à la limite
     assert bonus == 0
+
+
+# Protège la limite de cinq points imposée par la grille d'évaluation.
+def test_compute_bonus_points_is_clamped_to_checklist_maximum() -> None:
+    """Empêche un score parfait de produire plus de cinq points."""
+
+    # Utilise la meilleure accuracy possible pour couvrir la borne haute.
+    bonus = aggregate_experience_scores.compute_bonus_points(1.0)
+    # La checklist ne permet jamais de dépasser cinq points de score.
+    assert bonus == 5
+
+
+@pytest.mark.parametrize(
+    ("score", "expected_points"),
+    [
+        (0.779999, 0),
+        (0.78, 1),
+        (0.81, 2),
+        (0.84, 3),
+        (0.87, 4),
+        (0.90, 5),
+    ],
+)
+def test_compute_bonus_points_requires_each_complete_three_percent_step(
+    score: float,
+    expected_points: int,
+) -> None:
+    """WBS 7.4.3 / TPV-045: un palier incomplet ne rapporte aucun point."""
+
+    assert aggregate_experience_scores.compute_bonus_points(score) == expected_points
+
+
+def test_pooled_experiment_cv_builds_reproducible_subject_report(
+    tmp_path, monkeypatch
+) -> None:
+    """Le nouveau chemin doit conserver plis, configuration et complétude."""
+
+    results = {
+        experience: {
+            "runs": [],
+            "n_trials": 45,
+            "class_counts": {"0": 21, "1": 24},
+            "cv_scores": [0.8] * 5,
+            "cv_mean": 0.8,
+        }
+        for experience in aggregate_experience_scores.EXPERIENCE_ORDER
+    }
+
+    def fake_evaluate(_raw_dir, subjects, _config, progress, cache_dir):
+        scores = {
+            subject: {experience: [0.8] for experience in results}
+            for subject in subjects
+        }
+        evidence = [
+            {"subject": subject, "experiences": results} for subject in subjects
+        ]
+        for subject in subjects:
+            progress(subject, results)
+        assert cache_dir == tmp_path / "artifacts/evaluation/fbcsp_subjects"
+        return scores, evidence
+
+    monkeypatch.setattr(
+        aggregate_experience_scores.tpv_evaluation,
+        "evaluate_all_subjects",
+        fake_evaluate,
+    )
+    monkeypatch.setattr(
+        aggregate_experience_scores.train_cli,
+        "_get_git_commit",
+        lambda: "abc123",
+    )
+    options = aggregate_experience_scores.AggregationOptions(
+        allow_auto_train=False,
+        force_retrain=False,
+        enable_grid_search=False,
+        grid_search_splits=None,
+        raw_dir=tmp_path / "data",
+        pooled_experiment_cv=True,
+        subject_limit=2,
+    )
+
+    report = aggregate_experience_scores.aggregate_experience_scores(
+        tmp_path / "data",
+        tmp_path / "artifacts",
+        options,
+    )
+
+    assert report["eligible_subjects"] == 2
+    assert report["complete"] is False
+    assert report["schema_version"] == 3
+    assert report["source_commits"] == ["abc123"]
+    assert report["requested_configuration"]["pooled_experiment_cv"] is True
+    assert report["requested_configuration"]["nested_cv"] is True
+    assert report["requested_configuration"]["campaign_size"] == 2
+    assert report["score_targets"] == [0.75, 0.81, 0.87, 0.9]
+    assert report["evaluation_method"].startswith("nested_stratified_cv")
+    assert len(report["evaluated_subjects"]) == 2
+
+
+# Protège une évaluation complète lorsque seuls certains modèles existent déjà.
+def test_discover_runs_merges_artifacts_with_available_data(tmp_path) -> None:
+    """Complète les artefacts partiels par les runs présents dans data/."""
+
+    # Prépare les deux racines inspectées par le moteur d'agrégation.
+    data_dir = tmp_path / "data"
+    # Sépare les modèles des données pour reproduire l'arborescence réelle.
+    artifacts_dir = tmp_path / "artifacts"
+    # Matérialise un premier run déjà entraîné.
+    artifact_run_dir = artifacts_dir / "S001" / "R03"
+    # Crée les parents nécessaires à l'artefact factice.
+    artifact_run_dir.mkdir(parents=True)
+    # Le modèle suffit à rendre ce run découvrable côté artefacts.
+    (artifact_run_dir / "model.joblib").write_bytes(b"model")
+    # Matérialise un second run disponible uniquement dans le dataset.
+    data_subject_dir = data_dir / "S001"
+    # Crée le dossier du sujet avant les tableaux numpy.
+    data_subject_dir.mkdir(parents=True)
+    # Une matrice et ses labels constituent un run disponible.
+    np.save(data_subject_dir / "R04_X.npy", np.ones((2, 1, 2)))
+    # Les labels alignés terminent le couple de fichiers attendu.
+    np.save(data_subject_dir / "R04_y.npy", np.array([0, 1]))
+
+    # Active le scan des données pour compléter les artefacts existants.
+    runs = aggregate_experience_scores._discover_runs(
+        data_dir,
+        artifacts_dir,
+        True,
+    )
+
+    # Les deux provenances doivent être fusionnées sans doublon.
+    assert runs == [("S001", "R03"), ("S001", "R04")]
 
 
 # Vérifie que _discover_runs renvoie une liste vide si aucun artefact
@@ -307,6 +454,48 @@ def test_collect_subject_scores_force_retrain_triggers_train(
     assert called == [("S001", "R03")]
     # Vérifie que l'accuracy est bien enregistrée
     assert result["S001"]["T1"] == [0.8]
+
+
+def test_collect_subject_scores_retrains_manifest_without_cv_score(
+    tmp_path, monkeypatch
+) -> None:
+    """Un modèle final sans preuve CV ne doit jamais être réutilisé tel quel."""
+
+    subject, run = "S106", "R05"
+    target_dir = tmp_path / "artifacts" / subject / run
+    target_dir.mkdir(parents=True)
+    (target_dir / "model.joblib").write_text("stub", encoding="utf-8")
+    (target_dir / "w_matrix.joblib").write_text("stub", encoding="utf-8")
+    (target_dir / "manifest.json").write_text(
+        '{"scores": {"cv_scores": [], "cv_mean": null}}', encoding="utf-8"
+    )
+    trained: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        aggregate_experience_scores,
+        "_train_run",
+        lambda current_subject, current_run, _context: trained.append(
+            (current_subject, current_run)
+        ),
+    )
+    monkeypatch.setattr(
+        aggregate_experience_scores.predict_cli,
+        "evaluate_run",
+        lambda *_args, **_kwargs: {"accuracy": 0.5},
+    )
+    options = aggregate_experience_scores.AggregationOptions(
+        allow_auto_train=True,
+        force_retrain=False,
+        enable_grid_search=False,
+        grid_search_splits=None,
+        raw_dir=tmp_path / "data",
+    )
+
+    scores = aggregate_experience_scores._collect_subject_scores(
+        [(subject, run)], tmp_path / "data", tmp_path / "artifacts", options
+    )
+
+    assert trained == [(subject, run)]
+    assert scores[subject]["T3"] == [0.5]
 
 
 # Vérifie le formatage du tableau texte avec une ligne globale
@@ -501,6 +690,93 @@ def test_main_exits_nonzero_when_global_mean_below_threshold(
     assert "GlobalMean" in captured.out
 
 
+# Refuse qu'un sous-ensemble de sujets soit présenté comme une preuve finale.
+def test_main_exits_nonzero_when_report_is_incomplete(monkeypatch, capsys) -> None:
+    """Exige les 109 sujets en l'absence de l'option exploratoire."""
+
+    # Prépare un rapport au-dessus du seuil mais fondé sur un seul sujet.
+    report = {
+        "subjects": [],
+        "global_experience_means": {
+            "T1": 0.8,
+            "T2": 0.8,
+            "T3": 0.8,
+            "T4": 0.8,
+        },
+        "global_mean": 0.8,
+        "eligible_subjects": 1,
+        "bonus_points": 2,
+        "worst_subjects": [],
+    }
+    # Isole le contrôle de complétude du chargement des artefacts.
+    monkeypatch.setattr(
+        aggregate_experience_scores,
+        "aggregate_experience_scores",
+        lambda *_args, **_kwargs: report,
+    )
+
+    # Lance le mode officiel sans autoriser un rapport partiel.
+    exit_code = aggregate_experience_scores.main([])
+
+    # Une preuve incomplète doit faire échouer la commande globale.
+    assert exit_code == 1
+    # Le diagnostic doit rendre visible le nombre de sujets manquants.
+    assert "1/109" in capsys.readouterr().out
+
+
+# Protège le chemin de succès, l'affichage des pires sujets et l'export CSV.
+def test_main_reports_worst_subjects_and_writes_requested_csv(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """Couvre les sorties utiles à la défense lorsque le seuil est atteint."""
+
+    # Prépare un rapport complet dont un sujet possède une moyenne exploitable.
+    report = {
+        "subjects": [],
+        "global_experience_means": {
+            "T1": 0.8,
+            "T2": 0.8,
+            "T3": 0.8,
+            "T4": 0.8,
+        },
+        "global_mean": 0.8,
+        "eligible_subjects": 1,
+        "bonus_points": 2,
+        "worst_subjects": [
+            {"subject": "S001", "mean_of_means": None},
+            {"subject": "S002", "mean_of_means": 0.76},
+        ],
+    }
+    # Évite toute découverte de dataset pendant ce test de rendu.
+    monkeypatch.setattr(
+        aggregate_experience_scores,
+        "aggregate_experience_scores",
+        lambda *_args, **_kwargs: report,
+    )
+    # Capture l'appel d'export sans dupliquer ses tests de format détaillés.
+    written_paths = []
+    # Remplace l'écriture réelle par l'enregistrement du chemin demandé.
+    monkeypatch.setattr(
+        aggregate_experience_scores,
+        "write_csv",
+        lambda _report, path: written_paths.append(path),
+    )
+    # Choisit un chemin temporaire représentatif de la commande documentée.
+    csv_path = tmp_path / "scores.csv"
+
+    # Exécute le moteur canonique avec l'export explicitement demandé.
+    exit_code = aggregate_experience_scores.main(
+        ["--csv-output", str(csv_path), "--allow-partial"]
+    )
+
+    # Un score supérieur au seuil doit produire un succès CLI.
+    assert exit_code == 0
+    # Le moteur doit transmettre exactement le chemin choisi à l'exporteur.
+    assert written_paths == [csv_path]
+    # Seul le sujet disposant d'une moyenne doit apparaître dans le classement.
+    assert "S002: 0.760" in capsys.readouterr().out
+
+
 # Vérifie le formatage des helpers de rendu des lignes
 def test_format_helpers_render_subject_and_global_rows() -> None:
     # Prépare une entrée sujet complète
@@ -596,7 +872,7 @@ def test_artifact_paths_returns_expected_paths(tmp_path) -> None:
     assert w_matrix_path == tmp_path / subject / run / "w_matrix.joblib"
 
 
-# Vérifie que l'accuracy est extraite d'un rapport JSON
+# Vérifie que l'accuracy est extraite du manifeste de validation
 def test_load_cached_accuracy_returns_value(tmp_path) -> None:
     # Définit un sujet et un run pour le cache
     subject = "S001"
@@ -606,12 +882,37 @@ def test_load_cached_accuracy_returns_value(tmp_path) -> None:
     target_dir = tmp_path / subject / run
     # Crée l'arborescence des artefacts
     target_dir.mkdir(parents=True, exist_ok=True)
-    # Prépare un rapport JSON minimal avec une accuracy
-    (target_dir / "report.json").write_text('{"accuracy": 0.85}', encoding="utf-8")
+    # Prépare un manifeste contenant les folds et leur moyenne officielle.
+    (target_dir / "manifest.json").write_text(
+        '{"scores": {"cv_scores": [0.8, 0.9], "cv_mean": 0.85}}',
+        encoding="utf-8",
+    )
     # Charge l'accuracy via la fonction utilitaire
     accuracy = aggregate_experience_scores._load_cached_accuracy(tmp_path, subject, run)
     # Vérifie que l'accuracy est bien lue et convertie
     assert accuracy == 0.85
+
+
+# Empêche la réutilisation des anciens scores calculés sur le fit final.
+def test_load_cached_accuracy_ignores_legacy_report(tmp_path) -> None:
+    """Un report.json isolé ne doit plus alimenter l'agrégation officielle."""
+
+    # Prépare un ancien rapport optimiste sans manifeste de validation.
+    target_dir = tmp_path / "S001" / "R03"
+    # Crée l'arborescence représentative d'un artefact historique.
+    target_dir.mkdir(parents=True)
+    # Simule le score train-on-train que le refactoring doit neutraliser.
+    (target_dir / "report.json").write_text('{"accuracy": 1.0}', encoding="utf-8")
+
+    # Tente de charger le cache via le moteur officiel.
+    accuracy = aggregate_experience_scores._load_cached_accuracy(
+        tmp_path,
+        "S001",
+        "R03",
+    )
+
+    # Sans preuve CV, aucune accuracy ne peut être réutilisée.
+    assert accuracy is None
 
 
 # Vérifie que l'absence de rapport retourne None
@@ -624,6 +925,55 @@ def test_load_cached_accuracy_returns_none_when_missing(tmp_path) -> None:
     accuracy = aggregate_experience_scores._load_cached_accuracy(tmp_path, subject, run)
     # Vérifie que l'absence de rapport retourne None
     assert accuracy is None
+
+
+# Vérifie que le rapport global conserve la preuve de chaque fold.
+def test_build_run_evidence_and_write_json(tmp_path) -> None:
+    """Rassemble commit, configuration et scores dans un JSON relisible."""
+
+    # Prépare le manifeste d'un run moteur évalué.
+    manifest_dir = tmp_path / "artifacts" / "S001" / "R03"
+    # Crée le dossier selon la convention publique des artefacts.
+    manifest_dir.mkdir(parents=True)
+    # Stocke une preuve minimale représentative du vrai train.py.
+    (manifest_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset": {"epoch_window": [1.0, 3.0]},
+                "hyperparams": {"dim_method": "csp"},
+                "scores": {"cv_scores": [0.7, 0.9], "cv_mean": 0.8},
+                "git_commit": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Construit la preuve en incluant aussi un run baseline à ignorer.
+    evidence = aggregate_experience_scores._build_run_evidence(
+        [("S001", "R03"), ("S001", "R01")],
+        tmp_path / "artifacts",
+    )
+
+    # Seul le run appartenant à T1 doit être documenté.
+    assert len(evidence) == 1
+    # Les folds et le commit doivent rester intacts pour la reproductibilité.
+    assert evidence[0]["cv_scores"] == [0.7, 0.9]
+    # Le mapping officiel doit accompagner le score du run.
+    assert evidence[0]["experience"] == "T1"
+    # Le commit source permet d'identifier le code ayant produit le modèle.
+    assert evidence[0]["git_commit"] == "abc123"
+
+    # Prépare une preuve globale compacte pour tester sa sérialisation.
+    report = {"schema_version": 1, "evaluated_runs": evidence}
+    # Choisit un sous-dossier absent comme le ferait la commande documentée.
+    json_path = tmp_path / "evaluation" / "report.json"
+    # Écrit la preuve via l'unique helper public de reporting JSON.
+    aggregate_experience_scores.write_json(report, json_path)
+
+    # Recharge le JSON pour vérifier sa validité et sa précision.
+    persisted_report = json.loads(json_path.read_text(encoding="utf-8"))
+    # La moyenne CV doit survivre exactement à l'aller-retour JSON.
+    assert persisted_report["evaluated_runs"][0]["cv_mean"] == 0.8
 
 
 # Vérifie l'append d'une accuracy dans la structure agrégée

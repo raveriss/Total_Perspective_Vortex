@@ -1,7 +1,7 @@
 # AGENTS.md — Blueprint Dev / Qualité / WBS / Loi de Murphy (Total_Perspective_Vortex)
 
 **Contexte cible** : Ubuntu 22.04.5 (Jammy), Python 3.10.18, **pas de sudo**,
-**Poetry**, exécution **uniquement sur Ubuntu**.
+**uv**, exécution **uniquement sur Ubuntu**.
 
 Ce document sert de **plan d’action exécutable** pour les agents (LLM/Codex)
 chargés de modifier le dépôt **Total_Perspective_Vortex**.
@@ -61,7 +61,7 @@ si un correctif est possible dans le dépôt.
 
 Règles :
 1) L’agent exécute la séquence “MODE DEV” (diagnostic rapide) :
-   - `poetry run pre-commit run --all-files --show-diff-on-failure`
+   - `uv run --frozen pre-commit run --all-files --show-diff-on-failure`
 2) Si KO :
    - il **isole** le/les hooks en échec,
    - il applique un **patch minimal**,
@@ -101,7 +101,7 @@ l’itération (formatage/lint/types), même si des tests de couverture ou des
 mutants survivent ailleurs.
 
 * Autorisé à tout moment :
-  * `poetry run pre-commit run --all-files`
+  * `uv run --frozen pre-commit run --all-files`
   * et/ou les commandes rapides `make lint`, `make format`, `make type`
 * Obligation de formulation :
   * l’agent doit qualifier cela comme un **RUN DEV / diagnostic**,
@@ -127,7 +127,7 @@ mutants survivent ailleurs.
 
 ### ✅ `pre-commit` autorisé en MODE DEV (diagnostic)
 
-- L’agent **peut exécuter** `poetry run pre-commit run --all-files` en MODE DEV,
+- L’agent **peut exécuter** `uv run --frozen pre-commit run --all-files` en MODE DEV,
   **même si** 2.3 (`make cov`) ne sont pas encore verts.
 - Après un RUN DEV, l’agent doit :
   - indiquer explicitement “MODE DEV / diagnostic”,
@@ -207,52 +207,49 @@ Avant de générer du code, **tout agent** doit :
 - [ ] `LICENSE` (MIT) + `author`
 - [ ] Convention commits : `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
 
-### 0.2 Environnement & dépendances (Poetry, no‑sudo)
-- [ ] Installer Poetry (utilisateur) :
+### 0.2 Environnement & dépendances (uv, no‑sudo)
+- [ ] Installer uv (utilisateur) :
   ```bash
-  curl -sSL https://install.python-poetry.org | python3 -
+  curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
-  poetry config virtualenvs.in-project true
-  poetry env use 3.10
+  uv venv --python 3.10
+  uv sync --frozen --all-groups
   ```
 - [ ] `pyproject.toml` — **versions Python verrouillées** :
   ```toml
-  [tool.poetry]
+  [project]
   name = "total-perspective-vortex"
   version = "0.1.0"
   description = "EEG Brain-Computer Interface pipeline for the Total Perspective Vortex project."
-  authors = ["raveriss <you@example.com>"]
-  license = "MIT"
+  authors = [{ name = "raveriss", email = "you@example.com" }]
+  license = { text = "MIT" }
   readme = "README.md"
-  packages = [{ include = "tpv", from = "src" }]
+  requires-python = ">=3.10,<3.11"
+  dependencies = [
+    "numpy>=1.26,<2",
+    "pandas>=2.2,<3",
+    "scipy>=1.11,<2",
+    "scikit-learn>=1.3,<2",
+    "mne>=1.6,<2",
+    "matplotlib>=3.8,<4",
+    "joblib>=1.4,<2",
+  ]
 
-  [tool.poetry.dependencies]
-  python = ">=3.10,<3.11"
-  numpy = "^1.26"
-  pandas = "^2.2"
-  scipy = "^1.11"
-  scikit-learn = "^1.3"
-  mne = "^1.6"
-  matplotlib = "^3.8"
-  joblib = "^1.4"
+  [dependency-groups]
+  dev = [
+    "pytest>=8.3,<10",
+    "pytest-cov>=5,<6",
+    "mypy>=1.11,<2",
+    "ruff>=0.6,<0.7",
+    "black>=24.10,<27",
+    "isort>=5.13,<6",
+    "pre-commit>=4,<5",
+    "pip-audit>=2.7,<3",
+    "coverage>=7.6,<8",
+  ]
 
-  [tool.poetry.group.dev.dependencies]
-  pytest = "^8.3"
-  pytest-cov = "^5.0"
-  pytest-timeout = "^2.3"
-  pytest-randomly = "^3.15"
-  hypothesis = "^6.112"
-  mypy = "^1.11"
-  ruff = "^0.6"
-  black = "^24.10"
-  isort = "^5.13"
-  bandit = "^1.7"
-  mutmut = "^3.0"
-  radon = "^6.0"
-  xenon = "^0.9"
-  pre-commit = "^4.0"
-  pip-audit = "^2.7"
-  coverage = "^7.6"
+  [tool.uv]
+  required-version = "==0.12.3"
 
   [tool.black]
   line-length = 88
@@ -298,8 +295,8 @@ Avant de générer du code, **tout agent** doit :
   files = "src scripts tests"
 
   [build-system]
-  requires = ["poetry-core"]
-  build-backend = "poetry.core.masonry.api"
+  requires = ["hatchling>=1.27,<2.0"]
+  build-backend = "hatchling.build"
 
 
   ```
@@ -309,7 +306,7 @@ Avant de générer du code, **tout agent** doit :
 # ========================================================================================
 # Makefile - Automatisation pour le projet Total_Perspective_Vortex
 # Objectifs :
-#   - Simplifier l’installation et la gestion de l’environnement (Poetry / venv)
+#   - Simplifier l’installation et la gestion de l’environnement (uv / venv)
 #   - Automatiser les vérifications (lint, format, type-check, tests, coverage, mutation)
 #   - Fournir des commandes pratiques pour l’entraînement et la prédiction du modèle
 # ========================================================================================
@@ -323,14 +320,14 @@ VENV_BIN = $(VENV)/bin/activate
 BENCH_DIR   := data/benchmarks
 BENCH_CSVS  := $(wildcard $(BENCH_DIR)/*.csv)
 
-# Utilisation raccourcie de Poetry
-POETRY = poetry run
+# Utilisation raccourcie de uv
+UV_RUN = uv run --frozen
 
 # ----------------------------------------------------------------------------------------
 # Installation des dépendances (dev inclus)
 # ----------------------------------------------------------------------------------------
 install:
-	poetry install --with dev
+	uv sync --frozen --all-groups
 
 # ----------------------------------------------------------------------------------------
 # Vérifications de qualité du code
@@ -338,15 +335,15 @@ install:
 
 # Linting avec Ruff (analyse statique rapide)
 lint:
-	$(POETRY) ruff check .
+	$(UV_RUN) ruff check .
 
 # Formatage + correction auto avec Ruff
 format:
-	$(POETRY) ruff format . && $(POETRY) ruff check --fix .
+	$(UV_RUN) ruff format . && $(UV_RUN) ruff check --fix .
 
 # Vérification des types avec Mypy
 type:
-	$(POETRY) mypy src scripts tests
+	$(UV_RUN) mypy src scripts tests
 
 
 # ----------------------------------------------------------------------------------------
@@ -355,22 +352,22 @@ type:
 
 # Exécution des tests unitaires
 test:
-	$(POETRY) pytest -vv
+	$(UV_RUN) pytest -vv
 
 # Analyse de la couverture avec rapport JSON, HTML et console (90% requis)
 cov:
-	$(POETRY) coverage run -m pytest && \
-	$(POETRY) coverage json -o coverage.json && \
-	$(POETRY) coverage xml -o coverage.xml && \
-	$(POETRY) coverage html --skip-empty --show-contexts && \
-	$(POETRY) coverage report --fail-under=90
+	$(UV_RUN) coverage run -m pytest && \
+	$(UV_RUN) coverage json -o coverage.json && \
+	$(UV_RUN) coverage xml -o coverage.xml && \
+	$(UV_RUN) coverage html --skip-empty --show-contexts && \
+	$(UV_RUN) coverage report --fail-under=90
 
 
 
 
 
 # ----------------------------------------------------------------------------------------
-# Commandes liées au modèle (Poetry)
+# Commandes liées au modèle (uv)
 # ----------------------------------------------------------------------------------------
 
 TRAIN_SUBJECT ?= S001
@@ -380,21 +377,18 @@ PREDICT_RUN ?= $(TRAIN_RUN)
 
 # Entraînement du modèle : exemple minimal avec sujet et run de démonstration
 train:
-	$(POETRY) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train
+	$(UV_RUN) python mybci.py $(TRAIN_SUBJECT) $(TRAIN_RUN) train
 
 # Prédiction : exemple minimal réutilisant les identifiants ci-dessus
 predict:
-	$(POETRY) python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict
+	$(UV_RUN) python mybci.py $(PREDICT_SUBJECT) $(PREDICT_RUN) predict
 
 
 
 # Affiche la commande pour activer le venv
 activate:
-	@echo "Chemin de l'environnement Poetry :"
-	@poetry env info -p
-	@echo
 	@echo "Pour activer manuellement cet environnement :"
-	@echo "  source $$(poetry env info -p)/bin/activate"
+	@echo "  source .venv/bin/activate"
 
 # Affiche la commande pour désactiver le venv
 deactivate:
@@ -409,231 +403,7 @@ deactivate:
 ```
 
 ### 0.4 CI/CD (GitHub Actions) — **Ubuntu‑only**
-`.github/workflows/ci.yml`
-```yaml
-# .github/workflows/ci.yml
-name: CI
-
-on:
-  push:
-    branches: [ main, develop ]
-    tags: [ 'v*' ]
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.txt'
-      - '**/*.png'
-  pull_request:
-    branches: [ main, develop ]
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.txt'
-      - '**/*.png'
-
-env:
-  # Version Python canonique utilisée par la CI (alignée avec pyproject.toml)
-  PYTHON_VERSION: "3.10"
-
-jobs:
-  pre-commit:
-    name: Pre-commit checks
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-
-      - name: Install Poetry (retry)
-        run: |
-          python -m pip install --user --upgrade pip
-          for attempt in 1 2 3; do
-            python -m pip install --user --retries 3 --timeout 60 poetry==1.8.4 && break
-            if [ "$attempt" -eq 3 ]; then
-              echo "Poetry installation failed after ${attempt} attempts." >&2
-              exit 1
-            fi
-            echo "Retrying Poetry installation (attempt ${attempt}/3)..." >&2
-            sleep 5
-          done
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          poetry config virtualenvs.create true
-          poetry config virtualenvs.in-project true
-
-      - name: Cache virtualenv
-        id: cache-poetry
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies (cache miss)
-        if: steps.cache-poetry.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --with dev --no-root
-
-      - name: Install project in editable mode
-        run: poetry install --no-interaction --with dev
-
-      - name: Run pre-commit
-        run: poetry run pre-commit run --all-files
-
-  static-analysis:
-    name: Static Analysis
-    runs-on: ubuntu-22.04
-    needs: pre-commit
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      - name: Install Poetry (retry)
-        run: |
-          python -m pip install --user --upgrade pip
-          for attempt in 1 2 3; do
-            python -m pip install --user --retries 3 --timeout 60 poetry==1.8.4 && break
-            if [ "$attempt" -eq 3 ]; then
-              echo "Poetry installation failed after ${attempt} attempts." >&2
-              exit 1
-            fi
-            echo "Retrying Poetry installation (attempt ${attempt}/3)..." >&2
-            sleep 5
-          done
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          poetry config virtualenvs.create true
-          poetry config virtualenvs.in-project true
-      - uses: actions/cache@v3
-        id: cache-poetry
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
-      - name: Install dependencies (cache miss)
-        if: steps.cache-poetry.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --with dev --no-root
-      - name: Install project
-        run: poetry install --no-interaction --with dev
-
-      - name: Run Black check
-        run: poetry run black --check .
-
-      - name: Run isort check
-        run: poetry run isort --check-only .
-
-      - name: Run Ruff
-        run: poetry run ruff check .
-
-      - name: Run MyPy
-        run: poetry run mypy src scripts tests
-
-      - name: Audit dependencies with pip-audit
-        run: poetry run pip-audit --progress-spinner=off
-
-
-  tests:
-    runs-on: ubuntu-22.04
-    needs: static-analysis
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install Poetry (retry)
-        run: |
-          python -m pip install --user --upgrade pip
-          for attempt in 1 2 3; do
-            python -m pip install --user --retries 3 --timeout 60 poetry==1.8.4 && break
-            if [ "$attempt" -eq 3 ]; then
-              echo "Poetry installation failed after ${attempt} attempts." >&2
-              exit 1
-            fi
-            echo "Retrying Poetry installation (attempt ${attempt}/3)..." >&2
-            sleep 5
-          done
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          poetry config virtualenvs.create true
-          poetry config virtualenvs.in-project true
-
-      - name: Cache virtualenv
-        id: cache-poetry
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies (with dev)
-        if: steps.cache-poetry.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --with dev
-
-      - name: Ensure project installed
-        if: steps.cache-poetry.outputs.cache-hit == 'true'
-        run: poetry install --no-interaction --with dev
-
-      - name: Run tests with coverage (Makefile)
-        run: make cov
-
-      - name: Generate coverage.xml for Codecov
-        run: poetry run coverage xml -o coverage.xml
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: ./coverage.xml
-          disable_search: true
-          flags: unittests
-          name: ci-ubuntu-py${{ env.PYTHON_VERSION }}
-          slug: raveriss/Total_Perspective_Vortex
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-
-  build:
-    name: Build Package
-    runs-on: ubuntu-22.04
-    needs: [static-analysis, tests]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      - name: Install Poetry (retry)
-        run: |
-          python -m pip install --user --upgrade pip
-          for attempt in 1 2 3; do
-            python -m pip install --user --retries 3 --timeout 60 poetry==1.8.4 && break
-            if [ "$attempt" -eq 3 ]; then
-              echo "Poetry installation failed after ${attempt} attempts." >&2
-              exit 1
-            fi
-            echo "Retrying Poetry installation (attempt ${attempt}/3)..." >&2
-            sleep 5
-          done
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          poetry config virtualenvs.create true
-          poetry config virtualenvs.in-project true
-      - run: poetry install --no-interaction --no-root
-      - name: Build package
-        run: poetry build
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-```
-
-> Exemple minimal de CI ci-dessous. La configuration réelle utilisée est
-> définie dans `.github/workflows/ci.yml` (jobs pré-commit, static-analysis,
-> tests, build).
+`.github/workflows/ci.yml` est la source de vérité. Elle installe `uv` avec `astral-sh/setup-uv`, synchronise `uv.lock` par `uv sync --frozen --all-groups`, exécute chaque outil avec `uv run --frozen`, puis construit le paquet avec `uv build`.
 
 
 ### 0.5 TDD — Red → Green → Refactor (règle d’or)
@@ -690,24 +460,24 @@ L’agent doit toujours rappeler en **texte clair** que :
 
 > « Tant que 2.2, 2.3 ne sont pas toutes ✅, le commit est interdit. »
 
-### 2.1 Préparation (si nouveau clone ou `poetry.lock` modifié)
+### 2.1 Préparation (si nouveau clone ou `uv.lock` modifié)
 
-Si l’agent ne sait pas si l’environnement est à jour (nouveau clone, changement de branche, doute sur `poetry.lock`), il doit exécuter systématiquement 2.1.1 et 2.1.2.
+Si l’agent ne sait pas si l’environnement est à jour (nouveau clone, changement de branche, doute sur `uv.lock`), il doit exécuter systématiquement 2.1.1 et 2.1.2.
 
-1. `poetry install --no-interaction --with dev`
-2. Vérifier que la commande `poetry run pytest -q` fonctionne au moins une fois.
+1. `uv sync --frozen --all-groups`
+2. Vérifier que la commande `uv run --frozen pytest -q` fonctionne au moins une fois.
 
 ### 2.2 Pre-commit + Static analysis (miroir CI)
 
 L’agent doit proposer cette séquence **exacte** et **dans cet ordre** :
 
 ```bash
-poetry run pre-commit run --all-files
-poetry run black --check .
-poetry run isort --check-only .
-poetry run ruff check .
-poetry run mypy src scripts tests
-poetry run pip-audit --progress-spinner=off
+uv run --frozen pre-commit run --all-files
+uv run --frozen black --check .
+uv run --frozen isort --check-only .
+uv run --frozen ruff check .
+uv run --frozen mypy src scripts tests
+uv run --frozen pip-audit --progress-spinner=off
 ```
 
 Règles :
@@ -838,7 +608,7 @@ conclure par :
 - Vérifier les sorties :
   formats `<csv/json/parquet/pkl/joblib/...>`, encodage UTF-8, schéma stable, contenu minimal attendu.
 - Vérifier les entrypoints associés :
-  `make <...>`, `poetry run <...>`, `<runner_cmd>`.
+  `make <...>`, `uv run --frozen <...>`, `<runner_cmd>`.
 - Vérifier l’absence de dépendance à des chemins absolus locaux ou à un état machine implicite.
 - Vérifier que les logs restent lisibles, structurés, utiles au debug, sans polluer les sorties contractuelles.
 
@@ -1091,8 +861,7 @@ analysis_logger.log_key_value("students_count", students_count)
 ├── LICENSE
 ├── Makefile
 ├── mybci.py
-├── poetry.lock
-├── poetry.toml
+├── uv.lock
 ├── pyproject.toml
 ├── README.md
 ├── scripts
@@ -1261,16 +1030,16 @@ Commandes à exécuter :
 
 ```bash
 # 2.1 Préparation (si besoin)
-poetry install --no-interaction --with dev
-poetry run pytest -q
+uv sync --frozen --all-groups
+uv run --frozen pytest -q
 
 # 2.2 Pre-commit + static analysis
-poetry run pre-commit run --all-files
-poetry run black --check .
-poetry run isort --check-only .
-poetry run ruff check .
-poetry run mypy src scripts tests
-poetry run pip-audit --progress-spinner=off
+uv run --frozen pre-commit run --all-files
+uv run --frozen black --check .
+uv run --frozen isort --check-only .
+uv run --frozen ruff check .
+uv run --frozen mypy src scripts tests
+uv run --frozen pip-audit --progress-spinner=off
 
 # 2.3 Tests + couverture 90 %
 make cov
@@ -1338,18 +1107,18 @@ Message de commit possible :
 Commandes à exécuter :
 
 ```bash
-poetry run pre-commit run --all-files
-poetry run black --check .
-poetry run isort --check-only .
-poetry run ruff check .
-poetry run mypy src scripts tests
-poetry run pip-audit --progress-spinner=off
+uv run --frozen pre-commit run --all-files
+uv run --frozen black --check .
+uv run --frozen isort --check-only .
+uv run --frozen ruff check .
+uv run --frozen mypy src scripts tests
+uv run --frozen pip-audit --progress-spinner=off
 make cov
 ````
 
 Supposons que :
 
-* `poetry run pre-commit run --all-files` échoue sur `ruff` (ligne trop longue),
+* `uv run --frozen pre-commit run --all-files` échoue sur `ruff` (ligne trop longue),
 * les autres commandes **n’ont pas encore été rejouées** après correction.
 
 ```text
@@ -2856,7 +2625,7 @@ mais le commentaire devient la source principale d’**explication locale**.
 
 ### Principe fondamental
 
-**Le code doit rester lisible par lui-même.  
+**Le code doit rester lisible par lui-même.
 Le commentaire doit rendre la lecture, la maintenance et la modification
 plus sûres.**
 

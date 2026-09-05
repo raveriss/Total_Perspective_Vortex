@@ -42,18 +42,29 @@ def test_adapt_pipeline_config_switches_lda_for_small_sample():
     assert adapted.classifier == "centroid"
 
 
-# Vérifie que LDA est conservé lorsque l'effectif est suffisant
+# Vérifie que LDA est conservé lorsque chaque fold garde assez d'exemples
 def test_adapt_pipeline_config_keeps_lda_for_valid_sample():
     """Vérifie que LDA reste utilisé quand l'effectif le permet."""
 
     # Prépare une configuration LDA standard
     config = PipelineConfig(sfreq=128.0, classifier="lda")
-    # Crée un jeu de labels avec trois samples et deux classes
-    y = np.array([0, 1, 0])
+    # Six exemples garantissent plus d'exemples de train que de classes.
+    y = np.array([0, 1, 0, 1, 0, 1])
     # Applique l'adaptation sur effectif suffisant
     adapted = _adapt_pipeline_config_for_samples(config, y)
     # Vérifie que le classifieur reste LDA
     assert adapted.classifier == "lda"
+
+
+def test_adapt_pipeline_config_switches_lda_when_cv_train_fold_is_too_small():
+    """Protège le cas réel S106/R05 contenant deux epochs par classe."""
+
+    config = PipelineConfig(sfreq=160.0, classifier="lda")
+    y = np.array([0, 0, 1, 1])
+
+    adapted = _adapt_pipeline_config_for_samples(config, y)
+
+    assert adapted.classifier == "centroid"
 
 
 # Vérifie que la grille peut exclure LDA si nécessaire

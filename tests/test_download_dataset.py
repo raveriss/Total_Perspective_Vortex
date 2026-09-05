@@ -9,6 +9,79 @@ import pytest
 from scripts import download_dataset
 
 
+# Protège la commande wget unique conservée après la simplification du dataset.
+def test_run_wget_download_relays_output_and_returns_status(tmp_path, capsys) -> None:
+    """Construit la commande canonique et conserve sa trace complète."""
+
+    # Capture les paramètres transmis au processus factice.
+    captured = {}
+
+    # Simule uniquement le petit contrat subprocess utilisé par le téléchargeur.
+    class FakeProcess:
+        # Fournit deux lignes comme le ferait wget pendant un téléchargement.
+        stdout = iter(["first\n", "second\n"])
+
+        # Retourne un statut distinct pour vérifier sa propagation.
+        def wait(self):
+            # Le code sept n'a aucune signification métier dans ce test isolé.
+            return 7
+
+    # Remplace Popen sans lancer de transfert réseau.
+    def fake_popen(command, **kwargs):
+        # Conserve la commande afin de vérifier les options de reprise.
+        captured["command"] = command
+        # Conserve les options de flux afin de vérifier le mode texte.
+        captured["kwargs"] = kwargs
+        # Retourne le processus minimal consommé par la fonction.
+        return FakeProcess()
+
+    # Exécute le helper avec une destination temporaire sans accès réseau.
+    status, output = download_dataset.run_wget_download(
+        "https://physionet.example/files/",
+        tmp_path,
+        popen_factory=fake_popen,
+    )
+
+    # Le statut du processus doit rester visible par la gestion d'erreur.
+    assert status == 7
+    # La trace complète doit rester disponible pour le diagnostic réseau.
+    assert output == "first\nsecond\n"
+    # La progression doit aussi être relayée en direct à l'utilisateur.
+    assert capsys.readouterr().out == output
+    # La reprise native et la destination doivent figurer dans la commande.
+    assert "-c" in captured["command"]
+    # Le chemin temporaire doit être fourni après l'option de destination.
+    assert str(tmp_path) in captured["command"]
+    # Le mode texte évite un décodage manuel fragile.
+    assert captured["kwargs"]["text"] is True
+
+
+# Protège les trois sorties possibles du classificateur d'erreurs wget.
+def test_classify_wget_error_handles_success_network_and_http(monkeypatch) -> None:
+    """Distingue succès, panne réseau et indisponibilité PhysioNet."""
+
+    # Un transfert réussi ne doit fabriquer aucun diagnostic d'échec.
+    assert download_dataset.classify_wget_error(0, "ok") is None
+    # Stabilise le diagnostic local pour ne pas dépendre de la machine de test.
+    monkeypatch.setattr(
+        download_dataset,
+        "collect_runtime_network_diagnostics",
+        lambda: ["network diagnostic"],
+    )
+    # Le code wget quatre suffit à identifier une panne réseau.
+    network_lines = download_dataset.classify_wget_error(4, "timeout")
+    # Le diagnostic doit proposer une cause exploitable à l'utilisateur.
+    assert network_lines is not None
+    # La trace locale complète le message générique de wget.
+    assert "network diagnostic" in network_lines
+    # Une réponse HTTP invalide doit être distinguée d'une panne locale.
+    http_lines = download_dataset.classify_wget_error(8, "ERROR 404: Not Found")
+    # Le message doit identifier explicitement la source officielle.
+    assert http_lines is not None
+    # La formulation PhysioNet guide la vérification manuelle appropriée.
+    assert "PhysioNet" in " ".join(http_lines)
+
+
 def test_collect_runtime_network_diagnostics_reports_network_unreachable() -> None:
     command_results = {
         ("ping", "-c", "1", "1.1.1.1"): subprocess.CompletedProcess(

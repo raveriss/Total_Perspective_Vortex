@@ -46,6 +46,8 @@ from tpv.preprocessing import (
     PHYSIONET_LABEL_MAP,
     ReportConfig,
     _apply_marking,
+    _as_aligned_epoch_labels,
+    _as_epoch_array,
     _assert_expected_labels_present,
     _build_file_entry,
     _build_keep_mask,
@@ -90,6 +92,30 @@ EXPECTED_IIR_DEFAULT_ORDER = 4
 TEST_SUBJECT = "S-test"
 # Fixe un identifiant de run de test pour homogénéiser les métadonnées
 TEST_RUN = "R-test"
+
+
+# Verrouille la validation commune extraite des traitements d'epochs
+def test_epoch_array_helpers_preserve_empty_and_alignment_contracts() -> None:
+    """Valide conversion, dimensions et alignement avant les calculs métier."""
+
+    # Conserve une forme tridimensionnelle vide pour vérifier le cas sans essais
+    empty_epochs = np.empty((0, 2, 4), dtype=int)
+    # Convertit l'entrée via le helper qui doit préserver sa forme exacte
+    safe_empty_epochs = _as_epoch_array(empty_epochs)
+    # La conversion doit produire des flottants sans inventer d'échantillon
+    assert safe_empty_epochs.dtype == float
+    # La forme vide doit rester exploitable par les retours anticipés publics
+    assert safe_empty_epochs.shape == empty_epochs.shape
+    # Une matrice tabulaire non vide ne respecte pas le contrat EEG attendu
+    with pytest.raises(ValueError, match="epochs_data must be a 3D array"):
+        # Le helper doit refuser la forme avant tout calcul de variance
+        _as_epoch_array(np.ones((2, 4)))
+    # Prépare deux essais valides pour contrôler l'alignement des labels
+    epochs_data = np.ones((2, 1, 4))
+    # Un seul label ne peut pas représenter les deux essais disponibles
+    with pytest.raises(ValueError, match="labels length must match"):
+        # Le helper aligné doit empêcher un slicing silencieusement incohérent
+        _as_aligned_epoch_labels(epochs_data, np.array([0]))
 
 
 def _build_dummy_raw(sfreq: float = 128.0, duration: float = 1.0) -> mne.io.Raw:
@@ -2506,6 +2532,49 @@ def test_verify_dataset_integrity_checks_hash_and_runs(tmp_path: Path) -> None:
     assert report["files"][0]["hash_ok"] is True
     # Validate the recorded run count for the subject
     assert report["subject_run_counts"]["subject01"] == 1
+
+
+def test_verify_dataset_integrity_detects_fully_missing_subject(tmp_path: Path) -> None:
+    """Un sujet attendu absent doit être signalé avec un compteur nul."""
+
+    # Un autre sujet présent ne doit pas masquer celui demandé par le protocole.
+    present_subject = tmp_path / "subject01"
+    present_subject.mkdir()
+    (present_subject / "run01.edf").write_bytes(b"edf")
+
+    with pytest.raises(ValueError, match='"subject02": 0'):
+        verify_dataset_integrity(
+            tmp_path, expected_runs_per_subject={"subject01": 1, "subject02": 1}
+        )
+
+
+def test_npy_cache_inspection_handles_missing_valid_and_corrupted_pairs(
+    tmp_path: Path,
+) -> None:
+    """Partage une inspection fiable entre train et predict."""
+
+    subject, run = "S001", "R03"
+    missing = preprocessing.inspect_npy_cache(tmp_path, subject, run)
+    assert missing.missing is True
+    assert missing.error is None
+
+    missing.features_path.parent.mkdir(parents=True)
+    np.save(missing.features_path, np.ones((2, 1, 4)))
+    np.save(missing.labels_path, np.array([0, 1]))
+    valid = preprocessing.inspect_npy_cache(tmp_path, subject, run)
+    assert valid.missing is False
+    assert valid.error is None
+    assert valid.features is not None and valid.labels is not None
+    loaded_X, loaded_y = preprocessing.load_npy_pair(
+        valid.features_path, valid.labels_path
+    )
+    assert loaded_X.shape[0] == loaded_y.shape[0] == 2
+
+    valid.features_path.write_text("not a numpy file")
+    corrupted = preprocessing.inspect_npy_cache(tmp_path, subject, run)
+    assert corrupted.missing is False
+    assert corrupted.features is None and corrupted.labels is None
+    assert corrupted.error is not None
 
 
 def test_map_events_rejects_unknown_labels() -> None:

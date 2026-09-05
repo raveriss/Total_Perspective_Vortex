@@ -6,9 +6,6 @@ import argparse
 # Importe json pour sérialiser la configuration accompagnant les figures
 import json
 
-# Importe math pour dimensionner la légende
-import math
-
 # Importe re pour nettoyer un suffixe parasite provenant de GNU Make
 import re
 
@@ -39,19 +36,13 @@ from matplotlib.axes import Axes
 # Importe BaseRaw pour typer précisément les enregistrements EEG
 from mne.io import BaseRaw
 
+# Centralise la convention sujet/run partagée par les commandes du projet.
+import tpv.utils as tpv_utils
+
 # Importe le filtrage validé pour rester aligné avec preprocessing
 from tpv.preprocessing import apply_bandpass_filter, load_physionet_raw
 
 MAX_SUBJECTS_PREVIEW = 5
-
-# Fixe le nombre maximal de lignes par colonne dans la légende
-LEGEND_MAX_ROWS = 16
-
-# Fixe une limite haute de colonnes pour préserver la zone de tracé
-LEGEND_MAX_COLS = 6
-
-# Fixe un seuil au-delà duquel la légende devient contre-productive
-LEGEND_MAX_CHANNELS = 12
 
 # Définit un bleu électrique unique pour un rendu cohérent
 ELECTRIC_BLUE = "#12127E"
@@ -131,41 +122,6 @@ def _style_timeseries_axis(axis: Axes) -> None:
     if hasattr(axis, "tick_params"):
         # Uniformise les ticks si l'API est disponible
         axis.tick_params(which="both", direction="out", length=3, width=0.6)
-
-
-# Calcule le nombre de colonnes pour afficher toutes les entrées de légende
-def _infer_legend_ncol(channel_count: int) -> int:
-    """Retourne ncol afin d'éviter une légende trop haute."""
-
-    # Retourne une colonne par défaut si aucun canal n'est fourni
-    if channel_count <= 0:
-        return 1
-
-    # Calcule le nombre de colonnes requis pour borner la hauteur
-    required = int(math.ceil(channel_count / float(LEGEND_MAX_ROWS)))
-
-    # Borne ncol pour préserver une largeur de tracé acceptable
-    return max(1, min(LEGEND_MAX_COLS, required))
-
-
-# Calcule la fraction de figure dédiée aux axes en réservant une zone légende
-def _infer_tight_layout_right(ncol: int) -> float:
-    """Retourne le paramètre rect.right pour tight_layout()."""
-
-    # Définit une réserve minimale suffisante pour une colonne unique
-    base_reserved = 0.17
-
-    # Ajoute une réserve par colonne supplémentaire pour éviter le recouvrement
-    per_col_reserved = 0.06
-
-    # Calcule la réserve totale à droite selon le nombre de colonnes
-    reserved = base_reserved + per_col_reserved * max(0, ncol - 1)
-
-    # Limite la réserve pour éviter d'écraser totalement les graphiques
-    reserved = min(0.45, reserved)
-
-    # Retourne la borne droite des axes pour laisser la place à la légende
-    return 1.0 - reserved
 
 
 # Formate une bande de fréquences pour le titre automatique
@@ -306,41 +262,11 @@ class VisualizationConfig:
 
 
 # Normalise un identifiant brut en appliquant un préfixe standard
-def _normalize_identifier(value: str, prefix: str, width: int, label: str) -> str:
-    """Normalise un identifiant pour respecter le format Physionet."""
-
-    # Nettoie la valeur reçue pour éviter des espaces parasites
-    cleaned_value = value.strip()
-    # Refuse une valeur vide pour éviter un identifiant incomplet
-    if not cleaned_value:
-        # Signale une valeur vide pour forcer la correction côté CLI
-        raise argparse.ArgumentTypeError(f"{label} vide")
-    # Récupère le premier caractère pour détecter un préfixe explicite
-    first_char = cleaned_value[0]
-    # Déduit si l'utilisateur a fourni le préfixe attendu
-    has_prefix = first_char.upper() == prefix.upper()
-    # Extrait la portion numérique selon la présence du préfixe
-    numeric_part = cleaned_value[1:] if has_prefix else cleaned_value
-    # Refuse les valeurs non numériques pour garantir un ID valide
-    if not numeric_part.isdigit():
-        # Signale l'identifiant invalide pour guider l'utilisateur
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Convertit en entier pour normaliser les zéros initiaux
-    numeric_value = int(numeric_part)
-    # Refuse les index non positifs pour respecter la base Physionet
-    if numeric_value < 1:
-        # Signale l'identifiant non valide pour arrêter le parsing
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Reconstruit l'identifiant normalisé avec le padding attendu
-    return f"{prefix}{numeric_value:0{width}d}"
+_normalize_identifier = tpv_utils.normalize_identifier
 
 
 # Normalise un identifiant de sujet pour la CLI de visualisation
-def _parse_subject(value: str) -> str:
-    """Normalise un identifiant de sujet en format Sxxx."""
-
-    # Délègue la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="S", width=3, label="Sujet")
+_parse_subject = tpv_utils.parse_subject
 
 
 # Normalise un identifiant de run pour la CLI de visualisation
@@ -369,22 +295,8 @@ def build_parser() -> argparse.ArgumentParser:
             "et enregistre un plot brut vs filtré."
         )
     )
-    # Ajoute l'argument sujet pour cibler un répertoire data/<subject>
-    parser.add_argument(
-        "subject",
-        # Normalise le sujet pour accepter S001 ou 9
-        type=_parse_subject,
-        # Indique le format attendu et la variante numérique tolérée
-        help="Identifiant du sujet ex: S001 ou 9",
-    )
-    # Ajoute l'argument run pour choisir le fichier EDF au sein du sujet
-    parser.add_argument(
-        "run",
-        # Normalise le run pour accepter R01 ou 10
-        type=_parse_run,
-        # Indique le format attendu et la variante numérique tolérée
-        help="Identifiant du run ex: R01 ou 10",
-    )
+    # Partage la normalisation et l'aide des identifiants PhysioNet
+    tpv_utils.add_subject_run_arguments(parser)
     # Ajoute la racine dataset pour autoriser les chemins personnalisés
     parser.add_argument(
         "--data-root",

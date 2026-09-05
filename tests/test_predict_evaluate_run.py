@@ -5,8 +5,133 @@ from pathlib import Path
 from typing import cast
 
 import numpy as np
+import pytest
 
 from scripts import predict as predict_cli
+
+
+# Installe le même auto-entraînement factice dans les scénarios d'artefacts manquants.
+def _install_fake_missing_trainer(
+    monkeypatch: pytest.MonkeyPatch,
+    train_calls: list[tuple[str, str, Path, Path, Path]],
+) -> None:
+    """Crée modèle, matrice et preuve CV comme le ferait l'entraînement réel."""
+
+    def fake_train_missing(
+        subject: str,
+        run: str,
+        data_dir: Path,
+        artifacts_dir: Path,
+        options=None,
+    ) -> None:
+        # La racine brute explicite doit rester observable par les assertions.
+        raw_dir = (
+            options.raw_dir if options is not None else predict_cli.DEFAULT_RAW_DIR
+        )
+        train_calls.append((subject, run, data_dir, artifacts_dir, raw_dir))
+        # Les trois artefacts matérialisent un entraînement minimal mais valide.
+        target_dir = artifacts_dir / subject / run
+        target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / "model.joblib").write_bytes(b"model-bytes")
+        (target_dir / "w_matrix.joblib").write_bytes(b"w-bytes")
+        (target_dir / "manifest.json").write_text(
+            '{"scores": {"cv_mean": 0.5}}', encoding="utf-8"
+        )
+
+    # Tous les tests concernés empruntent le même point d'extension de predict.
+    monkeypatch.setattr(predict_cli, "_train_missing_pipeline", fake_train_missing)
+
+
+# Protège le score officiel contre une réévaluation sur les données apprises.
+def test_evaluate_run_uses_cross_validation_score_from_manifest(
+    tmp_path, monkeypatch
+) -> None:
+    """Utilise cv_mean et n'appelle jamais score sur le modèle final."""
+
+    # Prépare les identifiants et répertoires d'un run synthétique.
+    subject, run = "S001", "R03"
+    # Isole les tableaux d'entrée dans une racine dédiée.
+    data_dir = tmp_path / "data"
+    # Isole les artefacts d'entraînement dans une autre racine.
+    artifacts_dir = tmp_path / "artifacts"
+    # Construit le dossier partagé par le modèle et son manifeste.
+    target_dir = artifacts_dir / subject / run
+    # Crée les parents nécessaires aux artefacts factices.
+    target_dir.mkdir(parents=True)
+    # Les deux fichiers empêchent l'auto-entraînement pendant ce test.
+    (target_dir / "model.joblib").write_bytes(b"model")
+    # La matrice factice satisfait le contrat de persistance CSP/PCA.
+    (target_dir / "w_matrix.joblib").write_bytes(b"matrix")
+    # Le manifeste porte la seule métrique calculée sans réutiliser le fit final.
+    (target_dir / "manifest.json").write_text(
+        '{"scores": {"cv_scores": [0.5, 0.75], "cv_mean": 0.625}}',
+        encoding="utf-8",
+    )
+    # Prépare deux epochs dont le modèle final pourrait facilement mémoriser les labels.
+    epochs = np.ones((2, 1, 4), dtype=float)
+    # Garde des classes distinctes pour rendre le cas représentatif.
+    labels = np.array([0, 1], dtype=int)
+    # Court-circuite le chargement disque sans changer le chemin évalué.
+    monkeypatch.setattr(
+        predict_cli,
+        "_load_data",
+        lambda *_args, **_kwargs: (epochs, labels),
+    )
+
+    # Simule un modèle final capable de prédire les données déjà vues.
+    class MemorizingPipeline:
+        # Les prédictions servent encore à afficher les classes demandées.
+        def predict(self, _epochs):
+            # Retourne volontairement la vérité pour simuler 100 % en resubstitution.
+            return labels.copy()
+
+        # Cette méthode ne doit plus participer au score officiel.
+        def score(self, _epochs, _labels):
+            # Un appel révélerait immédiatement la fuite réintroduite.
+            raise AssertionError("pipeline.score ne doit pas évaluer le fit final")
+
+    # Injecte le modèle mémorisant pour vérifier l'absence d'appel à score.
+    monkeypatch.setattr(
+        predict_cli,
+        "load_pipeline",
+        lambda _path: MemorizingPipeline(),
+    )
+    # Évite que le test dépende du contenu binaire de la matrice factice.
+    monkeypatch.setattr(predict_cli, "_load_w_matrix", lambda _path: object())
+    # Évite les écritures de rapports non pertinentes pour ce contrat.
+    monkeypatch.setattr(
+        predict_cli,
+        "_write_reports",
+        lambda *_args, **_kwargs: {"confusion": [[1, 0], [0, 1]]},
+    )
+
+    # Exécute le chemin public utilisé par predict et l'agrégation globale.
+    result = predict_cli.evaluate_run(subject, run, data_dir, artifacts_dir)
+
+    # Le score officiel doit être la moyenne CV, jamais le 100 % mémorisé.
+    assert result["accuracy"] == 0.625
+    # La provenance explicite rend le rapport défendable devant un évaluateur.
+    assert result["evaluation_source"] == "cross_validation"
+
+
+# Protège l'interdiction d'inventer un score lorsque la preuve CV manque.
+def test_load_validation_accuracy_rejects_missing_or_incomplete_manifest(
+    tmp_path,
+) -> None:
+    """Échoue avant tout fallback vers pipeline.score sur le fit final."""
+
+    # Aucun manifeste ne permet d'établir la provenance du score.
+    with pytest.raises(FileNotFoundError, match="Manifeste de validation absent"):
+        # Le helper doit refuser immédiatement cette situation ambiguë.
+        predict_cli._load_validation_accuracy(tmp_path)
+    # Crée ensuite un manifeste valide en structure mais sans moyenne CV.
+    (tmp_path / "manifest.json").write_text(
+        '{"scores": {"cv_scores": []}}', encoding="utf-8"
+    )
+    # Une liste vide ne constitue toujours pas une métrique défendable.
+    with pytest.raises(ValueError, match="Score de validation croisée absent"):
+        # Le helper doit inviter à réentraîner avec assez d'epochs.
+        predict_cli._load_validation_accuracy(tmp_path)
 
 
 def test_evaluate_run_trains_and_loads_missing_artifacts(
@@ -31,27 +156,7 @@ def test_evaluate_run_trains_and_loads_missing_artifacts(
 
     train_calls: list[tuple[str, str, Path, Path, Path]] = []
 
-    def fake_train_missing(
-        subject_arg: str,
-        run_arg: str,
-        data_dir_arg: Path,
-        artifacts_dir_arg: Path,
-        options_arg=None,
-    ) -> None:
-        raw_dir = (
-            options_arg.raw_dir
-            if options_arg is not None
-            else predict_cli.DEFAULT_RAW_DIR
-        )
-        train_calls.append(
-            (subject_arg, run_arg, data_dir_arg, artifacts_dir_arg, raw_dir)
-        )
-        ensured_target = artifacts_dir_arg / subject_arg / run_arg
-        ensured_target.mkdir(parents=True, exist_ok=True)
-        (ensured_target / "model.joblib").write_bytes(b"model-bytes")
-        (ensured_target / "w_matrix.joblib").write_bytes(b"w-bytes")
-
-    monkeypatch.setattr(predict_cli, "_train_missing_pipeline", fake_train_missing)
+    _install_fake_missing_trainer(monkeypatch, train_calls)
 
     loaded_models: list[Path] = []
 
@@ -145,27 +250,7 @@ def test_evaluate_run_triggers_training_when_only_w_matrix_missing(
 
     train_calls: list[tuple[str, str, Path, Path, Path]] = []
 
-    def fake_train_missing(
-        subject_arg: str,
-        run_arg: str,
-        data_dir_arg: Path,
-        artifacts_dir_arg: Path,
-        options_arg=None,
-    ) -> None:
-        raw_dir = (
-            options_arg.raw_dir
-            if options_arg is not None
-            else predict_cli.DEFAULT_RAW_DIR
-        )
-        train_calls.append(
-            (subject_arg, run_arg, data_dir_arg, artifacts_dir_arg, raw_dir)
-        )
-        ensured_target = artifacts_dir_arg / subject_arg / run_arg
-        ensured_target.mkdir(parents=True, exist_ok=True)
-        (ensured_target / "model.joblib").write_bytes(b"model-bytes")
-        (ensured_target / "w_matrix.joblib").write_bytes(b"w-bytes")
-
-    monkeypatch.setattr(predict_cli, "_train_missing_pipeline", fake_train_missing)
+    _install_fake_missing_trainer(monkeypatch, train_calls)
 
     class DummyPipeline:
         def predict(self, X_input: np.ndarray) -> np.ndarray:
@@ -229,6 +314,10 @@ def test_evaluate_run_skips_training_when_artifacts_present_and_forwards_raw_dir
     target_dir.mkdir(parents=True, exist_ok=True)
     (target_dir / "model.joblib").write_bytes(b"model-bytes")
     (target_dir / "w_matrix.joblib").write_bytes(b"w-bytes")
+    # Simule la preuve CV normalement produite par scripts.train.
+    (target_dir / "manifest.json").write_text(
+        '{"scores": {"cv_mean": 0.5}}', encoding="utf-8"
+    )
 
     X = np.ones((3, 1, 2), dtype=float)
     y = np.array([1, 0, 1], dtype=int)
@@ -336,6 +425,10 @@ def test_evaluate_run_uses_welch_window_aggregation(tmp_path, monkeypatch) -> No
     (target_dir / "model.joblib").write_bytes(b"model")
     # Crée une matrice W factice pour bypass l'auto-train
     (target_dir / "w_matrix.joblib").write_bytes(b"w")
+    # Simule la preuve CV normalement produite par scripts.train.
+    (target_dir / "manifest.json").write_text(
+        '{"scores": {"cv_mean": 1.0}}', encoding="utf-8"
+    )
 
     # Prépare un extracteur Welch pour activer la logique glissante
     extractor = predict_cli.ExtractFeatures(

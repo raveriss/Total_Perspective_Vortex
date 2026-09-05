@@ -15,9 +15,13 @@ import sys
 
 # Rassemble les structures de configuration sans mutabilité implicite
 from dataclasses import dataclass
+from decimal import ROUND_FLOOR, Decimal
 
 # Garantit la manipulation de chemins indépendants du système
 from pathlib import Path
+
+# Cast fixe les contrats issus des imports dynamiques nécessaires au script direct.
+from typing import Any, cast
 
 # Assure des moyennes numériques stables pour les agrégations
 import numpy as np
@@ -29,38 +33,41 @@ if str(REPO_ROOT) not in sys.path:
     # Priorise la résolution locale des modules du repo
     sys.path.insert(0, str(REPO_ROOT))
 
+# Centralise les choix de pipeline après avoir rendu src importable.
+tpv_pipeline = importlib.import_module("tpv.pipeline")
+# Charge le protocole FBCSP groupé sans dupliquer son implémentation scientifique.
+tpv_evaluation = importlib.import_module("tpv.evaluation")
+# Centralise les quatre expériences et le périmètre officiel EEGMMIDB.
+tpv_protocol = importlib.import_module("tpv.protocol")
+# Centralise également les conventions de chemins du projet.
+tpv_utils = importlib.import_module("tpv.utils")
+
 # Charge le module predict après l'insertion du repo dans sys.path
 predict_cli = importlib.import_module("scripts.predict")
 # Charge le module train pour déclencher un auto-train piloté
 train_cli = importlib.import_module("scripts.train")
 
-# Définit le répertoire par défaut où chercher les jeux de données
-DEFAULT_DATA_DIR = Path("data")
-# Définit le répertoire par défaut où lire les EDF bruts
-DEFAULT_RAW_DIR = Path("data")
+# Réutilise la racine numpy configurable sans créer une convention concurrente
+DEFAULT_DATA_DIR = tpv_utils.DEFAULT_DATA_DIR
+# Réutilise la racine EDF canonique pour l'auto-entraînement des runs manquants
+DEFAULT_RAW_DIR = tpv_utils.DEFAULT_RAW_DIR
+# Réutilise la racine canonique des modèles, matrices et rapports persistés
+DEFAULT_ARTIFACTS_DIR = tpv_utils.DEFAULT_ARTIFACTS_DIR
 
-# Définit le répertoire par défaut où lire les artefacts d'entraînement
-DEFAULT_ARTIFACTS_DIR = Path("artifacts")
-
-# Déclare le mapping officiel runs -> types d'expériences (R03-R14)
-EXPERIENCE_RUNS: dict[str, tuple[str, ...]] = {
-    # Regroupe les runs de la tâche motrice réelle main gauche/droite
-    "T1": ("R03", "R07", "R11"),
-    # Regroupe les runs d'imagerie motrice main gauche/droite
-    "T2": ("R04", "R08", "R12"),
-    # Regroupe les runs de tâche motrice poings/pieds
-    "T3": ("R05", "R09", "R13"),
-    # Regroupe les runs d'imagerie motrice poings/pieds
-    "T4": ("R06", "R10", "R14"),
-}
-
-# Définit l'ordre d'affichage stable des expériences
-EXPERIENCE_ORDER = ("T1", "T2", "T3", "T4")
+# Préserve les noms publics historiques en déléguant au protocole partagé.
+EXPERIENCE_RUNS = cast(dict[str, tuple[str, ...]], tpv_protocol.EXPERIENCE_RUNS)
+# L'ordre d'affichage provient de la même source que les runs d'expérience.
+EXPERIENCE_ORDER = cast(tuple[str, ...], tpv_protocol.EXPERIENCE_ORDER)
 
 # Définit le seuil de score pour déclencher des points bonus
 BONUS_THRESHOLD = 0.75
 # Définit le pas de progression des points bonus au-delà du seuil
 BONUS_STEP = 0.03
+# Une validation croisée exige au minimum deux plis.
+MIN_CV_SPLITS = 2
+# La grille globale porte sur l'ensemble des sujets EEGMMIDB.
+EXPECTED_SUBJECT_COUNT = int(tpv_protocol.EXPECTED_SUBJECT_COUNT)
+SCORE_TARGETS = (0.75, 0.81, 0.87, 0.90)
 
 
 # Regroupe les options de scoring pour limiter les signatures trop longues
@@ -78,6 +85,30 @@ class AggregationOptions:
     grid_search_splits: int | None
     # Renseigne le répertoire des EDF bruts pour l'auto-train
     raw_dir: Path
+    # Choisit l'extraction de features pour les modèles manquants.
+    feature_strategy: str = "fft"
+    # Choisit la réduction maison pour les modèles manquants.
+    dim_method: str = "pca"
+    # Choisit le classifieur final pour les modèles manquants.
+    classifier: str = "lda"
+    # Choisit éventuellement un scaler dans la pipeline complète.
+    scaler: str | None = None
+    # Regroupe les trois runs d'un type pour disposer de 45 essais par sujet.
+    pooled_experiment_cv: bool = False
+    # Fixe le nombre de plis de la preuve groupée.
+    cv_splits: int = 5
+    # Limite facultative réservée aux diagnostics rapides.
+    subject_limit: int | None = None
+    # Active la sélection d'hyperparamètres uniquement dans une CV interne.
+    nested_cv: bool = True
+    # Produit une preuve séparée où chaque run est tenu hors entraînement.
+    strict_run_report: bool = True
+    # Étend la grille à ERD/ERS, CAR et Laplacien pour l'ablation FBCSP.
+    enable_preprocessing_ablation: bool = False
+    # Choisit FBCSP ou la branche covariance tangentielle secondaire.
+    model_family: str = "fbcsp"
+    # Fige une campagne progressive sans modifier la cohorte finale de 109 sujets.
+    campaign_size: int | None = None
 
 
 # Regroupe les informations nécessaires à l'auto-train
@@ -104,33 +135,21 @@ def build_parser() -> argparse.ArgumentParser:
             "pour les runs R03-R14"
         ),
     )
-    # Ajoute une option pour pointer vers un répertoire de données alternatif
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=DEFAULT_DATA_DIR,
-        help="Répertoire racine contenant les matrices numpy utilisées",
-    )
-    # Ajoute une option pour indiquer le répertoire des EDF bruts
-    parser.add_argument(
-        "--raw-dir",
-        type=Path,
-        default=DEFAULT_RAW_DIR,
-        help="Répertoire racine contenant les fichiers EDF bruts",
-    )
-    # Ajoute une option pour sélectionner un répertoire d'artefacts spécifique
-    parser.add_argument(
-        "--artifacts-dir",
-        type=Path,
-        default=DEFAULT_ARTIFACTS_DIR,
-        help="Répertoire racine où sont stockés les modèles et matrices W",
-    )
+    # Partage les trois racines utilisées pour découvrir et entraîner les runs
+    tpv_utils.add_storage_arguments(parser, include_raw=True)
     # Ajoute une option pour sérialiser les résultats en CSV
     parser.add_argument(
         "--csv-output",
         type=Path,
         default=None,
         help="Chemin de sortie du rapport CSV par sujet",
+    )
+    # Ajoute une preuve JSON contenant commits, configuration, splits et scores.
+    parser.add_argument(
+        "--json-output",
+        type=Path,
+        default=None,
+        help="Chemin de sortie du rapport JSON reproductible",
     )
     # Ajoute un flag pour autoriser l'auto-train en l'absence d'artefacts
     parser.add_argument(
@@ -157,8 +176,106 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Nombre de splits CV dédié à la grid search en auto-train",
     )
+    # Réserve les moyennes partielles au diagnostic local, jamais à la note finale.
+    parser.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="Autorise un rapport incomplet uniquement pour le diagnostic",
+    )
+    parser.add_argument(
+        "--pooled-experiment-cv",
+        action="store_true",
+        help="Valide FBCSP sur les trois runs regroupés de chaque expérience",
+    )
+    parser.add_argument(
+        "--cv-splits",
+        type=int,
+        default=5,
+        help="Nombre de plis de validation croisée du protocole groupé",
+    )
+    parser.add_argument(
+        "--subject-limit",
+        type=int,
+        default=None,
+        help="Limite de sujets, uniquement pour un diagnostic partiel",
+    )
+    parser.add_argument(
+        "--campaign-size",
+        type=int,
+        choices=(10, 30, 109),
+        default=None,
+        help="Cohorte reproductible 10, 30 ou 109 sujets",
+    )
+    parser.add_argument(
+        "--disable-nested-cv",
+        action="store_true",
+        help="Désactive la CV imbriquée (diagnostic uniquement)",
+    )
+    parser.add_argument(
+        "--skip-strict-run-report",
+        action="store_true",
+        help="Ignore le rapport leave-one-run-out (diagnostic uniquement)",
+    )
+    parser.add_argument(
+        "--preprocessing-ablation",
+        action="store_true",
+        help="Compare baseline ERD/ERS, CAR et Laplacien dans la CV interne",
+    )
+    parser.add_argument(
+        "--model-family",
+        choices=("fbcsp", "riemannian"),
+        default="fbcsp",
+        help="Famille évaluée ; riemannian reste une ablation secondaire",
+    )
+    # Expose les bonus de features sans créer une seconde boucle globale.
+    parser.add_argument(
+        "--feature-strategy",
+        choices=tpv_pipeline.FEATURE_STRATEGIES,
+        default="fft",
+        help="Extraction utilisée lors de l'auto-entraînement",
+    )
+    # Expose la réduction maison depuis le moteur d'agrégation unique.
+    parser.add_argument(
+        "--dim-method",
+        choices=tpv_pipeline.DIMENSIONALITY_METHODS,
+        default="pca",
+        help="Réduction utilisée lors de l'auto-entraînement",
+    )
+    # Expose les classifieurs déjà disponibles dans la pipeline.
+    parser.add_argument(
+        "--classifier",
+        choices=tpv_pipeline.CLASSIFIER_CHOICES,
+        default="lda",
+        help="Classifieur utilisé lors de l'auto-entraînement",
+    )
+    # Expose le scaling optionnel sans dupliquer la construction du pipeline.
+    parser.add_argument(
+        "--scaler",
+        choices=tpv_pipeline.SCALER_CHOICES,
+        default="none",
+        help="Scaler utilisé lors de l'auto-entraînement",
+    )
     # Retourne le parser prêt à interpréter les arguments utilisateur
     return parser
+
+
+# Fournit le parcours trié commun aux deux sources de découverte de runs
+def _iter_subject_directories(root_directory: Path) -> tuple[Path, ...]:
+    """Retourne les dossiers sujets triés ou un tuple vide si la racine manque."""
+
+    # Une source absente signifie simplement qu'aucun run n'y est découvrable
+    if not root_directory.exists():
+        # Le tuple vide permet aux deux appelants de conserver leur boucle nominale
+        return ()
+    # Seuls les dossiers peuvent porter les fichiers et sous-dossiers d'un sujet
+    subject_directories = (
+        # Le filtre protège la découverte contre les fichiers placés à la racine
+        path
+        for path in root_directory.iterdir()
+        if path.is_dir()
+    )
+    # Le tri garantit des rapports reproductibles entre systèmes de fichiers
+    return tuple(sorted(subject_directories))
 
 
 # Inventorie les runs disponibles en inspectant les artefacts présents
@@ -167,16 +284,8 @@ def _discover_runs_from_artifacts(artifacts_dir: Path) -> list[tuple[str, str]]:
 
     # Initialise la liste de sortie pour conserver l'ordre déterministe
     runs: list[tuple[str, str]] = []
-    # Ignore silencieusement l'exploration si le dossier n'existe pas
-    if not artifacts_dir.exists():
-        # Retourne une liste vide pour signaler l'absence d'artefacts
-        return runs
-    # Parcourt les dossiers de sujets pour détecter les runs
-    for subject_dir in sorted(artifacts_dir.iterdir()):
-        # Ignore les éléments qui ne représentent pas un sujet
-        if not subject_dir.is_dir():
-            # Passe au chemin suivant pour éviter les collisions
-            continue
+    # Parcourt uniquement les dossiers sujets fournis par le helper commun
+    for subject_dir in _iter_subject_directories(artifacts_dir):
         # Parcourt les dossiers de runs pour le sujet courant
         for run_dir in sorted(subject_dir.iterdir()):
             # Construit le chemin du modèle entraîné pour vérifier l'existence
@@ -194,7 +303,7 @@ def _has_run_data(data_dir: Path, subject: str, run: str) -> bool:
     """Retourne True si un EDF ou un .npy est disponible pour ce run."""
 
     # Construit le chemin attendu du fichier EDF pour le run
-    edf_path = data_dir / subject / f"{subject}{run}.edf"
+    edf_path, _event_path = tpv_utils.resolve_recording_paths(data_dir, subject, run)
     # Construit le chemin attendu des features numpy pour le run
     features_path = data_dir / subject / f"{run}_X.npy"
     # Construit le chemin attendu des labels numpy pour le run
@@ -209,18 +318,10 @@ def _discover_runs_from_data(data_dir: Path) -> list[tuple[str, str]]:
 
     # Initialise la liste de sortie pour conserver l'ordre déterministe
     runs: list[tuple[str, str]] = []
-    # Ignore silencieusement l'exploration si le dossier n'existe pas
-    if not data_dir.exists():
-        # Retourne une liste vide pour signaler l'absence de données
-        return runs
     # Aplatis la liste des runs attendus pour les expériences T1-T4
     expected_runs = [run for runs in EXPERIENCE_RUNS.values() for run in runs]
-    # Parcourt les dossiers de sujets pour détecter les runs
-    for subject_dir in sorted(data_dir.iterdir()):
-        # Ignore les éléments qui ne représentent pas un sujet
-        if not subject_dir.is_dir():
-            # Passe au chemin suivant pour éviter les collisions
-            continue
+    # Parcourt uniquement les dossiers sujets fournis par le helper commun
+    for subject_dir in _iter_subject_directories(data_dir):
         # Récupère le nom du sujet pour composer les chemins de runs
         subject = subject_dir.name
         # Parcourt chaque run attendu pour la moyenne par expérience
@@ -241,23 +342,23 @@ def _discover_runs(
 ) -> list[tuple[str, str]]:
     """Liste les couples (sujet, run) via artefacts ou dataset."""
 
-    # Tente d'abord de réutiliser les artefacts persistés
-    runs = _discover_runs_from_artifacts(artifacts_dir)
-    # Retourne immédiatement si des artefacts sont disponibles
-    if runs:
-        # Préserve le chemin rapide pour éviter un scan lourd des données
-        return runs
+    # Tente d'abord de réutiliser les artefacts persistés.
+    artifact_runs = _discover_runs_from_artifacts(artifacts_dir)
     # Refuse le scan des données si l'auto-train est désactivé
     if not allow_data_scan:
-        # Informe l'utilisateur que seuls les artefacts existants sont évalués
-        print(
-            "INFO: aucun artefact trouvé, "
-            "scan data désactivé (utilisez --auto-train-missing pour activer)."
-        )
-        # Retourne une liste vide pour éviter un entraînement coûteux
-        return []
-    # Bascule vers un scan des données pour déclencher l'auto-train
-    return _discover_runs_from_data(data_dir)
+        # N'affiche le diagnostic d'absence que si aucun modèle n'est disponible.
+        if not artifact_runs:
+            # Explique comment autoriser la découverte et l'entraînement manquant.
+            print(
+                "INFO: aucun artefact trouvé, "
+                "scan data désactivé (utilisez --auto-train-missing pour activer)."
+            )
+        # Retourne les artefacts présents sans déclencher d'entraînement coûteux.
+        return artifact_runs
+    # Complète les artefacts partiels avec les runs réellement disponibles.
+    data_runs = _discover_runs_from_data(data_dir)
+    # Un set supprime les doublons, puis le tri garantit un ordre reproductible.
+    return sorted(set(artifact_runs).union(data_runs))
 
 
 # Associe un run à un type d'expérience connu
@@ -282,28 +383,28 @@ def compute_bonus_points(mean_score: float | None) -> int:
     if mean_score is None:
         # Signale l'absence de bonus si les données sont incomplètes
         return 0
-    # Ignore le bonus si la moyenne n'atteint pas le seuil requis
-    if mean_score <= BONUS_THRESHOLD:
+    score = Decimal(str(mean_score))
+    threshold = Decimal(str(BONUS_THRESHOLD))
+    step = Decimal(str(BONUS_STEP))
+    # Ignore le bonus tant qu'un palier complet de trois points n'est pas atteint.
+    if score < threshold + step:
         # Retourne zéro pour refléter l'absence de bonus
         return 0
     # Calcule l'écart au seuil pour dimensionner les points
-    delta = mean_score - BONUS_THRESHOLD
-    # Calcule le nombre de points en paliers de 3 %
-    return int(delta // BONUS_STEP) + 1
+    delta = score - threshold
+    # Decimal évite que 0.81 ou 0.87 tombe du mauvais côté du palier binaire.
+    earned_points = int((delta / step).to_integral_value(rounding=ROUND_FLOOR))
+    # La checklist borne explicitement cette partie de la note à cinq points.
+    return min(earned_points, 5)
 
 
 # Construit les chemins d'artefacts attendus pour un run
 def _artifact_paths(artifacts_dir: Path, subject: str, run: str) -> tuple[Path, Path]:
     """Retourne les chemins du modèle et de la matrice W attendus."""
 
-    # Calcule le dossier d'artefacts pour accéder aux fichiers
-    target_dir = artifacts_dir / subject / run
-    # Construit le chemin du modèle sérialisé attendu
-    model_path = target_dir / "model.joblib"
-    # Construit le chemin de la matrice W attendue
-    w_matrix_path = target_dir / "w_matrix.joblib"
-    # Retourne les deux chemins pour vérification
-    return model_path, w_matrix_path
+    # Préserve l'ancien tuple public depuis le contrat de chemins partagé.
+    paths = tpv_utils.resolve_artifact_paths(artifacts_dir, subject, run)
+    return paths.model, paths.w_matrix
 
 
 # Lance l'entraînement d'un run avec configuration contrôlée
@@ -321,12 +422,12 @@ def _train_run(subject: str, run: str, context: TrainingContext) -> None:
     # Construit une configuration de pipeline cohérente pour l'auto-train
     pipeline_config = train_cli.PipelineConfig(
         sfreq=resolved_sfreq,
-        feature_strategy="fft",
+        feature_strategy=context.options.feature_strategy,
         normalize_features=True,
-        dim_method="pca",
+        dim_method=context.options.dim_method,
         n_components=None,
-        classifier="lda",
-        scaler=None,
+        classifier=context.options.classifier,
+        scaler=context.options.scaler,
     )
     # Prépare la requête d'entraînement pour scripts.train.run_training
     request = train_cli.TrainingRequest(
@@ -344,28 +445,22 @@ def _train_run(subject: str, run: str, context: TrainingContext) -> None:
     train_cli.run_training(request)
 
 
-# Charge une accuracy persistée si un rapport JSON existe
+# Charge une accuracy persistée uniquement si sa validation est prouvée
 def _load_cached_accuracy(artifacts_dir: Path, subject: str, run: str) -> float | None:
-    """Retourne l'accuracy du rapport JSON si disponible."""
+    """Retourne exclusivement le score CV du manifeste d'entraînement."""
 
-    # Calcule le dossier d'artefacts pour accéder au rapport éventuel
-    target_dir = artifacts_dir / subject / run
-    # Détermine le chemin d'un rapport déjà généré
-    report_path = target_dir / "report.json"
-    # Retourne None si aucun rapport n'est présent
-    if not report_path.exists():
-        # Signale l'absence de cache pour déclencher un calcul
+    # Détermine le chemin du manifeste contenant les folds de validation.
+    manifest_path = tpv_utils.resolve_artifact_paths(
+        artifacts_dir, subject, run
+    ).manifest
+    # Un ancien report.json seul ne constitue jamais une preuve scientifique.
+    if not manifest_path.exists():
+        # Signale l'absence de manifeste pour déclencher le contrôle complet.
         return None
-    # Charge le contenu JSON du rapport persisté
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    # Récupère l'accuracy du rapport si elle existe
-    accuracy = report.get("accuracy")
-    # Retourne une accuracy typée si elle est valide
-    if isinstance(accuracy, (float, int)):
-        # Convertit explicitement en float pour homogénéiser le type
-        return float(accuracy)
-    # Retourne None si la clé est absente ou invalide
-    return None
+    # Charge le manifeste produit lors du fit et de la validation croisée.
+    manifest = tpv_utils.load_json_object(manifest_path)
+    # Récupère uniquement la moyenne des folds via le contrat partagé.
+    return cast(float | None, tpv_utils.extract_cv_mean(manifest))
 
 
 # Ajoute une accuracy au conteneur par sujet et par expérience
@@ -387,6 +482,22 @@ def _append_subject_score(
         subject_scores[subject][experience] = []
     # Empile l'accuracy pour la moyenne par expérience
     subject_scores[subject][experience].append(accuracy)
+
+
+def _needs_training(
+    cached_accuracy: float | None,
+    model_path: Path,
+    w_matrix_path: Path,
+    options: AggregationOptions,
+) -> bool:
+    """Indique si les artefacts doivent être régénérés avant évaluation."""
+
+    return (
+        options.force_retrain
+        or (options.allow_auto_train and cached_accuracy is None)
+        or not model_path.exists()
+        or not w_matrix_path.exists()
+    )
 
 
 # Agrège les scores par sujet en parcourant les runs disponibles
@@ -425,8 +536,11 @@ def _collect_subject_scores(
         # Résout les chemins d'artefacts nécessaires à l'évaluation
         model_path, w_matrix_path = _artifact_paths(artifacts_dir, subject, run)
         # Détermine si un entraînement est requis pour ce run
-        needs_training = options.force_retrain or (
-            not model_path.exists() or not w_matrix_path.exists()
+        needs_training = _needs_training(
+            cached_accuracy,
+            model_path,
+            w_matrix_path,
+            options,
         )
         # Saute l'auto-train si les artefacts sont incomplets et interdits
         if not options.allow_auto_train and needs_training:
@@ -513,19 +627,6 @@ def _build_subject_entries(
         )
     # Retourne les entrées prêtes pour l'affichage
     return subject_entries
-
-
-# Extrait la liste des moyennes globales éligibles
-def _extract_eligible_means(subject_entries: list[dict]) -> list[float]:
-    """Retourne les moyennes des sujets complets."""
-
-    # Retourne uniquement les moyennes non nulles
-    return [
-        # Conserve uniquement les sujets avec quatre expériences valides
-        entry["mean_of_means"]
-        for entry in subject_entries
-        if entry["mean_of_means"] is not None
-    ]
 
 
 # Calcule les moyennes globales par type d'expérience
@@ -617,6 +718,12 @@ def build_report_from_scores(subject_scores: dict[str, dict[str, list[float]]]) 
     worst_subjects = _build_worst_subjects(subject_entries)
     # Regroupe les données dans une structure de rapport dédiée
     report = {
+        # Rend explicite la provenance scientifique de toutes les accuracies.
+        "evaluation_method": "cross_validation",
+        # Fige la taille officielle du dataset attendue pour un rapport complet.
+        "expected_subjects": EXPECTED_SUBJECT_COUNT,
+        # Indique immédiatement si le rapport peut servir de preuve finale.
+        "complete": eligible_subjects == EXPECTED_SUBJECT_COUNT,
         # Fournit les entrées par sujet pour l'affichage
         "subjects": subject_entries,
         # Fournit les moyennes globales par expérience
@@ -636,6 +743,150 @@ def build_report_from_scores(subject_scores: dict[str, dict[str, list[float]]]) 
     return report
 
 
+def _resolve_pooled_subjects(options: AggregationOptions) -> list[str]:
+    """Valide les bornes puis construit la cohorte demandée."""
+
+    if options.cv_splits < MIN_CV_SPLITS:
+        raise ValueError("cv_splits must be at least 2")
+    if options.subject_limit is not None and options.subject_limit < 1:
+        raise ValueError("subject_limit must be positive")
+    if options.subject_limit is not None and options.campaign_size is not None:
+        raise ValueError("subject_limit and campaign_size are mutually exclusive")
+    subjects = cast(
+        list[str],
+        tpv_evaluation.campaign_subjects(
+            options.campaign_size or EXPECTED_SUBJECT_COUNT
+        ),
+    )
+    if options.subject_limit is not None:
+        subjects = subjects[: options.subject_limit]
+    return subjects
+
+
+def _build_evaluation_config(
+    options: AggregationOptions,
+) -> Any:
+    """Convertit les options CLI en configuration scientifique figée."""
+
+    return tpv_evaluation.ExperimentEvaluationConfig(
+        cv_splits=options.cv_splits,
+        epoch_tmin=-1.0 if options.enable_preprocessing_ablation else 0.0,
+        nested_cv=options.nested_cv,
+        strict_run_report=options.strict_run_report,
+        enable_preprocessing_ablation=options.enable_preprocessing_ablation,
+        model_family=options.model_family,
+    )
+
+
+def _build_pooled_configuration(
+    raw_dir: Path,
+    subjects: list[str],
+    evaluation_config: Any,
+) -> dict[str, object]:
+    """Sérialise la configuration complète du rapport v3."""
+
+    config = evaluation_config
+    return {
+        "raw_dir": str(raw_dir),
+        "pooled_experiment_cv": True,
+        "cv_splits": config.cv_splits,
+        "random_state": config.random_state,
+        "epoch_window": [config.epoch_tmin, config.epoch_tmax],
+        "eeg_reference": config.eeg_reference,
+        "algorithm_version": config.algorithm_version,
+        "nested_cv": config.nested_cv,
+        "inner_cv_splits": config.inner_cv_splits,
+        "strict_run_report": config.strict_run_report,
+        "preprocessing_ablation": config.enable_preprocessing_ablation,
+        "model_family": config.model_family,
+        "campaign_size": len(subjects),
+        "run_adaptive_filters": config.run_adaptive_filters,
+        "filter_mode": config.filter_mode,
+        "baseline_window": config.baseline_window,
+        "task_pipeline_configs": {
+            experience: {
+                "motor_roi": list(task.motor_roi),
+                "filter_bank_bands": [list(band) for band in task.bands],
+                "filter_bank_windows": [list(window) for window in task.windows],
+                "selected_features": task.selected_features,
+                "spatial_reference": task.spatial_reference,
+            }
+            for experience, task in tpv_evaluation.TASK_PIPELINE_CONFIGS.items()
+        },
+        "classifier": "lda_lsqr_auto_shrinkage",
+    }
+
+
+def _strict_global_mean(evidence: list[dict[str, object]]) -> float | None:
+    """Agrège séparément les scores des runs entièrement tenus à l'écart."""
+
+    strict_means = [
+        float(cast(float, result["strict_run_mean"]))
+        for subject in evidence
+        for result in cast(
+            dict[str, dict[str, object]], subject["experiences"]
+        ).values()
+        if result.get("strict_run_mean") is not None
+    ]
+    return float(np.mean(strict_means)) if strict_means else None
+
+
+def _highest_score_target(global_mean: object) -> float | None:
+    """Retourne le jalon atteint sans modifier les quatre seuils figés."""
+
+    if not isinstance(global_mean, (float, int)):
+        return None
+    return max(
+        (target for target in SCORE_TARGETS if global_mean >= target),
+        default=None,
+    )
+
+
+def _aggregate_pooled_experiment_scores(
+    raw_dir: Path,
+    artifacts_dir: Path,
+    options: AggregationOptions,
+) -> dict:
+    """Évalue FBCSP sur 45 essais par sujet et type d'expérience."""
+
+    subjects = _resolve_pooled_subjects(options)
+    evaluation_config = _build_evaluation_config(options)
+
+    def report_progress(subject: str, results: dict) -> None:
+        means = [
+            float(results[experience]["cv_mean"]) for experience in EXPERIENCE_ORDER
+        ]
+        print(f"INFO: {subject} FBCSP mean={float(np.mean(means)):.3f}", flush=True)
+
+    subject_scores, evidence = tpv_evaluation.evaluate_all_subjects(
+        raw_dir,
+        subjects,
+        evaluation_config,
+        progress=report_progress,
+        cache_dir=artifacts_dir / "evaluation" / "fbcsp_subjects",
+    )
+    report = build_report_from_scores(subject_scores)
+    report["schema_version"] = 3
+    validation_name = "nested_stratified_cv" if options.nested_cv else "stratified_cv"
+    if options.strict_run_report:
+        validation_name += "_with_leave_one_run_out"
+    report["evaluation_method"] = f"{validation_name}_{options.model_family}"
+    report["expected_subject_ids"] = [
+        f"S{subject_index:03d}"
+        for subject_index in range(1, EXPECTED_SUBJECT_COUNT + 1)
+    ]
+    report["requested_configuration"] = _build_pooled_configuration(
+        raw_dir, subjects, evaluation_config
+    )
+    report["evaluated_subjects"] = evidence
+    report["strict_run_global_mean"] = _strict_global_mean(evidence)
+    global_mean = report.get("global_mean")
+    report["score_targets"] = list(SCORE_TARGETS)
+    report["highest_target_reached"] = _highest_score_target(global_mean)
+    report["source_commits"] = [train_cli._get_git_commit()]
+    return report
+
+
 # Calcule les moyennes par type d'expérience pour chaque sujet
 def aggregate_experience_scores(
     data_dir: Path,
@@ -644,12 +895,102 @@ def aggregate_experience_scores(
 ) -> dict:
     """Produit un rapport agrégé par sujet et type d'expérience (WBS 7.4)."""
 
+    if options.pooled_experiment_cv:
+        return _aggregate_pooled_experiment_scores(
+            options.raw_dir,
+            artifacts_dir,
+            options,
+        )
+
     # Récupère la liste des runs éligibles à l'agrégation
     runs = _discover_runs(data_dir, artifacts_dir, options.allow_auto_train)
     # Regroupe les accuracies par sujet et type d'expérience
     subject_scores = _collect_subject_scores(runs, data_dir, artifacts_dir, options)
     # Construit le rapport agrégé à partir des scores collectés
-    return build_report_from_scores(subject_scores)
+    report = build_report_from_scores(subject_scores)
+    # Versionne la structure pour permettre de relire durablement la preuve.
+    report["schema_version"] = 1
+    # Énumère explicitement les 109 sujets requis par l'évaluation officielle.
+    report["expected_subject_ids"] = [
+        f"S{subject_index:03d}"
+        for subject_index in range(1, EXPECTED_SUBJECT_COUNT + 1)
+    ]
+    # Conserve la configuration demandée sans objets Path non sérialisables.
+    report["requested_configuration"] = {
+        "allow_auto_train": options.allow_auto_train,
+        "force_retrain": options.force_retrain,
+        "enable_grid_search": options.enable_grid_search,
+        "grid_search_splits": options.grid_search_splits,
+        "raw_dir": str(options.raw_dir),
+        "feature_strategy": options.feature_strategy,
+        "dim_method": options.dim_method,
+        "classifier": options.classifier,
+        "scaler": options.scaler,
+    }
+    # Charge pour chaque run la preuve CV et le commit de son entraînement.
+    evaluated_runs = _build_run_evidence(runs, artifacts_dir)
+    # Rend les folds et scores consultables dans un rapport JSON unique.
+    report["evaluated_runs"] = evaluated_runs
+    # Signale immédiatement si plusieurs commits ont produit les artefacts.
+    report["source_commits"] = sorted(
+        {
+            str(entry["git_commit"])
+            for entry in evaluated_runs
+            if entry["git_commit"] is not None
+        }
+    )
+    # Retourne la preuve complète prête pour affichage ou sérialisation.
+    return report
+
+
+# Rassemble les manifests de run dans une preuve globale auditable.
+def _build_run_evidence(
+    runs: list[tuple[str, str]],
+    artifacts_dir: Path,
+) -> list[dict]:
+    """Retourne commits, configuration, folds et scores de chaque run moteur."""
+
+    # Prépare une liste stable pour faciliter les comparaisons entre exécutions.
+    evidence: list[dict] = []
+    # Parcourt les runs dans un ordre indépendant du système de fichiers.
+    for subject, run in sorted(runs):
+        # Ignore les baselines qui n'entrent pas dans les quatre expériences.
+        experience = _map_run_to_experience(run)
+        # Passe au run suivant lorsqu'il est hors protocole moteur.
+        if experience is None:
+            # Évite d'introduire une ligne sans signification dans la preuve.
+            continue
+        # Localise le manifeste écrit par le seul flux d'entraînement.
+        manifest_path = tpv_utils.resolve_artifact_paths(
+            artifacts_dir, subject, run
+        ).manifest
+        # Un run ignoré faute d'artefact ne doit pas devenir une fausse preuve.
+        if not manifest_path.exists():
+            # Conserve uniquement les évaluations effectivement matérialisées.
+            continue
+        # Charge la configuration et les scores persistés par train.py.
+        manifest = tpv_utils.load_json_object(manifest_path)
+        # Isole les sections optionnelles sans supposer un manifeste parfait.
+        dataset = manifest.get("dataset", {})
+        # Isole les hyperparamètres utilisés par le fit correspondant.
+        hyperparams = manifest.get("hyperparams", {})
+        # Isole les folds qui justifient l'accuracy officielle.
+        scores = manifest.get("scores", {})
+        # Ajoute une entrée compacte mais suffisante pour reproduire le run.
+        evidence.append(
+            {
+                "subject": subject,
+                "run": run,
+                "experience": experience,
+                "git_commit": manifest.get("git_commit"),
+                "epoch_window": dataset.get("epoch_window"),
+                "hyperparams": hyperparams,
+                "cv_scores": scores.get("cv_scores"),
+                "cv_mean": scores.get("cv_mean"),
+            }
+        )
+    # Retourne toutes les preuves disponibles pour le rapport global.
+    return evidence
 
 
 # Formate une moyenne optionnelle en chaîne lisible
@@ -829,6 +1170,37 @@ def write_csv(report: dict, csv_path: Path) -> None:
             writer.writerow(row)
 
 
+# Sérialise la preuve scientifique complète sans perte de précision.
+def write_json(report: dict, json_path: Path) -> None:
+    """Écrit le rapport reproductible au format JSON."""
+
+    # Crée le dossier cible pour autoriser un chemin dans artifacts/.
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    # Sérialise avec un ordre stable et une indentation relisible en soutenance.
+    json_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+# Centralise les sorties optionnelles pour garder le point d'entrée lisible.
+def _write_requested_reports(
+    report: dict,
+    csv_path: Path | None,
+    json_path: Path | None,
+) -> None:
+    """Écrit les formats explicitement demandés par l'utilisateur."""
+
+    # Produit le tableau compact seulement lorsqu'un chemin CSV est fourni.
+    if csv_path is not None:
+        # Délègue le formatage CSV au helper déjà testé séparément.
+        write_csv(report, csv_path)
+    # Produit la preuve complète seulement lorsqu'un chemin JSON est fourni.
+    if json_path is not None:
+        # Délègue la sérialisation reproductible au helper dédié.
+        write_json(report, json_path)
+
+
 # Point d'entrée principal pour l'usage en ligne de commande
 def main(argv: list[str] | None = None) -> int:
     """Parse les arguments puis affiche le tableau par expérience."""
@@ -845,6 +1217,18 @@ def main(argv: list[str] | None = None) -> int:
         enable_grid_search=args.auto_train_grid_search,
         grid_search_splits=args.grid_search_splits,
         raw_dir=args.raw_dir,
+        feature_strategy=args.feature_strategy,
+        dim_method=args.dim_method,
+        classifier=args.classifier,
+        scaler=None if args.scaler == "none" else args.scaler,
+        pooled_experiment_cv=args.pooled_experiment_cv,
+        cv_splits=args.cv_splits,
+        subject_limit=args.subject_limit,
+        nested_cv=not args.disable_nested_cv,
+        strict_run_report=not args.skip_strict_run_report,
+        enable_preprocessing_ablation=args.preprocessing_ablation,
+        model_family=args.model_family,
+        campaign_size=args.campaign_size,
     )
     report = aggregate_experience_scores(
         args.data_dir,
@@ -872,10 +1256,8 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             # Affiche le sujet et sa moyenne formatée
             print(f"- {entry['subject']}: {float(mean_of_means):.3f}")
-    # Sérialise le CSV si demandé
-    if args.csv_output:
-        # Écrit le rapport CSV dans le chemin fourni
-        write_csv(report, args.csv_output)
+    # Écrit les sorties optionnelles sans alourdir le routeur CLI.
+    _write_requested_reports(report, args.csv_output, args.json_output)
     # Récupère la moyenne globale pour vérifier le seuil
     global_mean = report.get("global_mean")
     # Retourne un code d'erreur si la moyenne globale est sous le seuil
@@ -885,6 +1267,17 @@ def main(argv: list[str] | None = None) -> int:
             "ERROR: GlobalMean inférieur au seuil 0.75 " f"({float(global_mean):.3f})."
         )
         # Retourne un code d'erreur pour signaler l'échec
+        return 1
+    # Compte uniquement les sujets possédant les quatre expériences requises.
+    eligible_subjects = int(report.get("eligible_subjects", 0))
+    # Refuse qu'une moyenne partielle soit présentée comme résultat global.
+    if not args.allow_partial and eligible_subjects != EXPECTED_SUBJECT_COUNT:
+        # Le diagnostic donne le nombre exact de sujets restant à produire.
+        print(
+            "ERROR: évaluation globale incomplète: "
+            f"{eligible_subjects}/{EXPECTED_SUBJECT_COUNT} sujets éligibles."
+        )
+        # Un code non nul empêche la CI ou Make de valider silencieusement ce rapport.
         return 1
     # Retourne 0 pour signaler un succès standard
     return 0

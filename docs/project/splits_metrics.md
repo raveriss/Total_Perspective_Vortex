@@ -13,10 +13,10 @@
 - **Cible** : score attendu ≥ 0,75 sur les données réelles. Les tests synthétiques vérifient ≥ 0,90 pour garantir la cohérence de la pipeline.
 
 ## Commande d'agrégation
-- **Script** : `scripts/aggregate_accuracy.py` (WBS 7.1/7.4).
+- **Script** : `scripts/aggregate_experience_scores.py` (WBS 7.1/7.4).
 - **Usage** :
   ```bash
-  poetry run python scripts/aggregate_accuracy.py --data-dir data --artifacts-dir artifacts
+  uv run --frozen python scripts/aggregate_experience_scores.py --data-dir data --artifacts-dir artifacts
   ```
 - **Sortie** : tableau texte listant l'accuracy par run (`run`, `subject`, `accuracy`), la moyenne par sujet, puis l'accuracy globale.
 

@@ -2,7 +2,6 @@
 
 # Centralise argparse pour exposer un parser CLI dédié
 import argparse
-import os
 
 # Fournit sys pour écrire les erreurs CLI sur stderr
 import sys
@@ -25,13 +24,16 @@ from typing import Deque, Generator, Protocol, TypedDict
 # Centralise les opérations numériques nécessaires au fenêtrage
 import numpy as np
 
+# Centralise les conventions CLI et les chemins partagés avec train/predict.
+import tpv.utils as tpv_utils
+
 # Récupère la restauration du pipeline entraîné pour la prédiction
 from tpv.pipeline import load_pipeline
 
 # Définit le nom de la variable d'environnement pour la racine dataset
-DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
+DATA_DIR_ENV_VAR = tpv_utils.DATA_DIR_ENV_VAR
 # Définit la racine de données par défaut pour la CLI realtime
-DEFAULT_DATA_DIR = Path(os.environ.get(DATA_DIR_ENV_VAR, "data")).expanduser()
+DEFAULT_DATA_DIR = tpv_utils.DEFAULT_DATA_DIR
 
 
 # Définit une interface minimale pour les pipelines prédictifs
@@ -254,49 +256,15 @@ def run_realtime_inference(
 
 
 # Normalise un identifiant brut en appliquant un préfixe standard
-def _normalize_identifier(value: str, prefix: str, width: int, label: str) -> str:
-    """Normalise un identifiant pour respecter le format Physionet."""
-
-    # Nettoie la valeur reçue pour éviter des espaces parasites
-    cleaned_value = value.strip()
-    # Refuse une valeur vide pour éviter un identifiant incomplet
-    if not cleaned_value:
-        # Signale une valeur vide pour forcer la correction côté CLI
-        raise argparse.ArgumentTypeError(f"{label} vide")
-    # Récupère le premier caractère pour détecter un préfixe explicite
-    first_char = cleaned_value[0]
-    # Déduit si l'utilisateur a fourni le préfixe attendu
-    has_prefix = first_char.upper() == prefix.upper()
-    # Extrait la portion numérique selon la présence du préfixe
-    numeric_part = cleaned_value[1:] if has_prefix else cleaned_value
-    # Refuse les valeurs non numériques pour garantir un ID valide
-    if not numeric_part.isdigit():
-        # Signale l'identifiant invalide pour guider l'utilisateur
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Convertit en entier pour normaliser les zéros initiaux
-    numeric_value = int(numeric_part)
-    # Refuse les index non positifs pour respecter la base Physionet
-    if numeric_value < 1:
-        # Signale l'identifiant non valide pour arrêter le parsing
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Reconstruit l'identifiant normalisé avec le padding attendu
-    return f"{prefix}{numeric_value:0{width}d}"
+_normalize_identifier = tpv_utils.normalize_identifier
 
 
 # Normalise un identifiant de sujet pour la CLI temps réel
-def _parse_subject(value: str) -> str:
-    """Normalise un identifiant de sujet en format Sxxx."""
-
-    # Délègue la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="S", width=3, label="Sujet")
+_parse_subject = tpv_utils.parse_subject
 
 
 # Normalise un identifiant de run pour la CLI temps réel
-def _parse_run(value: str) -> str:
-    """Normalise un identifiant de run en format Rxx."""
-
-    # Délègue la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
+_parse_run = tpv_utils.parse_run
 
 
 # Normalise le couple sujet/run avant de construire les chemins disque
@@ -319,32 +287,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Applique un modèle entraîné sur un flux fenêtré",
     )
-    # Ajoute l'argument positionnel du sujet pour cibler les artefacts
-    parser.add_argument(
-        "subject",
-        type=_parse_subject,
-        help="Identifiant du sujet (ex: 1 ou S001)",
-    )
-    # Ajoute l'argument positionnel du run pour cibler la session
-    parser.add_argument(
-        "run",
-        type=_parse_run,
-        help="Identifiant du run (ex: 3 ou R03)",
-    )
-    # Ajoute une option pour cibler un répertoire de données spécifique
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=DEFAULT_DATA_DIR,
-        help="Répertoire racine contenant les fichiers numpy",
-    )
-    # Ajoute une option pour configurer le répertoire d'artefacts
-    parser.add_argument(
-        "--artifacts-dir",
-        type=Path,
-        default=Path("artifacts"),
-        help="Répertoire racine où lire le modèle",
-    )
+    # Partage la normalisation et l'aide des identifiants PhysioNet
+    tpv_utils.add_subject_run_arguments(parser)
+    # Realtime utilise les caches et artefacts sans reconstruire depuis un EDF
+    tpv_utils.add_storage_arguments(parser, include_raw=False)
     # Ajoute une option pour définir la taille de fenêtre en échantillons
     parser.add_argument(
         "--window-size",
@@ -404,17 +350,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 # Construit les chemins des données pour un sujet et un run donnés
-def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, Path]:
-    """Retourne les chemins des matrices X et y pour un sujet/run."""
-
-    # Localise le sous-dossier spécifique au sujet
-    base_dir = data_dir / subject
-    # Compose le chemin du fichier de données numpy
-    features_path = base_dir / f"{run}_X.npy"
-    # Compose le chemin du fichier d'étiquettes numpy
-    labels_path = base_dir / f"{run}_y.npy"
-    # Retourne les deux chemins pour chargement ultérieur
-    return features_path, labels_path
+_resolve_data_paths = tpv_utils.resolve_data_paths
 
 
 # Sélectionne un code d'erreur stable selon les fichiers absents
@@ -523,10 +459,11 @@ def run_realtime_session(
     X, _ = _load_data(features_path, labels_path)
     # Construit un flux continu en concaténant les essais successifs
     stream = np.concatenate(list(X), axis=1)
-    # Charge la pipeline entraînée depuis le joblib sauvegardé
-    pipeline = load_pipeline(
-        str(artifacts_dir / normalized_subject / normalized_run / "model.joblib")
+    # Charge la pipeline depuis le chemin d'artefact partagé avec train/predict.
+    artifact_paths = tpv_utils.resolve_artifact_paths(
+        artifacts_dir, normalized_subject, normalized_run
     )
+    pipeline = load_pipeline(str(artifact_paths.model))
     # Lance la boucle temps réel et retourne les métriques associées
     return run_realtime_inference(
         pipeline=pipeline,

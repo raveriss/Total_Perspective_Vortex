@@ -14,11 +14,17 @@ from scipy import signal
 
 # Importe BaseEstimator et TransformerMixin pour conserver la compatibilité scikit-learn
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.feature_selection import mutual_info_classif
+from sklearn.utils.validation import check_is_fitted
 
 # Fixe le nombre de dimensions attendues pour les epochs brutes
 EXPECTED_EPOCHS_NDIM = 3
 # Fixe le nombre de dimensions attendues pour les probabilités par fenêtre
 EXPECTED_PROBABILITIES_NDIM = 3
+# Fige le contrat tabulaire et la plage MIBIF défendue au WBS 7.4.3.
+FEATURE_MATRIX_DIMENSIONS = 2
+MIN_MIBIF_FEATURES = 4
+MAX_MIBIF_FEATURES = 16
 
 
 @lru_cache(maxsize=None)
@@ -668,3 +674,66 @@ def extract_features(
     labels: List[str] = _build_labels(stacked, band_ranges, channel_names)
     # Retourne les features tabulaires accompagnés de leurs étiquettes
     return features, labels
+
+
+class MIBIFSelector(BaseEstimator, TransformerMixin):
+    """Sélection supervisée des features FBCSP par information mutuelle.
+
+    La sélection est un transformeur scikit-learn afin que ``fit`` soit appelé
+    exclusivement sur le pli d'entraînement. Elle implémente l'étape MIBIF du
+    FBCSP et borne volontairement la sortie à 4–16 variables (WBS 7.4.3).
+    """
+
+    selected_indices_: np.ndarray
+    scores_: np.ndarray
+    n_features_in_: int
+
+    def __init__(self, k: int = 12, random_state: int = 42) -> None:
+        self.k = k
+        self.random_state = random_state
+
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None):
+        """Apprend les ``k`` indices les plus informatifs sur le train seul."""
+
+        features = self._validate_features(X)
+        if y is None:
+            raise ValueError("y is required for MIBIF selection")
+        labels = np.asarray(y)
+        if labels.shape != (features.shape[0],):
+            raise ValueError("y must contain one label per sample")
+        if (
+            not isinstance(self.k, int)
+            or not MIN_MIBIF_FEATURES <= self.k <= MAX_MIBIF_FEATURES
+        ):
+            raise ValueError("k must be between 4 and 16")
+        if self.k > features.shape[1]:
+            raise ValueError("k cannot exceed the number of input features")
+        scores = mutual_info_classif(
+            features,
+            labels,
+            discrete_features=False,
+            random_state=self.random_state,
+        )
+        ranking = np.argsort(scores, kind="stable")[::-1][: self.k]
+        self.selected_indices_ = np.sort(ranking)
+        self.scores_ = np.asarray(scores)
+        self.n_features_in_ = features.shape[1]
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Réduit une matrice au sous-ensemble appris sans recalculer MIBIF."""
+
+        check_is_fitted(self, ("selected_indices_", "n_features_in_"))
+        features = self._validate_features(X)
+        if features.shape[1] != self.n_features_in_:
+            raise ValueError("X has a different number of features than during fit")
+        return np.asarray(features[:, self.selected_indices_])
+
+    @staticmethod
+    def _validate_features(X: np.ndarray) -> np.ndarray:
+        features = np.asarray(X, dtype=float)
+        if features.ndim != FEATURE_MATRIX_DIMENSIONS:
+            raise ValueError("MIBIFSelector expects a 2D feature matrix")
+        if not np.isfinite(features).all():
+            raise ValueError("MIBIFSelector requires finite features")
+        return features

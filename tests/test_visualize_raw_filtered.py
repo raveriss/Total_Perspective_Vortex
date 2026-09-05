@@ -31,6 +31,7 @@ import pytest
 # Importe le module à tester pour cibler directement visualize_run
 import scripts.visualize_raw_filtered as viz
 from scripts import visualize_raw_filtered
+from tests.helpers import get_parser_action
 
 # Centralise la valeur de padding par défaut pour éviter une constante magique
 PAD_DURATION_DEFAULT = 0.5
@@ -1137,15 +1138,8 @@ def test_visualize_run_smoke(  # noqa: PLR0915
     assert output_path.with_suffix(".json").exists()
 
 
-def _get_action(parser: argparse.ArgumentParser, dest: str) -> argparse.Action:
-    # Parcourt toutes les actions déclarées dans argparse
-    for action in parser._actions:  # pylint: disable=protected-access
-        # Sélectionne l'action correspondant au dest demandé
-        if action.dest == dest:
-            # Retourne l'action trouvée pour inspection
-            return action
-    # Signale clairement un dest manquant
-    raise AssertionError(f"Action argparse introuvable: dest={dest!r}")
+# Préserve le nom local historique tout en partageant l'implémentation.
+_get_action = get_parser_action
 
 
 def test_build_parser_description_and_help_texts_are_stable() -> None:
@@ -1163,9 +1157,9 @@ def test_build_parser_description_and_help_texts_are_stable() -> None:
     run_action = _get_action(parser, "run")
 
     # Verrouille l'aide exacte de l'argument subject
-    assert subject_action.help == "Identifiant du sujet ex: S001 ou 9"
+    assert subject_action.help == "Identifiant du sujet (ex: 1 ou S001)"
     # Verrouille l'aide exacte de l'argument run
-    assert run_action.help == "Identifiant du run ex: R01 ou 10"
+    assert run_action.help == "Identifiant du run (ex: 3 ou R03)"
 
     # Récupère les options dont l'aide est mutée par mutmut
     data_root_action = _get_action(parser, "data_root")

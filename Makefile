@@ -1,7 +1,7 @@
 # ========================================================================================
 # Makefile - Automatisation pour le projet Total_Perspective_Vortex
 # Objectifs :
-#   - Simplifier l’installation et la gestion de l’environnement (Poetry / venv)
+#   - Simplifier l’installation et la gestion de l’environnement (uv / venv)
 #   - Automatiser les vérifications (lint, format, type-check, tests, coverage, mutation)
 #   - Fournir des commandes pratiques pour l’entraînement et la prédiction du modèle
 # ========================================================================================
@@ -26,9 +26,11 @@
 	clean-artifacts \
 	ensure-venv \
 	realtime \
-	sanitizer \
-	sanitizer-privileged \
 	compute-mean-of-means \
+	score-campaign-10 \
+	score-campaign-30 \
+	score-ablation-10 \
+	score-riemannian-10 \
 	visualizer \
 	clean-npy
 
@@ -39,12 +41,14 @@ VENV = .venv
 VENV_BIN = $(VENV)/bin/activate
 VENV_PY = $(VENV)/bin/python
 PYPROJECT = pyproject.toml
-LOCKFILE = poetry.lock
-STAMP = $(VENV)/.poetry-installed
+LOCKFILE = uv.lock
+STAMP = $(VENV)/.uv-synced
 
-# Force Poetry à créer/utiliser le venv dans le repo (./.venv)
-# => aucune activation manuelle nécessaire
-export POETRY_VIRTUALENVS_IN_PROJECT := true
+# Garde l'environnement et le cache uv dans le dépôt placé sur sgoinfre.
+UV_CACHE_DIR ?= $(CURDIR)/.uv-cache
+UV_PROJECT_ENVIRONMENT ?= $(VENV)
+export UV_CACHE_DIR
+export UV_PROJECT_ENVIRONMENT
 
 # --- Benchmarks ---------------------------------------------------------------
 # Journalise les runs globaux hors dataset pour éviter les collisions de droits
@@ -59,13 +63,13 @@ EEGMMIDB_SUBJECT_COUNT ?= 109
 EEGMMIDB_RUN_COUNT ?= 14
 HANDLED_CLI_ERROR_EXIT_CODE ?= 2
 
-# Utilisation raccourcie de Poetry
-POETRY = poetry run
+# Commandes uv reproductibles : le lockfile ne peut pas être modifié implicitement.
+UV ?= uv
+UV_RUN ?= $(UV) run --frozen
 SRC_DIR ?= src
 MYBCI_SCRIPT ?= mybci.py
 REALTIME_SCRIPT ?= src/tpv/realtime.py
 VISUALIZER_SCRIPT ?= scripts/visualize_raw_filtered.py
-SANITIZER_SCRIPT ?= scripts/sanitizer.py
 AGGREGATE_EXPERIENCE_SCORES_SCRIPT ?= scripts/aggregate_experience_scores.py
 TPV_SRC_DIR ?= src/tpv
 
@@ -143,15 +147,16 @@ COVERAGE_ENV = COVERAGE_PROCESS_START=$(PYPROJECT)
 # ----------------------------------------------------------------------------------------
 # Installation des dépendances (dev inclus)
 # ----------------------------------------------------------------------------------------
-install: install-deps download_dataset
+install: install-deps
+	@$(MAKE) --no-print-directory download_dataset
 
 install-deps:
-	poetry install --with dev
+	$(UV) sync --frozen --all-groups
 	@mkdir -p $(VENV)
 	@touch $(STAMP)
 
-download_dataset:
-	@python3 scripts/download_dataset.py \
+download_dataset: ensure-venv
+	@$(UV_RUN) python scripts/download_dataset.py \
 		--destination "$(EEGMMIDB_DATA_DIR)" \
 		--subject-count "$(EEGMMIDB_SUBJECT_COUNT)" \
 		--run-count "$(EEGMMIDB_RUN_COUNT)"
@@ -161,8 +166,9 @@ download_dataset:
 # ----------------------------------------------------------------------------------------
 ensure-venv:
 	@set -euo pipefail; \
-	if ! command -v poetry >/dev/null 2>&1; then \
-		echo "❌ poetry introuvable. Installe Poetry puis relance." >&2; \
+	uv_command="$(firstword $(UV_RUN))"; \
+	if ! command -v "$$uv_command" >/dev/null 2>&1; then \
+		echo "❌ $$uv_command introuvable. Installe uv puis relance." >&2; \
 		exit 127; \
 	fi; \
 	needs_install=0; \
@@ -184,7 +190,7 @@ ensure-venv:
 		fi; \
 	fi; \
 	if [[ "$$needs_install" -eq 1 ]]; then \
-		echo "🔧 Dépendances absentes/obsolètes → auto-install (poetry install --with dev)"; \
+		echo "🔧 Dépendances absentes/obsolètes → auto-install (uv sync --frozen --all-groups)"; \
 		$(MAKE) --no-print-directory install-deps; \
 	fi
 
@@ -194,15 +200,15 @@ ensure-venv:
 
 # Linting avec Ruff (analyse statique rapide)
 lint: ensure-venv
-	$(POETRY) ruff check .
+	$(UV_RUN) ruff check .
 
 # Formatage + correction auto avec Ruff
 format: ensure-venv
-	$(POETRY) ruff format . && $(POETRY) ruff check --fix .
+	$(UV_RUN) ruff format . && $(UV_RUN) ruff check --fix .
 
 # Vérification des types avec Mypy
 type: ensure-venv
-	$(POETRY) mypy src scripts tests
+	$(UV_RUN) mypy src scripts tests
 
 # ----------------------------------------------------------------------------------------
 # Tests et couverture
@@ -214,39 +220,35 @@ clean-mutants:
 
 # Exécution des tests unitaires (sans plugins pytest externes)
 test: ensure-venv clean-mutants
-	$(PYTEST_ENV) $(POETRY) pytest -vv
+	$(PYTEST_ENV) $(UV_RUN) pytest -vv
 
 # Analyse de la couverture avec rapport JSON, XML, HTML et console (90% requis)
 cov: ensure-venv clean-mutants
-	$(PYTEST_ENV) $(COVERAGE_ENV) $(POETRY) coverage erase && \
-	$(PYTEST_ENV) $(COVERAGE_ENV) $(POETRY) coverage run --parallel-mode -m pytest && \
-	$(POETRY) coverage combine && \
-	$(POETRY) coverage json -o coverage.json && \
-	$(POETRY) coverage xml -o coverage.xml && \
-	$(POETRY) coverage html --skip-empty --show-contexts && \
-	$(POETRY) coverage report --fail-under=90
+	$(PYTEST_ENV) $(COVERAGE_ENV) $(UV_RUN) coverage erase && \
+	$(PYTEST_ENV) $(COVERAGE_ENV) $(UV_RUN) coverage run --parallel-mode -m pytest && \
+	$(UV_RUN) coverage combine && \
+	$(UV_RUN) coverage json -o coverage.json && \
+	$(UV_RUN) coverage xml -o coverage.xml && \
+	$(UV_RUN) coverage html --skip-empty --show-contexts && \
+	$(UV_RUN) coverage report --fail-under=90
 
 # Mutation testing avec Mutmut (guidé par la couverture)
 mut: ensure-venv clean-mutants cov
-	MUTMUT_USE_COVERAGE=1 $(PYTEST_ENV) $(POETRY) mutmut run
-	$(POETRY) mutmut results > mutmut-results.txt
+	MUTMUT_USE_COVERAGE=1 $(PYTEST_ENV) $(UV_RUN) mutmut run
+	$(UV_RUN) mutmut results > mutmut-results.txt
 	@if grep -E "(survived|timeout)" mutmut-results.txt; then \
 		echo "Surviving or timed-out mutants detected" >&2; \
 		exit 1; \
 	fi
 
 # ----------------------------------------------------------------------------------------
-# Commandes liées au modèle (Poetry)
+# Commandes liées au modèle (uv)
 # ----------------------------------------------------------------------------------------
 
 FEATURE_STRATEGY ?=
 TRAIN_ARGS ?=
 PREDICT_ARGS ?=
 BENCH_ARGS ?=
-SANITIZER_ARGS ?=
-SANITIZER_COMMAND ?= make -j1 mybci wavelet
-SANITIZER_ALLOW_PRIVILEGED_TOOLS ?= 0
-TPV_SANITIZER ?= 0
 
 # Entraînement : `make train <subject> <run>`
 train: ensure-venv
@@ -276,7 +278,7 @@ train: ensure-venv
 			extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
 		fi; \
 		status=0; \
-		$(POETRY) python scripts/train.py "$$subject" "$$run" $$extra_args || status=$$?; \
+		$(UV_RUN) python scripts/train.py "$$subject" "$$run" $$extra_args || status=$$?; \
 		if [[ "$$status" -eq "$(HANDLED_CLI_ERROR_EXIT_CODE)" ]]; then \
 			exit 0; \
 		fi; \
@@ -310,7 +312,7 @@ predict: ensure-venv
 			extra_args="$$extra_args --feature-strategy $$feature_strategy"; \
 		fi; \
 		status=0; \
-		$(POETRY) python scripts/predict.py "$$subject" "$$run" $$extra_args || status=$$?; \
+		$(UV_RUN) python scripts/predict.py "$$subject" "$$run" $$extra_args || status=$$?; \
 		if [[ "$$status" -eq "$(HANDLED_CLI_ERROR_EXIT_CODE)" ]]; then \
 			exit 0; \
 		fi; \
@@ -331,14 +333,39 @@ realtime: ensure-venv
 	fi; \
 	$(call ENSURE_TPV_SOURCES_READABLE); \
 	$(call ENSURE_SCRIPT_READABLE,$(REALTIME_SCRIPT)); \
-	$(POETRY) python $(REALTIME_SCRIPT) "$$subject" "$$run"
+	$(UV_RUN) python $(REALTIME_SCRIPT) "$$subject" "$$run"
 
 # score : `make score`
 compute-mean-of-means: ensure-venv
 	@set -euo pipefail; \
 	$(call ENSURE_TPV_SOURCES_READABLE); \
 	$(call ENSURE_SCRIPT_READABLE,$(AGGREGATE_EXPERIENCE_SCORES_SCRIPT)); \
-	$(POETRY) python $(AGGREGATE_EXPERIENCE_SCORES_SCRIPT)
+	$(UV_RUN) python $(AGGREGATE_EXPERIENCE_SCORES_SCRIPT) \
+		--pooled-experiment-cv \
+		--csv-output artifacts/evaluation/fbcsp_report.csv \
+		--json-output artifacts/evaluation/fbcsp_report.json
+
+score-campaign-10: ensure-venv
+	$(UV_RUN) python $(AGGREGATE_EXPERIENCE_SCORES_SCRIPT) \
+		--pooled-experiment-cv --campaign-size 10 \
+		--csv-output artifacts/evaluation/fbcsp_report_10.csv \
+		--json-output artifacts/evaluation/fbcsp_report_10.json
+
+score-campaign-30: ensure-venv
+	$(UV_RUN) python $(AGGREGATE_EXPERIENCE_SCORES_SCRIPT) \
+		--pooled-experiment-cv --campaign-size 30 \
+		--csv-output artifacts/evaluation/fbcsp_report_30.csv \
+		--json-output artifacts/evaluation/fbcsp_report_30.json
+
+score-ablation-10: ensure-venv
+	$(UV_RUN) python $(AGGREGATE_EXPERIENCE_SCORES_SCRIPT) \
+		--pooled-experiment-cv --campaign-size 10 --preprocessing-ablation \
+		--json-output artifacts/evaluation/fbcsp_ablation_10.json
+
+score-riemannian-10: ensure-venv
+	$(UV_RUN) python $(AGGREGATE_EXPERIENCE_SCORES_SCRIPT) \
+		--pooled-experiment-cv --campaign-size 10 --model-family riemannian \
+		--json-output artifacts/evaluation/riemannian_report_10.json
 
 
 # realtime : `make visualizer <subject> <run>`
@@ -367,14 +394,13 @@ visualizer: ensure-venv
 	fi; \
 	$(call ENSURE_TPV_SOURCES_READABLE); \
 	$(call ENSURE_SCRIPT_READABLE,$(VISUALIZER_SCRIPT)); \
-	$(POETRY) python $(VISUALIZER_SCRIPT) "$$subject" "$$run" $$channels_args
+	$(UV_RUN) python $(VISUALIZER_SCRIPT) "$$subject" "$$run" $$channels_args
 
 # Évaluation globale : équivalent à `python mybci.py` du sujet
 mybci: ensure-venv
 	@set -euo pipefail; \
 	positional_strategy="$(word 2,$(MAKECMDGOALS))"; \
 	extra_args="$(BENCH_ARGS)"; \
-	sanitizer_mode="$(TPV_SANITIZER)"; \
 	feature_strategy="$(FEATURE_STRATEGY)"; \
 	if [[ -z "$$feature_strategy" && -n "$$positional_strategy" ]]; then \
 		feature_strategy="$$positional_strategy"; \
@@ -386,36 +412,18 @@ mybci: ensure-venv
 	$(call ENSURE_SCRIPT_READABLE,$(MYBCI_SCRIPT)); \
 	$(call ENSURE_ARTIFACTS_TREE_READABLE); \
 	status=0; \
-	if [[ "$$sanitizer_mode" == "1" ]]; then \
-		$(POETRY) python $(MYBCI_SCRIPT) $$extra_args || status=$$?; \
-	else \
-		mkdir -p $(BENCH_DIR); \
-		$(POETRY) python $(MYBCI_SCRIPT) $$extra_args \
-			| tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log || status=$$?; \
-	fi; \
+	mkdir -p $(BENCH_DIR); \
+	$(UV_RUN) python $(MYBCI_SCRIPT) $$extra_args \
+		| tee $(BENCH_DIR)/bench_$$(date +%Y%m%d_%H%M%S).log || status=$$?; \
 	if [[ "$$status" -eq "$(HANDLED_CLI_ERROR_EXIT_CODE)" ]]; then \
 		exit 0; \
 	fi; \
 	exit "$$status"
 
-# Diagnostic / benchmark / profiling autour d'une commande cible
-sanitizer: ensure-venv
-	@set -euo pipefail; \
-	$(call ENSURE_SCRIPT_READABLE,$(SANITIZER_SCRIPT)); \
-	privileged_flag=""; \
-	if [[ "$(SANITIZER_ALLOW_PRIVILEGED_TOOLS)" == "1" ]]; then \
-		sudo -v; \
-		privileged_flag="--allow-privileged-tools"; \
-	fi; \
-	$(POETRY) -- python $(SANITIZER_SCRIPT) $$privileged_flag $(SANITIZER_ARGS) -- $(SANITIZER_COMMAND)
-
-sanitizer-privileged: ensure-venv
-	@$(MAKE) sanitizer SANITIZER_ALLOW_PRIVILEGED_TOOLS=1 SANITIZER_ARGS="$(SANITIZER_ARGS)" SANITIZER_COMMAND="$(SANITIZER_COMMAND)"
-
 # Affiche la commande d'activation (make ne peut pas modifier le shell parent)
 show-activate:
 	@echo "Commande d'activation (a executer dans le shell courant) :"
-	@echo "source $$(poetry env info -p)/bin/activate"
+	@echo "source $(VENV_BIN)"
 
 # Affiche la commande de desactivation
 show-deactivate:

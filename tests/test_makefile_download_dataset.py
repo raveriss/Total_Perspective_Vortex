@@ -5,7 +5,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def write_fake_python(script_path: Path, args_file: Path) -> None:
+def write_fake_uv(script_path: Path, args_file: Path) -> None:
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text(
         "\n".join(
@@ -27,7 +27,8 @@ def run_make_download_dataset(
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir(exist_ok=True)
     args_file = tmp_path / "python_args.txt"
-    write_fake_python(fake_bin / "python3", args_file)
+    fake_uv = fake_bin / "uv"
+    write_fake_uv(fake_uv, args_file)
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     return subprocess.run(
@@ -40,6 +41,7 @@ def run_make_download_dataset(
             "EEGMMIDB_DATA_DIR=fake-data",
             "EEGMMIDB_SUBJECT_COUNT=3",
             "EEGMMIDB_RUN_COUNT=2",
+            f"UV_RUN={fake_uv}",
             *extra_make_args,
         ],
         capture_output=True,
@@ -56,7 +58,7 @@ def test_make_download_dataset_delegates_to_python_script(tmp_path: Path) -> Non
     recorded_args = (
         (tmp_path / "python_args.txt").read_text(encoding="utf-8").splitlines()
     )
-    assert recorded_args[0] == "scripts/download_dataset.py"
+    assert recorded_args[:2] == ["python", "scripts/download_dataset.py"]
     assert "--destination" in recorded_args
     assert "fake-data" in recorded_args
     assert "--subject-count" in recorded_args

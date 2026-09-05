@@ -1,3 +1,6 @@
+# Donne accès au parser utilisé pour vérifier les contrats CLI partagés
+import argparse
+
 # Importe json pour écrire des fichiers de configuration
 import json
 
@@ -8,13 +11,87 @@ from pathlib import Path
 import pytest
 
 # Importe le module utils pour tester la configuration des fenêtres
-from tpv import utils
+from tpv import protocol, utils
+
+
+def test_protocol_and_recording_paths_share_the_official_scope(tmp_path: Path) -> None:
+    """Verrouille l'unique définition des runs et des chemins EEGMMIDB."""
+
+    # Le tuple dérivé doit préserver l'ordre historique utilisé par train-all.
+    assert protocol.MOTOR_RUNS == tuple(f"R{index:02d}" for index in range(3, 15))
+    # Chaque run moteur doit appartenir à une et une seule expérience.
+    assert len(protocol.MOTOR_RUNS) == sum(map(len, protocol.EXPERIENCE_RUNS.values()))
+    # Les chemins EDF et événement proviennent désormais de la même fonction.
+    raw_path, event_path = utils.resolve_recording_paths(tmp_path, "S001", "R03")
+    assert raw_path == tmp_path / "S001" / "S001R03.edf"
+    assert event_path == tmp_path / "S001" / "S001R03.edf.event"
+
+
+@pytest.mark.parametrize(
+    "manifest, expected",
+    [
+        ({"scores": {"cv_mean": 0.625}}, 0.625),
+        ({"scores": {"cv_mean": 1}}, 1.0),
+        ({"scores": {"cv_mean": "0.5"}}, None),
+        ({"scores": {}}, None),
+        ({}, None),
+    ],
+)
+def test_extract_cv_mean_accepts_only_numeric_validation_scores(
+    manifest: dict[str, object], expected: float | None
+) -> None:
+    """Empêche la lecture d'une métrique non prouvée ou mal typée."""
+
+    assert utils.extract_cv_mean(manifest) == expected
+
+
+# Verrouille la construction unique des arguments sujet, run et stockage
+def test_add_common_cli_arguments_exposes_canonical_contract() -> None:
+    """Vérifie les arguments communs sans dépendre d'un script particulier."""
+
+    # Utilise un parser isolé pour tester uniquement le helper partagé
+    parser = argparse.ArgumentParser()
+    # Ajoute les identifiants PhysioNet avec leurs parseurs canoniques
+    utils.add_subject_run_arguments(parser)
+    # Ajoute les trois racines nécessaires aux commandes train/predict
+    utils.add_storage_arguments(parser, include_raw=True)
+    # Interprète des identifiants courts pour vérifier leur normalisation
+    arguments = parser.parse_args(["1", "3"])
+    # Le sujet doit suivre la convention Sxxx commune à toutes les commandes
+    assert arguments.subject == "S001"
+    # Le run doit suivre la convention Rxx commune à toutes les commandes
+    assert arguments.run == "R03"
+    # La racine numpy doit provenir de la constante centrale
+    assert arguments.data_dir == utils.DEFAULT_DATA_DIR
+    # La racine d'artefacts doit provenir de la constante centrale
+    assert arguments.artifacts_dir == utils.DEFAULT_ARTIFACTS_DIR
+    # La racine EDF doit provenir de la constante centrale
+    assert arguments.raw_dir == utils.DEFAULT_RAW_DIR
 
 
 def test_handled_cli_error_exit_code_is_stable() -> None:
     """Verrouille le code de sortie utilisé par les wrappers Makefile."""
 
     assert utils.HANDLED_CLI_ERROR_EXIT_CODE == 2
+
+
+def test_artifact_paths_and_json_loader_share_storage_contract(tmp_path: Path) -> None:
+    """Verrouille les chemins d'artefacts et la lecture JSON commune."""
+
+    paths = utils.resolve_artifact_paths(tmp_path, "S001", "R03")
+    assert paths.directory == tmp_path / "S001" / "R03"
+    assert paths.model == paths.directory / "model.joblib"
+    assert paths.w_matrix == paths.directory / "w_matrix.joblib"
+    assert paths.scaler == paths.directory / "scaler.joblib"
+    assert paths.manifest == paths.directory / "manifest.json"
+
+    paths.directory.mkdir(parents=True)
+    paths.manifest.write_text('{"scores": {"cv_mean": 0.6}}')
+    assert utils.load_json_object(paths.manifest)["scores"] == {"cv_mean": 0.6}
+
+    paths.manifest.write_text("[]")
+    with pytest.raises(ValueError, match="racine JSON"):
+        utils.load_json_object(paths.manifest)
 
 
 # Vérifie que la configuration par défaut est renvoyée

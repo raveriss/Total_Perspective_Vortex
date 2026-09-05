@@ -29,7 +29,7 @@ from pathlib import Path
 
 # Centralise les hints pour clarifier les attentes des appels et des tests
 # Étend les hints pour typer les séquences de labels utilisées au filtrage
-from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Sequence, Tuple
 
 # MNE est obligatoire pour le parsing EDF/BDF et la gestion des epochs
 import mne
@@ -42,6 +42,10 @@ import pandas as pd
 
 # Typing numpy clarifie les formes et types pour mypy et les tests
 from numpy.typing import NDArray
+from sklearn.base import BaseEstimator, TransformerMixin
+
+# Centralise les conventions de chemins et l'inventaire PhysioNet.
+from tpv import utils as tpv_utils
 
 # Mappe les noms de canaux bruts Physionet vers le montage standard 10-20
 RAW_TO_MONTAGE_CHANNEL_MAP: Dict[str, str] = {
@@ -123,6 +127,8 @@ EXPECTED_LABELS: Tuple[str, str] = ("A", "B")
 DEFAULT_FILTER_METHOD = "fir"
 # Fixe la méthode de normalisation par défaut pour les canaux EEG
 DEFAULT_NORMALIZE_METHOD = "zscore"
+# Centralise les méthodes exposées par les interfaces de prétraitement.
+NORMALIZE_METHOD_CHOICES = ("zscore", "robust", "none")
 # Fixe l'epsilon de stabilisation pour la normalisation par défaut
 DEFAULT_NORMALIZE_EPSILON = 1e-8
 # Fixe le quantile par défaut pour le rejet des essais aberrants
@@ -143,6 +149,78 @@ MICROVOLTS_TO_VOLTS = 1e-6
 DEFAULT_MICROVOLT_THRESHOLD = 1e-3
 
 
+class SpatialReference(BaseEstimator, TransformerMixin):
+    """Applique CAR ou un Laplacien local sans apprendre sur le jeu de test."""
+
+    def __init__(
+        self,
+        method: str = "car",
+        channel_names: tuple[str, ...] | None = None,
+        neighbours: Mapping[str, tuple[str, ...]] | None = None,
+    ) -> None:
+        self.method = method
+        self.channel_names = channel_names
+        self.neighbours = neighbours
+
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None):
+        """Valide la topologie ; CAR et Laplacien n'estiment aucun paramètre."""
+
+        del y
+        epochs = self._validate_epochs(X)
+        if self.method not in {"none", "car", "laplacian"}:
+            raise ValueError("method must be 'none', 'car', or 'laplacian'")
+        if self.method == "laplacian":
+            if self.channel_names is None or self.neighbours is None:
+                raise ValueError("laplacian requires channel_names and neighbours")
+            if len(self.channel_names) != epochs.shape[1]:
+                raise ValueError("channel_names must match the channel dimension")
+            available = set(self.channel_names)
+            for channel in self.channel_names:
+                local = set(self.neighbours.get(channel, ())) & available
+                if not local:
+                    raise ValueError(f"no laplacian neighbour available for {channel}")
+        self.n_channels_in_ = epochs.shape[1]
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Retourne une copie référencée en conservant shape et entrée intactes."""
+
+        epochs = self._validate_epochs(X)
+        if not hasattr(self, "n_channels_in_"):
+            raise ValueError("SpatialReference must be fitted before transform")
+        if epochs.shape[1] != self.n_channels_in_:
+            raise ValueError("X has a different number of channels than during fit")
+        if self.method == "none":
+            return np.array(epochs, copy=True)
+        if self.method == "car":
+            return np.asarray(epochs - np.mean(epochs, axis=1, keepdims=True))
+        return self._transform_laplacian(epochs)
+
+    def _transform_laplacian(self, epochs: np.ndarray) -> np.ndarray:
+        """Soustrait la moyenne des voisins validés pour chaque électrode."""
+
+        if self.channel_names is None or self.neighbours is None:
+            raise ValueError("laplacian topology is unavailable")
+        index = {name: position for position, name in enumerate(self.channel_names)}
+        referenced = np.empty_like(epochs)
+        for position, channel in enumerate(self.channel_names):
+            neighbour_indices = [
+                index[name] for name in self.neighbours[channel] if name in index
+            ]
+            local_average = np.mean(epochs[:, neighbour_indices, :], axis=1)
+            referenced[:, position, :] = epochs[:, position, :] - local_average
+        return np.asarray(referenced)
+
+    @staticmethod
+    def _validate_epochs(X: np.ndarray) -> np.ndarray:
+        epochs = np.asarray(X, dtype=float)
+        if epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
+            raise ValueError("SpatialReference expects a 3D epochs array")
+        if not np.isfinite(epochs).all():
+            raise ValueError("SpatialReference requires finite epochs")
+        return epochs
+
+
 # Regroupe la configuration de prétraitement pour le filtrage et la normalisation
 @dataclass
 class PreprocessingConfig:
@@ -156,6 +234,141 @@ class PreprocessingConfig:
     normalize_method: str = DEFAULT_NORMALIZE_METHOD
     # Définit l'epsilon de stabilité pour la normalisation
     normalize_epsilon: float = DEFAULT_NORMALIZE_EPSILON
+
+
+# Construit la configuration utilisée de manière identique par train et predict.
+def build_preprocessing_config(
+    bandpass_low: float,
+    bandpass_high: float,
+    notch_freq: float,
+    normalize_method: str,
+    normalize_epsilon: float,
+) -> PreprocessingConfig:
+    """Valide les bornes CLI puis retourne une configuration de prétraitement."""
+
+    # Une bande inversée produirait un filtre invalide ou difficile à diagnostiquer.
+    if bandpass_low >= bandpass_high:
+        # Le même diagnostic alimente les deux commandes publiques.
+        raise ValueError("bandpass_low doit être inférieur à bandpass_high")
+    # La dataclass reste l'unique contrat transmis au traitement du signal.
+    return PreprocessingConfig(
+        bandpass_band=(bandpass_low, bandpass_high),
+        notch_freq=notch_freq,
+        normalize_method=normalize_method,
+        normalize_epsilon=normalize_epsilon,
+    )
+
+
+# Regroupe les dépendances nécessaires à la création des caches numpy.
+@dataclass
+class NpyBuildContext:
+    """Décrit les chemins et le prétraitement partagés par train et predict."""
+
+    # Désigne la racine où les matrices numpy sont conservées.
+    data_dir: Path
+    # Désigne la racine contenant les enregistrements EDF PhysioNet.
+    raw_dir: Path
+    # Définit la référence EEG appliquée au chargement du signal.
+    eeg_reference: str | None
+    # Regroupe les paramètres de filtrage et de normalisation.
+    preprocess_config: PreprocessingConfig
+
+
+# Décrit le résultat léger de l'inspection d'un couple de caches numpy.
+@dataclass(frozen=True)
+class NpyCacheInspection:
+    """Conserve chemins, tableaux mémoire-mappés et éventuelle erreur de lecture."""
+
+    # Les chemins restent disponibles pour un chargement final ou une reconstruction.
+    features_path: Path
+    labels_path: Path
+    # None distingue un cache absent ou illisible d'un tableau correctement chargé.
+    features: np.ndarray | None
+    labels: np.ndarray | None
+    # Le booléen sépare clairement absence et corruption dans les diagnostics.
+    missing: bool
+    # La raison textuelle est conservée seulement lorsqu'un np.load a échoué.
+    error: str | None = None
+
+
+# Inspecte les caches sans charger immédiatement toutes les données en mémoire vive.
+def inspect_npy_cache(data_dir: Path, subject: str, run: str) -> NpyCacheInspection:
+    """Retourne l'état des caches X/y avec des tableaux ouverts en mmap."""
+
+    # Les chemins suivent la convention commune aux trois commandes publiques.
+    features_path, labels_path = tpv_utils.resolve_data_paths(subject, run, data_dir)
+    # Une paire incomplète doit toujours être reconstruite comme un ensemble cohérent.
+    if not features_path.exists() or not labels_path.exists():
+        # Aucun chargement partiel n'est exposé à l'appelant dans ce cas.
+        return NpyCacheInspection(features_path, labels_path, None, None, True)
+    # Les fichiers peuvent exister mais contenir un ancien format ou être corrompus.
+    try:
+        # mmap permet de vérifier les dimensions sans dupliquer tout le dataset en RAM.
+        features = np.load(features_path, mmap_mode="r")
+        # Les labels suivent la même politique pour comparer les longueurs.
+        labels = np.load(labels_path, mmap_mode="r")
+    # Ces erreurs couvrent les formats numpy invalides et les lectures disque attendues.
+    except (OSError, ValueError) as error:
+        # Le diagnostic permettra à train et predict de reconstruire depuis l'EDF.
+        return NpyCacheInspection(
+            features_path, labels_path, None, None, False, str(error)
+        )
+    # L'appelant conserve sa propre politique de validation des dimensions.
+    return NpyCacheInspection(features_path, labels_path, features, labels, False)
+
+
+# Charge en mémoire la paire validée après l'éventuelle reconstruction.
+def load_npy_pair(
+    features_path: Path, labels_path: Path
+) -> tuple[np.ndarray, np.ndarray]:
+    """Charge les features et labels numpy depuis leurs chemins canoniques."""
+
+    # Le chargement sans mmap fournit les tableaux mutables attendus par sklearn.
+    features = np.load(features_path)
+    # Les labels sont chargés séparément pour préserver le contrat historique.
+    labels = np.load(labels_path)
+    # Le tuple maintient l'ordre X puis y utilisé dans tout le pipeline.
+    return features, labels
+
+
+# Orchestre le cycle commun tout en laissant chaque commande valider ses dimensions.
+def load_or_rebuild_npy_cache(
+    session: tuple[str, str],
+    build_context: NpyBuildContext,
+    builder: Callable[[str, str, NpyBuildContext], tuple[Path, Path]],
+    validator: Callable[[np.ndarray, np.ndarray, Path, Path], bool],
+    *,
+    report_corruption: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Inspecte, valide, reconstruit si nécessaire puis charge une paire X/y."""
+
+    subject, run = session
+    cache = inspect_npy_cache(build_context.data_dir, subject, run)
+    features_path, labels_path = cache.features_path, cache.labels_path
+    needs_rebuild = cache.missing or cache.error is not None
+    if cache.features is not None and cache.labels is not None:
+        needs_rebuild = not validator(
+            cache.features, cache.labels, features_path, labels_path
+        )
+    if cache.error is not None and report_corruption:
+        print(
+            f"INFO: Chargement numpy impossible pour {subject} {run}: "
+            f"{cache.error}. Régénération depuis l'EDF..."
+        )
+    if needs_rebuild:
+        features_path, labels_path = builder(subject, run, build_context)
+    return load_npy_pair(features_path, labels_path)
+
+
+# Regroupe les sorties communes produites avant la création des epochs.
+@dataclass
+class PreparedMotorRecording:
+    """Contient le signal filtré et ses événements moteurs alignés."""
+
+    filtered_raw: mne.io.BaseRaw
+    events: np.ndarray
+    event_id: Dict[str, int]
+    motor_labels: List[str]
 
 
 def _rename_channels_for_montage(
@@ -265,7 +478,7 @@ def apply_bandpass_filter(
 
 def apply_notch_filter(
     raw: mne.io.BaseRaw,
-    freq: float = 50.0,
+    freq: float = DEFAULT_NOTCH_FREQ,
     notch_width: float | None = None,
 ) -> mne.io.BaseRaw:
     """Apply a notch filter to remove line noise around a target frequency."""
@@ -667,6 +880,30 @@ def map_events_to_motor_labels(
     return filtered_array, motor_event_id, motor_labels
 
 
+# Partage le prétraitement strictement identique de train et predict.
+def prepare_motor_recording(
+    raw: mne.io.BaseRaw, config: PreprocessingConfig
+) -> PreparedMotorRecording:
+    """Applique notch, bande-passante et mapping des événements moteurs."""
+
+    # Préserve le signal brut lorsque le notch est explicitement désactivé.
+    notched_raw = (
+        apply_notch_filter(raw, freq=config.notch_freq)
+        if config.notch_freq > 0.0
+        else raw
+    )
+    # Applique la même bande MI avant toute création d'epochs.
+    filtered_raw = apply_bandpass_filter(notched_raw, freq_band=config.bandpass_band)
+    # Traduit les annotations en événements et labels alignés.
+    events, event_id, motor_labels = map_events_to_motor_labels(filtered_raw)
+    return PreparedMotorRecording(
+        filtered_raw=filtered_raw,
+        events=events,
+        event_id=event_id,
+        motor_labels=motor_labels,
+    )
+
+
 def _validate_annotation_labels(
     raw: mne.io.BaseRaw, effective_label_map: Mapping[str, int]
 ) -> None:
@@ -914,34 +1151,18 @@ def summarize_epoch_quality(
     motor_labels: List[str],
     session: Tuple[str, str],
     max_peak_to_peak: float,
-    expected_labels: Tuple[str, str] = ("A", "B"),
+    expected_labels: Tuple[str, str] = EXPECTED_LABELS,
 ) -> Tuple[mne.Epochs, Dict[str, Any], List[str]]:
     """Drop incomplete epochs then count labels using volt-based thresholds."""
 
-    # Vérifie l'alignement entre événements et étiquettes transmises
-    if len(motor_labels) != len(epochs):
-        # Génère un rapport clair pour identifier le décalage détecté
-        raise ValueError(
-            json.dumps(
-                {
-                    "error": "Label/event mismatch",
-                    "expected_events": len(epochs),
-                    "labels": len(motor_labels),
-                }
-            )
-        )
-    # Applique le contrôle qualité pour supprimer les segments incomplets
-    cleaned_epochs, flagged = quality_control_epochs(
-        epochs, max_peak_to_peak=max_peak_to_peak, mode="reject"
+    # Réutilise la validation canonique entre événements et étiquettes.
+    _ensure_label_alignment(epochs, motor_labels)
+    # Réutilise le rejet canonique en maintenant les labels synchronisés.
+    cleaned_epochs, flagged, cleaned_labels = _apply_quality_control(
+        epochs, motor_labels, max_peak_to_peak
     )
-    # Calcule les indices supprimés afin de filtrer les étiquettes associées
-    removed_indices = set(flagged["artifact"]) | set(flagged["incomplete"])
-    # Construit la liste des labels conservés après suppression des segments
-    cleaned_labels = [
-        label for idx, label in enumerate(motor_labels) if idx not in removed_indices
-    ]
-    # Décompte les occurrences pour chaque étiquette attendue
-    counts = {label: cleaned_labels.count(label) for label in expected_labels}
+    # Décompte les occurrences selon les classes demandées par l'appelant.
+    counts = _count_remaining_labels(cleaned_labels, expected_labels)
     # Prépare un rapport synthétique pour la surveillance par sujet et run
     report = {
         "subject": session[0],
@@ -949,16 +1170,8 @@ def summarize_epoch_quality(
         "dropped": {key: len(value) for key, value in flagged.items()},
         "counts": counts,
     }
-    # Identifie les classes absentes après nettoyage pour remonter une erreur
-    missing_labels = [label for label, count in counts.items() if count == 0]
-    # Génère une erreur explicite lorsque des classes attendues manquent
-    if missing_labels:
-        # Insère le rapport de comptage pour faciliter le diagnostic utilisateur
-        raise ValueError(
-            json.dumps(
-                {**report, "error": "Missing labels", "missing_labels": missing_labels}
-            )
-        )
+    # Réutilise le contrôle canonique des classes manquantes.
+    _assert_expected_labels_present(report, counts)
     # Retourne les epochs nettoyées, le rapport et les labels filtrés
     return cleaned_epochs, report, cleaned_labels
 
@@ -1011,11 +1224,13 @@ def _apply_quality_control(
     return cleaned_epochs, flagged, cleaned_labels
 
 
-def _count_remaining_labels(cleaned_labels: List[str]) -> Dict[str, int]:
+def _count_remaining_labels(
+    cleaned_labels: List[str], expected_labels: Sequence[str] = EXPECTED_LABELS
+) -> Dict[str, int]:
     """Calcule le nombre d'occurrences par classe attendue."""
 
     # Utilise les labels attendus pour assurer la cohérence des rapports
-    return {label: cleaned_labels.count(label) for label in EXPECTED_LABELS}
+    return {label: cleaned_labels.count(label) for label in expected_labels}
 
 
 def _assert_expected_labels_present(
@@ -1255,6 +1470,49 @@ def normalize_channels(
     raise ValueError("method must be either 'zscore' or 'robust'")
 
 
+# Convertit et valide une collection d'essais sans changer les cas vides
+def _as_epoch_array(
+    epochs_data: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
+    """Retourne les essais en float et impose (trials, channels, time)."""
+
+    # Le dtype float garantit les mêmes statistiques dans tous les appelants
+    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
+    # Les retours anticipés publics acceptent volontairement les tableaux vides
+    if safe_epochs.size == 0:
+        # La forme d'origine reste disponible pour le contrat de chaque appelant
+        return safe_epochs
+    # Une collection non vide doit toujours exposer essais, canaux et temps
+    if safe_epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
+        # Le message partagé préserve le diagnostic historique des API publiques
+        raise ValueError("epochs_data must be a 3D array (trials, channels, time)")
+    # La sortie validée peut être utilisée sans répéter ce contrôle de forme
+    return safe_epochs
+
+
+# Aligne les labels sur les essais pour sécuriser tous les filtrages indexés
+def _as_aligned_epoch_labels(
+    epochs_data: NDArray[np.floating[Any]],
+    labels: Sequence[Any] | np.ndarray,
+) -> tuple[NDArray[np.floating[Any]], np.ndarray]:
+    """Retourne des essais 3D et des labels de même longueur."""
+
+    # La validation centrale garantit le même dtype et la même erreur de forme
+    safe_epochs = _as_epoch_array(epochs_data)
+    # Un ndarray stabilise l'indexation booléenne utilisée après cette étape
+    labels_array = np.asarray(labels)
+    # Les tableaux vides conservent leur ancien contrat sans imposer de longueur
+    if safe_epochs.size == 0:
+        # Les deux collections sont renvoyées telles que les API les attendent
+        return safe_epochs, labels_array
+    # Tout essai non vide doit posséder exactement un label correspondant
+    if len(labels_array) != safe_epochs.shape[0]:
+        # Ce diagnostic empêche un désalignement silencieux des classes EEG
+        raise ValueError("labels length must match epochs_data length")
+    # Les appelants peuvent désormais filtrer les deux tableaux avec le même masque
+    return safe_epochs, labels_array
+
+
 def normalize_epoch_data(
     epochs_data: NDArray[np.floating[Any]],
     method: str = DEFAULT_NORMALIZE_METHOD,
@@ -1262,16 +1520,12 @@ def normalize_epoch_data(
 ) -> NDArray[np.floating[Any]]:
     """Normalize each epoch per channel while preserving the input shape."""
 
-    # Convertit l'entrée en float pour garantir des statistiques stables
-    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
+    # Réutilise le contrat 3D commun avant la normalisation par canal
+    safe_epochs = _as_epoch_array(epochs_data)
     # Retourne un tableau vide si aucune donnée n'est fournie
     if safe_epochs.size == 0:
         # Préserve la forme originale en renvoyant un tableau float vide
         return safe_epochs
-    # Refuse les entrées qui ne sont pas en 3 dimensions (trials, ch, time)
-    if safe_epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
-        # Signale l'erreur de forme pour éviter une normalisation incohérente
-        raise ValueError("epochs_data must be a 3D array (trials, channels, time)")
     # Prépare une liste vide pour accumuler chaque epoch normalisé
     normalized_epochs: List[NDArray[np.floating[Any]]] = []
     # Itère sur chaque epoch pour normaliser indépendamment chaque canal
@@ -1289,16 +1543,12 @@ def compute_trial_variances(
 ) -> NDArray[np.floating[Any]]:
     """Calcule la variance par essai pour détecter les essais aberrants."""
 
-    # Convertit l'entrée en float pour stabiliser les calculs de variance
-    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
+    # Réutilise le contrat 3D commun avant les statistiques par essai
+    safe_epochs = _as_epoch_array(epochs_data)
     # Retourne un vecteur vide si aucune donnée n'est disponible
     if safe_epochs.size == 0:
         # Préserve un dtype float explicite pour les appels ultérieurs
         return np.asarray([], dtype=float)
-    # Refuse les formes inattendues pour éviter un calcul incohérent
-    if safe_epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
-        # Signale l'erreur de forme pour imposer (trials, channels, time)
-        raise ValueError("epochs_data must be a 3D array (trials, channels, time)")
     # Calcule la variance par essai pour capturer les excursions globales
     variances = np.var(safe_epochs, axis=(1, 2))
     # Force un type float explicite pour satisfaire le typage
@@ -1312,22 +1562,12 @@ def reject_trials_by_variance_threshold(
 ) -> Tuple[NDArray[np.floating[Any]], np.ndarray, NDArray[np.bool_]]:
     """Supprime les essais dont la variance dépasse un seuil explicite."""
 
-    # Convertit les epochs en float pour comparer correctement les variances
-    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
-    # Convertit les labels en tableau pour conserver l'alignement
-    labels_array = np.asarray(labels)
+    # Réutilise le contrat commun avant de construire le masque de filtrage
+    safe_epochs, labels_array = _as_aligned_epoch_labels(epochs_data, labels)
     # Retourne immédiatement si aucune donnée n'est disponible
     if safe_epochs.size == 0:
         # Conserve un masque vide pour garder une API homogène
         return safe_epochs, labels_array, np.asarray([], dtype=bool)
-    # Refuse les formes inattendues pour éviter les erreurs de slicing
-    if safe_epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
-        # Signale l'erreur de forme pour imposer (trials, channels, time)
-        raise ValueError("epochs_data must be a 3D array (trials, channels, time)")
-    # Vérifie l'alignement entre les labels et le nombre d'essais
-    if len(labels_array) != safe_epochs.shape[0]:
-        # Remonte une erreur claire pour éviter les désalignements silencieux
-        raise ValueError("labels length must match epochs_data length")
     # Calcule la variance par essai pour comparer au seuil fourni
     variances = compute_trial_variances(safe_epochs)
     # Détermine quels essais restent sous le seuil de variance
@@ -1355,6 +1595,8 @@ def reject_trials_by_variance_quantile(
     if not 0.0 < quantile < 1.0:
         # Signale une configuration invalide pour forcer une correction
         raise ValueError("quantile must be between 0 and 1")
+    # Valide la forme après le quantile pour préserver l'ordre historique des erreurs
+    safe_epochs = _as_epoch_array(safe_epochs)
     # Retourne des tableaux vides si aucune donnée n'est disponible
     if safe_epochs.size == 0:
         # Renvoie un seuil neutre pour rester explicite sur l'absence de données
@@ -1384,22 +1626,12 @@ def undersample_classes(
 ) -> Tuple[NDArray[np.floating[Any]], np.ndarray]:
     """Équilibre les classes en sous-échantillonnant au minimum."""
 
-    # Convertit les epochs en float pour sécuriser les découpages
-    safe_epochs: NDArray[np.floating[Any]] = np.asarray(epochs_data, dtype=float)
-    # Convertit les labels pour simplifier les comparaisons par classe
-    labels_array = np.asarray(labels)
+    # Réutilise le contrat commun avant l'échantillonnage par indices de classe
+    safe_epochs, labels_array = _as_aligned_epoch_labels(epochs_data, labels)
     # Retourne immédiatement si aucune donnée n'est disponible
     if safe_epochs.size == 0:
         # Conserve l'alignement en retournant les labels tels quels
         return safe_epochs, labels_array
-    # Refuse les formes inattendues pour éviter les erreurs de slicing
-    if safe_epochs.ndim != EXPECTED_EPOCH_DIMENSIONS:
-        # Signale l'erreur de forme pour imposer (trials, channels, time)
-        raise ValueError("epochs_data must be a 3D array (trials, channels, time)")
-    # Vérifie l'alignement entre labels et essais pour un équilibrage sûr
-    if len(labels_array) != safe_epochs.shape[0]:
-        # Remonte une erreur claire pour éviter les désalignements silencieux
-        raise ValueError("labels length must match epochs_data length")
     # Identifie les classes présentes pour déterminer le sous-échantillonnage
     classes, counts = np.unique(labels_array, return_counts=True)
     # Retourne les données intactes si une seule classe est disponible
@@ -1559,20 +1791,8 @@ def _build_file_entry(
 def _collect_run_counts(data_root: Path) -> Dict[str, int]:
     """Count EDF runs per subject directory."""
 
-    # Initialize dictionary to aggregate run totals by subject
-    subject_counts: Dict[str, int] = {}
-    # Iterate over immediate child directories representing subjects
-    for subject_dir in data_root.iterdir():
-        # Ignore non-directories to focus exclusively on subject folders
-        if not subject_dir.is_dir():
-            # Continue scanning when encountering stray files at the root
-            continue
-        # Count EDF files within the subject directory to quantify runs
-        run_count = len(list(subject_dir.glob("*.edf")))
-        # Persist the count for downstream comparison against expectations
-        subject_counts[subject_dir.name] = run_count
-    # Return all computed run counts for further validation steps
-    return subject_counts
+    # Préserve l'API privée historique en déléguant à l'inventaire partagé.
+    return tpv_utils.collect_run_counts(data_root)
 
 
 def verify_dataset_integrity(
@@ -1604,9 +1824,12 @@ def verify_dataset_integrity(
         report["subject_run_counts"] = subject_counts
         # Identify subjects whose run counts deviate from expectations
         missing_runs = {
-            subject: count
-            for subject, count in subject_counts.items()
-            if expected_runs_per_subject.get(subject) not in (None, count)
+            # Zéro représente explicitement un sujet attendu totalement absent.
+            subject: subject_counts.get(subject, 0)
+            # Le périmètre attendu dirige la comparaison, pas les seuls dossiers vus.
+            for subject, expected_count in expected_runs_per_subject.items()
+            # Toute différence signale un dataset incomplet ou surnuméraire.
+            if subject_counts.get(subject, 0) != expected_count
         }
         # Raise when any subject is incomplete to protect model validity
         if missing_runs:

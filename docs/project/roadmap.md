@@ -1,7 +1,7 @@
 # Backlog prioritaire aligné sur le WBS
 
 ## État de l'implémentation
-- Parsing et préparation Physionet réalisés : scripts `fetch_physionet.py`, `prepare_physionet.py` et `sync_dataset.py` couvrent le Lot 2, avec tests de contrôle d'intégrité et de synchronisation.
+- Parsing et préparation Physionet réalisés : `download_dataset.py` constitue le flux unique du Lot 2, avec contrôle d'intégrité et reprise du téléchargement.
 - Pipeline offline fonctionnelle : filtrage 8–40 Hz, contrôle qualité des epochs, extraction PSD/bandes Welch, réduction PCA/CSP, classifieurs LDA/Logistic/SVM et scripts `train.py`/`predict.py` déjà raccordés à `mybci.py`.
 - Visualisation et tests : script `visualize_raw_filtered.py` opérationnel, couverture de tests sur preprocessing, features, réduction dimensionnelle, pipeline, CLI et import dataset.
 

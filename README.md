@@ -128,20 +128,15 @@ Total_Perspective_Vortex/
 ├── LICENSE
 ├── Makefile
 ├── mybci.py
-├── poetry.lock
-├── poetry.toml
+├── uv.lock
+
 ├── pyproject.toml
 ├── README.md
 ├── scripts
-│   ├── aggregate_accuracy.py
 │   ├── aggregate_experience_scores.py
-│   ├── aggregate_scores.py
 │   ├── benchmark.py
-│   ├── fetch_physionet.py
 │   ├── __init__.py
 │   ├── predict.py
-│   ├── prepare_physionet.py
-│   ├── sync_dataset.py
 │   ├── train.py
 │   └── visualize_raw_filtered.py
 ├── src
@@ -165,25 +160,21 @@ Total_Perspective_Vortex/
 │       ├── train.py
 │       └── utils.py
 └── tests
-    ├── test_aggregate_scores_cli.py
     ├── test_benchmark.py
     ├── test_classifier.py
     ├── test_dimensionality.py
     ├── test_docs.py
     ├── test_experience_scores.py
     ├── test_features.py
-    ├── test_fetch_physionet.py
     ├── test_mybci.py
     ├── test_pipeline.py
     ├── test_predict_cli.py
     ├── test_predict_evaluate_run.py
     ├── test_predict_load_data.py
     ├── test_predict_reports.py
-    ├── test_prepare_physionet.py
     ├── test_preprocessing.py
     ├── test_realtime.py
     ├── test_scripts_roundtrip.py
-    ├── test_sync_dataset.py
     ├── test_tpv_entrypoints.py
     ├── test_train_cli.py
     ├── test_train.py
@@ -193,31 +184,31 @@ Total_Perspective_Vortex/
 
 ---
 
-## 🚀 Mise en route : données, installation, entraînement, prédiction (Poetry + Makefile)
+## 🚀 Mise en route : données, installation, entraînement, prédiction (uv + Makefile)
 
-Le projet utilise **Poetry exclusivement** (aucun `requirements.txt`).
-Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
+Le projet utilise **uv exclusivement** (aucun `requirements.txt`).
+Le **Makefile** expose des raccourcis vers les commandes `uv run --frozen ...`.
 
 ---
 
 | Objectif | Commande recommandée | Commande équivalente |
 |---|---|---|
 | Installer le projet + dataset | `make install` | `make install-deps && make download_dataset` |
-| Installer les dépendances | `make install-deps` | `poetry install --with dev` |
+| Installer les dépendances | `make install-deps` | `uv sync --frozen --all-groups` |
 | Télécharger / valider le dataset | `make download_dataset` | validation locale puis `scripts/download_dataset.py` (sources officielles PhysioNet) |
-| Linter | `make lint` | `poetry run ruff check .` |
-| Formatter | `make format` | `poetry run ruff format . && poetry run ruff check --fix .` |
-| Type-check | `make type` | `poetry run mypy src scripts tests` |
-| Tests | `make test` | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest -vv` |
-| Coverage | `make cov` | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run coverage run -m pytest ...` |
-| Mutation | `make mut` | `MUTMUT_USE_COVERAGE=1 ... poetry run mutmut run` |
-| Entraîner | `make train` | `poetry run python mybci.py 109 3 train` *(par défaut)* |
-| Prédire | `make predict` | `poetry run python mybci.py 109 3 predict` *(par défaut)* |
-| Temps réel | `make realtime <subject> <run>` | `poetry run python src/tpv/realtime.py <subject> <run>` |
-| Visualiser brut/filtré | `make visualizer <subject> <run>` | `poetry run python scripts/visualize_raw_filtered.py <subject> <run>` |
-| Moyenne des moyennes | `make compute-mean-of-means` | `poetry run python scripts/aggregate_experience_scores.py` |
-| Benchmark global | `make mybci` | `poetry run python mybci.py` |
-| Sanitize benchmark / profiling | `make sanitizer` | `poetry run python scripts/sanitizer.py -- make -j1 mybci wavelet` |
+| Linter | `make lint` | `uv run --frozen ruff check .` |
+| Formatter | `make format` | `uv run --frozen ruff format . && uv run --frozen ruff check --fix .` |
+| Type-check | `make type` | `uv run --frozen mypy src scripts tests` |
+| Tests | `make test` | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --frozen pytest -vv` |
+| Coverage | `make cov` | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --frozen coverage run -m pytest ...` |
+| Mutation | `make mut` | `MUTMUT_USE_COVERAGE=1 ... uv run --frozen mutmut run` |
+| Entraîner | `make train` | `uv run --frozen python mybci.py 109 3 train` *(par défaut)* |
+| Prédire | `make predict` | `uv run --frozen python mybci.py 109 3 predict` *(par défaut)* |
+| Temps réel | `make realtime <subject> <run>` | `uv run --frozen python src/tpv/realtime.py <subject> <run>` |
+| Visualiser brut/filtré | `make visualizer <subject> <run>` | `uv run --frozen python scripts/visualize_raw_filtered.py <subject> <run>` |
+| Score 10 → 30 → 109 | `make score-campaign-10`, puis `make score-campaign-30`, puis `make compute-mean-of-means` | CV imbriquée + preuve stricte par run |
+| Ablation FBCSP / Riemann | `make score-ablation-10`, puis `make score-riemannian-10` | branches secondaires sur 10 sujets |
+| Benchmark global | `make mybci` | `uv run --frozen python mybci.py` |
 | Nettoyer | `make clean` | supprime `./artifacts` + les `*.npy` (hors `.venv`, `.git`, `artifacts`) |
 
 ---
@@ -225,48 +216,12 @@ Le **Makefile** expose des raccourcis vers les commandes `poetry run ...`.
 ### 📦 Générer les artefacts manquants avant l'évaluation globale
 
 L'exécution de `make mybci` sans arguments déclenche
-l'évaluation des 6 expériences (3 → 14) sur 109 sujets. Pour éviter
+l'évaluation des 4 types d'expérience (12 runs moteurs, R03 → R14) sur 109 sujets. Pour éviter
 les avertissements "aucun modèle disponible", assurez-vous que
 `artifacts/<subject>/<run>/model.joblib` existe pour chaque run visé.
 L'appel `make mybci wavelet` relaie la stratégie
 `--feature-strategy wavelet` à la CLI globale tout en journalisant la sortie
 dans `artifacts/benchmarks/bench_YYYYmmdd_HHMMSS.log`.
-
----
-
-### 🧪 Diagnostiquer une commande avec `sanitizer`
-
-`make sanitizer` lance `scripts/sanitizer.py` sur la commande
-`make -j1 mybci wavelet` par défaut et produit un dossier
-`artifacts/sanitizer/<timestamp>/` contenant :
-
-* `summary.json` et `summary.md`
-* un sous-dossier par sonde (`A1.make`, `A2`, `F1`, `P1.make`, etc.)
-* les commandes rejouables, `stdout.log`, `stderr.log` et les artefacts
-  associés (`time.csv`, `time.jsonl`, `perf.csv`, `mprof.dat`, `pyspy.svg`...)
-
-Exemples :
-
-```bash
-make sanitizer
-make sanitizer SANITIZER_ARGS='--probe A2 --time-csv-runs 20'
-make sanitizer SANITIZER_COMMAND='make -j1 compute-mean-of-means'
-make sanitizer SANITIZER_ARGS="--probe F1 --python-command 'python mybci.py --feature-strategy wavelet'"
-make sanitizer SANITIZER_ALLOW_PRIVILEGED_TOOLS=1 SANITIZER_ARGS='--probe P1.make --probe P1.poetry --probe P2 --probe P3'
-make sanitizer-privileged SANITIZER_ARGS='--probe P1.make --probe P1.poetry --probe P2 --probe P3'
-```
-
-Quand une sonde affiche `SKIPPED` ou `WARN`, `summary.md` et la sortie console
-incluent désormais des `command:` structurés :
-
-* commandes d'installation Poetry (`poetry install --with dev`) pour les outils Python
-* commandes système Ubuntu (`sudo apt-get install ...`) pour les binaires hors venv
-* commandes de fallback ou de re-run ciblé
-* commandes privilégiées explicites (`sudo -v`, puis `SANITIZER_ALLOW_PRIVILEGED_TOOLS=1`)
-
-Le mode privilégié reste **opt-in**. Il est utile sur un poste perso pour
-`perf`, mais n'est pas activé par défaut afin de préserver le comportement
-canonique Ubuntu/no-sudo de la CI et des machines 42.
 
 ---
 
@@ -276,7 +231,7 @@ canonique Ubuntu/no-sudo de la CI et des machines 42.
 
 ```bash
 raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make install
-poetry install --with dev
+uv sync --frozen --all-groups
 Installing dependencies from lock file
 No dependencies to install or update
 Installing the current project: total-perspective-vortex (0.1.0)
@@ -291,7 +246,7 @@ Dataset EEGMMIDB complet et validé dans data.
 
 ```bash
 raveriss@raveriss-NLx0MU:~/Desktop/Total_Perspective_Vortex$ make install-deps
-poetry install --with dev
+uv sync --frozen --all-groups
 Installing dependencies from lock file
 No dependencies to install or update
 Installing the current project: total-perspective-vortex (0.1.0)
@@ -491,7 +446,7 @@ sur un couple **(subject, run)** avant d’enchaîner sur l’extraction de feat
 
 ### Commande
 
-> Recommandé : exécuter via Poetry pour garantir l’environnement.
+> Recommandé : exécuter via uv pour garantir l’environnement.
 
 ```bash
 make visualizer 1 9
@@ -587,25 +542,47 @@ Le sujet exige :
 
 | Item checklist TPV | WBS / livrable | Test ou commande reproductible |
 | --- | --- | --- |
-| Visualisation raw vs filtré | 3.3.1–3.3.4 | `poetry run python scripts/visualize_raw_filtered.py data/S001` ; `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
-| Filtre 8–30 Hz + notch 50 Hz | 3.1.1–3.1.3 | `poetry run pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
-| Réduction dimension (PCA/CSP) | 5.2.1–5.2.4 | `poetry run pytest tests/test_dimensionality.py::test_csp_returns_log_variances_and_orthogonality` |
-| Pipeline sklearn (BaseEstimator/TransformerMixin) | 5.3.1–5.3.4 | `poetry run pytest tests/test_pipeline.py::test_pipeline_pickling_roundtrip` |
-| Train + score via CLI | 6.3.x & 7.1.x | `poetry run pytest tests/test_classifier.py::test_training_cli_main_covers_parser_and_paths` |
-| Predict renvoie l’ID de classe | 1.2.x & 6.2.x | `poetry run pytest tests/test_classifier.py::test_predict_cli_main_covers_parser_and_report` |
-| Temps réel < 2 s | 8.2.x–8.3.x | `poetry run pytest tests/test_realtime.py::test_realtime_latency_threshold_enforced` |
-| Score ≥ 75 % (agrégation) | 7.2.x | `poetry run pytest tests/test_classifier.py::test_aggregate_scores_exports_files_and_thresholds` |
+| Visualisation raw vs filtré | 3.3.1–3.3.4 | `uv run --frozen python scripts/visualize_raw_filtered.py data/S001` ; `uv run --frozen pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
+| Filtre 8–30 Hz + notch 50 Hz | 3.1.1–3.1.3 | `uv run --frozen pytest tests/test_preprocessing.py::test_apply_bandpass_filter_preserves_shape_and_stability` |
+| Réduction dimension (PCA/CSP) | 5.2.1–5.2.4 | `uv run --frozen pytest tests/test_dimensionality.py::test_csp_returns_log_variances_and_orthogonality` |
+| Pipeline sklearn (BaseEstimator/TransformerMixin) | 5.3.1–5.3.4 | `uv run --frozen pytest tests/test_pipeline.py::test_pipeline_pickling_roundtrip` |
+| Train + score via CLI | 6.3.x & 7.1.x | `uv run --frozen pytest tests/test_classifier.py::test_training_cli_main_covers_parser_and_paths` |
+| Predict renvoie l’ID de classe | 1.2.x & 6.2.x | `uv run --frozen pytest tests/test_classifier.py::test_predict_cli_main_covers_parser_and_report` |
+| Temps réel < 2 s | 8.2.x–8.3.x | `uv run --frozen pytest tests/test_realtime.py::test_realtime_latency_threshold_enforced` |
+| Score ≥ 75 % (agrégation) | 7.2.x | `uv run --frozen pytest tests/test_experience_scores.py` |
 
 ---
 
 ### Définition du score global (scripts/aggregate_experience_scores.py)
 
+* `make compute-mean-of-means` regroupe les trois runs de chaque type
+  d'expérience : chaque classification porte donc sur environ 45 essais plutôt
+  que sur les 15 essais d'un run isolé.
+* Le pipeline appris dans chaque pli est
+  `SpatialReference -> FilterBankCSP -> MIBIF -> LDA(shrinkage=auto)`.
+  Les configurations T1/T2 (gauche/droite) et T3/T4 (mains/pieds) utilisent des
+  ROI et fenêtres propres. MIBIF retient 4 à 16 variables dans la CV interne.
+  L'ablation ERD/ERS, CAR, Laplacien et causalité ne consulte jamais le pli externe.
+* La moyenne principale est produite par CV imbriquée. Une seconde preuve
+  `LeaveOneGroupOut` tient chaque run complet hors apprentissage. Les filtres
+  CSP sont groupés sur le train et ne sont plus adaptés à l'identifiant du run.
+* La commande écrit la preuve complète dans
+  `artifacts/evaluation/fbcsp_report.json` et le tableau dans
+  `artifacts/evaluation/fbcsp_report.csv`. Le JSON contient la configuration,
+  le commit, les 109 sujets, les runs, les plis imbriqués, le rapport strict et
+  les jalons 75/81/87/90 %.
 * **Eligible** = sujet disposant des 4 types d’expérience (T1..T4).
 * **Mean** (par sujet) = moyenne des 4 moyennes d’expérience.
 * **MeetsThreshold_0p75** = `Mean >= 0.75`.
 * **GlobalMean** = `(mean(T1) + mean(T2) + mean(T3) + mean(T4)) / 4`.
 * Le script affiche les **10 pires sujets** par `Mean` et retourne **exit code 1**
   si `GlobalMean < 0.75`.
+
+Mesure locale complète du 31 août 2026 : **73,302 %** sur 109/109 sujets
+(T1 69,594 %, T2 65,075 %, T3 86,492 %, T4 72,046 %). Cette mesure remplace
+l'ancien 50,0 %, mais elle reste sous 75 % et ne justifie donc pas d'annoncer
+90 % ou les cinq points de cette rubrique. Ce résultat historique reste la
+référence v2 ; il doit être remplacé uniquement après une campagne v3 complète.
 
 La version complète et maintenable de cette matrice, incluant les références aux risques Murphy, est disponible dans [`docs/project/checklist_wbs_matrix.md`](docs/project/checklist_wbs_matrix.md).
 
@@ -630,7 +607,7 @@ Ces exigences doivent être **présentes et respectées** dans toute la document
 5. **Entraînement/validation/test** :
    - `cross_val_score` sur l’ensemble du pipeline ;
    - splits **Train / Validation / Test** distincts pour éviter l’overfit ;
-   - moyenne d’**accuracy ≥ 60 %** sur **tous les sujets du jeu de test** et les **6 runs** d’expériences, sur des données **jamais apprises**.
+   - moyenne d’**accuracy ≥ 75 %** sur tous les sujets évalués et les **12 runs moteurs regroupés en 4 types**, sur des données jamais apprises.
 6. **Temps réel** : le script `predict` lit un flux simulé (lecture progressive d’un fichier) et produit une prédiction en **< 2 secondes** après chaque chunk.
 7. **Architecture** : fournir un script **train** et un script **predict** ; le dépôt final contient **uniquement le code Python** (pas le dataset).
 8. **Bonus facultatifs** : wavelets pour le spectre, classifieur maison ou autres datasets EEG.

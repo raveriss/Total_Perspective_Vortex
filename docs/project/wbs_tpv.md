@@ -4,7 +4,7 @@
 
 * **1.1.1** Créer le dépôt Git `Total_Perspective_Vortex`
 * **1.1.2** Mettre en place la structure `src/tpv`, `tests`, `docs`, `docs/risk`
-* **1.1.3** Ajouter `pyproject.toml` (Poetry) avec dépendances MNE, sklearn, numpy, scipy, matplotlib
+* **1.1.3** Ajouter `pyproject.toml` (uv) avec dépendances MNE, sklearn, numpy, scipy, matplotlib
 * **1.1.4** Ajouter `.gitignore` (datasets EEG, caches, artefacts modèles)
 * **1.1.5** Créer `LICENSE` et squelette `README.md`
 
@@ -221,15 +221,15 @@ _Risque Murphy (section 7.2) : à lier à TPV-XXX… (Phase: Train/Val/Test / Ro
 * **7.3.1** Implémenter la CLI `mybci.py subject run predict`
 * **7.3.2** Charger artefacts (pipeline entraîné)
 * **7.3.3** Prédire sur données jamais vues (Test set)
-* **7.3.4** Calculer l’accuracy par run, par sujet, et globale (6 runs)
+* **7.3.4** Calculer l’accuracy par run tenu hors apprentissage, par sujet, par chacun des 4 types d’expérience (12 runs moteurs), et globale
 
 _Risque Murphy (section 7.3) : à lier à TPV-XXX… (Phase: Score global / Classification)_
 
 ### 7.4 Score global & contraintes de réussite
 
 * **7.4.1** Implémenter le script global “tous sujets / toutes expériences”
-* **7.4.2** Calculer la mean accuracy par expérience, puis moyenne des 6 expériences sur données jamais vues, et **garantir ≥75 %** (exigence minimale du sujet)
-* **7.4.3** Définir une tâche d’optimisation dédiée pour viser **≥ 75 % de mean accuracy** (exigence du scale pour notation max + bonus)
+* **7.4.2** Calculer la mean accuracy par type d’expérience, puis la moyenne des 4 types (3 runs chacun) sur données jamais vues, et **garantir ≥75 %**
+* **7.4.3** Optimiser sans toucher au test final : CV imbriquée, FBCSP+MIBIF (4–16 features), configurations latérales/bilatérales, ablation ERD/ERS–CAR–Laplacien, puis covariance riemannienne ; valider sur 10 → 30 → 109 sujets et viser 75 % → 81 % → 87 % → 90 %
 * **7.4.4** Ajouter un rapport texte/CSV avec ces scores (par sujet, par expérience, global)
 * **7.4.5** Ajouter tests `test_realtime.py` / `test_classifier.py` pour la stabilité du score sur dataset jouet
 * **7.4.6** Vérifier ✓ dans la checklist TPV les items relatifs au score global, aux contraintes d’accuracy et à l’interprétation des résultats

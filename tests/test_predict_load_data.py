@@ -1,7 +1,9 @@
 """Tests ciblés sur scripts.predict._load_data pour sécuriser la reconstruction."""
 
 import json
-import sys
+
+# Partial lie le chargeur predict au helper de contexte partagé
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -10,48 +12,11 @@ import numpy as np
 import pytest
 
 from scripts import predict
+from tests.helpers import build_npy_context as _build_npy_context
+from tests.helpers import load_data_with_context, write_physionet_stub
 
-
-# Construit un contexte de génération des numpy pour les tests prédictifs
-def _build_npy_context(
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str,
-) -> predict.NpyBuildContext:
-    # Construit une configuration de prétraitement par défaut
-    preprocess_config = predict.preprocessing.PreprocessingConfig()
-    # Retourne le contexte complet pour charger/générer les numpy
-    return predict.NpyBuildContext(
-        # Transmet le répertoire de base des numpy
-        data_dir=data_dir,
-        # Transmet le répertoire des EDF bruts
-        raw_dir=raw_dir,
-        # Transmet la référence EEG configurée
-        eeg_reference=eeg_reference,
-        # Transmet la configuration de prétraitement
-        preprocess_config=preprocess_config,
-    )
-
-
-# Charge les données via l'API interne en utilisant un contexte explicite
-def _load_data_with_context(
-    subject: str,
-    run: str,
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str,
-) -> tuple[np.ndarray, np.ndarray]:
-    # Construit le contexte de génération des numpy
-    build_context = _build_npy_context(
-        # Transmet le répertoire de base des numpy
-        data_dir,
-        # Transmet le répertoire des EDF bruts
-        raw_dir,
-        # Transmet la référence EEG configurée
-        eeg_reference,
-    )
-    # Délègue à l'API interne avec contexte explicite
-    return predict._load_data(subject, run, build_context)
+# Lie explicitement la politique predict sans la déplacer dans le helper générique
+_load_data_with_context = partial(load_data_with_context, predict._load_data)
 
 
 # Construit des numpy depuis l'EDF via un contexte explicite
@@ -76,60 +41,6 @@ def _build_npy_from_edf_with_context(
 
 
 # Verrouille l'initialisation booléenne de needs_rebuild (mutant équivalent sinon)
-def test_predict_load_data_initializes_needs_rebuild_as_false(
-    tmp_path, monkeypatch
-) -> None:
-    """Verrouille needs_rebuild: bool False dès l'entrée dans l'implémentation."""
-
-    subject = "S011"
-    run = "R03"
-    data_dir = tmp_path / "data"
-    raw_dir = tmp_path / "raw"
-    subject_dir = data_dir / subject
-    subject_dir.mkdir(parents=True)
-
-    # Prépare des fichiers valides pour forcer le chemin "pas de rebuild".
-    expected_X = np.arange(12).reshape(3, 2, 2)
-    expected_y = np.array([0, 1, 0])
-    np.save(subject_dir / f"{run}_X.npy", expected_X)
-    np.save(subject_dir / f"{run}_y.npy", expected_y)
-
-    # Verrouille l'absence de rebuild dans ce scénario.
-    def _forbid_rebuild(*args, **kwargs):
-        raise AssertionError("_build_npy_from_edf ne doit pas être appelé ici")
-
-    monkeypatch.setattr(predict, "_build_npy_from_edf", _forbid_rebuild)
-
-    captured: dict[str, object] = {}
-
-    # Capture la première valeur observée de needs_rebuild dans une frame load_data.
-    def tracer(frame, event, arg):
-        if event != "line":
-            return tracer
-        filename = frame.f_code.co_filename.replace("\\", "/")
-        name = frame.f_code.co_name
-        if not filename.endswith("scripts/predict.py"):
-            return tracer
-        if "load_data" not in name:
-            return tracer
-        if "needs_rebuild" not in frame.f_locals:
-            return tracer
-        if "value" not in captured:
-            captured["value"] = frame.f_locals["needs_rebuild"]
-        return tracer
-
-    previous_tracer = sys.gettrace()
-    sys.settrace(tracer)
-    try:
-        _load_data_with_context(subject, run, data_dir, raw_dir, "average")
-    finally:
-        sys.settrace(previous_tracer)
-
-    assert "value" in captured
-    assert captured["value"] is False
-    assert type(captured["value"]) is bool
-
-
 # Vérifie que _build_npy_from_edf est invoqué dès que les .npy sont invalides
 def test_predict_load_data_rebuilds_invalid_numpy_payloads(tmp_path, monkeypatch):
     """Force la reconstruction sur X 2D et sur un y désaligné."""
@@ -297,10 +208,7 @@ def test_build_npy_from_edf_uses_epoch_window_metadata(tmp_path, monkeypatch) ->
     run = "R03"
     data_dir = tmp_path / "data"
     raw_dir = tmp_path / "raw"
-    raw_path = raw_dir / subject / f"{subject}{run}.edf"
-    raw_path.parent.mkdir(parents=True, exist_ok=True)
-    raw_path.write_text("stub")
-    raw_path.with_suffix(".edf.event").write_text("stub")
+    write_physionet_stub(raw_dir, subject, run)
 
     # Persiste une fenêtre custom pour ce run
     window_path = data_dir / subject / f"{run}_epoch_window.json"
@@ -456,14 +364,8 @@ def test_build_npy_from_edf_handles_missing_labels(tmp_path, monkeypatch) -> Non
     data_dir = tmp_path / "data"
     # Prépare le répertoire raw pour déposer un EDF factice
     raw_dir = tmp_path / "raw"
-    # Construit le chemin EDF attendu par la reconstruction
-    raw_path = raw_dir / subject / f"{subject}{run}.edf"
-    # Crée l'arborescence du fichier EDF factice
-    raw_path.parent.mkdir(parents=True, exist_ok=True)
-    # Écrit un contenu factice pour matérialiser l'EDF
-    raw_path.write_text("stub")
-    # Écrit un fichier .edf.event factice pour le contrôle d'intégrité
-    raw_path.with_suffix(".edf.event").write_text("stub")
+    # Matérialise la paire EDF/event selon la convention partagée des tests.
+    write_physionet_stub(raw_dir, subject, run)
 
     # Définit des données d'epochs factices alignées sur deux labels
     epochs_data = np.ones((2, 1, 4), dtype=float)

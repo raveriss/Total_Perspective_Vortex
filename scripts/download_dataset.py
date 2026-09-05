@@ -4,6 +4,9 @@
 # Pour exposer une CLI stable utilisable depuis Makefile et les tests.
 import argparse
 
+# Pour charger les conventions légères du projet après avoir exposé src.
+import importlib
+
 # Pour regrouper des signatures d'erreur hétérogènes sous des règles stables.
 import re
 
@@ -30,6 +33,18 @@ from pathlib import Path
 
 # Pour accepter des doubles de test sans rigidifier inutilement les signatures.
 from typing import Any
+
+# Le téléchargement direct doit retrouver les modules locaux même avant installation.
+REPO_SRC = Path(__file__).resolve().parents[1] / "src"
+# La priorité locale garantit que le contrôle correspond au dépôt exécuté.
+if str(REPO_SRC) not in sys.path:
+    # L'insertion reste limitée à ce script de bootstrap du dataset.
+    sys.path.insert(0, str(REPO_SRC))
+
+# Le protocole fournit les tailles officielles sans les recopier dans la CLI.
+tpv_protocol = importlib.import_module("tpv.protocol")
+# Les utilitaires fournissent l'unique convention des chemins PhysioNet.
+tpv_utils = importlib.import_module("tpv.utils")
 
 # Pour limiter la confiance aux seuls endpoints officiels validés du projet.
 OFFICIAL_SOURCE_CANDIDATES = (
@@ -130,37 +145,23 @@ def check_dataset_complete(
         # Pour remonter immédiatement le premier manque structurel réellement utile.
         return False, f"Dataset incomplet: dossier racine manquant ({data_dir})."
     # Pour garantir que la validation couvre bien tout le périmètre contractuel.
-    for subject_index in range(1, subject_count + 1):
-        # Pour rester aligné sur la nomenclature canonique de PhysioNet.
-        subject = f"S{subject_index:03d}"
-        # Pour produire ensuite des messages qui pointent le chemin exact en défaut.
-        subject_dir = data_dir / subject
+    for _subject, _run, edf_path, event_path in tpv_utils.iter_expected_recordings(
+        data_dir, subject_count, run_count
+    ):
+        # Les deux fichiers attendus partagent nécessairement le même dossier sujet.
+        subject_dir = edf_path.parent
         # Pour arrêter le diagnostic au premier sujet manquant réellement bloquant.
         if not subject_dir.is_dir():
             # Pour fournir un chemin précis à réparer plutôt qu'une erreur générique.
             return False, f"Dataset incomplet: dossier sujet manquant ({subject_dir})."
-        # Pour garantir que chaque sujet possède l'ensemble des runs attendus.
-        for run_index in range(1, run_count + 1):
-            # Pour rester cohérent avec la convention de nommage des runs EEGMMIDB.
-            run = f"R{run_index:02d}"
-            # Pour protéger le signal brut réellement exploité par le pipeline.
-            edf_path = subject_dir / f"{subject}{run}.edf"
-            # Pour éviter un faux dataset complet sans événements ni labels temporels.
-            event_path = subject_dir / f"{subject}{run}.edf.event"
-            # Pour rejeter un fichier absent ou vide avant qu'il casse plus loin.
-            if not edf_path.is_file() or edf_path.stat().st_size == 0:
-                # Pour cibler précisément l'artefact manquant pour l'utilisateur.
-                return (
-                    False,
-                    f"Dataset incomplet: fichier manquant ou vide ({edf_path}).",
-                )
-            # Pour garantir que le signal reste exploitable dans le découpage supervisé.
-            if not event_path.is_file() or event_path.stat().st_size == 0:
-                # Pour cibler exactement l'artefact qui rend le run inexploitable.
-                return (
-                    False,
-                    f"Dataset incomplet: fichier manquant ou vide ({event_path}).",
-                )
+        # Pour rejeter un fichier absent ou vide avant qu'il casse plus loin.
+        if not edf_path.is_file() or edf_path.stat().st_size == 0:
+            # Pour cibler précisément l'artefact manquant pour l'utilisateur.
+            return False, f"Dataset incomplet: fichier manquant ou vide ({edf_path})."
+        # Pour garantir que le signal reste exploitable dans le découpage supervisé.
+        if not event_path.is_file() or event_path.stat().st_size == 0:
+            # Pour cibler exactement l'artefact qui rend le run inexploitable.
+            return False, f"Dataset incomplet: fichier manquant ou vide ({event_path})."
     # Pour signaler explicitement que la base locale satisfait le contrat attendu.
     return True, None
 
@@ -668,14 +669,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--subject-count",
         type=int,
-        default=109,
+        default=tpv_protocol.EXPECTED_SUBJECT_COUNT,
         help="Nombre de sujets attendus pour valider le dataset",
     )
     # Pour réutiliser le validateur sur des échantillons de runs en environnement test.
     parser.add_argument(
         "--run-count",
         type=int,
-        default=14,
+        default=tpv_protocol.EXPECTED_RUN_COUNT,
         help="Nombre de runs attendus par sujet pour valider le dataset",
     )
     # Pour fournir au point d'entrée un objet stable déjà validé par argparse.

@@ -1,1178 +1,265 @@
 #!/usr/bin/env python3
 
-"""Interface CLI pour piloter les workflows d'entraînement et de prédiction."""
+"""Routeur CLI minimal pour les workflows évalués du projet TPV."""
 
-# Préserve argparse pour parser les options CLI avec validation
+# Fournit le contrat d'arguments commun aux modes train et predict.
 import argparse
 
-# Préserve importlib pour charger des modules sans import direct
-import importlib
-
-# Préserve importlib pour détecter des dépendances installées
+# Vérifie la présence de scikit-learn avant de lancer un workflow ML.
 import importlib.util
-import os
 
-# Préserve subprocess pour lancer les modules en sous-processus isolés
+# Isole chaque commande métier dans son module déjà testé.
 import subprocess
 
-# Préserve sys pour identifier l'interpréteur courant
+# Fournit l'interpréteur courant et le code de sortie de la CLI.
 import sys
 
-# Préserve dataclass et field pour regrouper les paramètres du pipeline
+# Regroupe les paramètres transmis à un module sans tuple opaque.
 from dataclasses import dataclass, field
 
-# Facilite la gestion portable des chemins de données et artefacts
+# Rend le dossier src importable lors d'un lancement direct du fichier.
 from pathlib import Path
 
-# Centralise la moyenne arithmétique pour agréger les accuracies
-from statistics import mean
+# Type les arguments injectés par les tests et le point d'entrée.
+from typing import Sequence
 
-# Garantit l'accès aux séquences typées pour mypy
-from typing import Iterable, Mapping, Sequence
-
-# Fournit une barre de progression compacte pendant l'évaluation globale
-from tqdm import tqdm
-
-# Assure l'accès à tpv via src lors d'une exécution locale
+# Ajoute src sans dépendre d'une installation editable du projet.
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
 
-# Réserve le code de sortie des erreurs CLI déjà rendues lisiblement
-HANDLED_CLI_ERROR_EXIT_CODE = 2
+import tpv.pipeline as tpv_pipeline
 
-# Définit la racine du dépôt pour homogénéiser les messages CLI
-PROJECT_ROOT = Path(__file__).resolve().parent
-# Définit l'emplacement du dossier source parent utilisé par les imports TPV
-SRC_DIR = PROJECT_ROOT / "src"
-# Définit l'emplacement des modules TPV importés par les CLI
-TPV_SRC_DIR = PROJECT_ROOT / "src" / "tpv"
+# Réutilise les conventions sujet/run partagées par toutes les CLI.
+import tpv.utils as tpv_utils
 
-# Définit le nom de la variable d'environnement pour la racine dataset
-DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
-# Définit la racine de données par défaut pour l'évaluation globale
-DEFAULT_DATA_DIR = Path(os.environ.get(DATA_DIR_ENV_VAR, "data")).expanduser()
+# Réutilise l'unique moteur de score global du dépôt.
+from scripts import aggregate_experience_scores
+
+# Les alias de réduction restent acceptés pour préserver l'ancienne interface.
+DIMENSIONALITY_ALIASES = set(tpv_pipeline.DIMENSIONALITY_METHODS)
+# Deux positionnels distinguent une commande par run des options globales.
+MODE_POSITIONAL_COUNT = 2
 
 
-# Normalise un identifiant brut en appliquant un préfixe standard
-def _normalize_identifier(value: str, prefix: str, width: int, label: str) -> str:
-    """Normalise un identifiant pour respecter le format Physionet."""
-
-    # Nettoie la valeur reçue pour éviter des espaces parasites
-    cleaned_value = value.strip()
-    # Refuse une valeur vide pour éviter un identifiant incomplet
-    if not cleaned_value:
-        # Signale une valeur vide pour forcer la correction côté CLI
-        raise argparse.ArgumentTypeError(f"{label} vide")
-    # Récupère le premier caractère pour détecter un préfixe explicite
-    first_char = cleaned_value[0]
-    # Déduit si l'utilisateur a fourni le préfixe attendu
-    has_prefix = first_char.upper() == prefix.upper()
-    # Extrait la portion numérique selon la présence du préfixe
-    numeric_part = cleaned_value[1:] if has_prefix else cleaned_value
-    # Refuse les valeurs non numériques pour garantir un ID valide
-    if not numeric_part.isdigit():
-        # Signale l'identifiant invalide pour guider l'utilisateur
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Convertit en entier pour normaliser les zéros initiaux
-    numeric_value = int(numeric_part)
-    # Refuse les index non positifs pour respecter la base Physionet
-    if numeric_value < 1:
-        # Signale l'identifiant non valide pour arrêter le parsing
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Reconstruit l'identifiant normalisé avec le padding attendu
-    return f"{prefix}{numeric_value:0{width}d}"
-
-
-# Normalise un identifiant de sujet pour la CLI mybci
-def _parse_subject(value: str) -> str:
-    """Normalise un identifiant de sujet en format Sxxx."""
-
-    # Délègue la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="S", width=3, label="Sujet")
-
-
-# Normalise un identifiant de run pour la CLI mybci
-def _parse_run(value: str) -> str:
-    """Normalise un identifiant de run en format Rxx."""
-
-    # Délègue la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
-
-
-# Normalise la stratégie de features pour la CLI mybci
-def _parse_feature_strategy(value: str) -> str:
-    """Valide la stratégie de features et accepte les alias dim_method."""
-
-    # Nettoie la valeur fournie pour accepter différentes casses
-    cleaned = value.strip().lower()
-    # Autorise explicitement les stratégies gérées par le pipeline
-    allowed = {"fft", "welch", "wavelet", "csp", "cssp", "pca", "svd"}
-    # Interrompt le parsing si la stratégie demandée n'est pas supportée
-    if cleaned not in allowed:
-        # Construit un message d'erreur explicite pour l'utilisateur
-        message = (
-            # Décrit la nature de l'erreur de stratégie fournie
-            "Stratégie invalide: "
-            # Liste les valeurs autorisées pour guider la correction
-            f"{value!r}. Choisissez parmi fft, welch, wavelet, pca, csp, cssp ou svd."
-        )
-        # Lève une erreur de parsing pour arrêter la CLI
-        raise argparse.ArgumentTypeError(message)
-    # Retourne la stratégie normalisée pour la suite du traitement
-    return cleaned
-
-
-# Regroupe les alias de features qui redirigent vers --dim-method
-_FEATURE_STRATEGY_DIM_ALIASES = {"csp", "cssp", "pca", "svd"}
-
-
-# Regroupe les specs pour éviter les répétitions dans build_parser
-_ARGUMENT_SPECS: tuple[tuple[tuple[str, ...], dict], ...] = (
-    (
-        ("subject",),
-        {
-            "help": "Identifiant du sujet (ex: 4)",
-            "type": _parse_subject,
-        },
-    ),
-    (
-        ("run",),
-        {
-            "help": "Identifiant du run (ex: 14)",
-            "type": _parse_run,
-        },
-    ),
-    (
-        ("mode",),
-        {
-            "choices": ("train", "predict"),
-            "help": "Choix du pipeline à lancer",
-        },
-    ),
-    (
-        ("--classifier",),
-        {
-            "choices": ("lda", "logistic", "svm", "centroid"),
-            # Supprime la valeur par défaut pour ne relayer que les overrides
-            "default": argparse.SUPPRESS,
-            "help": "Classifieur final utilisé pour l'entraînement",
-        },
-    ),
-    (
-        ("--scaler",),
-        {
-            "choices": ("standard", "robust", "none"),
-            # Supprime la valeur par défaut pour préserver la logique train
-            "default": argparse.SUPPRESS,
-            "help": "Scaler optionnel appliqué après l'extraction de features",
-        },
-    ),
-    (
-        ("--feature-strategy",),
-        {
-            "choices": ("fft", "welch", "wavelet", "pca", "csp", "cssp", "svd"),
-            "type": _parse_feature_strategy,
-            # Supprime la valeur par défaut pour éviter les faux explicites
-            "default": argparse.SUPPRESS,
-            "help": (
-                "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/cssp/svd "
-                "(bascule --dim-method correspondant)"
-            ),
-        },
-    ),
-    (
-        ("--dim-method",),
-        {
-            "choices": ("pca", "csp", "cssp", "svd"),
-            # Supprime la valeur par défaut pour conserver l'auto-switch train
-            "default": argparse.SUPPRESS,
-            "help": "Méthode de réduction de dimension pour la pipeline",
-        },
-    ),
-)
-
-
-# Construit un parser CLI dédié aux options d'évaluation globale
-def _build_global_parser() -> argparse.ArgumentParser:
-    """Construit un parser pour l'évaluation globale sans positionnels."""
-
-    # Crée un parser isolé pour éviter de forcer subject/run/mode
-    parser = argparse.ArgumentParser(add_help=False)
-    # Ajoute le classifieur optionnel pour l'auto-train global
-    parser.add_argument(
-        # Déclare le flag de classifieur global
-        "--classifier",
-        # Limite les choix aux classifieurs supportés par la pipeline
-        choices=("lda", "logistic", "svm", "centroid"),
-        # Supprime la valeur par défaut pour détecter les overrides explicites
-        default=argparse.SUPPRESS,
-        # Décrit l'option pour l'aide CLI globale
-        help="Classifieur final utilisé pour l'entraînement global",
-    )
-    # Ajoute le scaler optionnel pour l'auto-train global
-    parser.add_argument(
-        # Déclare le flag de scaler global
-        "--scaler",
-        # Limite les choix aux scalers supportés par la pipeline
-        choices=("standard", "robust", "none"),
-        # Supprime la valeur par défaut pour détecter les overrides explicites
-        default=argparse.SUPPRESS,
-        # Décrit l'option pour l'aide CLI globale
-        help="Scaler optionnel appliqué après l'extraction de features",
-    )
-    # Ajoute la stratégie de features utilisée par l'auto-train global
-    parser.add_argument(
-        # Déclare le flag de stratégie de features globale
-        "--feature-strategy",
-        # Limite les choix aux stratégies supportées
-        choices=("fft", "welch", "wavelet", "pca", "csp", "cssp", "svd"),
-        # Valide la stratégie via le parser déjà utilisé par mybci
-        type=_parse_feature_strategy,
-        # Supprime la valeur par défaut pour détecter les overrides explicites
-        default=argparse.SUPPRESS,
-        # Décrit l'option pour l'aide CLI globale
-        help=(
-            # Expose les stratégies utilisables pour l'auto-train
-            "Méthode d'extraction (fft, welch, wavelet) ou alias pca/csp/cssp/svd "
-            # Explique la bascule automatique vers dim-method
-            "(bascule --dim-method correspondant)"
-        ),
-    )
-    # Ajoute la méthode de réduction pour l'auto-train global
-    parser.add_argument(
-        # Déclare le flag de méthode de réduction globale
-        "--dim-method",
-        # Limite les choix aux méthodes supportées par la pipeline
-        choices=("pca", "csp", "cssp", "svd"),
-        # Supprime la valeur par défaut pour détecter les overrides explicites
-        default=argparse.SUPPRESS,
-        # Décrit l'option pour l'aide CLI globale
-        help="Méthode de réduction de dimension pour la pipeline",
-    )
-    # Ajoute le chemin des données numpy pour l'évaluation globale
-    parser.add_argument(
-        # Déclare le flag de répertoire de données global
-        "--data-dir",
-        # Conserve un type Path pour fiabiliser les chemins
-        type=Path,
-        # Supprime la valeur par défaut pour conserver celle du runner global
-        default=argparse.SUPPRESS,
-        # Décrit l'option pour l'aide CLI globale
-        help="Répertoire racine contenant les fichiers numpy",
-    )
-    # Ajoute le chemin des artefacts pour l'évaluation globale
-    parser.add_argument(
-        # Déclare le flag de répertoire d'artefacts global
-        "--artifacts-dir",
-        # Conserve un type Path pour fiabiliser les chemins
-        type=Path,
-        # Supprime la valeur par défaut pour conserver celle du runner global
-        default=argparse.SUPPRESS,
-        # Décrit l'option pour l'aide CLI globale
-        help="Répertoire racine où lire les modèles",
-    )
-    # Ajoute le chemin des EDF bruts pour l'évaluation globale
-    parser.add_argument(
-        # Déclare le flag de répertoire EDF global
-        "--raw-dir",
-        # Conserve un type Path pour fiabiliser les chemins
-        type=Path,
-        # Supprime la valeur par défaut pour conserver celle du runner global
-        default=argparse.SUPPRESS,
-        # Décrit l'option pour l'aide CLI globale
-        help="Répertoire racine contenant les EDF bruts",
-    )
-    # Retourne le parser global configuré
-    return parser
-
-
-# Parse les options d'évaluation globale sans positionnels
-def _parse_global_args(
-    argv: Sequence[str],
-) -> tuple[argparse.Namespace, list[str]]:
-    """Parse les options globales et conserve les arguments inconnus."""
-
-    # Construit le parser global pour isoler les options supportées
-    parser = _build_global_parser()
-    # Retourne l'espace de noms et les arguments inconnus pour décision
-    return parser.parse_known_args(argv)
-
-
-# Valide la présence d'une dépendance critique avant exécution
-def _require_dependency(module_name: str, install_hint: str) -> None:
-    """Interrompt l'exécution si une dépendance Python manque."""
-
-    # Interroge l'environnement pour vérifier la disponibilité du module
-    if importlib.util.find_spec(module_name) is None:
-        # Prépare l'entête du message d'erreur utilisateur
-        message = f"ERROR: dépendance Python manquante: {module_name}."
-        # Ajoute la consigne d'installation pour rendre l'action explicite
-        message = f"{message} {install_hint}"
-        # Interrompt avec un message actionnable pour l'utilisateur
-        raise SystemExit(message)
-
-
-# Centralise le message d'installation pour les dépendances ML
-def _ensure_ml_dependencies() -> None:
-    """Vérifie les dépendances nécessaires au ML temps réel."""
-
-    # Prépare un rappel d'installation cohérent avec Poetry
-    hint = "Installez via `poetry install --with dev` (ou `poetry install`)."
-    # Vérifie la présence de scikit-learn avant les imports ML
-    _require_dependency("sklearn", hint)
-
-
-# Importe tpv.predict uniquement quand il est nécessaire
-def _load_predict_module():
-    """Charge le module predict après validation des dépendances."""
-
-    # Vérifie que les dépendances ML sont disponibles
-    _ensure_ml_dependencies()
-    # Charge le module predict au dernier moment pour éviter les crashes
-    tpv_predict = importlib.import_module("tpv.predict")
-
-    # Retourne le module chargé pour l'appelant
-    return tpv_predict
-
-
-# Centralise les options nécessaires pour invoquer un module TPV
+# Regroupe les valeurs nécessaires à l'appel d'un module spécialisé.
 @dataclass
 class ModuleCallConfig:
-    """Conteneur des paramètres transmis aux modules train/predict."""
+    """Décrit un appel train ou predict sans logique métier."""
 
-    # Identifie le sujet cible pour charger les données correspondantes
+    # Identifie le sujet PhysioNet ciblé par la commande.
     subject: str
-    # Identifie le run cible pour charger la bonne session
+    # Identifie le run PhysioNet ciblé par la commande.
     run: str
-    # Conserve les options CLI explicites à relayer au module ciblé
+    # Conserve uniquement les options explicitement fournies.
     module_args: list[str] = field(default_factory=list)
 
 
-# Centralise les répertoires nécessaires pendant l'évaluation globale
-@dataclass
-class EvaluationPaths:
-    """Conteneur des chemins racine utilisés pendant l'évaluation."""
-
-    # Stocke le chemin vers les données prétraitées pour les runs
-    data_root: Path
-    # Stocke le chemin vers les artefacts entraînés pour les runs
-    artifacts_root: Path
-    # Stocke le chemin vers les fichiers EDF bruts pour les runs
-    raw_root: Path
-    # Stocke les overrides de pipeline pour l'auto-train global
-    pipeline_overrides: Mapping[str, str] | None = None
-
-
-# Construit la ligne de commande pour invoquer un module TPV
-def _call_module(module_name: str, config: ModuleCallConfig) -> int:
-    """Invoke un module TPV en ajoutant les options du pipeline."""
-
-    # Initialise la commande avec l'interpréteur courant et le module ciblé
-    command: list[str] = [
-        sys.executable,
-        "-m",
-        module_name,
-        config.subject,
-        config.run,
-    ]
-    # Ajoute uniquement les options explicitement demandées par l'utilisateur
-    command.extend(config.module_args)
-    # Exécute la commande en capturant le code retour sans lever d'exception
-    completed = subprocess.run(command, check=False)
-    # Retourne le code retour pour propagation à l'appelant principal
-    return completed.returncode
-
-
-# Définit la structure décrivant un protocole expérimental
-@dataclass
-class ExperimentDefinition:
-    """Associe un identifiant d'expérience au run correspondant."""
-
-    # Identifie la position de l'expérience dans la séquence requise
-    index: int
-    # Associe l'expérience au run Physionet à évaluer
-    run: str
-
-
-# Transporte une erreur globale avec le sujet/run responsable
-class GlobalEvaluationCliError(RuntimeError):
-    """Encapsule une erreur CLI globale avec le contexte sujet/run."""
-
-    def __init__(self, error: Exception, *, subject: str, run: str) -> None:
-        """Stocke l'erreur source et le couple sujet/run incriminé."""
-
-        super().__init__(str(error))
-        self.error = error
-        self.subject = subject
-        self.run = run
-
-
-# Construit la liste des six expériences décrites dans le sujet
-def _build_default_experiments() -> list[ExperimentDefinition]:
-    """Expose les six expériences demandées par la consigne."""
-
-    # Mappe chaque expérience à un run Physionet pour l'évaluation
-    return [
-        # Explore le run R03 pour l'expérience 0
-        ExperimentDefinition(index=0, run="R03"),
-        # Explore le run R04 pour l'expérience 1
-        ExperimentDefinition(index=1, run="R04"),
-        # Explore le run R05 pour l'expérience 2
-        ExperimentDefinition(index=2, run="R05"),
-        # Explore le run R06 pour l'expérience 3
-        ExperimentDefinition(index=3, run="R06"),
-        # Explore le run R07 pour l'expérience 4
-        ExperimentDefinition(index=4, run="R07"),
-        # Explore le run R08 pour l'expérience 5
-        ExperimentDefinition(index=5, run="R08"),
-    ]
-
-
-# Convertit un numéro de sujet numérique en identifiant Physionet
-def _subject_identifier(subject_index: int) -> str:
-    """Retourne l'identifiant Sxxx attendu dans les répertoires."""
-
-    # Formate le numéro sur trois chiffres en préfixant le S imposé
-    return f"S{subject_index:03d}"
-
-
-# Calcule l'accuracy pour un couple (expérience, sujet)
-def _evaluate_experiment_subject(
-    experiment: ExperimentDefinition,
-    subject_index: int,
-    # Transporte les chemins et overrides nécessaires à l'évaluation
-    paths: EvaluationPaths,
-) -> float:
-    """Évalue un sujet sur le run associé à une expérience donnée."""
-
-    # Construit l'identifiant complet du sujet pour les chemins disque
-    subject = _subject_identifier(subject_index)
-    # Charge le module predict seulement au moment de l'évaluation
-    tpv_predict = _load_predict_module()
-    # Construit les options de prédiction pour l'auto-train global
-    options = tpv_predict.PredictionOptions(
-        # Transmet le répertoire des EDF bruts
-        raw_dir=paths.raw_root,
-        # Transmet les overrides de pipeline s'ils sont fournis
-        pipeline_overrides=paths.pipeline_overrides,
-    )
-    # Exécute evaluate_run sur le run associé à l'expérience
-    result = tpv_predict.evaluate_run(
-        # Transmet l'identifiant du sujet évalué
-        subject,
-        # Transmet l'identifiant du run évalué
-        experiment.run,
-        # Transmet le répertoire des données numpy
-        paths.data_root,
-        # Transmet le répertoire des artefacts
-        paths.artifacts_root,
-        # Transmet les options de prédiction
-        options,
-    )
-    # Convertit l'accuracy en float natif pour l'agrégation
-    return float(result["accuracy"])
-
-
-# Calcule la moyenne d'accuracies pour une séquence fournie
-def _safe_mean(values: Iterable[float]) -> float:
-    """Retourne 0.0 si la séquence est vide pour sécuriser l'affichage."""
-
-    # Convertit l'itérable en liste pour gérer la longueur et le calcul
-    measurements = list(values)
-    # Retourne 0.0 si aucune valeur n'est disponible
-    if not measurements:
-        # Force une moyenne nulle pour éviter ZeroDivisionError
-        return 0.0
-    # Calcule la moyenne arithmétique standard
-    return mean(measurements)
-
-
-# Recense les sujets disposant d'un modèle entraîné pour un run donné
-def _subjects_with_available_model(run: str, artifacts_root: Path) -> list[int]:
-    """Liste les indices de sujets dont le modèle est présent sur disque."""
-
-    # Prépare une collection ordonnée pour les indices extraits
-    subjects: list[int] = []
-    # Parcourt les fichiers model.joblib correspondant au run demandé
-    for model_path in artifacts_root.glob(f"S*/{run}/model.joblib"):
-        # Identifie le dossier sujet à partir du chemin du modèle
-        subject_dir = model_path.parent.parent
-        # Vérifie que le nom de dossier respecte le préfixe attendu
-        if not subject_dir.name.startswith("S"):
-            # Ignore les dossiers inattendus pour éviter des erreurs de parsing
-            continue
-        try:
-            # Convertit la partie numérique du nom en entier pour l'itération
-            subject_index = int(subject_dir.name[1:])
-        except ValueError:
-            # Ignore les dossiers mal nommés pour maintenir la robustesse
-            continue
-        # Ajoute l'indice extrait pour inclure le sujet dans l'évaluation
-        subjects.append(subject_index)
-    # Trie les indices pour respecter l'ordre croissant des sujets
-    subjects.sort()
-    # Retourne la liste triée pour itérer dans un ordre reproductible
-    return subjects
-
-
-# Prépare la disponibilité des modèles par run avant l'évaluation globale
-def _collect_run_availability(
-    experiments: Sequence[ExperimentDefinition],
-    expected_subjects: Sequence[str],
-) -> tuple[dict[str, list[int]], dict[str, list[str]]]:
-    """Associe chaque run aux sujets attendus pour déclencher l'auto-train."""
-
-    # Prépare un cache pour associer chaque run aux sujets parcourus
-    available_subjects_by_run: dict[str, list[int]] = {}
-    # Prépare un relevé vide car l'auto-train doit combler les absences
-    missing_models_by_run: dict[str, list[str]] = {}
-    # Parcourt chaque expérience pour initialiser la liste des sujets
-    for experiment in experiments:
-        # Ignore le run déjà traité pour éviter les doublons
-        if experiment.run in available_subjects_by_run:
-            # Passe au run suivant dès que le cache contient le run
-            continue
-        # Convertit les identifiants Sxxx en indices numériques exploitables
-        subject_indices = [int(subject[1:]) for subject in expected_subjects]
-        # Associe tous les sujets au run pour laisser evaluate_run entraîner
-        available_subjects_by_run[experiment.run] = subject_indices
-        # Marque l'absence de modèles manquants grâce à l'auto-train
-        missing_models_by_run[experiment.run] = []
-    # Retourne les deux structures pour l'évaluation globale
-    return available_subjects_by_run, missing_models_by_run
-
-
-# Évalue chaque expérience en accumulant les résultats et les absences
-def _evaluate_experiments(
-    experiments: Sequence[ExperimentDefinition],
-    available_subjects_by_run: Mapping[str, Sequence[int]],
-    paths: EvaluationPaths,
-    progress: tqdm | None = None,
-) -> tuple[dict[int, list[float]], list[str], list[ExperimentDefinition]]:
-    """Exécute les évaluations et retourne les scores et manquants."""
-
-    # Prépare le stockage des accuracies par expérience
-    per_experiment_scores: dict[int, list[float]] = {
-        # Initialise la collection d'accuracies pour chaque expérience
-        exp.index: []
-        for exp in experiments
-    }
-    # Prépare la liste des sujets ou runs introuvables lors des calculs
-    missing_entries: list[str] = []
-    # Prépare la liste des expériences sans modèle pour les ignorer
-    skipped_experiments: list[ExperimentDefinition] = []
-    # Parcourt chaque expérience demandée
-    for experiment in experiments:
-        # Récupère la liste des sujets disposant d'un modèle pour ce run
-        available_subjects = list(available_subjects_by_run.get(experiment.run, []))
-        # Informe l'utilisateur si aucun modèle n'est disponible pour ce run
-        if not available_subjects:
-            # Signale que l'expérience sera ignorée faute de modèle présent
-            print(
-                "AVERTISSEMENT: aucun modèle disponible pour "
-                f"{experiment.run}, expérience {experiment.index} ignorée"
-            )
-            # Archive l'expérience ignorée pour le résumé des moyennes
-            skipped_experiments.append(experiment)
-            # Passe à l'expérience suivante pour éviter une boucle vide
-            continue
-        # Parcourt l'ensemble des sujets disposant d'un modèle
-        for subject_index in available_subjects:
-            # Calcule l'identifiant du sujet pour les erreurs et l'affichage
-            subject = _subject_identifier(subject_index)
-            # Évalue le sujet courant sur l'expérience en cours
-            try:
-                # Calcule l'accuracy en rechargeant le modèle entraîné
-                accuracy = _evaluate_experiment_subject(
-                    experiment,
-                    subject_index,
-                    paths,
-                )
-            except FileNotFoundError as error:
-                # Informe l'utilisateur qu'un prérequis manque pour ce run
-                print(f"AVERTISSEMENT: {error}")
-                # Calcule l'identifiant du sujet manquant pour le récapitulatif
-                # Ajoute l'entrée manquante pour un récapitulatif final
-                missing_entries.append(f"{subject}:{experiment.run}")
-                # Ignore ce sujet pour poursuivre l'exploration globale
-                continue
-            except (PermissionError, ValueError) as error:
-                # Stoppe l'évaluation globale avec un message CLI contextualisé
-                raise GlobalEvaluationCliError(
-                    error,
-                    subject=subject,
-                    run=experiment.run,
-                ) from error
-            finally:
-                # Actualise la barre de progression lorsqu'elle est activée
-                if progress is not None:
-                    # Incrémente la progression d'un sujet évalué ou tenté
-                    progress.update(1)
-            # Prépare la partie numérique du sujet pour la sortie demandée
-            subject_label = subject.removeprefix("S")
-            # Prépare le préfixe pour éviter une ligne trop longue
-            prefix = f"experiment {experiment.index}: subject {subject_label}: "
-            # Prépare le suffixe avec l'accuracy formatée
-            suffix = f"accuracy = {accuracy:.4f}"
-            # Affiche l'accuracy par expérience et sujet comme dans l'exemple
-            print(f"{prefix}{suffix}")
-            # Stocke l'accuracy pour le calcul des moyennes
-            per_experiment_scores[experiment.index].append(accuracy)
-    # Retourne les résultats et les expériences ignorées
-    return per_experiment_scores, missing_entries, skipped_experiments
-
-
-# Affiche les moyennes par expérience et retourne la moyenne globale
-def _print_experiment_means(
-    experiments: Sequence[ExperimentDefinition],
-    per_experiment_scores: Mapping[int, Sequence[float]],
-) -> float:
-    """Calcule et affiche les moyennes d'accuracy par expérience."""
-
-    # Affiche l'entête du bloc de moyennes par expérience
-    print("\nMean accuracy of the six different experiments for all 109 subjects:")
-    # Parcourt chaque expérience pour calculer sa moyenne
-    for experiment in experiments:
-        # Extrait les scores accumulés pour l'expérience courante
-        experiment_scores = per_experiment_scores[experiment.index]
-        # Contrôle la disponibilité d'artefacts avant de calculer la moyenne
-        if not experiment_scores:
-            # Mentionne explicitement l'absence d'artefacts pour l'expérience
-            print(f"experiment {experiment.index}:\t\taccuracy = N/A (skipped)")
-            # Passe au run suivant pour éviter une moyenne vide
-            continue
-        # Calcule la moyenne de l'expérience courante
-        experiment_mean = _safe_mean(experiment_scores)
-        # Affiche la moyenne alignée sur l'exemple fourni
-        print(f"experiment {experiment.index}:\t\taccuracy = " f"{experiment_mean:.4f}")
-    # Calcule la moyenne globale des six expériences
-    global_mean = _safe_mean(
-        # Agrège uniquement les expériences disposant d'artefacts
-        _safe_mean(per_experiment_scores[exp.index])
-        for exp in experiments
-        if per_experiment_scores[exp.index]
-    )
-    # Affiche la moyenne globale demandée par la consigne
-    print(f"\nMean accuracy of 6 experiments: {global_mean:.4f}")
-    # Retourne la moyenne pour réutilisation éventuelle
-    return global_mean
-
-
-# Affiche les messages d'alerte pour guider l'utilisateur
-def _report_missing_artifacts(
-    missing_entries: Sequence[str],
-    missing_models_by_run: Mapping[str, Sequence[str]],
-    skipped_experiments: Sequence[ExperimentDefinition],
-    expected_subject_count: int,
-) -> None:
-    """Émet les avertissements sur les données et modèles manquants."""
-
-    # Vérifie si des données sont manquantes pour informer l'utilisateur
-    if missing_entries:
-        # Résume le volume d'entrées absentes pour déclencher une action
-        print(
-            "AVERTISSEMENT: certaines données EDF ou .npy sont manquantes. "
-            f"Couples sujet/run concernés: {len(missing_entries)}. "
-            "Téléchargez les EDF dans data ou regénérez les .npy."
-        )
-        # Affiche un aperçu des premières références manquantes pour guider
-        print("Premiers manquants: " + ", ".join(missing_entries[:10]))
-    # Vérifie s'il manque des modèles entraînés pour certains runs
-    if any(missing_models_by_run.values()):
-        # Informe l'utilisateur qu'il manque des artefacts pour plusieurs sujets
-        print(
-            "AVERTISSEMENT: certains modèles entraînés sont absents. "
-            "Générez ou copiez les artifacts manquants pour compléter l'évaluation."
-        )
-        # Identifie les runs totalement dépourvus de modèles pour prioriser les actions
-        fully_missing_runs = [
-            run
-            for run, subjects in sorted(missing_models_by_run.items())
-            if subjects and len(subjects) == expected_subject_count
-        ]
-        # Met en avant les runs sans modèles pour débloquer la génération
-        if fully_missing_runs:
-            print("Runs sans aucun modèle disponible: " + ", ".join(fully_missing_runs))
-        # Parcourt les runs pour afficher un extrait des sujets à compléter
-        for run, subjects in sorted(missing_models_by_run.items()):
-            # Ignore l'affichage si aucun modèle ne manque pour ce run
-            if not subjects:
-                # Passe au run suivant lorsqu'il est complet
-                continue
-            # Affiche le nombre total de modèles manquants pour ce run
-            print(
-                f"Run {run}: modèles manquants pour {len(subjects)} sujets "
-                f"(exemples: {', '.join(subjects[:5])})"
-            )
-        # Aide l'utilisateur en rappelant la commande de génération d'artefacts
-        print(
-            "Pour générer un modèle manquant, lancez par exemple :\n"
-            "  poetry run python scripts/train.py S001 R04 --feature-strategy fft "
-            "--dim-method pca"
-        )
-    # Vérifie si certaines expériences ont été ignorées pour le calcul global
-    if skipped_experiments:
-        # Résume les expériences ignorées pour clarifier le global_mean affiché
-        skipped_labels = ", ".join(
-            f"{exp.index} ({exp.run})" for exp in skipped_experiments
-        )
-        # Invite l'utilisateur à générer les artefacts avant de relancer
-        print(
-            "AVERTISSEMENT: les expériences suivantes ont été ignorées "
-            f"faute de modèles: {skipped_labels}. "
-            "Générez les artefacts correspondants pour obtenir une moyenne "
-            "complète."
-        )
-
-
-# Parcourt les 6 expériences et les 109 sujets en affichant les accuracies
-def _run_global_evaluation(
-    experiments: Sequence[ExperimentDefinition] | None = None,
-    data_dir: Path | None = None,
-    artifacts_dir: Path | None = None,
-    raw_dir: Path | None = None,
-    # Transporte les overrides de pipeline pour l'auto-train global
-    pipeline_overrides: Mapping[str, str] | None = None,
-) -> int:
-    """Exécute la boucle d'évaluation globale décrite dans le sujet."""
-
-    # Vérifie les dépendances ML avant l'évaluation globale
-    _ensure_ml_dependencies()
-    # Utilise les expériences par défaut si aucune liste n'est fournie
-    experiment_definitions = list(experiments or _build_default_experiments())
-    # Normalise les chemins racine de données pour les appels descendants
-    data_root = data_dir or DEFAULT_DATA_DIR
-    # Normalise le répertoire d'artefacts pour les modèles entraînés
-    artifacts_root = artifacts_dir or Path("artifacts")
-    # Normalise le répertoire des EDF bruts désormais stockés dans data/
-    raw_root = raw_dir or DEFAULT_DATA_DIR
-    # Construit la liste des identifiants attendus pour les 109 sujets
-    expected_subjects = [_subject_identifier(idx) for idx in range(1, 110)]
-    # Calcule la disponibilité des modèles pour chaque run
-    available_subjects_by_run, missing_models_by_run = _collect_run_availability(
-        experiment_definitions, expected_subjects
-    )
-
-    # Exécute les évaluations et collecte les résultats
-    per_experiment_scores, missing_entries, skipped_experiments = _evaluate_experiments(
-        experiment_definitions,
-        available_subjects_by_run,
-        EvaluationPaths(
-            # Fournit le répertoire racine des données prétraitées
-            data_root=data_root,
-            # Fournit le répertoire racine des artefacts entraînés
-            artifacts_root=artifacts_root,
-            # Fournit le répertoire racine des fichiers EDF bruts
-            raw_root=raw_root,
-            # Fournit les overrides de pipeline pour l'auto-train global
-            pipeline_overrides=pipeline_overrides,
-        ),
-    )
-
-    # Calcule et affiche les moyennes par expérience
-    _print_experiment_means(experiment_definitions, per_experiment_scores)
-    # Émet un récapitulatif des artefacts manquants
-    _report_missing_artifacts(
-        missing_entries,
-        missing_models_by_run,
-        skipped_experiments,
-        len(expected_subjects),
-    )
-    # Retourne 0 pour signaler le succès global
-    return 0
-
-
-# Convertit un chemin absolu du repo en chemin CLI lisible
-def _display_cli_path(path: Path) -> str:
-    """Retourne un chemin relatif au repo lorsque c'est possible."""
-
-    # Essaie de raccourcir les chemins internes au dépôt pour la CLI
-    try:
-        return str(path.relative_to(PROJECT_ROOT))
-    # Conserve le chemin original lorsqu'il pointe hors dépôt
-    except ValueError:
-        return str(path)
-
-
-# Détecte un problème d'accès aux modules src/tpv requis par la CLI
-def _find_tpv_source_access_issue(
-    src_dir: Path = SRC_DIR,
-    tpv_src_dir: Path = TPV_SRC_DIR,
-) -> Path | None:
-    """Retourne le premier dossier/fichier src ou src/tpv inaccessible."""
-
-    # Initialise l'absence de problème d'accès par défaut
-    problem_path: Path | None = None
-    # Ignore la vérification quand le dossier src n'existe pas dans ce contexte
-    if not src_dir.is_dir():
-        return problem_path
-    # Signale d'abord un dossier src non traversable ou non lisible
-    if not os.access(src_dir, os.R_OK | os.X_OK):
-        problem_path = src_dir
-    else:
-        # Ignore la vérification quand le répertoire tpv n'existe pas dans ce contexte
-        try:
-            tpv_dir_exists = tpv_src_dir.is_dir()
-        # Signale un parent bloqué sans laisser remonter un traceback Python
-        except PermissionError:
-            problem_path = tpv_src_dir
-        else:
-            # Continue uniquement si src/tpv est réellement présent
-            if tpv_dir_exists:
-                # Signale d'abord un dossier non traversable ou non lisible
-                if not os.access(tpv_src_dir, os.R_OK | os.X_OK):
-                    problem_path = tpv_src_dir
-                else:
-                    # Recherche ensuite un module Python illisible dans src/tpv
-                    try:
-                        candidates = sorted(tpv_src_dir.glob("*.py"))
-                    # Signale un tpv bloqué sans traceback lors du glob
-                    except PermissionError:
-                        problem_path = tpv_src_dir
-                    else:
-                        for candidate in candidates:
-                            if not os.access(candidate, os.R_OK):
-                                problem_path = candidate
-                                break
-    # Confirme que tous les modules sont lisibles
-    return problem_path
-
-
-# Rend un problème d'accès src/tpv avec une action CLI unique
-def _render_tpv_source_access_issue(problem_path: Path) -> int:
-    """Affiche un diagnostic court pour un chmod bloquant sur src/tpv."""
-
-    # Prépare les chemins affichés dans un format CLI court
-    display_problem = _display_cli_path(problem_path)
-    display_dir = _display_cli_path(TPV_SRC_DIR)
-    display_src_dir = _display_cli_path(SRC_DIR)
-    # Différencie src, src/tpv et un module individuel bloqué
-    if problem_path == SRC_DIR:
-        print(f"INFO: lecture du dossier {display_src_dir} impossible")
-        print(
-            "Action: redonnez les droits d'accès au dossier "
-            f"{display_src_dir} : `chmod a+rx {display_src_dir}`"
-        )
-        return HANDLED_CLI_ERROR_EXIT_CODE
-    if problem_path == TPV_SRC_DIR:
-        print(f"INFO: lecture du dossier {display_dir} impossible")
-    else:
-        print(f"INFO: lecture du script {display_problem} impossible")
-    # Propose une commande unique qui répare le dossier et ses modules
-    print(
-        "Action: redonnez les droits d'accès au dossier "
-        f"{display_dir} et à son contenu : `chmod -R a+rX {display_dir}`"
-    )
-    # Retourne le code réservé aux erreurs CLI déjà rendues
-    return HANDLED_CLI_ERROR_EXIT_CODE
-
-
-# Coupe tôt une exécution CLI si les modules src/tpv sont inaccessibles
-def _abort_if_tpv_sources_are_unreadable() -> int | None:
-    """Retourne un code CLI si src/tpv est bloqué, sinon None."""
-
-    # Recherche un éventuel problème d'accès avant de déléguer plus loin
-    problem_path = _find_tpv_source_access_issue()
-    # Laisse l'exécution se poursuivre quand tout est lisible
-    if problem_path is None:
-        return None
-    # Rend immédiatement un message utilisateur court et actionnable
-    return _render_tpv_source_access_issue(problem_path)
-
-
-# Rend une erreur globale en sortie CLI sans traceback Python
-def _render_global_cli_error(
-    error: Exception,
-    *,
-    subject: str | None = None,
-    run: str | None = None,
-) -> int:
-    """Affiche une erreur globale courte et retourne le code CLI géré."""
-
-    # Importe localement le renderer pour éviter un crash bootstrap sur src/tpv
-    from tpv.utils import render_cli_error_lines  # noqa: PLC0415
-
-    # Imprime chaque ligne du diagnostic court et actionnable
-    for line in render_cli_error_lines(error, subject=subject, run=run):
-        print(line)
-    # Retourne le code réservé aux erreurs déjà rendues côté CLI
-    return HANDLED_CLI_ERROR_EXIT_CODE
-
-
-# Lance l'évaluation globale avec conversion des erreurs dataset en sortie CLI
-def _run_global_evaluation_cli(
-    *,
-    experiments: Sequence[ExperimentDefinition] | None = None,
-    data_dir: Path | None = None,
-    artifacts_dir: Path | None = None,
-    raw_dir: Path | None = None,
-    pipeline_overrides: Mapping[str, str] | None = None,
-) -> int:
-    """Exécute l'évaluation globale avec gestion d'erreur utilisateur."""
-
-    # Encadre l'évaluation pour éviter les tracebacks sur erreurs gérées
-    try:
-        # Préserve l'appel historique sans kwargs quand rien n'est surchargé
-        if (
-            experiments is None
-            and data_dir is None
-            and artifacts_dir is None
-            and raw_dir is None
-            and pipeline_overrides is None
-        ):
-            # Délègue l'exécution nominale simple pour les tests et la CLI nue
-            return _run_global_evaluation()
-        # Délègue la logique nominale au runner global principal
-        return _run_global_evaluation(
-            experiments=experiments,
-            data_dir=data_dir,
-            artifacts_dir=artifacts_dir,
-            raw_dir=raw_dir,
-            pipeline_overrides=pipeline_overrides,
-        )
-    except GlobalEvaluationCliError as error:
-        # Réinjecte le contexte sujet/run pour un message plus lisible
-        return _render_global_cli_error(
-            error.error,
-            subject=error.subject,
-            run=error.run,
-        )
-    except (FileNotFoundError, PermissionError, ValueError) as error:
-        # Rend aussi lisibles les erreurs globales sans sujet/run précis
-        return _render_global_cli_error(error)
-
-
-# Imprime les prédictions epoch par epoch dans un format compact
-def _print_epoch_predictions(
-    y_true: Sequence[int],
-    y_pred: Sequence[int],
-    accuracy: float,
-) -> None:
-    """Affiche les prédictions détaillées comme dans l'exemple mybci."""
-
-    # Affiche l'en-tête décrivant les colonnes
-    print("epoch nb: [prediction] [truth] equal?")
-    # Calcule la largeur minimale pour l'index d'epoch
-    n_epochs = len(y_true)
-    # Utilise au moins deux chiffres pour mimer l'exemple fourni
-    index_width = max(2, len(str(max(n_epochs - 1, 0))))
-    # Parcourt chaque paire vérité terrain / prédiction
-    for idx, (pred, truth) in enumerate(zip(y_pred, y_true, strict=True)):
-        # Calcule si la prédiction correspond à la vérité terrain
-        is_equal = bool(int(pred) == int(truth))
-        # Affiche la ligne formatée pour l'epoch courante
-        print(
-            f"epoch {idx:0{index_width}d}: " f"[{int(pred)}] [{int(truth)}] {is_equal}"
-        )
-    # Affiche l'accuracy globale formatée sur quatre décimales
-    print(f"Accuracy: {accuracy:.4f}")
-
-
-# Centralise le pattern add_argument pour appliquer une liste de specs
-def _add_argument_specs(parser: argparse.ArgumentParser) -> None:
-    """Ajoute les arguments déclarés dans _ARGUMENT_SPECS au parser."""
-    for flags, kwargs in _ARGUMENT_SPECS:
-        parser.add_argument(*flags, **kwargs)
-
-
-# Construit le parser CLI avec toutes les options du pipeline
+# Valide une stratégie ou un alias avant de déléguer au module métier.
+def _parse_feature_strategy(value: str) -> str:
+    """Normalise une stratégie de features ou de réduction."""
+
+    # Accepte la casse utilisateur sans multiplier les branches plus loin.
+    cleaned_value = value.strip().lower()
+    # Regroupe exactement les options implémentées et évaluables.
+    allowed_values = {"fft", "welch", "wavelet", *DIMENSIONALITY_ALIASES}
+    # Refuse tôt une valeur qui échouerait plus tard dans la pipeline.
+    if cleaned_value not in allowed_values:
+        # argparse affiche ce diagnostic avec l'usage complet de la commande.
+        raise argparse.ArgumentTypeError(f"Stratégie invalide: {value!r}")
+    # Retourne la forme canonique utilisée par les modules spécialisés.
+    return cleaned_value
+
+
+# Construit uniquement l'interface train/predict exigée par le sujet.
 def build_parser() -> argparse.ArgumentParser:
-    """Construit l'argument parser pour mybci."""
+    """Construit le parser des commandes par sujet et par run."""
+
+    # L'usage court rend le chemin de soutenance immédiatement visible.
     parser = argparse.ArgumentParser(
-        description="Pilote un workflow d'entraînement ou de prédiction TPV",
+        description="Entraîne ou interroge la pipeline EEG TPV",
         usage="python mybci.py <subject> <run> {train,predict}",
     )
-    _add_argument_specs(parser)
+    # Partage la normalisation Sxxx avec train, predict et realtime.
+    parser.add_argument("subject", type=tpv_utils.parse_subject)
+    # Partage la normalisation Rxx avec train, predict et realtime.
+    parser.add_argument("run", type=tpv_utils.parse_run)
+    # Limite le routeur aux deux modes obligatoires de la grille.
+    parser.add_argument("mode", choices=("train", "predict"))
+    # Relaye le choix du classifieur sans reconstruire la pipeline ici.
+    parser.add_argument(
+        "--classifier",
+        choices=tpv_pipeline.CLASSIFIER_CHOICES,
+        default=argparse.SUPPRESS,
+    )
+    # Relaye le scaler optionnel sans logique de transformation locale.
+    parser.add_argument(
+        "--scaler",
+        choices=tpv_pipeline.SCALER_CHOICES,
+        default=argparse.SUPPRESS,
+    )
+    # Conserve les bonus FFT, Welch et wavelet ainsi que les anciens alias.
+    parser.add_argument(
+        "--feature-strategy",
+        type=_parse_feature_strategy,
+        default=argparse.SUPPRESS,
+    )
+    # Relaye explicitement la réduction maison choisie par l'utilisateur.
+    parser.add_argument(
+        "--dim-method",
+        choices=tpv_pipeline.DIMENSIONALITY_METHODS,
+        default=argparse.SUPPRESS,
+    )
+    # Retourne le parser sans exécuter de traitement EEG.
     return parser
 
 
-# Parse les arguments fournis à la CLI
+# Expose un helper testable sans dépendre directement de sys.argv.
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    """Parse les arguments passés à mybci."""
+    """Parse une invocation train/predict."""
 
-    # Construit le parser pour traiter argv
-    parser = build_parser()
-    # Retourne l'espace de noms après parsing
-    return parser.parse_args(argv)
+    # Délègue toute validation syntaxique au parser unique ci-dessus.
+    return build_parser().parse_args(argv)
 
 
-# Construit les overrides de pipeline pour l'évaluation globale
-def _build_pipeline_overrides(
-    args: argparse.Namespace,
-) -> dict[str, str] | None:
-    """Transforme un namespace CLI en overrides pour l'auto-train."""
+# Vérifie la dépendance indispensable avant de créer un sous-processus.
+def _ensure_ml_dependencies() -> None:
+    """Produit un diagnostic court lorsque scikit-learn manque."""
 
-    # Prépare une collection d'overrides explicites
-    overrides: dict[str, str] = {}
-    # Ajoute la stratégie de features si elle est fournie
-    if hasattr(args, "feature_strategy"):
-        # Enregistre la stratégie pour l'auto-train global
-        overrides["feature_strategy"] = str(args.feature_strategy)
-    # Ajoute la méthode de réduction si elle est fournie
-    if hasattr(args, "dim_method"):
-        # Enregistre la méthode de réduction pour l'auto-train global
-        overrides["dim_method"] = str(args.dim_method)
-    # Ajoute le classifieur si la CLI le fournit explicitement
-    if hasattr(args, "classifier"):
-        # Enregistre le classifieur pour l'auto-train global
-        overrides["classifier"] = str(args.classifier)
-    # Ajoute le scaler si la CLI le fournit explicitement
-    if hasattr(args, "scaler"):
-        # Enregistre le scaler pour l'auto-train global
-        overrides["scaler"] = str(args.scaler)
-    # Retourne None si aucun override explicite n'est fourni
-    if not overrides:
-        # Signale l'absence d'overrides pour conserver les défauts
-        return None
-    # Retourne les overrides explicitement demandés
-    return overrides
-
-
-# Construit la liste d'options explicites à relayer vers train/predict
-def _build_module_args(args: argparse.Namespace) -> list[str]:
-    """Traduit les overrides CLI vers les modules scripts.train/predict."""
-
-    # Récupère la stratégie de features si elle a été fournie explicitement
-    feature_strategy = getattr(args, "feature_strategy", None)
-    # Récupère la méthode de réduction si elle a été fournie explicitement
-    dim_method = getattr(args, "dim_method", None)
-
-    # Interprète les alias de réduction fournis via --feature-strategy
-    if feature_strategy in _FEATURE_STRATEGY_DIM_ALIASES:
-        # Informe l'utilisateur de la traduction appliquée pour éviter l'ambiguïté
-        print(
-            # Prépare le préfixe d'information sur l'alias utilisé
-            "INFO: --feature-strategy "
-            # Affiche l'alias pour expliciter la redirection
-            f"{feature_strategy} est interprété comme --dim-method "
-            # Rappelle la valeur cible pour verrouiller l'intention
-            f"{feature_strategy}."
+    # find_spec évite un import coûteux pour cette simple vérification.
+    if importlib.util.find_spec("sklearn") is None:
+        # Le message indique la commande compatible avec les machines de l'école.
+        raise SystemExit(
+            "ERROR: dépendance Python manquante: sklearn. "
+            "Installez via `uv sync --frozen --all-groups`."
         )
-        # Signale un éventuel conflit lorsque l'utilisateur force une autre méthode
-        if dim_method and dim_method != feature_strategy:
-            print(
-                # Prépare l'entête d'avertissement CLI
-                "AVERTISSEMENT: --feature-strategy "
-                # Affiche l'alias qui écrase la méthode explicite
-                f"{feature_strategy} force --dim-method {feature_strategy} "
-                # Rappelle la méthode concurrente reçue pour diagnostic
-                f"(reçu: {dim_method})."
-            )
-        # Fixe explicitement la méthode de réduction côté module train/predict
-        dim_method = feature_strategy
-        # Empêche de relayer une stratégie de features invalide côté scripts.train
-        feature_strategy = None
 
-    # Initialise la liste des arguments à transmettre au module cible
+
+# Traduit les options communes vers les scripts spécialisés existants.
+def _build_module_args(args: argparse.Namespace) -> list[str]:
+    """Retourne les options explicites destinées à train ou predict."""
+
+    # Prépare une liste vide pour préserver les défauts des modules métier.
     module_args: list[str] = []
-    # Relaye le classifieur uniquement lorsqu'il est fourni explicitement
+    # Récupère la stratégie seulement si l'utilisateur l'a fournie.
+    feature_strategy = getattr(args, "feature_strategy", None)
+    # Récupère la réduction seulement si l'utilisateur l'a fournie.
+    dimensionality_method = getattr(args, "dim_method", None)
+    # Les anciens alias deviennent une réduction explicite et non une feature.
+    if feature_strategy in DIMENSIONALITY_ALIASES:
+        # L'alias conserve la compatibilité sans branche dans train/predict.
+        dimensionality_method = feature_strategy
+        # Empêche de relayer PCA/CSP comme extracteur fréquentiel.
+        feature_strategy = None
+    # Relaye le classifieur uniquement lorsqu'il remplace le défaut.
     if hasattr(args, "classifier"):
+        # Deux éléments distincts évitent toute interprétation par un shell.
         module_args.extend(["--classifier", str(args.classifier)])
-    # Relaye le scaler uniquement lorsqu'il est fourni explicitement
+    # Relaye le scaler uniquement lorsqu'il remplace le défaut.
     if hasattr(args, "scaler"):
+        # Le module spécialisé interprète lui-même l'alias none.
         module_args.extend(["--scaler", str(args.scaler)])
-    # Relaye la stratégie de features valide lorsqu'elle est explicitement demandée
-    if feature_strategy:
+    # Relaye une véritable extraction fréquentielle si elle est demandée.
+    if feature_strategy is not None:
+        # Le nom de l'option reste identique dans les deux scripts.
         module_args.extend(["--feature-strategy", feature_strategy])
-    # Relaye la méthode de réduction uniquement lorsqu'elle est explicitement demandée
-    if dim_method:
-        module_args.extend(["--dim-method", dim_method])
-    # Retourne la liste finale à injecter dans la commande module
+    # Relaye la réduction finale après résolution d'un éventuel alias.
+    if dimensionality_method is not None:
+        # La valeur est déjà bornée par argparse ou le jeu d'alias.
+        module_args.extend(["--dim-method", dimensionality_method])
+    # Retourne une liste directement injectable dans subprocess.
     return module_args
 
 
-# Lance l'évaluation globale après validation d'accès aux modules TPV
-def _run_global_cli_from_args(global_args: argparse.Namespace) -> int:
-    """Exécute l'évaluation globale avec les overrides demandés."""
+# Lance le vrai point d'entrée sans copier son implémentation dans mybci.
+def _call_module(module_name: str, config: ModuleCallConfig) -> int:
+    """Exécute tpv.train ou tpv.predict avec les identifiants normalisés."""
 
-    # Stoppe proprement si les modules TPV ne sont plus lisibles
-    access_error = _abort_if_tpv_sources_are_unreadable()
-    if access_error is not None:
-        return access_error
-    # Construit les overrides explicites pour l'auto-train global
-    pipeline_overrides = _build_pipeline_overrides(global_args)
-    # Extrait le répertoire des données s'il est explicitement fourni
-    data_dir = getattr(global_args, "data_dir", None)
-    # Extrait le répertoire des artefacts s'il est explicitement fourni
-    artifacts_dir = getattr(global_args, "artifacts_dir", None)
-    # Extrait le répertoire des EDF bruts s'il est explicitement fourni
-    raw_dir = getattr(global_args, "raw_dir", None)
-    # Lance l'évaluation globale avec les overrides éventuels
-    return _run_global_evaluation_cli(
-        # Conserve les expériences par défaut si non spécifiées
-        experiments=None,
-        # Transmet le répertoire de données si demandé
-        data_dir=data_dir,
-        # Transmet le répertoire d'artefacts si demandé
-        artifacts_dir=artifacts_dir,
-        # Transmet le répertoire des EDF bruts si demandé
-        raw_dir=raw_dir,
-        # Transmet les overrides de pipeline pour l'auto-train
-        pipeline_overrides=pipeline_overrides,
-    )
+    # Une liste d'arguments évite les problèmes d'échappement du shell.
+    command = [
+        # Réutilise exactement l'environnement Python actif.
+        sys.executable,
+        # Le mode module garde des imports identiques en local et en CI.
+        "-m",
+        # Le nom est fourni uniquement par le routeur borné plus bas.
+        module_name,
+        # Le sujet est déjà normalisé au format Sxxx.
+        config.subject,
+        # Le run est déjà normalisé au format Rxx.
+        config.run,
+        # Les options restantes sont déjà séparées et validées.
+        *config.module_args,
+    ]
+    # Le sous-processus transmet naturellement les sorties attendues par la grille.
+    completed_process = subprocess.run(command, check=False)
+    # Propage le code de sortie pour que Make et la CI détectent les échecs.
+    return int(completed_process.returncode)
 
 
-# Route train/predict après validation d'accès aux modules TPV
-def _run_mode_cli(args: argparse.Namespace) -> int:
-    """Route le mode demandé vers le module TPV correspondant."""
+# Détecte la forme positionnelle attendue sans dupliquer un second parser global.
+def _looks_like_mode_invocation(argv: Sequence[str]) -> bool:
+    """Distingue subject/run/mode des options du score global."""
 
-    # Stoppe proprement si les modules TPV ne sont plus lisibles
-    access_error = _abort_if_tpv_sources_are_unreadable()
-    if access_error is not None:
-        return access_error
-    # Interrompt avec un message actionnable si scikit-learn manque
-    _ensure_ml_dependencies()
-    # Traduit les options explicites avant de déléguer aux modules dédiés
-    module_args = _build_module_args(args)
-    # Construit la configuration de pipeline commune
-    config = ModuleCallConfig(
-        subject=args.subject,
-        run=args.run,
-        module_args=module_args,
-    )
-    # Appelle le module train si le mode le demande
-    if args.mode == "train":
-        # Retourne le code retour du module train avec la configuration
-        return _call_module(
-            "tpv.train",
-            config,
-        )
-    # Appelle le module predict pour préserver la sortie CLI attendue
-    if args.mode == "predict":
-        # Retourne le code retour du module predict avec la configuration
-        return _call_module(
-            "tpv.predict",
-            config,
-        )
-    # Retourne un code explicite si aucun mode valide n'est routé
-    return 1
+    # Deux positionnels suffisent pour reconnaître une tentative train/predict.
+    return len(argv) >= MODE_POSITIONAL_COUNT and not argv[0].startswith("-")
 
 
-# Point d'entrée principal de la CLI
+# Préserve les alias historiques dans la commande d'agrégation unique.
+def _normalize_global_args(argv: Sequence[str]) -> list[str]:
+    """Traduit --feature-strategy pca/csp/cssp/svd vers --dim-method."""
+
+    # Copie la séquence pour ne jamais modifier l'entrée de l'appelant.
+    normalized_args = list(argv)
+    # Recherche l'option historique uniquement si elle est présente.
+    if "--feature-strategy" not in normalized_args:
+        # Aucun travail n'est nécessaire pour les appels globaux ordinaires.
+        return normalized_args
+    # Repère la valeur qui suit l'option conformément au contrat argparse.
+    option_index = normalized_args.index("--feature-strategy")
+    # Laisse argparse produire son diagnostic si la valeur est absente.
+    if option_index + 1 >= len(normalized_args):
+        # Le moteur unique recevra l'argument incomplet sans le masquer.
+        return normalized_args
+    # Isole la stratégie afin de détecter les alias de réduction.
+    strategy = normalized_args[option_index + 1].lower()
+    # Les extracteurs réels sont déjà compris par l'agrégateur.
+    if strategy not in DIMENSIONALITY_ALIASES:
+        # Conserve fft, welch ou wavelet sans transformation.
+        return normalized_args
+    # Remplace seulement le nom d'option, en conservant sa valeur.
+    normalized_args[option_index] = "--dim-method"
+    # Retourne une invocation comprise par le moteur de score unique.
+    return normalized_args
+
+
+# Route les deux chemins publics sans contenir de logique EEG ou de scoring.
 def main(argv: Sequence[str] | None = None) -> int:
-    """Point d'entrée exécutable de mybci."""
+    """Exécute train/predict ou l'agrégation globale en absence de positionnels."""
 
-    # Capture les arguments fournis ou la ligne de commande réelle
+    # Copie sys.argv pour rendre le comportement identique sous tests et en CLI.
     provided_args = list(argv) if argv is not None else list(sys.argv[1:])
-    # Lance le runner global lorsque la commande ne fournit aucun argument
-    if not provided_args:
-        # Exécute la boucle des six expériences sur les 109 sujets
-        return _run_global_cli_from_args(argparse.Namespace())
-    # Parse les options globales pour détecter un run sans positionnels
-    global_args, unknown_args = _parse_global_args(provided_args)
-    # Déclenche l'évaluation globale si aucun argument inconnu n'est présent
-    if not unknown_args:
-        return _run_global_cli_from_args(global_args)
-    # Parse les arguments fournis par l'utilisateur
-    args = parse_args(provided_args)
-    # Vérifie les dépendances ML pour les modes qui en ont besoin
-    if args.mode in {"train", "predict"}:
-        return _run_mode_cli(args)
+    # Les deux premiers positionnels identifient une commande par run.
+    if _looks_like_mode_invocation(provided_args):
+        # Le parser produit l'usage correct si le mode manque ou est invalide.
+        parsed_args = parse_args(provided_args)
+        # Vérifie l'environnement avant de lancer le workflow coûteux.
+        _ensure_ml_dependencies()
+        # Prépare les paramètres communs sans reconstruire la pipeline.
+        call_config = ModuleCallConfig(
+            # Conserve le sujet normalisé par argparse.
+            subject=parsed_args.subject,
+            # Conserve le run normalisé par argparse.
+            run=parsed_args.run,
+            # Traduit seulement les options explicitement fournies.
+            module_args=_build_module_args(parsed_args),
+        )
+        # Le choix est borné à train/predict par le parser.
+        module_name = f"tpv.{parsed_args.mode}"
+        # Retourne directement le résultat du module spécialisé.
+        return _call_module(module_name, call_config)
+    # Sans positionnels, délègue tous les calculs au moteur d'agrégation unique.
+    return aggregate_experience_scores.main(_normalize_global_args(provided_args))
 
-    # Retourne un code explicite si aucun mode valide n'est routé
-    return 1
 
-
-# Protège l'exécution directe pour déléguer au main
-if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
-    # Expose le code retour comme exit code du processus
+# Protège les imports tout en exposant un exécutable autonome à l'évaluateur.
+if __name__ == "__main__":  # pragma: no cover - point d'entrée CLI
+    # Transforme le résultat du routeur en code de sortie du processus.
     raise SystemExit(main())

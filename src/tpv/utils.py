@@ -3,11 +3,17 @@
 # Garantit l'évaluation paresseuse des annotations de type
 from __future__ import annotations
 
+# Fournit les erreurs de type attendues par les parseurs argparse.
+import argparse
+
 # Offre la sérialisation JSON pour charger une configuration externe
 import json
 
 # Offre les validations numériques pour les bornes de fenêtres
 import math
+
+# Lit la racine dataset configurable par l'environnement.
+import os
 
 # Fournit la structure immuable pour les configurations
 from dataclasses import dataclass
@@ -16,13 +22,292 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Expose les types de mapping pour les signatures
-from typing import Mapping
+from typing import Iterator, Mapping
 
 # Définit le type d'une fenêtre d'epoch en secondes
 EpochWindow = tuple[float, float]
 
 # Code de sortie réservé aux erreurs utilisateur déjà rendues lisiblement
 HANDLED_CLI_ERROR_EXIT_CODE = 2
+# Centralise les conventions de stockage communes aux commandes publiques.
+DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
+DEFAULT_DATA_DIR = Path(os.environ.get(DATA_DIR_ENV_VAR, "data")).expanduser()
+DEFAULT_ARTIFACTS_DIR = Path("artifacts")
+DEFAULT_RAW_DIR = DEFAULT_DATA_DIR
+DEFAULT_EEG_REFERENCE = "average"
+EXPECTED_FEATURES_DIMENSIONS = 3
+
+
+# Centralise la convention PhysioNet partagée par toutes les commandes.
+def normalize_identifier(value: str, prefix: str, width: int, label: str) -> str:
+    """Normalise un identifiant numérique avec son préfixe canonique."""
+
+    # Retire les espaces qui provoqueraient un diagnostic trompeur.
+    cleaned_value = value.strip()
+    # Une valeur vide ne peut désigner ni sujet ni run.
+    if not cleaned_value:
+        # argparse rendra ce message avec l'usage de la commande concernée.
+        raise argparse.ArgumentTypeError(f"{label} vide")
+    # Accepte les formes courtes 1 et préfixées S001/R01.
+    has_prefix = cleaned_value[0].upper() == prefix.upper()
+    # Isole la partie qui doit être strictement numérique.
+    numeric_part = cleaned_value[1:] if has_prefix else cleaned_value
+    # Refuse les suffixes et signes afin de garder des chemins prévisibles.
+    if not numeric_part.isdigit():
+        # Le message conserve la valeur originale pour faciliter la correction.
+        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
+    # Convertit avant formatage pour supprimer les zéros excédentaires.
+    numeric_value = int(numeric_part)
+    # PhysioNet numérote sujets et runs à partir de un.
+    if numeric_value < 1:
+        # Le même diagnostic est utilisé par toutes les interfaces publiques.
+        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
+    # Applique la largeur officielle utilisée dans les noms de fichiers.
+    return f"{prefix}{numeric_value:0{width}d}"
+
+
+# Fournit le parseur canonique d'identifiant sujet aux cinq commandes.
+def parse_subject(value: str) -> str:
+    """Retourne un identifiant sujet au format Sxxx."""
+
+    # Réutilise la règle unique pour empêcher toute divergence future.
+    return normalize_identifier(value, "S", 3, "Sujet")
+
+
+# Fournit le parseur canonique d'identifiant run aux cinq commandes.
+def parse_run(value: str) -> str:
+    """Retourne un identifiant run au format Rxx."""
+
+    # Réutilise la règle unique pour empêcher toute divergence future.
+    return normalize_identifier(value, "R", 2, "Run")
+
+
+# Ajoute les identifiants PhysioNet avec un contrat identique entre commandes
+def add_subject_run_arguments(parser: argparse.ArgumentParser) -> None:
+    """Ajoute les arguments positionnels sujet et run canoniques."""
+
+    # Le sujet utilise l'unique parseur qui accepte 1 comme S001
+    parser.add_argument(
+        # Le nom stable permet aux points d'entrée de partager le même Namespace
+        "subject",
+        # La normalisation commune évite toute divergence de chemin entre modes
+        type=parse_subject,
+        # L'exemple documente simultanément les deux formes autorisées
+        help="Identifiant du sujet (ex: 1 ou S001)",
+    )
+    # Le run utilise l'unique parseur qui accepte 3 comme R03
+    parser.add_argument(
+        # Le nom stable reste compatible avec train, predict et realtime
+        "run",
+        # La normalisation commune protège la convention des fichiers PhysioNet
+        type=parse_run,
+        # L'exemple documente simultanément les deux formes autorisées
+        help="Identifiant du run (ex: 3 ou R03)",
+    )
+
+
+# Ajoute les racines partagées sans imposer raw_dir aux commandes qui l'ignorent
+def add_storage_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    include_raw: bool,
+) -> None:
+    """Ajoute les chemins data, artifacts et éventuellement raw."""
+
+    # La racine numpy respecte notamment EEGMMIDB_DATA_DIR quand il est défini
+    parser.add_argument(
+        # Cette option reste identique dans toutes les commandes publiques
+        "--data-dir",
+        # Path évite de dépendre des séparateurs propres au système
+        type=Path,
+        # La source unique applique la même convention de stockage partout
+        default=DEFAULT_DATA_DIR,
+        # Le texte neutre convient à l'entraînement comme à la prédiction
+        help="Répertoire racine contenant les fichiers numpy",
+    )
+    # La racine d'artefacts regroupe modèles, matrices et rapports persistés
+    parser.add_argument(
+        # Cette option reste identique dans toutes les commandes publiques
+        "--artifacts-dir",
+        # Path garantit le même contrat de type dans chaque Namespace
+        type=Path,
+        # La source unique évite un chemin en dur propre à une commande
+        default=DEFAULT_ARTIFACTS_DIR,
+        # Le texte couvre aussi bien la lecture que l'écriture d'artefacts
+        help="Répertoire racine contenant les artefacts du modèle",
+    )
+    # Realtime consomme uniquement les caches et n'a pas besoin de fichiers EDF
+    if not include_raw:
+        # Le retour évite d'exposer une option que la commande n'utiliserait pas
+        return
+    # Les commandes capables de reconstruire les caches doivent localiser les EDF
+    parser.add_argument(
+        # Cette option reste identique dans les trois flux de reconstruction
+        "--raw-dir",
+        # Path maintient un type portable jusqu'au chargeur MNE
+        type=Path,
+        # La racine brute suit par défaut la même racine configurable que data
+        default=DEFAULT_RAW_DIR,
+        # Le texte précise que ce chemin porte les enregistrements sources
+        help="Répertoire racine contenant les fichiers EDF bruts",
+    )
+
+
+# Centralise l'alias CLI qui désactive explicitement le re-référencement.
+def parse_eeg_reference(value: str) -> str | None:
+    """Normalise une référence EEG ou traduit « none » en None."""
+
+    # Retire les espaces sans restreindre les références personnalisées MNE.
+    cleaned_value = value.strip()
+    # Une chaîne vide rendrait le choix de référence ambigu.
+    if not cleaned_value:
+        # argparse affichera ce diagnostic à proximité de l'option fautive.
+        raise argparse.ArgumentTypeError("Référence EEG vide")
+    # L'alias documenté permet de désactiver le re-référencement.
+    if cleaned_value.lower() == "none":
+        # None est la représentation comprise par le prétraitement partagé.
+        return None
+    # Préserve les noms de canaux ou références acceptés par MNE.
+    return cleaned_value
+
+
+# Centralise les chemins numpy générés depuis un enregistrement EDF.
+def resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, Path]:
+    """Retourne les chemins X et y d'un couple sujet/run."""
+
+    # Chaque sujet garde ses caches isolés pour éviter les collisions.
+    subject_dir = data_dir / subject
+    # La convention Rxx_X.npy est partagée entre train, predict et realtime.
+    features_path = subject_dir / f"{run}_X.npy"
+    # La convention Rxx_y.npy garde les labels alignés sur les epochs.
+    labels_path = subject_dir / f"{run}_y.npy"
+    # Le tuple stabilise le contrat utilisé par les trois appelants.
+    return features_path, labels_path
+
+
+# Centralise la convention de nommage des deux fichiers bruts d'un run PhysioNet.
+def resolve_recording_paths(raw_dir: Path, subject: str, run: str) -> tuple[Path, Path]:
+    """Retourne les chemins EDF et événement d'un couple sujet/run."""
+
+    # Le signal brut est rangé dans le dossier du sujet selon la convention officielle.
+    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    # Le fichier d'événements porte le suffixe composé attendu par les chargeurs MNE.
+    event_path = raw_path.with_suffix(".edf.event")
+    # Le tuple évite que chaque appelant reconstruise indépendamment ces deux chemins.
+    return raw_path, event_path
+
+
+# Énumère le périmètre attendu sans réimplémenter les index de sujets et de runs.
+def iter_expected_recordings(
+    data_dir: Path, subject_count: int, run_count: int
+) -> Iterator[tuple[str, str, Path, Path]]:
+    """Produit sujet, run, EDF et événement pour le dataset attendu."""
+
+    # Les sujets PhysioNet sont numérotés à partir de un avec trois chiffres.
+    for subject_index in range(1, subject_count + 1):
+        # La représentation canonique est partagée avec les parseurs CLI.
+        subject = f"S{subject_index:03d}"
+        # Chaque sujet possède des runs numérotés à partir de un sur deux chiffres.
+        for run_index in range(1, run_count + 1):
+            # La représentation canonique protège les recherches sur disque.
+            run = f"R{run_index:02d}"
+            # Les deux chemins proviennent désormais de l'unique convention PhysioNet.
+            raw_path, event_path = resolve_recording_paths(data_dir, subject, run)
+            # Le générateur évite de matérialiser inutilement tout l'inventaire.
+            yield subject, run, raw_path, event_path
+
+
+# Compte les EDF présents par dossier sujet pour les rapports d'intégrité.
+def collect_run_counts(data_root: Path) -> dict[str, int]:
+    """Retourne le nombre de fichiers EDF trouvé pour chaque dossier sujet."""
+
+    # Le dictionnaire conserve aussi les dossiers vides pour signaler zéro run.
+    subject_counts: dict[str, int] = {}
+    # Seuls les enfants directs représentent des sujets dans la structure officielle.
+    for subject_dir in data_root.iterdir():
+        # Les fichiers parasites à la racine ne doivent pas devenir des sujets.
+        if not subject_dir.is_dir():
+            # Le scan continue pour produire un rapport complet malgré ces fichiers.
+            continue
+        # Le glob local exclut les fichiers d'événements et les sous-dossiers.
+        subject_counts[subject_dir.name] = len(list(subject_dir.glob("*.edf")))
+    # Le résultat est réutilisable par les contrôles stricts et les rapports détaillés.
+    return subject_counts
+
+
+# Vérifie les deux fichiers constitutifs d'un enregistrement PhysioNet.
+def ensure_physionet_files_exist(
+    subject: str,
+    run: str,
+    raw_path: Path,
+    event_path: Path,
+) -> None:
+    """Refuse un enregistrement EDF absent, vide ou incomplet."""
+
+    if not raw_path.exists() or raw_path.stat().st_size == 0:
+        raise FileNotFoundError(
+            f"EDF introuvable pour {subject} {run}: {raw_path}. "
+            "Lancez `make download_dataset` ou pointez --raw-dir vers "
+            "un dataset EEGMMIDB complet."
+        )
+    if not event_path.exists() or event_path.stat().st_size == 0:
+        raise FileNotFoundError(
+            f"Fichier événement introuvable pour {subject} {run}: {event_path}. "
+            "Le dataset semble incomplet: relancez `make download_dataset` "
+            f"ou définissez {DATA_DIR_ENV_VAR} vers un dossier valide."
+        )
+
+
+# Extrait exclusivement la métrique de validation croisée d'un manifeste de run.
+def extract_cv_mean(manifest: Mapping[str, object]) -> float | None:
+    """Retourne `scores.cv_mean` lorsqu'il contient une valeur numérique."""
+
+    # Une autre section ou un ancien report ne constitue pas une preuve de validation.
+    scores = manifest.get("scores")
+    # La structure doit rester explicite avant de lire la métrique imbriquée.
+    if not isinstance(scores, dict):
+        # L'appelant choisira entre ignorer le cache ou lever une erreur détaillée.
+        return None
+    # Seule la moyenne des folds est acceptable pour le score officiel.
+    validation_accuracy = scores.get("cv_mean")
+    # Les nombres JSON natifs sont normalisés pour les agrégations NumPy ultérieures.
+    if isinstance(validation_accuracy, (float, int)):
+        # Le float stabilise le contrat entre entiers et décimaux sérialisés.
+        return float(validation_accuracy)
+    # Une valeur absente ou textuelle ne doit jamais être convertie silencieusement.
+    return None
+
+
+# Centralise le chemin de la fenêtre retenue pour un couple sujet/run.
+def resolve_epoch_window_path(subject: str, run: str, data_dir: Path) -> Path:
+    """Retourne le fichier JSON décrivant la fenêtre d'epochs retenue."""
+
+    # Conserve la métadonnée à côté des matrices du même sujet.
+    return data_dir / subject / f"{run}_epoch_window.json"
+
+
+# Charge une fenêtre persistée en conservant un fallback choisi par l'appelant.
+def read_epoch_window_metadata(
+    subject: str,
+    run: str,
+    data_dir: Path,
+    default: EpochWindow | None = None,
+) -> EpochWindow | None:
+    """Retourne la fenêtre persistée ou le fallback fourni si elle manque."""
+
+    # Résout le même chemin pour l'entraînement et la prédiction.
+    window_path = resolve_epoch_window_path(subject, run, data_dir)
+    # Respecte la politique de fallback propre à chaque commande.
+    if not window_path.exists():
+        return default
+    # Charge les deux bornes à partir du document produit par l'entraînement.
+    payload = json.loads(window_path.read_text())
+    # Les clés absentes reprennent la fenêtre métier canonique.
+    tmin = float(payload.get("tmin", DEFAULT_EPOCH_WINDOW[0]))
+    tmax = float(payload.get("tmax", DEFAULT_EPOCH_WINDOW[1]))
+    # Restitue le même tuple numérique que les anciennes implémentations.
+    return (tmin, tmax)
+
 
 # Fixe le nombre de bornes attendues pour une fenêtre
 WINDOW_BOUNDS_COUNT = 2
@@ -61,6 +346,44 @@ class CliErrorDiagnostic:
     summary: str
     # Propose une action concrète lorsque le diagnostic le permet
     action: str | None = None
+
+
+# Regroupe les chemins d'artefacts d'un entraînement atomique.
+@dataclass(frozen=True)
+class ArtifactPaths:
+    """Expose les fichiers persistés pour un couple sujet/run."""
+
+    directory: Path
+    model: Path
+    w_matrix: Path
+    scaler: Path
+    manifest: Path
+
+
+# Centralise la convention de stockage des artefacts du modèle.
+def resolve_artifact_paths(
+    artifacts_dir: Path, subject: str, run: str
+) -> ArtifactPaths:
+    """Retourne tous les chemins d'artefacts d'un couple sujet/run."""
+
+    directory = artifacts_dir / subject / run
+    return ArtifactPaths(
+        directory=directory,
+        model=directory / "model.joblib",
+        w_matrix=directory / "w_matrix.joblib",
+        scaler=directory / "scaler.joblib",
+        manifest=directory / "manifest.json",
+    )
+
+
+# Charge les manifests et rapports JSON depuis une seule implémentation.
+def load_json_object(path: Path) -> dict[str, object]:
+    """Retourne un document JSON dont la racine doit être un objet."""
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"La racine JSON doit être un objet: {path}")
+    return payload
 
 
 # Décode une erreur JSON structurée lorsque le backend l'expose

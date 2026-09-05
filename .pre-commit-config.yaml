@@ -62,10 +62,10 @@ repos:
   # Analyse complexité + mutation testing + tests
   - repo: local
     hooks:
-      # Audit dépendances (via l'environnement Poetry local)
+      # Audit dépendances via l'environnement uv verrouillé
       - id: pip-audit
         name: pip-audit
-        entry: poetry run pip-audit --progress-spinner=off --skip-editable
+        entry: uv run --frozen pip-audit --progress-spinner=off --skip-editable
         language: system
         pass_filenames: false
         stages: [pre-push]
@@ -84,10 +84,10 @@ repos:
         language: system
         pass_filenames: false
 
-      # Tests unitaires + coverage (rapide, via Poetry)
+      # Tests unitaires via uv
       - id: pytest
         name: pytest
-        entry: poetry run pytest
+        entry: uv run --frozen pytest
         language: system
         pass_filenames: false
         stages: [pre-push]
@@ -95,7 +95,7 @@ repos:
       # Mutation testing sur le cœur ML/BCI
       - id: mutmut
         name: mutmut
-        entry: poetry run mutmut run --paths-to-mutate src/tpv
+        entry: uv run --frozen mutmut run --paths-to-mutate src/tpv
         language: system
         pass_filenames: false
         stages: [pre-push]

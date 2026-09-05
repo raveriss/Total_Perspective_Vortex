@@ -69,6 +69,79 @@ LDA_SOLVER = "svd"
 LDA_SHRINKAGE = None
 # Fixe un nombre de composantes par défaut pour CSP en mode Welch
 DEFAULT_WELCH_CSP_COMPONENTS = 4
+# Expose les choix CLI depuis une seule source de vérité.
+CLASSIFIER_CHOICES = ("lda", "logistic", "svm", "centroid")
+SCALER_CHOICES = ("standard", "robust", "none")
+FEATURE_STRATEGIES = ("fft", "welch", "wavelet")
+DIMENSIONALITY_METHODS = ("pca", "csp", "cssp", "svd")
+SPATIAL_METHODS = ("csp", "cssp")
+SIGNAL_FEATURE_STRATEGIES = ("welch", "wavelet")
+
+
+# Signale un ordre spatial puis spectral implicite sans modifier la configuration
+def warn_if_spectral_features_follow_spatial_filter(
+    feature_strategy: str,
+    dim_method: str,
+    dim_method_explicit: bool,
+) -> None:
+    """Explique l'ordre CSP/CSSP → Welch/Wavelet lorsqu'il est implicite."""
+
+    # Une stratégie temporelle ou FFT ne nécessite pas ce diagnostic d'ordre
+    if feature_strategy not in SIGNAL_FEATURE_STRATEGIES:
+        # Le helper reste sans effet lorsque les features ne sont pas spectrales
+        return
+    # PCA et SVD n'appliquent pas le filtre spatial concerné par l'avertissement
+    if dim_method not in SPATIAL_METHODS:
+        # Le helper ne doit pas commenter une combinaison sans CSP ou CSSP
+        return
+    # Un choix explicite signifie que l'utilisateur connaît déjà cet enchaînement
+    if dim_method_explicit:
+        # Le mode explicite reste silencieux pour préserver les sorties CLI
+        return
+    # Ce message historique rend visible l'ordre réel sans changer le pipeline
+    print(
+        # La formulation reste stable pour les tests et la démonstration existants
+        "INFO: dim_method='csp/cssp' appliqué avant l'extraction des features."
+    )
+
+
+# Construit l'extracteur spectral commun aux deux variantes de pipeline.
+def _build_feature_extractor(config: PipelineConfig) -> ExtractFeatures:
+    """Retourne l'extracteur configuré sans dupliquer ses paramètres."""
+
+    return ExtractFeatures(
+        sfreq=config.sfreq,
+        feature_strategy=config.feature_strategy,
+        normalize=config.normalize_features,
+        strategy_config=config.feature_strategy_config,
+    )
+
+
+# Construit le filtre spatial commun aux pipelines standard et de recherche.
+def _build_spatial_filter(config: PipelineConfig, uses_signal_features: bool) -> CSP:
+    """Retourne CSP/CSSP avec exactement les mêmes valeurs par défaut."""
+
+    csp_components = config.n_components
+    if uses_signal_features and csp_components is None:
+        csp_components = DEFAULT_WELCH_CSP_COMPONENTS
+    return CSP(
+        n_components=csp_components,
+        regularization=config.csp_regularization,
+        method=config.dim_method,
+        return_log_variance=not uses_signal_features,
+    )
+
+
+# Ajoute ensemble l'extraction tabulaire et son scaler optionnel.
+def _append_feature_steps(
+    steps: List[Tuple[str, object]], config: PipelineConfig
+) -> None:
+    """Ajoute les étapes features puis scaler en conservant leur ordre."""
+
+    steps.append(("features", _build_feature_extractor(config)))
+    scaler = _build_scaler(config.scaler)
+    if scaler is not None:
+        steps.append(("scaler", scaler))
 
 
 # Construit une pipeline complète incluant préprocessing, features et classification
@@ -80,73 +153,26 @@ def build_pipeline(
     # Prépare la liste des étapes en partant d'éventuels préprocesseurs
     steps: List[Tuple[str, object]] = list(preprocessors or [])
     # Indique si CSP ou CSSP est utilisé pour adapter la pipeline
-    uses_csp = config.dim_method in {"csp", "cssp"}
+    uses_csp = config.dim_method in SPATIAL_METHODS
     # Identifie les stratégies de features nécessitant un signal projeté
-    uses_signal_features = config.feature_strategy in {"welch", "wavelet"}
-    # Prépare le nombre de composantes CSP effectif pour Welch+CSP
-    csp_components = config.n_components
-    # Applique un défaut seulement pour Welch afin de comparer les pipelines
-    if uses_csp and uses_signal_features and csp_components is None:
-        # Définit un nombre de composantes stable pour le benchmark Welch+CSP
-        csp_components = DEFAULT_WELCH_CSP_COMPONENTS
+    uses_signal_features = config.feature_strategy in SIGNAL_FEATURE_STRATEGIES
     # Ajoute l'extracteur de features lorsqu'on n'utilise pas CSP/CSSP
     if not uses_csp:
-        # Convertit les signaux bruts en vecteurs tabulaires
-        steps.append(
-            (
-                "features",
-                ExtractFeatures(
-                    sfreq=config.sfreq,
-                    feature_strategy=config.feature_strategy,
-                    normalize=config.normalize_features,
-                    # Transmet la configuration Welch/Wavelet si fournie
-                    strategy_config=config.feature_strategy_config,
-                ),
-            )
-        )
-        # Insère un scaler optionnel pour stabiliser la variance des features
-        scaler_instance = _build_scaler(config.scaler)
-        # Ajoute le scaler uniquement lorsqu'il est explicitement demandé
-        if scaler_instance is not None:
-            # Sécurise la position du scaler juste après les features tabulaires
-            steps.append(("scaler", scaler_instance))
+        # Convertit le signal en features puis applique le scaler demandé.
+        _append_feature_steps(steps, config)
     # Ajoute CSP/CSSP en amont si la réduction spatiale est demandée
     if uses_csp:
-        # Choisit la sortie CSP selon la présence de features spectrales
-        return_log_variance = not uses_signal_features
         # Ajoute le bloc CSP/CSSP pour filtrer les signaux EEG
         steps.append(
             (
                 "spatial_filters",
-                CSP(
-                    n_components=csp_components,
-                    regularization=config.csp_regularization,
-                    method=config.dim_method,
-                    return_log_variance=return_log_variance,
-                ),
+                _build_spatial_filter(config, uses_signal_features),
             )
         )
         # Ajoute l'extracteur de features après CSP en mode Welch/Wavelet
         if uses_signal_features:
-            # Convertit les signaux projetés en vecteurs tabulaires
-            steps.append(
-                (
-                    "features",
-                    ExtractFeatures(
-                        sfreq=config.sfreq,
-                        feature_strategy=config.feature_strategy,
-                        normalize=config.normalize_features,
-                        # Transmet la configuration Welch/Wavelet si fournie
-                        strategy_config=config.feature_strategy_config,
-                    ),
-                )
-            )
-            # Insère un scaler optionnel pour stabiliser la variance des features
-            scaler_instance = _build_scaler(config.scaler)
-            # Ajoute le scaler uniquement lorsqu'il est explicitement demandé
-            if scaler_instance is not None:
-                # Sécurise la position du scaler après les features projetées
-                steps.append(("scaler", scaler_instance))
+            # Convertit le signal projeté puis applique le même contrat de scaling.
+            _append_feature_steps(steps, config)
     else:
         # Ajoute la réduction de dimension pour compacter les représentations
         steps.append(
@@ -172,22 +198,16 @@ def build_search_pipeline(config: PipelineConfig) -> Pipeline:
     """Assemble une pipeline avec des étapes paramétrables pour GridSearch."""
 
     # Signale l'usage de CSP/CSSP pour adapter les étapes de pipeline
-    uses_csp = config.dim_method in {"csp", "cssp"}
+    uses_csp = config.dim_method in SPATIAL_METHODS
     # Identifie les stratégies nécessitant un signal projeté
-    uses_signal_features = config.feature_strategy in {"welch", "wavelet"}
+    uses_signal_features = config.feature_strategy in SIGNAL_FEATURE_STRATEGIES
     # Prépare les étapes fixes de la pipeline
     if not uses_csp:
         # Construit une pipeline classique avec extracteur et scaler configurable
         steps: List[Tuple[str, object]] = [
             (
                 "features",
-                ExtractFeatures(
-                    sfreq=config.sfreq,
-                    feature_strategy=config.feature_strategy,
-                    normalize=config.normalize_features,
-                    # Transmet la configuration Welch/Wavelet si fournie
-                    strategy_config=config.feature_strategy_config,
-                ),
+                _build_feature_extractor(config),
             ),
             # Utilise passthrough pour autoriser la sélection de scaler en grid search
             ("scaler", "passthrough"),
@@ -202,24 +222,11 @@ def build_search_pipeline(config: PipelineConfig) -> Pipeline:
             ("classifier", _build_classifier(config.classifier)),
         ]
     else:
-        # Fixe un nombre de composantes par défaut pour Welch+CSP en recherche
-        csp_components = config.n_components
-        # Applique un défaut stable pour Welch afin d'assurer la comparaison
-        if uses_signal_features and csp_components is None:
-            # Réutilise le même défaut que la pipeline standard
-            csp_components = DEFAULT_WELCH_CSP_COMPONENTS
-        # Choisit la sortie CSP selon la présence de features spectrales
-        return_log_variance = not uses_signal_features
         # Construit la pipeline CSP/CSSP avec éventuelles features
         steps = [
             (
                 "spatial_filters",
-                CSP(
-                    n_components=csp_components,
-                    regularization=config.csp_regularization,
-                    method=config.dim_method,
-                    return_log_variance=return_log_variance,
-                ),
+                _build_spatial_filter(config, uses_signal_features),
             ),
         ]
         # Ajoute les features spectrales après CSP pour Welch/Wavelet
@@ -228,13 +235,7 @@ def build_search_pipeline(config: PipelineConfig) -> Pipeline:
             steps.append(
                 (
                     "features",
-                    ExtractFeatures(
-                        sfreq=config.sfreq,
-                        feature_strategy=config.feature_strategy,
-                        normalize=config.normalize_features,
-                        # Transmet la configuration Welch/Wavelet si fournie
-                        strategy_config=config.feature_strategy_config,
-                    ),
+                    _build_feature_extractor(config),
                 )
             )
             # Permet le scaler en passthrough pour la grid search

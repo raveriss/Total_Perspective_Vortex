@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 # Importe les réducteurs dimensionnels de TPV à vérifier
-from tpv.dimensionality import CSP, TPVDimReducer
+from tpv.dimensionality import CSP, CovarianceTangentSpace, FilterBankCSP, TPVDimReducer
 
 # Définit un seuil de domination pour la variance expliquée
 DOMINANT_VARIANCE_THRESHOLD = 0.9
@@ -43,10 +43,11 @@ def test_csp_returns_log_variances_and_orthogonality() -> None:
     channels = 3
     # Fixe le nombre d'échantillons temporels
     time_points = 64
-    # Génère des essais faiblement énergétiques pour la classe A
-    class_a = rng.standard_normal((trials_per_class, channels, time_points)) * 0.5
-    # Génère des essais fortement énergétiques pour la classe B
-    class_b = rng.standard_normal((trials_per_class, channels, time_points)) * 2.0
+    # Crée deux motifs spatiaux opposés, comme une latéralisation motrice.
+    class_a = rng.standard_normal((trials_per_class, channels, time_points)) * 0.2
+    class_b = rng.standard_normal((trials_per_class, channels, time_points)) * 0.2
+    class_a[:, 0, :] *= 6.0
+    class_b[:, 1, :] *= 6.0
     # Concatène les essais pour former le jeu complet
     trials = np.concatenate([class_a, class_b], axis=0)
     # Crée les labels binaires associés
@@ -59,15 +60,15 @@ def test_csp_returns_log_variances_and_orthogonality() -> None:
     projected = reducer.transform(trials)
     # Vérifie la forme des features renvoyées
     assert projected.shape == (trials_per_class * 2, channels)
-    # Calcule la moyenne des features par classe pour vérifier la séparation
-    mean_a = projected[:trials_per_class].mean(axis=0)
-    # Calcule la moyenne pour la seconde classe
-    mean_b = projected[trials_per_class:].mean(axis=0)
-    # Vérifie que la classe énergique produit des variances plus élevées
-    assert np.all(mean_b > mean_a)
+    # Les deux premiers filtres doivent favoriser des classes opposées.
+    feature_delta = projected[:trials_per_class].mean(axis=0) - projected[
+        trials_per_class:
+    ].mean(axis=0)
+    assert np.any(feature_delta > 1.0)
+    assert np.any(feature_delta < -1.0)
     # Reconstruit la matrice composite pour vérifier l'orthogonalité
-    composite = reducer._regularize_matrix(
-        reducer._average_covariance(class_a) + reducer._average_covariance(class_b)
+    composite = reducer._average_covariance(class_a) + reducer._average_covariance(
+        class_b
     )
     # Vérifie que la matrice W apprise est disponible avant le produit
     assert reducer.w_matrix is not None
@@ -125,22 +126,265 @@ def test_csp_cssp_projection_shapes_and_stability(
     assert np.isfinite(projected).all()
 
 
-# Vérifie que la moyenne de covariance reste normalisée et régularisée
-def test_average_covariance_regularizes_diagonal() -> None:
-    # Instancie un réducteur CSP avec régularisation diagonale
+def test_csp_component_selection_keeps_both_class_extremes() -> None:
+    """Une coupe CSP doit conserver un filtre informatif pour chaque classe."""
+
+    rng = np.random.default_rng(42)
+    class_a = rng.standard_normal((12, 4, 128)) * 0.1
+    class_b = rng.standard_normal((12, 4, 128)) * 0.1
+    class_a[:, 0, :] *= 12.0
+    class_b[:, 1, :] *= 12.0
+    trials = np.concatenate([class_a, class_b])
+    labels = np.repeat([0, 1], 12)
+
+    transformer = CSP(n_components=2, regularization=0.1)
+    transformer.fit(trials, labels)
+
+    assert transformer.eigenvalues_ is not None
+    assert np.any(transformer.eigenvalues_ > 0.5)
+    assert np.any(transformer.eigenvalues_ < 0.5)
+
+
+def test_filter_bank_csp_produces_one_feature_per_filter() -> None:
+    """FBCSP doit être clonable et produire des features finies sans fuite."""
+
+    sfreq = 64.0
+    times = np.arange(256) / sfreq
+    rng = np.random.default_rng(9)
+    trials = rng.standard_normal((20, 4, times.size)) * 0.05
+    labels = np.repeat([0, 1], 10)
+    trials[labels == 0, 0, :] += np.sin(2 * np.pi * 10.0 * times)
+    trials[labels == 1, 1, :] += np.sin(2 * np.pi * 10.0 * times)
+    transformer = FilterBankCSP(
+        sfreq=sfreq,
+        bands=((8.0, 12.0),),
+        windows=((0.0, 2.0), (2.0, 4.0)),
+        n_components=2,
+    )
+
+    features = transformer.fit_transform(trials, labels)
+
+    assert features.shape == (20, 4)
+    assert np.isfinite(features).all()
+    assert transformer.w_matrix is not None
+    assert transformer.w_matrix.shape == (2, 4, 2)
+
+
+def test_filter_bank_csp_can_learn_one_filter_set_per_run() -> None:
+    """Les groupes de run doivent multiplier les filtres sans toucher au test."""
+
+    sfreq = 64.0
+    times = np.arange(256) / sfreq
+    rng = np.random.default_rng(19)
+    labels = np.tile([0, 1], 12)
+    run_groups = np.repeat([0, 1, 2], 8)
+    trials = rng.standard_normal((24, 4, times.size)) * 0.05
+    trials[labels == 0, 0, :] += np.sin(2 * np.pi * 10.0 * times)
+    trials[labels == 1, 1, :] += np.sin(2 * np.pi * 10.0 * times)
+    transformer = FilterBankCSP(
+        sfreq=sfreq,
+        bands=((8.0, 12.0),),
+        windows=((0.0, 4.0),),
+        n_components=2,
+    )
+
+    features = transformer.fit_transform(
+        trials,
+        labels,
+        run_groups=run_groups,
+    )
+
+    assert features.shape == (24, 6)
+    assert transformer.filters_per_block_ == 3
+    assert transformer.w_matrix is not None
+    assert transformer.w_matrix.shape == (3, 4, 2)
+
+
+def test_filter_bank_csp_skips_run_missing_one_training_class() -> None:
+    """Un run incomplet ne doit pas invalider les autres filtres du pli."""
+
+    rng = np.random.default_rng(21)
+    trials = rng.standard_normal((18, 4, 256))
+    labels = np.array([0, 1] * 6 + [0] * 6)
+    run_groups = np.repeat([0, 1, 2], 6)
+    transformer = FilterBankCSP(
+        sfreq=64.0,
+        bands=((8.0, 12.0),),
+        windows=((0.0, 4.0),),
+        n_components=2,
+    )
+
+    features = transformer.fit_transform(
+        trials,
+        labels,
+        run_groups=run_groups,
+    )
+
+    assert transformer.filters_per_block_ == 2
+    assert features.shape == (18, 4)
+
+
+def test_filter_bank_csp_causal_filter_does_not_read_future_samples() -> None:
+    """WBS 7.4.3 / TPV-028: le préfixe filtré ne dépend jamais du futur."""
+
+    rng = np.random.default_rng(23)
+    trials = rng.standard_normal((2, 3, 320))
+    changed_future = trials.copy()
+    changed_future[:, :, 160:] += 100.0
+    transformer = FilterBankCSP(
+        sfreq=64.0,
+        bands=((8.0, 12.0),),
+        windows=((0.0, 2.0),),
+        filter_mode="causal",
+    )
+
+    original_prefix = transformer._filter_trials(trials, (8.0, 12.0))[:, :, :160]
+    changed_prefix = transformer._filter_trials(changed_future, (8.0, 12.0))[:, :, :160]
+
+    assert np.allclose(original_prefix, changed_prefix)
+
+
+def test_filter_bank_csp_can_compute_erd_ers_against_precue_baseline() -> None:
+    """WBS 7.4.3 / TPV-032: les features peuvent utiliser une baseline -1..0 s."""
+
+    rng = np.random.default_rng(24)
+    trials = rng.standard_normal((20, 4, 320))
+    labels = np.repeat([0, 1], 10)
+    transformer = FilterBankCSP(
+        sfreq=64.0,
+        bands=((8.0, 12.0),),
+        windows=((0.5, 2.5),),
+        n_components=2,
+        filter_mode="causal",
+        time_origin=-1.0,
+        baseline_window=(-1.0, 0.0),
+    )
+
+    features = transformer.fit_transform(trials, labels)
+
+    assert features.shape == (20, 2)
+    assert np.isfinite(features).all()
+
+
+def test_covariance_tangent_space_returns_symmetric_vectorization() -> None:
+    """WBS 7.4.3: la branche riemannienne reste une ablation séparée."""
+
+    rng = np.random.default_rng(25)
+    trials = rng.standard_normal((12, 4, 256))
+    transformer = CovarianceTangentSpace(regularization=0.1)
+
+    features = transformer.fit_transform(trials)
+
+    assert features.shape == (12, 10)
+    assert np.isfinite(features).all()
+
+
+@pytest.mark.parametrize(
+    ("transformer", "trials", "labels", "message"),
+    [
+        (FilterBankCSP(), np.ones((2, 3)), np.array([0, 1]), "3D"),
+        (FilterBankCSP(sfreq=0.0), np.ones((2, 3, 128)), np.array([0, 1]), "positive"),
+        (
+            FilterBankCSP(n_components=4),
+            np.ones((2, 3, 128)),
+            np.array([0, 1]),
+            "n_components",
+        ),
+        (FilterBankCSP(bands=()), np.ones((2, 3, 128)), np.array([0, 1]), "Nyquist"),
+        (
+            FilterBankCSP(windows=()),
+            np.ones((2, 3, 128)),
+            np.array([0, 1]),
+            "epoch duration",
+        ),
+        (
+            FilterBankCSP(
+                sfreq=64.0,
+                bands=((8.0, 12.0),),
+                windows=((0.0, 2.0),),
+                filter_mode="future",
+            ),
+            np.ones((2, 3, 128)),
+            np.array([0, 1]),
+            "filter_mode",
+        ),
+    ],
+)
+def test_filter_bank_csp_rejects_invalid_input_contracts(
+    transformer, trials, labels, message
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        transformer.fit(trials, labels)
+
+
+def test_filter_bank_csp_rejects_invalid_fit_and_state_contracts() -> None:
+    rng = np.random.default_rng(26)
+    trials = rng.standard_normal((8, 3, 256))
+    valid = FilterBankCSP(sfreq=64.0, bands=((8.0, 12.0),), windows=((0.0, 4.0),))
+    with pytest.raises(ValueError, match="y is required"):
+        valid.fit(trials)
+    with pytest.raises(ValueError, match="one label"):
+        valid.fit(trials, np.array([0, 1]))
+    with pytest.raises(ValueError, match="exactly two"):
+        valid.fit(trials, np.zeros(8))
+    labels = np.tile([0, 1], 4)
+    with pytest.raises(ValueError, match="one value per trial"):
+        valid.fit(trials, labels, run_groups=np.zeros(2))
+    pure_groups = np.repeat([0, 1], 4)
+    pure_labels = np.repeat([0, 1], 4)
+    with pytest.raises(ValueError, match="no run group"):
+        valid.fit(trials, pure_labels, run_groups=pure_groups)
+    with pytest.raises(ValueError, match="fitted before"):
+        valid.transform(trials)
+    valid.filters_ = []
+    with pytest.raises(ValueError, match="state is incomplete"):
+        valid.transform(trials)
+    valid.filters_per_block_ = 1
+    with pytest.raises(ValueError, match="inconsistent"):
+        valid.transform(trials)
+
+
+def test_filter_bank_csp_rejects_invalid_baseline_window() -> None:
+    transformer = FilterBankCSP(
+        sfreq=64.0,
+        bands=((8.0, 12.0),),
+        windows=((0.0, 2.0),),
+        baseline_window=(-1.0, 0.0),
+    )
+    with pytest.raises(ValueError, match="baseline_window"):
+        transformer.fit(np.ones((4, 3, 256)), np.tile([0, 1], 2))
+
+
+def test_covariance_tangent_space_rejects_invalid_inputs_and_state() -> None:
+    transformer = CovarianceTangentSpace()
+    with pytest.raises(ValueError, match="fitted before"):
+        transformer.transform(np.ones((2, 3, 16)))
+    with pytest.raises(ValueError, match="3D"):
+        transformer.fit(np.ones((2, 3)))
+    invalid = np.ones((2, 3, 16))
+    invalid[0, 0, 0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        transformer.fit(invalid)
+    transformer.fit(np.ones((2, 3, 16)))
+    with pytest.raises(ValueError, match="different number"):
+        transformer.transform(np.ones((2, 4, 16)))
+
+
+# Vérifie que le shrinkage respecte l'échelle de la covariance.
+def test_average_covariance_shrinks_toward_average_variance() -> None:
+    # Instancie un réducteur CSP avec un shrinkage de dix pour cent.
     reducer = TPVDimReducer(method="csp", regularization=0.1)
-    # Construit deux essais orthogonaux pour isoler les contributions
+    # Construit deux essais dont la covariance moyenne est anisotrope.
     trials = np.array(
         [
             [[1.0, 0.0], [0.0, 0.0]],
-            [[0.0, 0.0], [0.0, 1.0]],
+            [[1.0, 0.0], [0.0, 0.0]],
         ]
     )
-    # Calcule la covariance moyenne sur les essais synthétiques
     averaged = reducer._average_covariance(trials)
-    # Vérifie que la matrice résultante conserve la diagonale attendue
-    assert np.allclose(np.diag(averaged), [0.6, 0.6])
-    # Vérifie que les termes hors diagonale restent nuls après moyenne
+    # La trace reste unitaire et la petite variance reçoit 5 %.
+    assert np.allclose(np.diag(averaged), [0.95, 0.05])
+    assert np.trace(averaged) == pytest.approx(1.0)
     assert averaged[0, 1] == pytest.approx(0.0)
 
 
@@ -230,36 +474,13 @@ def test_regularize_matrix_does_not_inject_identity_when_regularization_is_zero(
     assert regularized.dtype == matrix.dtype
 
 
-def test_regularize_matrix_builds_identity_from_first_dimension(monkeypatch) -> None:
-    """La taille de l'identité doit dépendre de shape[0] et pas de shape[1]."""
+def test_regularize_matrix_rejects_non_square_covariance() -> None:
+    """Le shrinkage doit refuser une entrée qui n'est pas une covariance."""
 
-    # Importe le module pour patcher np.eye au bon endroit
-    import tpv.dimensionality as dimensionality_module
-
-    # Conserve la fonction eye d'origine pour déléguer sans modifier NumPy
-    original_eye = dimensionality_module.np.eye
-    # Prépare une capture pour verrouiller l'argument de np.eye
-    captured: dict[str, object] = {}
-
-    # Définit un espion pour enregistrer la taille demandée pour l'identité
-    def spy_eye(n):
-        # Conserve n pour détecter shape[0] versus shape[1]
-        captured["n"] = n
-        # Délègue à NumPy pour préserver la forme et le dtype attendus
-        return original_eye(n)
-
-    # Patche np.eye dans le module afin d'observer l'appel interne
-    monkeypatch.setattr(dimensionality_module.np, "eye", spy_eye)
-
-    # Instancie un réducteur avec régularisation positive pour forcer l'identité
     reducer = TPVDimReducer(method="pca", regularization=0.1)
-    # Construit une matrice non carrée pour rendre observable le choix de dimension
     matrix = np.ones((2, 3))
-    # Vérifie que l'addition échoue sur une matrice non carrée
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="square matrix"):
         reducer._regularize_matrix(matrix)
-    # Verrouille que np.eye utilise la première dimension de la matrice
-    assert captured.get("n") == matrix.shape[0]
 
 
 def test_pca_explained_variance_and_projection_shape() -> None:

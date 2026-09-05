@@ -5,6 +5,9 @@ import csv
 
 # Importe json pour inspecter les manifestes sérialisés
 import json
+
+# Partial lie le chargeur train au helper de contexte partagé
+from functools import partial
 from pathlib import Path
 
 # Importe numpy pour générer des données synthétiques
@@ -28,51 +31,13 @@ from scripts.train import (
     _write_manifest,
     run_training,
 )
+from tests.helpers import load_data_with_context
 
 # Importe PipelineConfig pour aligner les paramètres du pipeline
 from tpv.pipeline import PipelineConfig
 
-
-# Construit un contexte de génération des numpy pour les tests roundtrip
-def _build_npy_context(
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str,
-) -> train.NpyBuildContext:
-    # Construit une configuration de prétraitement par défaut
-    preprocess_config = train.preprocessing.PreprocessingConfig()
-    # Retourne le contexte complet pour charger/générer les numpy
-    return train.NpyBuildContext(
-        # Transmet le répertoire de base des numpy
-        data_dir=data_dir,
-        # Transmet le répertoire des EDF bruts
-        raw_dir=raw_dir,
-        # Transmet la référence EEG configurée
-        eeg_reference=eeg_reference,
-        # Transmet la configuration de prétraitement
-        preprocess_config=preprocess_config,
-    )
-
-
-# Charge les données via l'API interne en utilisant un contexte explicite
-def _load_data_with_context(
-    subject: str,
-    run: str,
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str,
-) -> tuple[np.ndarray, np.ndarray]:
-    # Construit le contexte de génération des numpy
-    build_context = _build_npy_context(
-        # Transmet le répertoire de base des numpy
-        data_dir,
-        # Transmet le répertoire des EDF bruts
-        raw_dir,
-        # Transmet la référence EEG configurée
-        eeg_reference,
-    )
-    # Délègue à l'API interne avec contexte explicite
-    return train._load_data(subject, run, build_context)
+# Lie explicitement la politique train sans la déplacer dans le helper générique
+_load_data_with_context = partial(load_data_with_context, train._load_data)
 
 
 # Vérifie qu'entraînement et prédiction produisent manifestes et rapports
@@ -231,8 +196,8 @@ def test_train_main_produces_manifest_and_scaler(tmp_path, monkeypatch):
     )
 
 
-def test_run_training_handles_two_splits_without_cv(tmp_path):
-    """Valide la génération de manifeste quand la validation croisée est bypassée."""
+def test_run_training_validates_four_samples_with_centroid_fallback(tmp_path):
+    """Valide la CV du plus petit jeu équilibré grâce au fallback centroïde."""
 
     # Fixe le sujet synthétique pour construire l'arborescence attendue
     subject = "S02"
@@ -273,14 +238,14 @@ def test_run_training_handles_two_splits_without_cv(tmp_path):
     )
     # Lance l'entraînement pour générer le modèle et le manifeste
     result = run_training(request)
-    # Vérifie que la validation croisée a été ignorée faute de splits suffisants
-    assert result["cv_scores"].size == 0
+    # Le splitter répété conserve une classe de chaque côté sur les dix folds.
+    assert result["cv_scores"].size == 10
     # Charge le manifeste pour inspecter les valeurs sérialisées
     manifest = json.loads(result["manifest_path"].read_text())
-    # Vérifie que la liste des scores est bien vide dans le manifeste
-    assert manifest["scores"]["cv_scores"] == []
-    # Vérifie que la moyenne des scores est absente lorsque la CV est omise
-    assert manifest["scores"]["cv_mean"] is None
+    # Le manifeste doit tracer la configuration réellement entraînée.
+    assert manifest["hyperparams"]["classifier"] == "centroid"
+    assert len(manifest["scores"]["cv_scores"]) == 10
+    assert manifest["scores"]["cv_mean"] is not None
     # Vérifie que le scaler reste absent lorsqu'aucun scaler n'est configuré
     assert manifest["artifacts"]["scaler"] is None
 

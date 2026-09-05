@@ -34,8 +34,8 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> (
     artifacts_dir_action = _get_action(parser, "artifacts_dir")
     raw_dir_action = _get_action(parser, "raw_dir")
 
-    assert subject_action.help == "Identifiant du sujet (ex: 4)"
-    assert run_action.help == "Identifiant du run (ex: 14)"
+    assert subject_action.help == "Identifiant du sujet (ex: 1 ou S001)"
+    assert run_action.help == "Identifiant du run (ex: 3 ou R03)"
 
     assert classifier_action.choices is not None
     assert tuple(classifier_action.choices) == (
@@ -95,7 +95,10 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> (
 
     assert artifacts_dir_action.type is Path
     assert artifacts_dir_action.default == predict.DEFAULT_ARTIFACTS_DIR
-    assert artifacts_dir_action.help == "Répertoire racine où lire le modèle"
+    assert (
+        artifacts_dir_action.help
+        == "Répertoire racine contenant les artefacts du modèle"
+    )
 
     assert raw_dir_action.type is Path
     assert raw_dir_action.default == predict.DEFAULT_RAW_DIR
@@ -110,7 +113,7 @@ def test_build_parser_exposes_compatibility_defaults_and_paths() -> (
     assert "Flag de normalisation (ignoré en prédiction)" in normalized_help
     assert "Fréquence utilisée en features (ignorée ici)" in normalized_help
     assert "Répertoire racine contenant les fichiers numpy" in normalized_help
-    assert "Répertoire racine où lire le modèle" in normalized_help
+    assert "Répertoire racine contenant les artefacts du modèle" in normalized_help
     assert "Répertoire racine contenant les fichiers EDF bruts" in normalized_help
 
 

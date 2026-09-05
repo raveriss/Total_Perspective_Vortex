@@ -9,8 +9,8 @@ import joblib
 # Garantit que numpy est disponible pour le calcul matriciel
 import numpy as np
 
-# Garantit l'accès aux décompositions hermitiennes généralisées
-from scipy import linalg
+# Garantit l'accès aux décompositions hermitiennes et aux filtres passe-bande
+from scipy import linalg, signal
 
 # Assure l'intégration avec les API scikit-learn
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -21,6 +21,118 @@ EXPECTED_CSP_CLASSES = 2
 TABLE_DIMENSION = 2
 # Fige la dimension trial x channel x time attendue pour le CSP
 TRIAL_DIMENSION = 3
+
+# Le banc cible les rythmes mu et bêta associés aux tâches motrices.
+DEFAULT_FILTER_BANK_BANDS = (
+    (7.0, 12.0),
+    (10.0, 15.0),
+    (12.0, 18.0),
+    (15.0, 22.0),
+    (18.0, 26.0),
+    (22.0, 30.0),
+)
+# Trois fenêtres capturent le début, le centre et la fin de la réponse motrice.
+DEFAULT_FILTER_BANK_WINDOWS = ((0.0, 2.0), (0.75, 2.75), (1.5, 3.5))
+FILTER_BANK_ORDER = 4
+
+
+# Centralise la stabilisation numérique utilisée par les deux réducteurs.
+def _regularize_covariance(covariance: np.ndarray, regularization: float) -> np.ndarray:
+    """Retourne une copie régularisée d'une matrice de covariance."""
+
+    # La copie interdit une mutation discrète des covariances appelantes.
+    regularized_covariance = np.array(covariance, copy=True)
+    if regularization < 0.0 or regularization > 1.0:
+        raise ValueError("regularization must be between 0 and 1")
+    if regularization > 0.0:
+        if (
+            covariance.ndim != TABLE_DIMENSION
+            or covariance.shape[0] != covariance.shape[1]
+        ):
+            raise ValueError("covariance must be a square matrix")
+        # Le shrinkage conserve l'échelle d'une covariance normalisée par sa trace.
+        average_variance = float(np.trace(covariance)) / covariance.shape[0]
+        identity_target = average_variance * np.eye(covariance.shape[0])
+        regularized_covariance = (
+            1.0 - regularization
+        ) * regularized_covariance + regularization * identity_target
+    # Le même résultat alimente désormais TPVDimReducer et CSP.
+    return regularized_covariance
+
+
+# Centralise la covariance normalisée commune aux implémentations CSP/CSSP.
+def _compute_average_covariance(
+    trials: np.ndarray, regularization: float
+) -> np.ndarray:
+    """Moyenne les covariances normalisées d'une collection d'essais."""
+
+    # Une classe vide rendrait la moyenne et le CSP indéfinis.
+    if trials.size == 0:
+        # Conserve le diagnostic historique attendu par les appelants.
+        raise ValueError("No trials provided for covariance estimation")
+    # Prépare une matrice carrée alignée sur le nombre de canaux.
+    covariance_sum = np.zeros((trials.shape[1], trials.shape[1]))
+    # Chaque essai contribue de manière égale indépendamment de son énergie.
+    for trial in trials:
+        # Le produit canal par canal produit la covariance spatiale brute.
+        trial_covariance = trial @ trial.T
+        # La trace rend les essais comparables avant leur moyenne.
+        trial_covariance /= np.trace(trial_covariance)
+        # L'accumulation évite de construire un tenseur intermédiaire volumineux.
+        covariance_sum += trial_covariance
+    # Divise une seule fois pour conserver exactement l'algorithme précédent.
+    average_covariance = np.asarray(covariance_sum / trials.shape[0])
+    # Applique la même régularisation dans les deux classes publiques.
+    return _regularize_covariance(average_covariance, regularization)
+
+
+# Centralise le tri décroissant utilisé par PCA, CSP et CSSP.
+def _select_eigenpairs(
+    eigenvalues: np.ndarray,
+    eigenvectors: np.ndarray,
+    n_components: int | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Trie les paires propres et conserve les premières composantes."""
+
+    order = np.argsort(eigenvalues)[::-1]
+    sorted_values = eigenvalues[order]
+    sorted_vectors = eigenvectors[:, order]
+    if n_components is not None:
+        sorted_values = sorted_values[:n_components]
+        sorted_vectors = sorted_vectors[:, :n_components]
+    return sorted_values, sorted_vectors
+
+
+# Résout une seule fois le problème généralisé commun à CSP et CSSP.
+def _solve_csp_filters(
+    trials: np.ndarray,
+    y: np.ndarray,
+    classes: np.ndarray,
+    n_components: int | None,
+    regularization: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Retourne les valeurs propres et filtres spatiaux CSP ordonnés."""
+
+    cov_a = _compute_average_covariance(trials[y == classes[0]], regularization)
+    cov_b = _compute_average_covariance(trials[y == classes[1]], regularization)
+    composite = cov_a + cov_b
+    eigenvalues, eigenvectors = linalg.eigh(cov_a, composite)
+    # Les deux extrêmes portent respectivement l'information des deux classes.
+    order = np.argsort(np.abs(eigenvalues - 0.5))[::-1]
+    sorted_values = eigenvalues[order]
+    sorted_vectors = eigenvectors[:, order]
+    if n_components is not None:
+        sorted_values = sorted_values[:n_components]
+        sorted_vectors = sorted_vectors[:, :n_components]
+    return np.asarray(sorted_values), np.asarray(sorted_vectors)
+
+
+# Centralise la projection temporelle W^T X utilisée par les deux transformeurs.
+def _project_trials(w_matrix: np.ndarray, trials: np.ndarray) -> np.ndarray:
+    """Projette des essais et restitue l'ordre trial, composante, temps."""
+
+    projected = np.tensordot(w_matrix.T, trials, axes=([1], [1]))
+    return np.asarray(np.moveaxis(projected, 1, 0))
 
 
 class TPVDimReducer(BaseEstimator, TransformerMixin):
@@ -88,10 +200,8 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
             return np.asarray(X @ self.w_matrix)
         # Gère explicitement les données trial x channel x time
         if X.ndim == TRIAL_DIMENSION:
-            # Projette chaque essai en conservant la dynamique temporelle
-            projected = np.tensordot(self.w_matrix.T, X, axes=([1], [1]))
-            # Réordonne les axes pour revenir à trial x composante x temps
-            reordered = np.moveaxis(projected, 1, 0)
+            # Projette chaque essai via la formule partagée avec CSP/CSSP.
+            reordered = _project_trials(self.w_matrix, X)
             # Calcule la variance par composante pour résumer chaque essai
             variances = np.var(reordered, axis=2)
             # Retourne la variance logarithmique pour stabiliser la distribution
@@ -140,24 +250,8 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
 
     # Calcule la moyenne des matrices de covariance sur un ensemble d'essais
     def _average_covariance(self, trials: np.ndarray) -> np.ndarray:
-        # Valide la présence d'essais pour éviter une division par zéro
-        if trials.size == 0:
-            # Informe que des données sont nécessaires pour la covariance
-            raise ValueError("No trials provided for covariance estimation")
-        # Prépare une accumulation de covariances pour stabilité
-        cov_sum = np.zeros((trials.shape[1], trials.shape[1]))
-        # Parcourt chaque essai pour accumuler la covariance
-        for trial in trials:
-            # Calcule la covariance d'un essai avec normalisation par la trace
-            trial_cov = trial @ trial.T
-            # Normalise pour éviter des échelles dépendantes de l'énergie
-            trial_cov /= np.trace(trial_cov)
-            # Ajoute la covariance normalisée à l'accumulateur
-            cov_sum += trial_cov
-        # Calcule la moyenne en divisant par le nombre d'essais
-        averaged = np.asarray(cov_sum / trials.shape[0])
-        # Ajoute une régularisation diagonale pour stabilité numérique
-        return self._regularize_matrix(averaged)
+        # Délègue la formule partagée sans changer la valeur numérique obtenue.
+        return _compute_average_covariance(trials, self.regularization)
 
     # Calcule une covariance régularisée pour les données tabulaires
     def _regularized_covariance(self, centered: np.ndarray) -> np.ndarray:
@@ -168,14 +262,8 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
 
     # Ajoute une régularisation diagonale proportionnelle à l'identité
     def _regularize_matrix(self, matrix: np.ndarray) -> np.ndarray:
-        # Conserve la matrice initiale pour éviter de modifier l'entrée in place
-        regularized = np.array(matrix, copy=True)
-        # Ajoute la régularisation uniquement si elle est demandée
-        if self.regularization > 0:
-            # Injecte une identité scalaire proportionnelle pour stabiliser l'inversion
-            regularized += self.regularization * np.eye(matrix.shape[0])
-        # Retourne la matrice régularisée pour les calculs ultérieurs
-        return regularized
+        # Délègue la stabilisation au helper partagé avec la classe CSP.
+        return _regularize_covariance(matrix, self.regularization)
 
     # Applique l'apprentissage PCA sur des données tabulaires
     def _fit_pca(self, X: np.ndarray) -> None:
@@ -193,19 +281,8 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         covariance = self._regularized_covariance(centered)
         # Extrait les vecteurs propres pour définir la projection
         eigvals, eigvecs = np.linalg.eigh(covariance)
-        # Trie les composantes par variance décroissante
-        order = np.argsort(eigvals)[::-1]
-        # Réordonne les vecteurs propres selon l'importance
-        sorted_vecs = eigvecs[:, order]
-        # Limite le nombre de composantes si demandé
-        if self.n_components is not None:
-            # Sélectionne uniquement les premières composantes utiles
-            sorted_vecs = sorted_vecs[:, : self.n_components]
-            # Tronque aussi la liste des valeurs propres
-            eigvals = eigvals[order][: self.n_components]
-        else:
-            # Conserve toutes les valeurs propres si aucune coupe n'est demandée
-            eigvals = eigvals[order]
+        # Trie et tronque les mêmes paires propres via le helper partagé.
+        eigvals, sorted_vecs = _select_eigenpairs(eigvals, eigvecs, self.n_components)
         # Stocke la matrice de projection apprise
         self.w_matrix = sorted_vecs
         # Stocke les valeurs propres associées pour vérification externe
@@ -262,29 +339,10 @@ class TPVDimReducer(BaseEstimator, TransformerMixin):
         if classes.size != EXPECTED_CSP_CLASSES:
             # Empêche un calcul CSP invalide avec plus de deux classes
             raise ValueError("CSP requires exactly two classes")
-        # Agrège les covariances des essais pour la première classe
-        cov_a = self._average_covariance(X[y == classes[0]])
-        # Agrège les covariances des essais pour la seconde classe
-        cov_b = self._average_covariance(X[y == classes[1]])
-        # Combine les covariances pour le problème généralisé
-        composite = cov_a + cov_b
-        # Ajoute une régularisation pour stabiliser l'inversion implicite
-        composite = self._regularize_matrix(composite)
-        # Résout le problème généralisé pour maximiser la séparation
-        eigvals, eigvecs = linalg.eigh(cov_a, composite)
-        # Trie les vecteurs par valeurs propres décroissantes
-        order = np.argsort(eigvals)[::-1]
-        # Réordonne les vecteurs propres pour prioriser les extrêmes
-        sorted_vecs = eigvecs[:, order]
-        # Limite le nombre de composantes selon la demande
-        if self.n_components is not None:
-            # Sélectionne la tranche désirée de composantes
-            sorted_vecs = sorted_vecs[:, : self.n_components]
-            # Tronque également les valeurs propres associées
-            eigvals = eigvals[order][: self.n_components]
-        else:
-            # Conserve toutes les valeurs propres si aucune coupe n'est appliquée
-            eigvals = eigvals[order]
+        # Résout la formule CSP partagée sans modifier son ordre numérique.
+        eigvals, sorted_vecs = _solve_csp_filters(
+            X, y, classes, self.n_components, self.regularization
+        )
         # Stocke la matrice de projection CSP
         self.w_matrix = sorted_vecs
         # Stocke les valeurs propres pour inspection éventuelle
@@ -385,29 +443,10 @@ class CSP(BaseEstimator, TransformerMixin):
         if self.method == "cssp":
             # Transforme les essais en espace élargi temps-décalé
             trials = self._augment_cssp_trials(trials)
-        # Calcule la covariance moyenne de la première classe
-        cov_a = self._average_covariance(trials[y == classes[0]])
-        # Calcule la covariance moyenne de la seconde classe
-        cov_b = self._average_covariance(trials[y == classes[1]])
-        # Construit la covariance composite pour le problème généralisé
-        composite = cov_a + cov_b
-        # Régularise la covariance composite pour stabilité numérique
-        composite = self._regularize_matrix(composite)
-        # Résout le problème généralisé pour maximiser la séparation
-        eigvals, eigvecs = linalg.eigh(cov_a, composite)
-        # Trie les composantes par valeurs propres décroissantes
-        order = np.argsort(eigvals)[::-1]
-        # Réordonne les vecteurs propres selon l'importance
-        sorted_vecs = eigvecs[:, order]
-        # Coupe le nombre de filtres si demandé
-        if self.n_components is not None:
-            # Conserve les filtres les plus informatifs
-            sorted_vecs = sorted_vecs[:, : self.n_components]
-            # Conserve les valeurs propres associées
-            eigvals = eigvals[order][: self.n_components]
-        else:
-            # Conserve toutes les valeurs propres si aucune coupe n'est demandée
-            eigvals = eigvals[order]
+        # Résout la formule commune après l'éventuelle augmentation CSSP.
+        eigvals, sorted_vecs = _solve_csp_filters(
+            trials, y, classes, self.n_components, self.regularization
+        )
         # Stocke la matrice de filtres spatiaux
         self.w_matrix = sorted_vecs
         # Stocke les valeurs propres pour inspection ultérieure
@@ -431,10 +470,8 @@ class CSP(BaseEstimator, TransformerMixin):
         if self.method == "cssp":
             # Transforme les essais en espace élargi temps-décalé
             trials = self._augment_cssp_trials(trials)
-        # Projette les essais sur les filtres spatiaux
-        projected = np.tensordot(self.w_matrix.T, trials, axes=([1], [1]))
-        # Réordonne les axes pour revenir à trial x composante x temps
-        reordered = np.moveaxis(projected, 1, 0)
+        # Projette les essais via la formule partagée avec TPVDimReducer.
+        reordered = _project_trials(self.w_matrix, trials)
         # Renvoie les signaux projetés si demandé
         if not self.return_log_variance:
             # Retourne directement W^T X pour les étapes suivantes
@@ -446,35 +483,13 @@ class CSP(BaseEstimator, TransformerMixin):
 
     # Calcule la moyenne des covariances pour une classe d'essais
     def _average_covariance(self, trials: np.ndarray) -> np.ndarray:
-        # Valide la présence d'essais pour éviter une moyenne vide
-        if trials.size == 0:
-            # Signale qu'une classe vide est invalide pour CSP/CSSP
-            raise ValueError("No trials provided for covariance estimation")
-        # Prépare une matrice d'accumulation stable
-        cov_sum = np.zeros((trials.shape[1], trials.shape[1]))
-        # Parcourt chaque essai pour accumuler la covariance normalisée
-        for trial in trials:
-            # Calcule la covariance d'un essai pour capturer l'énergie spatiale
-            trial_cov = trial @ trial.T
-            # Normalise par la trace pour une échelle comparable
-            trial_cov /= np.trace(trial_cov)
-            # Ajoute la covariance normalisée à l'accumulateur
-            cov_sum += trial_cov
-        # Calcule la moyenne des covariances sur la classe
-        averaged = np.asarray(cov_sum / trials.shape[0])
-        # Retourne la covariance régularisée pour la stabilité
-        return self._regularize_matrix(averaged)
+        # Délègue la formule partagée sans changer la valeur numérique obtenue.
+        return _compute_average_covariance(trials, self.regularization)
 
     # Ajoute une régularisation diagonale pour stabiliser les covariances
     def _regularize_matrix(self, matrix: np.ndarray) -> np.ndarray:
-        # Copie la matrice pour éviter toute mutation in-place
-        regularized = np.array(matrix, copy=True)
-        # Ajoute la régularisation si elle est activée
-        if self.regularization > 0:
-            # Stabilise l'inversion via une identité scalée
-            regularized += self.regularization * np.eye(matrix.shape[0])
-        # Retourne la matrice prête pour la décomposition
-        return regularized
+        # Délègue la stabilisation au helper partagé avec TPVDimReducer.
+        return _regularize_covariance(matrix, self.regularization)
 
     # Construit les essais augmentés pour CSSP via un retard temporel
     def _augment_cssp_trials(self, trials: np.ndarray) -> np.ndarray:
@@ -492,3 +507,279 @@ class CSP(BaseEstimator, TransformerMixin):
         delayed = trials[:, :, self.cssp_lag :]
         # Concatène les canaux originaux et décalés pour CSSP
         return np.concatenate([base, delayed], axis=1)
+
+
+class FilterBankCSP(BaseEstimator, TransformerMixin):
+    """Extrait des log-variances CSP sur plusieurs bandes et fenêtres."""
+
+    def __init__(  # noqa: PLR0913 - paramètres exposés à GridSearchCV
+        self,
+        sfreq: float = 160.0,
+        bands: tuple[tuple[float, float], ...] = DEFAULT_FILTER_BANK_BANDS,
+        windows: tuple[tuple[float, float], ...] = DEFAULT_FILTER_BANK_WINDOWS,
+        n_components: int = 2,
+        regularization: float = 0.1,
+        filter_mode: str = "zero_phase",
+        time_origin: float = 0.0,
+        baseline_window: tuple[float, float] | None = None,
+        run_adaptive: bool = True,
+    ):
+        self.sfreq = sfreq
+        self.bands = bands
+        self.windows = windows
+        self.n_components = n_components
+        self.regularization = regularization
+        self.filter_mode = filter_mode
+        self.time_origin = time_origin
+        self.baseline_window = baseline_window
+        self.run_adaptive = run_adaptive
+        self.filters_: list[np.ndarray] | None = None
+        self.eigenvalues_: list[np.ndarray] | None = None
+        self.w_matrix: np.ndarray | None = None
+        self.filters_per_block_: int | None = None
+
+    def _validate_input(self, X: np.ndarray) -> np.ndarray:
+        trials = np.asarray(X, dtype=float)
+        if trials.ndim != TRIAL_DIMENSION:
+            raise ValueError("FilterBankCSP expects a 3D array")
+        if self.sfreq <= 0.0:
+            raise ValueError("sfreq must be positive")
+        if self.n_components < 1 or self.n_components > trials.shape[1]:
+            raise ValueError("n_components must be between 1 and n_channels")
+        self._validate_bands(self.sfreq / 2.0)
+        self._validate_windows(trials.shape[2] / self.sfreq)
+        if self.filter_mode not in {"zero_phase", "causal"}:
+            raise ValueError("filter_mode must be 'zero_phase' or 'causal'")
+        return trials
+
+    def _validate_bands(self, nyquist: float) -> None:
+        """Refuse une banque vide ou des bornes fréquentielles invalides."""
+
+        if not self.bands or any(
+            low <= 0.0 or low >= high or high >= nyquist for low, high in self.bands
+        ):
+            raise ValueError("bands must lie strictly between 0 and Nyquist")
+
+    def _validate_windows(self, duration: float) -> None:
+        """Vérifie que chaque fenêtre reste dans la durée d'un essai."""
+
+        if not self.windows or any(
+            start < self.time_origin
+            or start >= stop
+            or stop > self.time_origin + duration
+            for start, stop in self.windows
+        ):
+            raise ValueError("windows must lie inside the epoch duration")
+        if self.baseline_window is not None:
+            start, stop = self.baseline_window
+            if (
+                start < self.time_origin
+                or start >= stop
+                or stop > self.time_origin + duration
+            ):
+                raise ValueError("baseline_window must lie inside the epoch duration")
+
+    def _filter_trials(
+        self, trials: np.ndarray, band: tuple[float, float]
+    ) -> np.ndarray:
+        sos = signal.butter(
+            FILTER_BANK_ORDER,
+            band,
+            btype="bandpass",
+            fs=self.sfreq,
+            output="sos",
+        )
+        if self.filter_mode == "causal":
+            return np.asarray(signal.sosfilt(sos, trials, axis=2))
+        return np.asarray(signal.sosfiltfilt(sos, trials, axis=2))
+
+    def _slice_window(
+        self, trials: np.ndarray, window: tuple[float, float]
+    ) -> np.ndarray:
+        start = int(round((window[0] - self.time_origin) * self.sfreq))
+        stop = int(round((window[1] - self.time_origin) * self.sfreq))
+        return trials[:, :, start:stop]
+
+    def _valid_run_groups(self, labels: np.ndarray, groups: np.ndarray) -> np.ndarray:
+        """Conserve les runs ayant les deux classes dans le pli d'entraînement."""
+
+        valid_groups = [
+            group
+            for group in np.unique(groups)
+            if np.unique(labels[groups == group]).size == EXPECTED_CSP_CLASSES
+        ]
+        if not valid_groups:
+            raise ValueError("no run group contains both classes")
+        return np.asarray(valid_groups)
+
+    def _fit_filter_blocks(
+        self,
+        trials: np.ndarray,
+        labels: np.ndarray,
+        groups: np.ndarray,
+        classes: np.ndarray,
+        unique_groups: np.ndarray,
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        """Apprend les blocs CSP par bande, fenêtre et groupe autorisé."""
+
+        filters: list[np.ndarray] = []
+        eigenvalues: list[np.ndarray] = []
+        for band in self.bands:
+            filtered = self._filter_trials(trials, band)
+            for window in self.windows:
+                windowed = self._slice_window(filtered, window)
+                for group in unique_groups:
+                    group_mask = (
+                        groups == group
+                        if self.run_adaptive
+                        else np.ones(labels.shape, dtype=bool)
+                    )
+                    values, vectors = _solve_csp_filters(
+                        windowed[group_mask],
+                        labels[group_mask],
+                        classes,
+                        self.n_components,
+                        self.regularization,
+                    )
+                    eigenvalues.append(values)
+                    filters.append(vectors)
+        return filters, eigenvalues
+
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray | None = None,
+        run_groups: np.ndarray | None = None,
+    ):
+        trials = self._validate_input(X)
+        if y is None:
+            raise ValueError("y is required for FilterBankCSP")
+        labels = np.asarray(y)
+        if labels.shape != (trials.shape[0],):
+            raise ValueError("y must contain one label per trial")
+        classes = np.unique(labels)
+        if classes.size != EXPECTED_CSP_CLASSES:
+            raise ValueError("FilterBankCSP requires exactly two classes")
+        groups = (
+            np.zeros(trials.shape[0], dtype=int)
+            if run_groups is None
+            else np.asarray(run_groups)
+        )
+        if groups.shape != labels.shape:
+            raise ValueError("run_groups must contain one value per trial")
+        unique_groups = (
+            self._valid_run_groups(labels, groups)
+            if self.run_adaptive
+            else np.asarray([0])
+        )
+
+        filters, eigenvalues = self._fit_filter_blocks(
+            trials,
+            labels,
+            groups,
+            classes,
+            unique_groups,
+        )
+        self.filters_ = filters
+        self.eigenvalues_ = eigenvalues
+        self.w_matrix = np.stack(filters, axis=0)
+        self.filters_per_block_ = int(unique_groups.size)
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        trials = self._validate_input(X)
+        if self.filters_ is None:
+            raise ValueError("FilterBankCSP must be fitted before transform")
+        if self.filters_per_block_ is None:
+            raise ValueError("FilterBankCSP fitted state is incomplete")
+        expected_filters = len(self.bands) * len(self.windows) * self.filters_per_block_
+        if len(self.filters_) != expected_filters:
+            raise ValueError("fitted filter bank is inconsistent with its parameters")
+
+        features: list[np.ndarray] = []
+        filter_index = 0
+        for band in self.bands:
+            filtered = self._filter_trials(trials, band)
+            for window in self.windows:
+                windowed = self._slice_window(filtered, window)
+                for _filter in range(self.filters_per_block_):
+                    projected = _project_trials(self.filters_[filter_index], windowed)
+                    variances = np.var(projected, axis=2)
+                    if self.baseline_window is None:
+                        values = variances
+                    else:
+                        baseline = self._slice_window(filtered, self.baseline_window)
+                        baseline_projected = _project_trials(
+                            self.filters_[filter_index], baseline
+                        )
+                        baseline_variances = np.var(baseline_projected, axis=2)
+                        values = variances / (baseline_variances + np.finfo(float).eps)
+                    features.append(np.log(values + np.finfo(float).eps))
+                    filter_index += 1
+        return np.concatenate(features, axis=1)
+
+
+class CovarianceTangentSpace(BaseEstimator, TransformerMixin):
+    """Projette des covariances SPD dans un espace tangent log-euclidien.
+
+    Pour chaque essai ``X``, la covariance régularisée ``C`` est blanchie par
+    la référence ``G`` apprise sur le train, puis ``log(G^-1/2 C G^-1/2)`` est
+    vectorisé. Les termes hors diagonale sont multipliés par ``sqrt(2)`` afin
+    de préserver le produit scalaire de Frobenius.
+    """
+
+    def __init__(self, regularization: float = 0.1) -> None:
+        self.regularization = regularization
+        self.reference_: np.ndarray | None = None
+        self.n_channels_in_: int | None = None
+
+    def _covariances(self, X: np.ndarray) -> np.ndarray:
+        trials = np.asarray(X, dtype=float)
+        if trials.ndim != TRIAL_DIMENSION:
+            raise ValueError("CovarianceTangentSpace expects a 3D array")
+        if not np.isfinite(trials).all():
+            raise ValueError("CovarianceTangentSpace requires finite trials")
+        covariances = []
+        for trial in trials:
+            centered = trial - np.mean(trial, axis=1, keepdims=True)
+            covariance = centered @ centered.T / max(1, trial.shape[1] - 1)
+            covariance = _regularize_covariance(covariance, self.regularization)
+            covariance += np.finfo(float).eps * np.eye(covariance.shape[0])
+            covariances.append(covariance)
+        return np.asarray(covariances)
+
+    @staticmethod
+    def _symmetric_function(matrix: np.ndarray, function: object) -> np.ndarray:
+        values, vectors = linalg.eigh(matrix)
+        safe_values = np.maximum(values, np.finfo(float).eps)
+        transformed = function(safe_values)  # type: ignore[operator]
+        return np.asarray((vectors * transformed) @ vectors.T)
+
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None):
+        del y
+        covariances = self._covariances(X)
+        logs = [
+            self._symmetric_function(covariance, np.log) for covariance in covariances
+        ]
+        mean_log = np.mean(logs, axis=0)
+        self.reference_ = np.asarray(linalg.expm(mean_log))
+        self.n_channels_in_ = covariances.shape[1]
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        if self.reference_ is None or self.n_channels_in_ is None:
+            raise ValueError("CovarianceTangentSpace must be fitted before transform")
+        covariances = self._covariances(X)
+        if covariances.shape[1] != self.n_channels_in_:
+            raise ValueError("X has a different number of channels than during fit")
+        inverse_sqrt = self._symmetric_function(self.reference_, lambda x: x**-0.5)
+        upper = np.triu_indices(self.n_channels_in_)
+        off_diagonal = upper[0] != upper[1]
+        vectors = []
+        for covariance in covariances:
+            whitened = inverse_sqrt @ covariance @ inverse_sqrt
+            tangent = self._symmetric_function(whitened, np.log)
+            vector = tangent[upper]
+            vector[off_diagonal] *= np.sqrt(2.0)
+            vectors.append(vector)
+        return np.asarray(vectors)

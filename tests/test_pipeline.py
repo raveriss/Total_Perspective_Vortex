@@ -27,6 +27,7 @@ from tpv.pipeline import (
     build_search_pipeline,
     load_pipeline,
     save_pipeline,
+    warn_if_spectral_features_follow_spatial_filter,
 )
 
 # Récupère la configuration des fenêtres pour les tests
@@ -43,6 +44,24 @@ LEAKAGE_THRESHOLD = 0.7
 
 # Fixe le nombre de composantes CSP utilisé dans les tests de pipeline
 CSP_COMPONENTS = 5
+
+
+# Verrouille l'avertissement commun aux commandes train et predict
+def test_warn_if_spectral_features_follow_spatial_filter_is_conditional(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """N'affiche le diagnostic que pour un couplage spectral implicite."""
+
+    # Déclenche le diagnostic pour Welch suivi d'un filtre spatial implicite
+    warn_if_spectral_features_follow_spatial_filter("welch", "csp", False)
+    # Le message partagé doit rester compatible avec la sortie CLI historique
+    assert capsys.readouterr().out.strip() == (
+        "INFO: dim_method='csp/cssp' appliqué avant l'extraction des features."
+    )
+    # Un choix CSP explicite ne doit produire aucun bruit supplémentaire
+    warn_if_spectral_features_follow_spatial_filter("welch", "csp", True)
+    # Le second appel doit rester silencieux pour respecter l'intention CLI
+    assert capsys.readouterr().out == ""
 
 
 # Ignore les avertissements libsvm générés par scikit-learn

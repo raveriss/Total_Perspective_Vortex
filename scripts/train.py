@@ -9,14 +9,11 @@ import csv
 # Pour sérialiser les métadonnées de run sans dépendance externe.
 import json
 
-# Pour lire une racine dataset configurable via l’environnement.
-import os
-
 # Pour distinguer proprement erreurs CLI et sorties métier.
 import sys
 
 # Pour regrouper la configuration sans multiplier les tuples fragiles.
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 # Pour manipuler les chemins sans dépendre du shell courant.
 from pathlib import Path
@@ -51,6 +48,9 @@ from sklearn.svm import LinearSVC
 # Pour centraliser les helpers pipeline via un seul import compatible isort.
 import tpv.pipeline as tpv_pipeline
 
+# Pour partager l'unique définition des runs moteurs du protocole officiel.
+import tpv.protocol as tpv_protocol
+
 # Pour centraliser les helpers de fenêtres via un seul import compatible isort.
 import tpv.utils as tpv_utils
 
@@ -71,6 +71,13 @@ ShuffleSplit: TypeAlias = sklearn_model_selection.ShuffleSplit
 
 # Pour préserver une API de module stable pour les appels externes et les tests.
 StratifiedShuffleSplit: TypeAlias = sklearn_model_selection.StratifiedShuffleSplit
+
+# Pour nommer une seule fois les trois formes de splitters acceptées par sklearn.
+CVSplitter: TypeAlias = (
+    sklearn_model_selection.StratifiedShuffleSplit
+    | sklearn_model_selection.ShuffleSplit
+    | list[tuple[np.ndarray, np.ndarray]]
+)
 
 # Pour préserver le point d’entrée public attendu pour la recherche exhaustive.
 GridSearchCV = sklearn_model_selection.GridSearchCV
@@ -93,63 +100,33 @@ resolve_epoch_windows = tpv_utils.resolve_epoch_windows
 # Pour préserver le code retour public attendu par la CLI et les tests.
 HANDLED_CLI_ERROR_EXIT_CODE: int = int(tpv_utils.HANDLED_CLI_ERROR_EXIT_CODE)
 
-# Pour fixer la liste des runs moteurs à couvrir pour l'entraînement massif
-MOTOR_RUNS = (
-    # Pour inclure le run moteur R03 documenté dans le protocole Physionet
-    "R03",
-    # Pour inclure le run moteur R04 documenté dans le protocole Physionet
-    "R04",
-    # Pour inclure le run moteur R05 documenté dans le protocole Physionet
-    "R05",
-    # Pour inclure le run moteur R06 documenté dans le protocole Physionet
-    "R06",
-    # Pour inclure le run moteur R07 documenté dans le protocole Physionet
-    "R07",
-    # Pour inclure le run moteur R08 documenté dans le protocole Physionet
-    "R08",
-    # Pour inclure le run moteur R09 documenté dans le protocole Physionet
-    "R09",
-    # Pour inclure le run moteur R10 documenté dans le protocole Physionet
-    "R10",
-    # Pour inclure le run moteur R11 documenté dans le protocole Physionet
-    "R11",
-    # Pour inclure le run moteur R12 documenté dans le protocole Physionet
-    "R12",
-    # Pour inclure le run moteur R13 documenté dans le protocole Physionet
-    "R13",
-    # Pour inclure le run moteur R14 documenté dans le protocole Physionet
-    "R14",
-)
-
-# Pour fixer le nom de la variable d'environnement pour la racine dataset
-DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
+# Pour préserver l'API historique avec la définition canonique du protocole.
+MOTOR_RUNS = tpv_protocol.MOTOR_RUNS
 
 # Pour fixer le répertoire par défaut où chercher les enregistrements
-DEFAULT_DATA_DIR = Path(os.environ.get(DATA_DIR_ENV_VAR, "data")).expanduser()
+DEFAULT_DATA_DIR = tpv_utils.DEFAULT_DATA_DIR
 
 # Pour stabiliser la dimension attendue pour les matrices de features en mémoire
-EXPECTED_FEATURES_DIMENSIONS = 3
+EXPECTED_FEATURES_DIMENSIONS = tpv_utils.EXPECTED_FEATURES_DIMENSIONS
 
 # Pour fixer le répertoire par défaut pour déposer les artefacts d'entraînement
-DEFAULT_ARTIFACTS_DIR = Path("artifacts")
+DEFAULT_ARTIFACTS_DIR = tpv_utils.DEFAULT_ARTIFACTS_DIR
 
 # Pour fixer le répertoire par défaut où résident les fichiers EDF bruts
-DEFAULT_RAW_DIR = DEFAULT_DATA_DIR
+DEFAULT_RAW_DIR = tpv_utils.DEFAULT_RAW_DIR
 
 # Pour fixer la référence EEG par défaut pour le re-référencement
-DEFAULT_EEG_REFERENCE = "average"
+DEFAULT_EEG_REFERENCE = tpv_utils.DEFAULT_EEG_REFERENCE
 
 # Pour figer la fréquence d'échantillonnage par défaut utilisée pour les features
 DEFAULT_SAMPLING_RATE = 50.0
 
-# Pour fixer un seuil max de pic-à-pic pour rejeter les artefacts (en Volts)
-DEFAULT_MAX_PEAK_TO_PEAK = 3000e-6
 # Pour stabiliser le nombre de composantes CSP pour la sélection de fenêtre
 DEFAULT_CSP_COMPONENTS = 4
 # Pour centraliser les stratégies de features supportées par la pipeline
-FEATURE_STRATEGIES = ("fft", "welch", "wavelet")
+FEATURE_STRATEGIES = tpv_pipeline.FEATURE_STRATEGIES
 # Pour centraliser les méthodes de réduction de dimension supportées par la pipeline
-DIM_METHODS = ("pca", "csp", "cssp", "svd")
+DIM_METHODS = tpv_pipeline.DIMENSIONALITY_METHODS
 # Pour accepter un alias CLI pour rediriger vers la réduction de dimension
 FEATURE_STRATEGY_ALIASES = DIM_METHODS
 # Pour réunir les valeurs autorisées pour l'argument --feature-strategy
@@ -173,68 +150,14 @@ ACTIVE_EPOCH_WINDOW_CONFIG = EpochWindowState(
 )
 
 
-# Pour harmoniser un identifiant brut en appliquant un préfixe standard
-def _normalize_identifier(value: str, prefix: str, width: int, label: str) -> str:
-    """Normalise un identifiant pour respecter le format Physionet."""
-
-    # Pour neutraliser la valeur reçue pour éviter des espaces parasites
-    cleaned_value = value.strip()
-    # Pour rejeter une valeur vide pour éviter un identifiant incomplet
-    if not cleaned_value:
-        # Pour rendre explicite une valeur vide pour forcer la correction côté CLI
-        raise argparse.ArgumentTypeError(f"{label} vide")
-    # Pour isoler le premier caractère pour détecter un préfixe explicite
-    first_char = cleaned_value[0]
-    # Pour distinguer si l'utilisateur a fourni le préfixe attendu
-    has_prefix = first_char.upper() == prefix.upper()
-    # Pour isoler la portion numérique selon la présence du préfixe
-    numeric_part = cleaned_value[1:] if has_prefix else cleaned_value
-    # Pour rejeter les valeurs non numériques pour garantir un ID valide
-    if not numeric_part.isdigit():
-        # Pour rendre explicite l'identifiant invalide pour guider l'utilisateur
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Pour supprimer les zéros parasites avant de reconstruire l’identifiant.
-    numeric_value = int(numeric_part)
-    # Pour rejeter les index non positifs pour respecter la base Physionet
-    if numeric_value < 1:
-        # Pour rendre explicite l'identifiant non valide pour arrêter le parsing
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Pour rétablir un identifiant canonique compatible avec PhysioNet.
-    return f"{prefix}{numeric_value:0{width}d}"
-
-
-# Pour harmoniser un identifiant de sujet pour la CLI d'entraînement
-def _parse_subject(value: str) -> str:
-    """Normalise un identifiant de sujet en format Sxxx."""
-
-    # Pour réutiliser la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="S", width=3, label="Sujet")
-
-
-# Pour harmoniser un identifiant de run pour la CLI d'entraînement
-def _parse_run(value: str) -> str:
-    """Normalise un identifiant de run en format Rxx."""
-
-    # Pour réutiliser la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
-
-
-# Pour harmoniser la référence EEG demandée via CLI
-def _parse_eeg_reference(value: str) -> str | None:
-    """Retourne la référence EEG normalisée ou None."""
-
-    # Pour neutraliser la valeur reçue pour éviter les espaces parasites
-    cleaned_value = value.strip()
-    # Pour rejeter une valeur vide pour éviter une référence ambiguë
-    if not cleaned_value:
-        # Pour rendre explicite une référence vide pour guider l'utilisateur
-        raise argparse.ArgumentTypeError("Référence EEG vide")
-    # Pour réserver l'alias "none" comme une désactivation explicite
-    if cleaned_value.lower() == "none":
-        # Pour garder None pour indiquer l'absence de re-référencement
-        return None
-    # Pour préserver les références EEG custom sans les restreindre artificiellement.
-    return cleaned_value
+# Pour préserver les noms privés attendus par les tests et anciens imports.
+_normalize_identifier = tpv_utils.normalize_identifier
+# Pour partager exactement la même convention sujet entre toutes les CLI.
+_parse_subject = tpv_utils.parse_subject
+# Pour partager exactement la même convention run entre toutes les CLI.
+_parse_run = tpv_utils.parse_run
+# Pour partager l'alias « none » avec le chemin de prédiction.
+_parse_eeg_reference = tpv_utils.parse_eeg_reference
 
 
 # Pour harmoniser un choix CLI en minuscules pour les comparaisons
@@ -288,7 +211,7 @@ def resolve_sampling_rate(
         # Pour garder la valeur explicite pour respecter la volonté utilisateur
         return requested_sfreq
     # Pour construire le chemin du fichier EDF brut pour la détection auto
-    raw_path = raw_dir / subject / f"{subject}{run}.edf"
+    raw_path, _event_path = tpv_utils.resolve_recording_paths(raw_dir, subject, run)
     # Pour conserver la valeur demandée si l'EDF n'est pas disponible
     if not raw_path.exists():
         # Pour garder la valeur par défaut en l'absence de fichier exploitable
@@ -488,14 +411,8 @@ def _resolve_cv_splits(
     requested_splits: int,
     # Pour figer un contrat de retour exploitable par les appels et mypy.
 ) -> tuple[
-    # Pour détailler la signature sans compacter un contrat difficile à relire.
-    sklearn_model_selection.StratifiedShuffleSplit
-    # Pour couvrir aussi le fallback shuffle retenu sur petits effectifs.
-    | sklearn_model_selection.ShuffleSplit
-    # Pour autoriser aussi une liste de splits déjà filtrés en amont.
-    | list[tuple[np.ndarray, np.ndarray]]
     # Pour garder le cas d’indisponibilité explicite dans le contrat.
-    | None,
+    CVSplitter | None,
     # Pour détailler la signature sans compacter un contrat difficile à relire.
     str | None,
     # Pour figer un contrat de retour exploitable par les appels et mypy.
@@ -759,8 +676,11 @@ def _adapt_pipeline_config_for_samples(
     if config.classifier != "lda":
         # Pour garder la configuration d'origine sans modification
         return config
-    # Pour préserver LDA lorsque l'effectif dépasse strictement le nombre de classes
-    if sample_count > class_count:
+    # LDA exige plus d'exemples d'entraînement que de classes dans chaque fold.
+    # Avec au plus cinq exemples binaires, les splitters adaptatifs peuvent ne
+    # laisser que deux exemples en train : on utilise alors le centroïde.
+    minimum_safe_sample_count = (2 * class_count) + 1
+    if sample_count > minimum_safe_sample_count:
         # Pour garder la configuration d'origine dans le cas valide
         return config
     # Pour éviter qu’un LDA trop fragile casse sur un très petit effectif.
@@ -785,81 +705,68 @@ def _adapt_pipeline_config_for_samples(
     )
 
 
-# Pour adapter la méthode de réduction en fonction des features demandées
-def _resolve_dim_method_for_features(
-    # Pour laisser explicite la stratégie de features demandée.
+# Pour résoudre les alias de réduction exposés par --feature-strategy.
+def resolve_feature_strategy_alias(
     feature_strategy: str,
-    # Pour laisser explicite la réduction de dimension demandée.
     dim_method: str,
-    # Pour tester la CLI sans dépendre implicitement de sys.argv.
-    argv: list[str] | None,
-    # Pour figer un contrat de retour exploitable par les appels et mypy.
-) -> str:
-    """Retourne la méthode de réduction adaptée à la stratégie de features."""
+    dim_method_explicit: bool,
+) -> tuple[str, str] | None:
+    """Retourne la résolution d'un alias ou None pour une vraie stratégie."""
 
-    # Pour isoler la liste brute d'arguments pour détecter un override explicite
-    raw_args = argv if argv is not None else sys.argv[1:]
-    # Pour détecter si --dim-method a été fourni par l'utilisateur
-    dim_method_explicit = "--dim-method" in raw_args
-    # Pour valider si la stratégie impose des features spectrales
-    if feature_strategy in {"wavelet", "welch"} and dim_method in {"csp", "cssp"}:
-        # Pour rendre explicite l'utilisateur d'un enchaînement CSP suivi des features
-        if not dim_method_explicit:
-            # Pour rendre explicite un couplage implicite sinon surprenant.
-            print(
-                # Pour rendre le diagnostic exploitable sans ouvrir le code.
-                "INFO: dim_method='csp/cssp' appliqué avant "
-                # Pour garder un message complet sans casser la lisibilité.
-                "l'extraction des features."
-            )
-        # Pour garder la méthode sans modification pour permettre Welch+CSP
-        return dim_method
-    # Pour garder la méthode inchangée si aucune adaptation n'est requise
-    return dim_method
+    if feature_strategy not in FEATURE_STRATEGY_ALIASES:
+        return None
+    if dim_method_explicit:
+        print(
+            "INFO: feature_strategy interprété comme alias de dim_method, "
+            "feature_strategy='fft' conservée car --dim-method explicite."
+        )
+        return "fft", dim_method
+    print(
+        "INFO: feature_strategy interprété comme alias de dim_method, "
+        "feature_strategy='fft' appliquée."
+    )
+    return "fft", feature_strategy
 
 
 # Pour adapter la stratégie de features si un alias de réduction est fourni
 def _resolve_feature_strategy_and_dim_method(
-    # Pour laisser explicite la stratégie de features demandée.
     feature_strategy: str,
-    # Pour laisser explicite la réduction de dimension demandée.
     dim_method: str,
-    # Pour tester la CLI sans dépendre implicitement de sys.argv.
     argv: list[str] | None,
-    # Pour figer un contrat de retour exploitable par les appels et mypy.
 ) -> tuple[str, str]:
     """Retourne une stratégie de features valide et le dim_method associé."""
 
-    # Pour isoler la liste brute d'arguments pour détecter un override explicite
+    # Pour isoler les arguments bruts sans dépendre implicitement de sys.argv
     raw_args = argv if argv is not None else sys.argv[1:]
-    # Pour détecter si --dim-method a été fourni par l'utilisateur
+    # Pour rendre le choix explicite disponible aux deux règles de résolution
     dim_method_explicit = "--dim-method" in raw_args
-    # Pour lever l'ambiguïté quand CSP/PCA/SVD arrivent via --feature-strategy.
-    if feature_strategy in FEATURE_STRATEGY_ALIASES:
-        # Pour préserver la stratégie FFT pour garantir une extraction valide
-        resolved_feature_strategy = "fft"
-        # Pour préserver le dim_method explicite si l'utilisateur l'a fourni
-        if dim_method_explicit:
-            # Pour rendre explicite de l'alias ignoré au profit de la valeur explicite
-            print(
-                # Pour rendre le diagnostic exploitable sans ouvrir le code.
-                "INFO: feature_strategy interprété comme alias de dim_method, "
-                # Pour garder un message complet sans casser la lisibilité.
-                "feature_strategy='fft' conservée car --dim-method explicite."
-            )
-            # Pour garder la stratégie FFT et le dim_method explicite
-            return resolved_feature_strategy, dim_method
-        # Pour rendre explicite que l'alias est interprété comme dim_method
-        print(
-            # Pour rendre le diagnostic exploitable sans ouvrir le code.
-            "INFO: feature_strategy interprété comme alias de dim_method, "
-            # Pour garder un message complet sans casser la lisibilité.
-            "feature_strategy='fft' appliquée."
-        )
-        # Pour garder la stratégie FFT et le dim_method dérivé
-        return resolved_feature_strategy, feature_strategy
-    # Pour garder les paramètres inchangés si aucune correction n'est requise
-    return feature_strategy, dim_method
+    # Pour traiter d'abord les alias qui changent réellement la configuration
+    resolved = resolve_feature_strategy_alias(
+        # Pour conserver la stratégie demandée comme source de l'alias
+        feature_strategy,
+        # Pour préserver la réduction fournie par le parser
+        dim_method,
+        # Pour empêcher un alias d'écraser un choix explicite
+        dim_method_explicit,
+    )
+    # Pour utiliser la paire résolue ou conserver les deux valeurs d'origine
+    resolved_feature_strategy, resolved_dim_method = resolved or (
+        # Pour préserver une vraie stratégie de features sans alias
+        feature_strategy,
+        # Pour préserver la méthode de réduction qui lui est associée
+        dim_method,
+    )
+    # Pour partager le diagnostic d'ordre avec la commande de prédiction
+    tpv_pipeline.warn_if_spectral_features_follow_spatial_filter(
+        # Pour décrire la famille de features réellement retenue
+        resolved_feature_strategy,
+        # Pour décrire la réduction réellement positionnée avant les features
+        resolved_dim_method,
+        # Pour garder le mode explicite silencieux comme auparavant
+        dim_method_explicit,
+    )
+    # Pour transmettre la configuration résolue au constructeur de pipeline
+    return resolved_feature_strategy, resolved_dim_method
 
 
 # Pour fournir les fenêtres d'epochs par défaut pour le contexte
@@ -974,20 +881,69 @@ class TrainingResources:
     grid_search_splits: int | None = None
 
 
-# Pour centraliser les chemins et réglages nécessaires à la génération des numpy
-@dataclass
-# Pour éviter une signature trop longue lors de la génération.
-class NpyBuildContext:
-    """Encapsule les paramètres nécessaires à la génération des .npy."""
+# Pour construire un run batch sans oublier une option ajoutée aux ressources communes.
+def _build_training_request_from_resources(
+    subject: str,
+    run: str,
+    resources: TrainingResources,
+) -> TrainingRequest:
+    """Transforme les ressources batch en requête d'entraînement complète."""
 
-    # Pour fixer le répertoire contenant les données numpy
-    data_dir: Path
-    # Pour fixer le répertoire des enregistrements EDF bruts
-    raw_dir: Path
-    # Pour fixer la référence EEG à appliquer lors du chargement EDF
-    eeg_reference: str | None
-    # Pour centraliser les réglages de filtrage et de normalisation
-    preprocess_config: preprocessing.PreprocessingConfig
+    # Les identifiants varient à chaque itération, contrairement aux ressources.
+    return TrainingRequest(
+        subject=subject,
+        run=run,
+        pipeline_config=resources.pipeline_config,
+        data_dir=resources.data_dir,
+        artifacts_dir=resources.artifacts_dir,
+        raw_dir=resources.raw_dir,
+        eeg_reference=resources.eeg_reference,
+        preprocess_config=resources.preprocess_config,
+        # La grid-search doit rester active lorsque train-all a reçu ce choix.
+        enable_grid_search=resources.enable_grid_search,
+        # Le nombre de folds dédié accompagne nécessairement l'activation précédente.
+        grid_search_splits=resources.grid_search_splits,
+    )
+
+
+# Pour préserver l'API historique tout en partageant une seule implémentation.
+NpyBuildContext = preprocessing.NpyBuildContext
+
+
+# Pour partager les options de prétraitement entre train et predict.
+def add_preprocessing_arguments(parser: argparse.ArgumentParser) -> None:
+    """Ajoute les paramètres CLI qui construisent PreprocessingConfig."""
+
+    parser.add_argument(
+        "--bandpass-low",
+        type=float,
+        default=preprocessing.DEFAULT_BANDPASS_BAND[0],
+        help="Fréquence basse du passe-bande MI (ex: 8.0)",
+    )
+    parser.add_argument(
+        "--bandpass-high",
+        type=float,
+        default=preprocessing.DEFAULT_BANDPASS_BAND[1],
+        help="Fréquence haute du passe-bande MI (ex: 30.0)",
+    )
+    parser.add_argument(
+        "--notch-freq",
+        type=float,
+        default=preprocessing.DEFAULT_NOTCH_FREQ,
+        help="Fréquence de notch pour le bruit secteur (50 ou 60 Hz)",
+    )
+    parser.add_argument(
+        "--normalize-channels",
+        choices=preprocessing.NORMALIZE_METHOD_CHOICES,
+        default=preprocessing.DEFAULT_NORMALIZE_METHOD,
+        help="Normalisation par canal appliquée aux epochs (zscore/robust/none)",
+    )
+    parser.add_argument(
+        "--normalize-epsilon",
+        type=float,
+        default=preprocessing.DEFAULT_NORMALIZE_EPSILON,
+        help="Epsilon de stabilité pour la normalisation par canal",
+    )
 
 
 # Pour construire un argument parser aligné sur la CLI mybci
@@ -999,30 +955,14 @@ def build_parser() -> argparse.ArgumentParser:
         # Pour fixer explicitement ce réglage dans l’objet construit.
         description="Entraîne une pipeline TPV et sauvegarde ses artefacts",
     )
-    # Pour exposer l'argument positionnel du sujet pour identifier les fichiers
-    parser.add_argument(
-        # Pour exposer ce point d’entrée CLI avec un nom stable et documenté.
-        "subject",
-        # Pour valider tôt l’entrée et éviter un état ambigu plus loin.
-        type=_parse_subject,
-        # Pour rendre l’aide CLI immédiatement exploitable.
-        help="Identifiant du sujet (ex: 4)",
-    )
-    # Pour exposer l'argument positionnel du run pour sélectionner la session
-    parser.add_argument(
-        # Pour exposer ce point d’entrée CLI avec un nom stable et documenté.
-        "run",
-        # Pour valider tôt l’entrée et éviter un état ambigu plus loin.
-        type=_parse_run,
-        # Pour rendre l’aide CLI immédiatement exploitable.
-        help="Identifiant du run (ex: 14)",
-    )
+    # Pour partager la normalisation et l'aide des identifiants PhysioNet
+    tpv_utils.add_subject_run_arguments(parser)
     # Pour exposer l'option classifieur pour synchroniser avec mybci
     parser.add_argument(
         # Pour exposer ce point d’entrée CLI avec un nom stable et documenté.
         "--classifier",
         # Pour borner l’entrée aux valeurs réellement supportées.
-        choices=("lda", "logistic", "svm", "centroid"),
+        choices=tpv_pipeline.CLASSIFIER_CHOICES,
         # Pour garantir un comportement stable sans override utilisateur.
         default="lda",
         # Pour rendre l’aide CLI immédiatement exploitable.
@@ -1033,7 +973,7 @@ def build_parser() -> argparse.ArgumentParser:
         # Pour exposer ce point d’entrée CLI avec un nom stable et documenté.
         "--scaler",
         # Pour borner l’entrée aux valeurs réellement supportées.
-        choices=("standard", "robust", "none"),
+        choices=tpv_pipeline.SCALER_CHOICES,
         # Pour garantir un comportement stable sans override utilisateur.
         default="none",
         # Pour rendre l’aide CLI immédiatement exploitable.
@@ -1096,83 +1036,10 @@ def build_parser() -> argparse.ArgumentParser:
         # Pour rendre l’aide CLI immédiatement exploitable.
         help="Désactive la normalisation des features extraites",
     )
-    # Pour exposer la borne basse du filtre passe-bande MI
-    parser.add_argument(
-        # Pour fixer le nom du flag CLI pour la borne basse
-        "--bandpass-low",
-        # Pour accepter float pour accepter des fréquences décimales
-        type=float,
-        # Pour stabiliser la valeur par défaut alignée sur la bande MI
-        default=preprocessing.DEFAULT_BANDPASS_BAND[0],
-        # Pour rendre la borne basse immédiatement compréhensible en CLI.
-        help="Fréquence basse du passe-bande MI (ex: 8.0)",
-    )
-    # Pour exposer la borne haute du filtre passe-bande MI
-    parser.add_argument(
-        # Pour fixer le nom du flag CLI pour la borne haute
-        "--bandpass-high",
-        # Pour accepter float pour accepter des fréquences décimales
-        type=float,
-        # Pour stabiliser la valeur par défaut alignée sur la bande MI
-        default=preprocessing.DEFAULT_BANDPASS_BAND[1],
-        # Pour rendre la borne haute immédiatement compréhensible en CLI.
-        help="Fréquence haute du passe-bande MI (ex: 30.0)",
-    )
-    # Pour exposer la fréquence de notch pour supprimer le bruit secteur
-    parser.add_argument(
-        # Pour fixer le nom du flag CLI pour le notch
-        "--notch-freq",
-        # Pour accepter float pour autoriser 50 ou 60 Hz
-        type=float,
-        # Pour stabiliser la valeur par défaut compatible Europe
-        default=preprocessing.DEFAULT_NOTCH_FREQ,
-        # Pour rendre le notch immédiatement compréhensible en CLI.
-        help="Fréquence de notch pour le bruit secteur (50 ou 60 Hz)",
-    )
-    # Pour exposer la méthode de normalisation par canal des epochs
-    parser.add_argument(
-        # Pour fixer le nom du flag CLI pour la normalisation canal
-        "--normalize-channels",
-        # Pour recenser les méthodes acceptées pour sécuriser les entrées
-        choices=("zscore", "robust", "none"),
-        # Pour stabiliser la méthode par défaut alignée sur preprocessing
-        default=preprocessing.DEFAULT_NORMALIZE_METHOD,
-        # Pour rendre la méthode de normalisation explicite dès l'aide CLI.
-        help="Normalisation par canal appliquée aux epochs (zscore/robust/none)",
-    )
-    # Pour exposer l'epsilon de stabilisation pour la normalisation
-    parser.add_argument(
-        # Pour fixer le nom du flag CLI pour l'epsilon
-        "--normalize-epsilon",
-        # Pour accepter float pour accepter des epsilon personnalisés
-        type=float,
-        # Pour stabiliser la valeur par défaut alignée sur preprocessing
-        default=preprocessing.DEFAULT_NORMALIZE_EPSILON,
-        # Pour rendre l'epsilon de normalisation explicite dès l'aide CLI.
-        help="Epsilon de stabilité pour la normalisation par canal",
-    )
-    # Pour exposer une option pour cibler un répertoire de données spécifique
-    parser.add_argument(
-        # Pour exposer ce point d’entrée CLI avec un nom stable et documenté.
-        "--data-dir",
-        # Pour valider tôt l’entrée et éviter un état ambigu plus loin.
-        type=Path,
-        # Pour garantir un comportement stable sans override utilisateur.
-        default=DEFAULT_DATA_DIR,
-        # Pour rendre l’aide CLI immédiatement exploitable.
-        help="Répertoire racine contenant les fichiers numpy",
-    )
-    # Pour exposer une option pour configurer le répertoire d'artefacts
-    parser.add_argument(
-        # Pour exposer ce point d’entrée CLI avec un nom stable et documenté.
-        "--artifacts-dir",
-        # Pour valider tôt l’entrée et éviter un état ambigu plus loin.
-        type=Path,
-        # Pour garantir un comportement stable sans override utilisateur.
-        default=DEFAULT_ARTIFACTS_DIR,
-        # Pour rendre l’aide CLI immédiatement exploitable.
-        help="Répertoire racine où enregistrer le modèle",
-    )
+    # Pour exposer le prétraitement depuis un contrat CLI unique.
+    add_preprocessing_arguments(parser)
+    # Pour partager les trois racines utilisées par la reconstruction EDF
+    tpv_utils.add_storage_arguments(parser, include_raw=True)
     # Pour exposer une option pour charger une configuration de fenêtres par sujet
     parser.add_argument(
         # Pour exposer ce point d’entrée CLI avec un nom stable et documenté.
@@ -1183,17 +1050,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         # Pour rendre l’aide CLI immédiatement exploitable.
         help="Chemin d'un JSON définissant les fenêtres d'epochs par sujet",
-    )
-    # Pour exposer une option pour pointer vers les fichiers EDF bruts
-    parser.add_argument(
-        # Pour exposer ce point d’entrée CLI avec un nom stable et documenté.
-        "--raw-dir",
-        # Pour valider tôt l’entrée et éviter un état ambigu plus loin.
-        type=Path,
-        # Pour garantir un comportement stable sans override utilisateur.
-        default=DEFAULT_RAW_DIR,
-        # Pour rendre l’aide CLI immédiatement exploitable.
-        help="Répertoire racine contenant les fichiers EDF bruts",
     )
     # Pour exposer l'option de re-référencement EEG lors du chargement EDF
     parser.add_argument(
@@ -1259,30 +1115,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# Pour construire les chemins des données pour un sujet et un run donnés
-def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, Path]:
-    """Retourne les chemins des matrices X et y pour un sujet/run."""
-
-    # Pour pointer vers le sous-dossier spécifique au sujet
-    base_dir = data_dir / subject
-    # Pour stabiliser le chemin du le chemin du fichier de données numpy
-    features_path = base_dir / f"{run}_X.npy"
-    # Pour stabiliser le chemin du le chemin du fichier d'étiquettes numpy
-    labels_path = base_dir / f"{run}_y.npy"
-    # Pour garder les deux chemins pour chargement ultérieur
-    return features_path, labels_path
+# Pour préserver l'API privée tout en supprimant la troisième copie du helper.
+_resolve_data_paths = tpv_utils.resolve_data_paths
 
 
-# Pour construire le chemin du fichier de fenêtre d'epochs pour un run
-def _resolve_epoch_window_path(subject: str, run: str, data_dir: Path) -> Path:
-    """Retourne le chemin du JSON décrivant la fenêtre d'epochs sélectionnée."""
-
-    # Pour pointer vers le sous-dossier spécifique au sujet
-    base_dir = data_dir / subject
-    # Pour construire le chemin du fichier de fenêtre pour ce run
-    window_path = base_dir / f"{run}_epoch_window.json"
-    # Pour garder le chemin du fichier de fenêtre
-    return window_path
+# Pour préserver l'API privée tout en supprimant la copie du helper de chemin.
+_resolve_epoch_window_path = tpv_utils.resolve_epoch_window_path
 
 
 # Pour persister la fenêtre d'epochs sélectionnée pour usage futur
@@ -1321,20 +1159,8 @@ def _read_epoch_window_metadata(
 ) -> tuple[float, float] | None:
     """Retourne la fenêtre d'epochs persistée ou None si absente."""
 
-    # Pour construire le chemin du fichier de fenêtre pour ce run
-    window_path = _resolve_epoch_window_path(subject, run, data_dir)
-    # Pour garder None si le fichier n'existe pas
-    if not window_path.exists():
-        # Pour restituer un état cohérent à l’appelant sans effet de bord caché.
-        return None
-    # Pour récupérer le contenu JSON pour récupérer la fenêtre
-    payload = json.loads(window_path.read_text())
-    # Pour isoler tmin du JSON en float
-    tmin = float(payload.get("tmin", tpv_utils.DEFAULT_EPOCH_WINDOW[0]))
-    # Pour isoler tmax du JSON en float
-    tmax = float(payload.get("tmax", tpv_utils.DEFAULT_EPOCH_WINDOW[1]))
-    # Pour garder la fenêtre reconstruite
-    return (tmin, tmax)
+    # Pour déléguer le parsing commun en conservant le fallback None de train.
+    return tpv_utils.read_epoch_window_metadata(subject, run, data_dir)
 
 
 # Pour garder une sélection de fenêtre rapide et cohérente avec le pipeline final.
@@ -1709,37 +1535,12 @@ def _build_npy_from_edf(
         build_context.data_dir,
     )
     # Pour déterminer les chemins attendus des fichiers bruts PhysioNet
-    raw_path = build_context.raw_dir / subject / f"{subject}{run}.edf"
-    # Pour conserver la provenance du fichier d’événements visé.
-    event_path = raw_path.with_suffix(".edf.event")
+    raw_path, event_path = tpv_utils.resolve_recording_paths(
+        build_context.raw_dir, subject, run
+    )
 
-    # Pour échouer tôt si tôt si l'EDF est absent ou vide
-    if not raw_path.exists() or raw_path.stat().st_size == 0:
-        # Pour rendre l’échec explicite au point exact où le contrat est violé.
-        raise FileNotFoundError(
-            # Pour garder un message complet sans casser la lisibilité.
-            "EDF introuvable pour "
-            # Pour garder un message complet sans casser la lisibilité.
-            f"{subject} {run}: {raw_path}. "
-            # Pour garder un message complet sans casser la lisibilité.
-            "Lancez `make download_dataset` ou pointez --raw-dir vers "
-            # Pour garder un message complet sans casser la lisibilité.
-            "un dataset EEGMMIDB complet."
-        )
-
-    # Pour échouer tôt si tôt si le fichier .edf.event est absent ou vide
-    if not event_path.exists() or event_path.stat().st_size == 0:
-        # Pour rendre l’échec explicite au point exact où le contrat est violé.
-        raise FileNotFoundError(
-            # Pour garder un message complet sans casser la lisibilité.
-            "Fichier événement introuvable pour "
-            # Pour garder un message complet sans casser la lisibilité.
-            f"{subject} {run}: {event_path}. "
-            # Pour garder un message complet sans casser la lisibilité.
-            "Le dataset semble incomplet: relancez `make download_dataset` "
-            # Pour garder un message complet sans casser la lisibilité.
-            f"ou définissez {DATA_DIR_ENV_VAR} vers un dossier valide."
-        )
+    # Pour échouer tôt avec le diagnostic partagé par la prédiction.
+    tpv_utils.ensure_physionet_files_exist(subject, run, raw_path, event_path)
 
     # Pour garantir l'arborescence cible pour déposer les .npy
     features_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1752,31 +1553,9 @@ def _build_npy_from_edf(
         reference=build_context.eeg_reference,
     )
 
-    # Pour aligner un notch si une fréquence valide est fournie
-    if build_context.preprocess_config.notch_freq > 0.0:
-        # Pour aligner le notch pour supprimer la pollution secteur
-        notched_raw = preprocessing.apply_notch_filter(
-            # Pour propager le signal brut chargé
-            raw,
-            # Pour propager la fréquence de notch configurée
-            freq=build_context.preprocess_config.notch_freq,
-        )
-    # Pour conserver un fallback explicite quand la branche nominale échoue.
-    else:
-        # Pour préserver le signal brut si le notch est désactivé
-        notched_raw = raw
-    # Pour aligner le filtrage bande-passante pour stabiliser les bandes MI
-    filtered_raw = preprocessing.apply_bandpass_filter(
-        # Pour propager le signal après notch (ou brut si désactivé)
-        notched_raw,
-        # Pour propager la bande passante configurée pour la MI
-        freq_band=build_context.preprocess_config.bandpass_band,
-    )
-
-    # Pour aligner les annotations en événements moteurs après filtrage
-    events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
-        # Pour transporter un signal déjà stabilisé pour la suite du flux.
-        filtered_raw
+    # Pour partager la préparation numérique sans toucher à la sélection de fenêtre.
+    prepared = preprocessing.prepare_motor_recording(
+        raw, build_context.preprocess_config
     )
 
     # Pour adapter les fenêtres candidates en fonction du sujet
@@ -1789,13 +1568,13 @@ def _build_npy_from_edf(
     # Pour construire le contexte nécessaire à la sélection de fenêtre
     window_context = EpochWindowContext(
         # Pour transmettre le signal filtré déjà prêt pour l’epoching.
-        filtered_raw=filtered_raw,
+        filtered_raw=prepared.filtered_raw,
         # Pour transmettre les événements alignés sur le signal courant.
-        events=events,
+        events=prepared.events,
         # Pour transmettre le mapping d’événements cohérent avec les labels.
-        event_id=event_id,
+        event_id=prepared.event_id,
         # Pour transmettre les labels avant encodage numérique.
-        motor_labels=motor_labels,
+        motor_labels=prepared.motor_labels,
         # Pour fixer explicitement ce réglage dans l’objet construit.
         subject=subject,
         # Pour fixer explicitement ce réglage dans l’objet construit.
@@ -1926,25 +1705,8 @@ def _train_single_run(
 ) -> bool:
     """Lance l'entraînement d'un sujet pour un run donné."""
 
-    # Pour centraliser la requête complète pour exécuter run_training
-    request = TrainingRequest(
-        # Pour propager le sujet cible
-        subject=subject,
-        # Pour propager le run cible
-        run=run,
-        # Pour propager la configuration pipeline
-        pipeline_config=resources.pipeline_config,
-        # Pour propager le répertoire de données numpy
-        data_dir=resources.data_dir,
-        # Pour propager le répertoire d'artefacts
-        artifacts_dir=resources.artifacts_dir,
-        # Pour propager le répertoire des EDF bruts
-        raw_dir=resources.raw_dir,
-        # Pour propager la référence EEG pour le chargement
-        eeg_reference=resources.eeg_reference,
-        # Pour propager la configuration de prétraitement
-        preprocess_config=resources.preprocess_config,
-    )
+    # Pour centraliser la requête complète et propager toutes les options batch.
+    request = _build_training_request_from_resources(subject, run, resources)
     # Pour préserver l'appel pour signaler les données manquantes sans stopper la boucle
     try:
         # Pour produire les artefacts finaux à partir de la requête préparée.
@@ -1976,7 +1738,9 @@ def _train_all_runs(
         # Pour couvrir chaque run moteur attendu
         for run in MOTOR_RUNS:
             # Pour déterminer le chemin EDF attendu pour vérifier l'existence
-            raw_path = resources.raw_dir / subject / f"{subject}{run}.edf"
+            raw_path, _event_path = tpv_utils.resolve_recording_paths(
+                resources.raw_dir, subject, run
+            )
             # Pour écarter le couple lorsque l'EDF est absent du disque
             if not raw_path.exists():
                 # Pour rendre explicite l'utilisateur de l'absence pour transparence
@@ -2094,33 +1858,6 @@ def _needs_rebuild_from_shapes(
     return False
 
 
-# Pour rendre la décision de rebuild isolée et facilement testable.
-def _should_check_shapes(
-    # Pour garder ce paramètre explicite dans le contrat.
-    needs_rebuild: bool,
-    # Pour garder ce paramètre explicite dans le contrat.
-    corrupted_reason: str | None,
-    # Pour valider le cache features avant de le réutiliser.
-    candidate_X: np.ndarray | None,
-    # Pour valider le cache labels avant de le réutiliser.
-    candidate_y: np.ndarray | None,
-    # Pour figer un contrat de retour exploitable par les appels et mypy.
-) -> bool:
-    """Détermine si la validation des shapes est nécessaire."""
-
-    # Pour restituer un état cohérent à l’appelant sans effet de bord caché.
-    return (
-        # Pour rendre explicite ce point de décision ou de contrat.
-        not needs_rebuild
-        # Pour n’activer cette branche que si la précondition complémentaire tient.
-        and corrupted_reason is None
-        # Pour n’activer cette branche que si la précondition complémentaire tient.
-        and candidate_X is not None
-        # Pour n’activer cette branche que si la précondition complémentaire tient.
-        and candidate_y is not None
-    )
-
-
 # Pour récupérer ou génère les matrices numpy attendues pour l'entraînement
 def _load_data(
     # Pour garder l’identité du sujet explicite dans le contrat.
@@ -2139,106 +1876,16 @@ def _load_data(
       reconstruit pour réaligner les labels sur les epochs.
     """
 
-    # Pour stabiliser les messages autour d’un identifiant de run unique.
-    run_label = f"{subject} {run}"
-
-    # Pour centraliser les deux caches attendus avant lecture ou rebuild.
-    features_path, labels_path = _resolve_data_paths(
-        # Pour garder les chemins dérivés alignés sur le sujet demandé.
-        subject,
-        # Pour garder les chemins dérivés alignés sur le run demandé.
-        run,
-        # Pour centraliser la racine locale des caches numpy.
-        build_context.data_dir,
+    # Train vérifie aussi y, les lots vides et produit ses diagnostics dédiés.
+    return preprocessing.load_or_rebuild_npy_cache(
+        (subject, run),
+        build_context,
+        _build_npy_from_edf,
+        lambda X, y, features_path, labels_path: not _needs_rebuild_from_shapes(
+            X, y, features_path, labels_path, f"{subject} {run}"
+        ),
+        report_corruption=True,
     )
-
-    # Pour figer un bool Python strict et éviter une ambiguïté de contrat.
-    needs_rebuild: bool = False
-    # Pour mémoriser les chemins invalides pour enrichir les logs utilisateurs
-    corrupted_reason: str | None = None
-    # Pour préserver les caches chargés pour valider leurs formes
-    candidate_X: np.ndarray | None = None
-    # Pour préserver les labels chargés pour valider la longueur
-    candidate_y: np.ndarray | None = None
-
-    # Pour déclencher une reconstruction dès qu’un cache manque au couple demandé.
-    if not features_path.exists() or not labels_path.exists():
-        # Pour matérialiser une valeur intermédiaire utile au diagnostic.
-        needs_rebuild = True
-    # Pour conserver un fallback explicite quand la branche nominale échoue.
-    else:
-        # Pour tolérer le chargement numpy pour tolérer les fichiers corrompus
-        try:
-            # Pour récupérer X en mmap pour inspecter la forme sans tout charger
-            candidate_X = np.load(features_path, mmap_mode="r")
-            # Pour récupérer y en mmap pour inspecter la longueur
-            candidate_y = np.load(labels_path, mmap_mode="r")
-        # Pour garder un diagnostic maîtrisé sur cette famille d’échecs attendus.
-        except (OSError, ValueError) as error:
-            # Pour déclencher la reconstruction dès qu'un chargement échoue
-            needs_rebuild = True
-            # Pour préserver la raison pour orienter l'utilisateur
-            corrupted_reason = str(error)
-
-    # Pour valider les shapes lorsque les caches ont été chargés avec succès
-    if _should_check_shapes(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
-        # Pour normaliser X vers un tableau typé pour satisfaire mypy et bandit
-        validated_X = cast(np.ndarray, candidate_X)
-        # Pour normaliser y vers un vecteur typé pour satisfaire mypy et bandit
-        validated_y = cast(np.ndarray, candidate_y)
-        # Pour détecter les incohérences de dimension et déclenche une régénération
-        needs_rebuild = bool(
-            # Pour préparer explicitement cet objet intermédiaire avant usage.
-            _needs_rebuild_from_shapes(
-                # Pour transmettre explicitement ce contexte à l’appel encapsulé.
-                validated_X,
-                # Pour transmettre explicitement ce contexte à l’appel encapsulé.
-                validated_y,
-                # Pour conserver la provenance du cache dans le diagnostic.
-                features_path,
-                # Pour conserver la provenance des labels dans le diagnostic.
-                labels_path,
-                # Pour rendre le diagnostic lisible dans les logs batch.
-                run_label,
-            )
-        )
-
-    # Pour rendre explicite un cache corrompu avant la phase de rebuild.
-    if corrupted_reason is not None:
-        # Pour rendre l’état du traitement visible dans un contexte CLI long.
-        print(
-            # Pour rendre le diagnostic exploitable sans ouvrir le code.
-            "INFO: Chargement numpy impossible pour "
-            # Pour garder un message complet sans casser la lisibilité.
-            f"{subject} {run}: {corrupted_reason}. "
-            # Pour garder un message complet sans casser la lisibilité.
-            "Régénération depuis l'EDF..."
-        )
-        # Pour matérialiser une valeur intermédiaire utile au diagnostic.
-        needs_rebuild = True
-
-    # Pour empêcher qu’un booléen numpy brouille le contrat de retour.
-    needs_rebuild = True if needs_rebuild else False
-
-    # Pour régénérer les caches seulement quand la validation l’exige.
-    if needs_rebuild:
-        # Pour déclencher la reconstruction avec la configuration active
-        features_path, labels_path = _build_npy_from_edf(
-            # Pour propager l'identifiant de sujet pour reconstruire les numpy
-            subject,
-            # Pour propager l'identifiant de run pour reconstruire les numpy
-            run,
-            # Pour propager la configuration de génération des numpy
-            build_context,
-        )
-
-    # Pour récupérer les données validées (3D) et labels réalignés
-    X = np.load(features_path)
-    # Pour garder les labels explicites dans le contrat de la fonction.
-    y = np.load(labels_path)
-
-    # Pour restituer un état cohérent à l’appelant sans effet de bord caché.
-    return X, y
 
 
 # Pour isoler le hash git courant pour tracer la reproductibilité
@@ -2555,6 +2202,25 @@ def _extract_grid_search_scores(
     return np.array(split_scores, dtype=float)
 
 
+# Pour exécuter partout la même séquence: évaluer puis ajuster le modèle final.
+def _cross_validate_and_fit(
+    pipeline: Pipeline,
+    X: np.ndarray,
+    y: np.ndarray,
+    cv: CVSplitter,
+) -> tuple[np.ndarray, Pipeline, str | None]:
+    """Mesure la CV puis entraîne la pipeline sur toutes les données."""
+
+    try:
+        scores = cross_val_score(pipeline, X, y, cv=cv, error_score="raise")
+        cv_error = None
+    except ValueError as error:
+        scores = np.array([])
+        cv_error = str(error)
+    pipeline.fit(X, y)
+    return scores, pipeline, cv_error
+
+
 # Pour centraliser l'entraînement et la CV optionnelle pour un dataset donné
 def _train_with_optional_cv(
     # Pour transmettre un contrat d’entraînement complet et stable.
@@ -2624,29 +2290,8 @@ def _train_with_optional_cv(
                 # Pour relier le diagnostic au nombre de splits effectivement tenté.
                 search_splits,
             )
-            # Pour mesurer la CV finale sur la meilleure pipeline retenue.
-            try:
-                # Pour déclencher la cross-validation pour mesurer la performance finale
-                cv_scores = cross_val_score(
-                    # Pour évaluer la pipeline finale retenue après la recherche.
-                    pipeline,
-                    # Pour transmettre les features sans transformation additionnelle.
-                    X,
-                    # Pour transmettre les labels associés à cette évaluation finale.
-                    y,
-                    # Pour réutiliser le splitter principal déjà validé pour ce run.
-                    cv=cv,
-                    # Pour faire remonter les erreurs de CV plutôt que les masquer.
-                    error_score="raise",
-                )
-            # Pour garder un diagnostic maîtrisé sur cette famille d’échecs attendus.
-            except ValueError as error:
-                # Pour conserver l'erreur pour un diagnostic CLI explicite
-                cv_error = str(error)
-                # Pour fixer un score vide pour conserver le flux nominal
-                cv_scores = np.array([])
-            # Pour adapter la pipeline sur toutes les données après évaluation
-            pipeline.fit(X, y)
+            # Pour mesurer la CV finale puis ajuster la pipeline complète.
+            cv_scores, pipeline, cv_error = _cross_validate_and_fit(pipeline, X, y, cv)
             # Pour garder immédiatement les sorties sans sélection interne
             return (
                 # Pour transmettre explicitement ce contexte à l’appel encapsulé.
@@ -2673,54 +2318,12 @@ def _train_with_optional_cv(
             # Pour garder les labels explicites dans le contrat de la fonction.
             y,
         )
-        # Pour déterminer les scores de validation croisée sur la pipeline sélectionnée
-        try:
-            # Pour déclencher la cross-validation pour mesurer la performance finale
-            cv_scores = cross_val_score(
-                # Pour évaluer la pipeline sélectionnée après la recherche interne.
-                pipeline,
-                # Pour transmettre les features sans transformation additionnelle.
-                X,
-                # Pour transmettre les labels associés à cette évaluation finale.
-                y,
-                # Pour réutiliser le splitter principal déjà validé pour ce run.
-                cv=cv,
-                # Pour faire remonter les erreurs de CV plutôt que les masquer.
-                error_score="raise",
-            )
-        # Pour garder un diagnostic maîtrisé sur cette famille d’échecs attendus.
-        except ValueError as error:
-            # Pour conserver l'erreur pour un diagnostic CLI explicite
-            cv_error = str(error)
-            # Pour fixer un score vide pour conserver le flux nominal
-            cv_scores = np.array([])
-        # Pour adapter la pipeline sur toutes les données après évaluation
-        pipeline.fit(X, y)
+        # Pour mesurer la CV finale puis ajuster la pipeline sélectionnée.
+        cv_scores, pipeline, cv_error = _cross_validate_and_fit(pipeline, X, y, cv)
     # Pour conserver un fallback explicite quand la branche nominale échoue.
     else:
-        # Pour déterminer les scores de validation croisée sur l'ensemble du pipeline
-        try:
-            # Pour déclencher la cross-validation pour mesurer la performance
-            cv_scores = cross_val_score(
-                # Pour évaluer la pipeline entraînée sans recherche interne.
-                pipeline,
-                # Pour transmettre les features sans transformation additionnelle.
-                X,
-                # Pour transmettre les labels associés à cette évaluation finale.
-                y,
-                # Pour réutiliser le splitter principal déjà validé pour ce run.
-                cv=cv,
-                # Pour faire remonter les erreurs de CV plutôt que les masquer.
-                error_score="raise",
-            )
-        # Pour garder un diagnostic maîtrisé sur cette famille d’échecs attendus.
-        except ValueError as error:
-            # Pour conserver l'erreur pour un diagnostic CLI explicite
-            cv_error = str(error)
-            # Pour fixer un score vide pour conserver le flux nominal
-            cv_scores = np.array([])
-        # Pour adapter la pipeline sur toutes les données après évaluation
-        pipeline.fit(X, y)
+        # Pour mesurer la CV finale puis ajuster la pipeline standard.
+        cv_scores, pipeline, cv_error = _cross_validate_and_fit(pipeline, X, y, cv)
     # Pour garder les informations calculées pour l'entraînement
     return (
         # Pour transmettre explicitement ce contexte à l’appel encapsulé.
@@ -2851,14 +2454,18 @@ def run_training(request: TrainingRequest) -> dict:
             # Pour rendre le diagnostic exploitable sans ouvrir le code.
             "INFO: validation croisée indisponible, entraînement direct sans cross-val"
         )
-    # Pour centraliser le dossier d'artefacts spécifique au sujet et au run
-    target_dir = request.artifacts_dir / request.subject / request.run
+    # Pour centraliser tous les chemins d'artefacts depuis une convention unique.
+    artifact_paths = tpv_utils.resolve_artifact_paths(
+        request.artifacts_dir, request.subject, request.run
+    )
+    # Pour conserver le nom local utilisé par la persistance existante.
+    target_dir = artifact_paths.directory
     # Pour garantir l'existence du parent pour stabiliser la création du dossier cible
     target_dir.parent.mkdir(parents=True, exist_ok=True)
     # Pour garantir les répertoires au besoin pour éviter les erreurs de sauvegarde
     target_dir.mkdir(parents=True, exist_ok=True)
     # Pour déterminer le chemin du fichier modèle pour joblib
-    model_path = target_dir / "model.joblib"
+    model_path = artifact_paths.model
     # Pour préserver la pipeline complète pour les prédictions futures
     save_pipeline(pipeline, str(model_path))
     # Pour isoler l'éventuel scaler pour une sauvegarde dédiée
@@ -2866,7 +2473,7 @@ def run_training(request: TrainingRequest) -> dict:
     # Pour préserver le scaler uniquement s'il est présent dans la pipeline
     if scaler_step is not None and scaler_step != "passthrough":
         # Pour rendre inspectable le scaler dans un fichier distinct pour inspection
-        joblib.dump(scaler_step, target_dir / "scaler.joblib")
+        joblib.dump(scaler_step, artifact_paths.scaler)
     # Pour isoler le réducteur de dimension pour exposer la matrice W
     dim_reducer = _resolve_reducer_step(pipeline)
     # Pour centraliser un chemin de sauvegarde pour la matrice W si disponible
@@ -2876,7 +2483,7 @@ def run_training(request: TrainingRequest) -> dict:
     # Pour préserver la matrice de projection seulement si elle existe
     if w_matrix is not None and dim_reducer is not None:
         # Pour stabiliser le chemin cible pour la matrice W sérialisée
-        w_matrix_path = target_dir / "w_matrix.joblib"
+        w_matrix_path = artifact_paths.w_matrix
         # Pour préserver la matrice de projection pour les usages temps-réel
         _persist_w_matrix(dim_reducer, w_matrix_path, adapted_config)
     # Pour déterminer le chemin du scaler pour l'ajouter au manifeste
@@ -2884,11 +2491,12 @@ def run_training(request: TrainingRequest) -> dict:
     # Pour propager le chemin du scaler uniquement lorsqu'il existe
     if scaler_step is not None and scaler_step != "passthrough":
         # Pour mémoriser le chemin vers le scaler sauvegardé pour le manifeste
-        scaler_path = target_dir / "scaler.joblib"
+        scaler_path = artifact_paths.scaler
     # Pour persister un manifeste décrivant l'entraînement et ses artefacts
+    manifest_request = replace(request, pipeline_config=adapted_config)
     manifest_paths = _write_manifest(
         # Pour transmettre un contrat d’entraînement complet et stable.
-        request,
+        manifest_request,
         # Pour transmettre explicitement ce contexte à l’appel encapsulé.
         target_dir,
         # Pour transmettre explicitement ce contexte à l’appel encapsulé.
@@ -3029,20 +2637,13 @@ def _build_preprocess_config_from_args(
 ) -> preprocessing.PreprocessingConfig:
     """Construit la configuration de prétraitement validée."""
 
-    # Pour rejeter une bande passante incohérente pour éviter un filtrage invalide
-    if args.bandpass_low >= args.bandpass_high:
-        # Pour rendre explicite l'incohérence pour la gestion d'erreur CLI
-        raise ValueError("bandpass_low doit être inférieur à bandpass_high")
-    # Pour construire la configuration de prétraitement à partir des arguments
-    return preprocessing.PreprocessingConfig(
-        # Pour fixer la bande passante MI configurée
-        bandpass_band=(args.bandpass_low, args.bandpass_high),
-        # Pour fixer la fréquence de notch configurée
-        notch_freq=args.notch_freq,
-        # Pour fixer la méthode de normalisation par canal
-        normalize_method=args.normalize_channels,
-        # Pour fixer l'epsilon de stabilité pour la normalisation
-        normalize_epsilon=args.normalize_epsilon,
+    # Pour partager la validation et la construction avec la prédiction.
+    return preprocessing.build_preprocessing_config(
+        args.bandpass_low,
+        args.bandpass_high,
+        args.notch_freq,
+        args.normalize_channels,
+        args.normalize_epsilon,
     )
 
 
@@ -3081,15 +2682,6 @@ def _build_pipeline_config_from_args(
         args.feature_strategy,
         # Pour propager la méthode de réduction demandée
         args.dim_method,
-        # Pour propager argv pour tracer les choix explicites
-        argv,
-    )
-    # Pour adapter la méthode de réduction en fonction de la stratégie de features
-    dim_method = _resolve_dim_method_for_features(
-        # Pour propager la stratégie de features résolue
-        feature_strategy,
-        # Pour propager la méthode de réduction résolue
-        dim_method,
         # Pour propager argv pour tracer les choix explicites
         argv,
     )

@@ -107,7 +107,10 @@ def test_realtime_build_parser_defines_cli_contract():
     # Vérifie que l'option --artifacts-dir est bien exposée dans les flags
     assert actions["artifacts_dir"].option_strings == ["--artifacts-dir"]
     # Verrouille le texte d'aide pour éviter une rupture de contrat CLI
-    assert actions["artifacts_dir"].help == "Répertoire racine où lire le modèle"
+    assert (
+        actions["artifacts_dir"].help
+        == "Répertoire racine contenant les artefacts du modèle"
+    )
     # Vérifie que la taille de fenêtre reste un entier avec valeur 50
     assert actions["window_size"].type is int
     assert actions["window_size"].default == DEFAULT_WINDOW_SIZE

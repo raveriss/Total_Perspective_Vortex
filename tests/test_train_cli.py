@@ -2,7 +2,9 @@ import argparse
 import csv
 import json
 import re
-import sys
+
+# Partial lie le chargeur train au helper de contexte partagé
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, cast
 
@@ -11,60 +13,18 @@ import pytest
 from pytest import CaptureFixture, MonkeyPatch
 
 from scripts import train
+from tests.helpers import (
+    get_parser_action,
+    load_data_with_context,
+    write_physionet_stub,
+)
+
+# Lie explicitement la politique train sans la déplacer dans le helper générique
+_load_data_with_context = partial(load_data_with_context, train._load_data)
 
 
-# Construit un contexte de génération des numpy pour les tests
-def _build_npy_context(
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str,
-) -> train.NpyBuildContext:
-    # Construit une configuration de prétraitement par défaut
-    preprocess_config = train.preprocessing.PreprocessingConfig()
-    # Retourne le contexte complet pour charger/générer les numpy
-    return train.NpyBuildContext(
-        # Transmet le répertoire de base des numpy
-        data_dir=data_dir,
-        # Transmet le répertoire des EDF bruts
-        raw_dir=raw_dir,
-        # Transmet la référence EEG configurée
-        eeg_reference=eeg_reference,
-        # Transmet la configuration de prétraitement
-        preprocess_config=preprocess_config,
-    )
-
-
-# Charge les données via la nouvelle signature tout en gardant les tests lisibles
-def _load_data_with_context(
-    subject: str,
-    run: str,
-    data_dir: Path,
-    raw_dir: Path,
-    eeg_reference: str,
-) -> tuple[np.ndarray, np.ndarray]:
-    # Construit le contexte de génération des numpy
-    build_context = _build_npy_context(
-        # Transmet le répertoire de base des numpy
-        data_dir,
-        # Transmet le répertoire des EDF bruts
-        raw_dir,
-        # Transmet la référence EEG configurée
-        eeg_reference,
-    )
-    # Délègue à l'API interne avec contexte explicite
-    return train._load_data(subject, run, build_context)
-
-
-# Récupère une action argparse via son dest pour assertions stables
-def _get_action(parser: argparse.ArgumentParser, dest: str) -> argparse.Action:
-    # Parcourt toutes les actions déclarées dans argparse
-    for action in parser._actions:  # pylint: disable=protected-access
-        # Sélectionne l'action correspondant au dest demandé
-        if action.dest == dest:
-            # Retourne l'action trouvée pour inspection
-            return action
-    # Signale clairement un dest manquant
-    raise AssertionError(f"Action argparse introuvable: dest={dest!r}")
+# Préserve le nom local historique tout en partageant l'implémentation.
+_get_action = get_parser_action
 
 
 def test_build_parser_description_and_help_texts_are_stable() -> None:
@@ -79,9 +39,9 @@ def test_build_parser_description_and_help_texts_are_stable() -> None:
     run_action = _get_action(parser, "run")
 
     # Verrouille l'aide exacte de l'argument subject
-    assert subject_action.help == "Identifiant du sujet (ex: 4)"
+    assert subject_action.help == "Identifiant du sujet (ex: 1 ou S001)"
     # Verrouille l'aide exacte de l'argument run
-    assert run_action.help == "Identifiant du run (ex: 14)"
+    assert run_action.help == "Identifiant du run (ex: 3 ou R03)"
 
     # Récupère les actions optionnelles attendues
     classifier_action = _get_action(parser, "classifier")
@@ -303,7 +263,10 @@ def test_build_parser_help_texts_and_flags_are_stable() -> None:
     # Verrouille le type, le défaut et l'aide de --artifacts-dir
     assert artifacts_dir_action.type is Path
     assert artifacts_dir_action.default == train.DEFAULT_ARTIFACTS_DIR
-    assert artifacts_dir_action.help == "Répertoire racine où enregistrer le modèle"
+    assert (
+        artifacts_dir_action.help
+        == "Répertoire racine contenant les artefacts du modèle"
+    )
 
     # Verrouille le type, le défaut et l'aide de --raw-dir
     assert raw_dir_action.type is Path
@@ -470,169 +433,6 @@ def test_load_data_uses_mmap_mode_read_for_shape_validation(
     assert calls[3][1] == "__absent__"
 
 
-def test_load_data_initializes_candidate_buffers_as_none_before_loading(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    subject = "S01"
-    run = "R01"
-    subject_dir = data_dir / subject
-    subject_dir.mkdir()
-
-    features_path = subject_dir / f"{run}_X.npy"
-    labels_path = subject_dir / f"{run}_y.npy"
-
-    np.save(features_path, np.zeros((2, 1, 4), dtype=float))
-    np.save(labels_path, np.zeros((2,), dtype=int))
-
-    monkeypatch.setattr(
-        train,
-        "_build_npy_from_edf",
-        lambda *_a, **_k: pytest.fail("_build_npy_from_edf ne doit pas être appelé"),
-    )
-
-    observed: dict[str, object] = {}
-
-    def tracer(frame, event, arg):  # noqa: PLR0911
-        if event != "line":
-            return tracer
-        if "snapshot" in observed:
-            return tracer
-        if frame.f_globals.get("__name__") != "scripts.train":
-            return tracer
-        if "load_data" not in frame.f_code.co_name:
-            return tracer
-        if "candidate_X" not in frame.f_locals or "candidate_y" not in frame.f_locals:
-            return tracer
-        if "needs_rebuild" not in frame.f_locals:
-            return tracer
-        if "corrupted_reason" not in frame.f_locals:
-            return tracer
-
-        observed["snapshot"] = True
-        observed["needs_rebuild"] = frame.f_locals["needs_rebuild"]
-        observed["corrupted_reason"] = frame.f_locals["corrupted_reason"]
-        observed["candidate_X"] = frame.f_locals["candidate_X"]
-        observed["candidate_y"] = frame.f_locals["candidate_y"]
-        return tracer
-
-    previous_tracer = sys.gettrace()
-    sys.settrace(tracer)
-    try:
-        _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
-    finally:
-        sys.settrace(previous_tracer)
-
-    assert observed["needs_rebuild"] is False
-    assert observed["corrupted_reason"] is None
-    assert observed["candidate_X"] is None
-    assert observed["candidate_y"] is None
-
-
-@pytest.mark.parametrize(
-    "needs_rebuild, corrupted_reason, candidate_X, candidate_y, expected",
-    [
-        (
-            False,
-            None,
-            np.zeros((2, 1, 4), dtype=float),
-            np.zeros((2,), dtype=int),
-            True,
-        ),
-        (
-            True,
-            None,
-            np.zeros((2, 1, 4), dtype=float),
-            np.zeros((2,), dtype=int),
-            False,
-        ),
-        (
-            False,
-            "boom",
-            np.zeros((2, 1, 4), dtype=float),
-            np.zeros((2,), dtype=int),
-            False,
-        ),
-        (
-            False,
-            None,
-            None,
-            np.zeros((2,), dtype=int),
-            False,
-        ),
-        (
-            False,
-            None,
-            np.zeros((2, 1, 4), dtype=float),
-            None,
-            False,
-        ),
-    ],
-)
-def test_should_check_shapes_requires_all_preconditions(
-    needs_rebuild: bool,
-    corrupted_reason: str | None,
-    candidate_X: np.ndarray | None,
-    candidate_y: np.ndarray | None,
-    expected: bool,
-) -> None:
-    assert (
-        train._should_check_shapes(
-            needs_rebuild,
-            corrupted_reason,
-            candidate_X,
-            candidate_y,
-        )
-        is expected
-    )
-
-
-def test_load_data_forwards_needs_rebuild_bool_to_should_check_shapes_on_clean_files(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    subject = "S01"
-    run = "R01"
-    subject_dir = data_dir / subject
-    subject_dir.mkdir()
-
-    features_path = subject_dir / f"{run}_X.npy"
-    labels_path = subject_dir / f"{run}_y.npy"
-
-    np.save(features_path, np.zeros((2, 1, 4), dtype=float))
-    np.save(labels_path, np.zeros((2,), dtype=int))
-
-    monkeypatch.setattr(
-        train,
-        "_build_npy_from_edf",
-        lambda *_a, **_k: pytest.fail("_build_npy_from_edf ne doit pas être appelé"),
-    )
-
-    captured: dict[str, object] = {}
-    real_fn = train._should_check_shapes
-
-    def spy(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
-        captured["args"] = (needs_rebuild, corrupted_reason, candidate_X, candidate_y)
-        return real_fn(needs_rebuild, corrupted_reason, candidate_X, candidate_y)
-
-    monkeypatch.setattr(train, "_should_check_shapes", spy)
-
-    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
-
-    assert "args" in captured
-    needs_rebuild, corrupted_reason, candidate_X, candidate_y = cast(
-        tuple[object, object, object, object], captured["args"]
-    )
-    assert needs_rebuild is False
-    assert corrupted_reason is None
-    assert candidate_X is not None
-    assert candidate_y is not None
-
-
 def test_load_data_reports_real_numpy_error_reason(
     tmp_path: Path,
     capsys: CaptureFixture[str],
@@ -775,257 +575,6 @@ def test_load_data_logs_labels_ndim_mismatch_with_stable_prefix_and_triggers_reb
     assert loaded_y.ndim == 1
 
 
-def test_load_data_keeps_needs_rebuild_boolean_when_nothing_to_rebuild(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    subject = "S01"
-    run = "R01"
-    subject_dir = data_dir / subject
-    subject_dir.mkdir()
-
-    features_path = subject_dir / f"{run}_X.npy"
-    labels_path = subject_dir / f"{run}_y.npy"
-
-    # Cas "fichiers OK" : needs_rebuild doit rester False (pas None).
-    np.save(features_path, np.zeros((2, 1, 4), dtype=float))
-    np.save(labels_path, np.zeros((2,), dtype=int))
-
-    monkeypatch.setattr(
-        train,
-        "_build_npy_from_edf",
-        lambda *_a, **_k: pytest.fail("_build_npy_from_edf ne doit pas être appelé"),
-    )
-
-    observed: dict[str, object] = {}
-
-    def tracer(frame, event, arg):
-        # Ignore les wrappers mutmut : on ne capture que les frames
-        # qui exposent réellement la locale 'needs_rebuild'.
-        if event == "return" and "needs_rebuild" not in observed:
-            if frame.f_globals.get("__name__") != "scripts.train":
-                return tracer
-            if "load_data" not in frame.f_code.co_name:
-                return tracer
-            if "needs_rebuild" not in frame.f_locals:
-                return tracer
-            observed["needs_rebuild"] = frame.f_locals["needs_rebuild"]
-        return tracer
-
-    previous_tracer = sys.gettrace()
-    sys.settrace(tracer)
-    try:
-        _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
-    finally:
-        sys.settrace(previous_tracer)
-
-    assert "needs_rebuild" in observed
-    assert observed["needs_rebuild"] is False
-
-
-def test_load_data_keeps_needs_rebuild_strict_false_before_bool_coercion_on_clean_files(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    subject = "S01"
-    run = "R01"
-    subject_dir = data_dir / subject
-    subject_dir.mkdir()
-
-    features_path = subject_dir / f"{run}_X.npy"
-    labels_path = subject_dir / f"{run}_y.npy"
-
-    np.save(features_path, np.zeros((2, 1, 4), dtype=float))
-    np.save(labels_path, np.zeros((2,), dtype=int))
-
-    monkeypatch.setattr(
-        train,
-        "_build_npy_from_edf",
-        lambda *_a, **_k: pytest.fail("_build_npy_from_edf ne doit pas être appelé"),
-    )
-
-    observed: dict[str, object] = {}
-
-    def tracer(frame, event, arg):
-        if event == "line" and "pre_coercion" not in observed:
-            if frame.f_globals.get("__name__") != "scripts.train":
-                return tracer
-            if "load_data" not in frame.f_code.co_name:
-                return tracer
-            if "needs_rebuild" in frame.f_locals:
-                observed["pre_coercion"] = frame.f_locals["needs_rebuild"]
-        return tracer
-
-    previous_tracer = sys.gettrace()
-    sys.settrace(tracer)
-    try:
-        _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
-    finally:
-        sys.settrace(previous_tracer)
-
-    assert "pre_coercion" in observed
-    assert isinstance(observed["pre_coercion"], bool)
-    assert observed["pre_coercion"] is False
-
-
-def test_load_data_sets_needs_rebuild_true_inside_numpy_load_except_before_corrupted_reason(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    subject = "S01"
-    run = "R01"
-    subject_dir = data_dir / subject
-    subject_dir.mkdir()
-
-    features_path = subject_dir / f"{run}_X.npy"
-    labels_path = subject_dir / f"{run}_y.npy"
-
-    np.save(features_path, np.zeros((2, 1, 4), dtype=float))
-    np.save(labels_path, np.zeros((2,), dtype=int))
-
-    def fake_rebuild(
-        _s: str,
-        _r: str,
-        _build_context: train.NpyBuildContext,
-    ):
-        np.save(features_path, np.zeros((2, 1, 4), dtype=float))
-        np.save(labels_path, np.zeros((2,), dtype=int))
-        return features_path, labels_path
-
-    monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
-
-    real_np_load = np.load
-    broke_once: dict[str, bool] = {"done": False}
-
-    def fake_np_load(path: Path, *args, **kwargs):
-        if (
-            kwargs.get("mmap_mode") == "r"
-            and path == features_path
-            and not broke_once["done"]
-        ):
-            broke_once["done"] = True
-            raise ValueError("boom")
-        return real_np_load(path, *args, **kwargs)
-
-    monkeypatch.setattr(train.np, "load", fake_np_load)
-
-    observed: dict[str, object] = {}
-    debug_steps: list[tuple[int, object, object]] = []
-
-    def tracer(frame, event, arg):  # noqa: PLR0911
-        if event != "line":
-            return tracer
-        if frame.f_globals.get("__name__") != "scripts.train":
-            return tracer
-        if "load_data" not in frame.f_code.co_name:
-            return tracer
-
-        if "error" in frame.f_locals:
-            debug_steps.append(
-                (
-                    frame.f_lineno,
-                    frame.f_locals.get("needs_rebuild"),
-                    frame.f_locals.get("corrupted_reason"),
-                )
-            )
-
-        if "in_except" in observed:
-            return tracer
-
-        if "error" not in frame.f_locals:
-            return tracer
-
-        if frame.f_locals.get("corrupted_reason") is not None:
-            return tracer
-
-        if frame.f_locals.get("needs_rebuild") is not True:
-            return tracer
-
-        observed["in_except"] = frame.f_locals["needs_rebuild"]
-        return tracer
-
-    previous_tracer = sys.gettrace()
-    sys.settrace(tracer)
-    try:
-        _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
-    finally:
-        sys.settrace(previous_tracer)
-
-    assert (
-        "in_except" in observed
-    ), f"Trace (lineno, needs_rebuild, corrupted_reason)={debug_steps}"
-    assert isinstance(observed["in_except"], bool), f"Trace={debug_steps}"
-    assert observed["in_except"] is True, f"Trace={debug_steps}"
-
-
-def test_load_data_forwards_corrupted_reason_to_should_check_shapes_on_numpy_error(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    subject = "S01"
-    run = "R01"
-    subject_dir = data_dir / subject
-    subject_dir.mkdir()
-
-    features_path = subject_dir / f"{run}_X.npy"
-    labels_path = subject_dir / f"{run}_y.npy"
-
-    np.save(features_path, np.zeros((2, 1, 4), dtype=float))
-    np.save(labels_path, np.zeros((2,), dtype=int))
-
-    def fake_rebuild(
-        _s: str,
-        _r: str,
-        _build_context: train.NpyBuildContext,
-    ):
-        np.save(features_path, np.zeros((2, 1, 4), dtype=float))
-        np.save(labels_path, np.zeros((2,), dtype=int))
-        return features_path, labels_path
-
-    monkeypatch.setattr(train, "_build_npy_from_edf", fake_rebuild)
-
-    real_np_load = np.load
-    broke_once: dict[str, bool] = {"done": False}
-
-    def fake_np_load(path: Path, *args, **kwargs):
-        if (
-            kwargs.get("mmap_mode") == "r"
-            and path == features_path
-            and not broke_once["done"]
-        ):
-            broke_once["done"] = True
-            raise ValueError("boom")
-        return real_np_load(path, *args, **kwargs)
-
-    monkeypatch.setattr(train.np, "load", fake_np_load)
-
-    captured: dict[str, object] = {}
-    real_fn = train._should_check_shapes
-
-    def spy(needs_rebuild, corrupted_reason, candidate_X, candidate_y):
-        captured["args"] = (needs_rebuild, corrupted_reason, candidate_X, candidate_y)
-        return real_fn(needs_rebuild, corrupted_reason, candidate_X, candidate_y)
-
-    monkeypatch.setattr(train, "_should_check_shapes", spy)
-
-    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
-
-    assert "args" in captured
-    needs_rebuild, corrupted_reason, _candidate_X, _candidate_y = cast(
-        tuple[object, object, object, object], captured["args"]
-    )
-    assert needs_rebuild is True
-    assert corrupted_reason == "boom"
-
-
 def test_load_data_reports_misalignment_with_correct_shape0(
     tmp_path: Path,
     capsys: CaptureFixture[str],
@@ -1117,14 +666,8 @@ def test_build_npy_from_edf_applies_notch_and_normalization(
     data_dir = tmp_path / "data"
     # Prépare le répertoire raw pour simuler l'EDF
     raw_dir = tmp_path / "raw"
-    # Construit le chemin EDF attendu par la fonction
-    raw_path = raw_dir / subject / f"{subject}{run}.edf"
-    # Crée l'arborescence de l'EDF factice
-    raw_path.parent.mkdir(parents=True, exist_ok=True)
-    # Écrit un fichier EDF factice pour passer le check d'existence
-    raw_path.write_text("stub")
-    # Écrit un fichier .edf.event factice pour le contrôle d'intégrité
-    raw_path.with_suffix(".edf.event").write_text("stub")
+    # Matérialise la paire EDF/event selon la convention partagée des tests.
+    write_physionet_stub(raw_dir, subject, run)
 
     # Prépare une configuration de prétraitement avec notch et z-score
     preprocess_config = train.preprocessing.PreprocessingConfig(
@@ -1199,14 +742,8 @@ def test_build_npy_from_edf_skips_notch_and_normalization(
     data_dir = tmp_path / "data"
     # Prépare le répertoire raw pour simuler l'EDF
     raw_dir = tmp_path / "raw"
-    # Construit le chemin EDF attendu par la fonction
-    raw_path = raw_dir / subject / f"{subject}{run}.edf"
-    # Crée l'arborescence de l'EDF factice
-    raw_path.parent.mkdir(parents=True, exist_ok=True)
-    # Écrit un fichier EDF factice pour passer le check d'existence
-    raw_path.write_text("stub")
-    # Écrit un fichier .edf.event factice pour le contrôle d'intégrité
-    raw_path.with_suffix(".edf.event").write_text("stub")
+    # Matérialise la paire EDF/event selon la convention partagée des tests.
+    write_physionet_stub(raw_dir, subject, run)
 
     # Prépare une configuration de prétraitement sans notch ni normalisation
     preprocess_config = train.preprocessing.PreprocessingConfig(
@@ -1524,40 +1061,6 @@ def test_flatten_hyperparams_passes_bool_false_to_ensure_ascii(
     assert all(isinstance(item, bool) for item in calls)
 
 
-def test_load_data_uses_ndarray_casts_for_validated_buffers(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    subject = "S01"
-    run = "R01"
-    subject_dir = data_dir / subject
-    subject_dir.mkdir()
-
-    # Crée des fichiers valides pour entrer dans le bloc de validation de shapes
-    np.save(subject_dir / f"{run}_X.npy", np.zeros((2, 1, 4), dtype=float))
-    np.save(subject_dir / f"{run}_y.npy", np.zeros((2,), dtype=int))
-
-    captured_types: list[object] = []
-
-    # Intercepte train.cast pour vérifier les arguments de type
-    # cast(typ, val) doit retourner val pour ne pas briser la logique
-    def spy_cast(typ: object, val: object) -> object:
-        captured_types.append(typ)
-        return val
-
-    monkeypatch.setattr(train, "cast", spy_cast)
-
-    _load_data_with_context(subject, run, data_dir, tmp_path / "raw", "average")
-
-    # Vérifie que cast a été appelé avec np.ndarray pour X et y
-    # Si mutmut remplace par cast(None, ...), ces assertions échoueront
-    assert len(captured_types) >= 2
-    assert captured_types[0] is np.ndarray
-    assert captured_types[1] is np.ndarray
-
-
 def test_main_build_all_invokes_builder(monkeypatch, tmp_path):
     called: dict[str, tuple] = {}
 
@@ -1658,6 +1161,10 @@ def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
             resources.raw_dir,
             resources.eeg_reference,
         )
+        captured["grid_search"] = (
+            resources.enable_grid_search,
+            resources.grid_search_splits,
+        )
         return 7
 
     monkeypatch.setattr(train, "_train_all_runs", fake_train_all_runs)
@@ -1676,6 +1183,9 @@ def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
             "csp",
             "--n-components",
             "5",
+            "--grid-search",
+            "--grid-search-splits",
+            "3",
             "--sfreq",
             "120",
             "--data-dir",
@@ -1705,6 +1215,31 @@ def test_main_train_all_delegates_and_propagates_code(monkeypatch, tmp_path):
         tmp_path / "raw",
         "average",
     )
+    assert captured["grid_search"] == (True, 3)
+
+
+def test_train_single_run_propagates_grid_search_resources(monkeypatch, tmp_path):
+    """Verrouille la conversion des ressources batch vers TrainingRequest."""
+
+    captured: dict[str, train.TrainingRequest] = {}
+
+    def fake_run_training(request: train.TrainingRequest) -> dict[str, object]:
+        captured["request"] = request
+        return {}
+
+    monkeypatch.setattr(train, "run_training", fake_run_training)
+    resources = train.TrainingResources(
+        pipeline_config=train.PipelineConfig(sfreq=50.0),
+        data_dir=tmp_path / "data",
+        artifacts_dir=tmp_path / "artifacts",
+        raw_dir=tmp_path / "raw",
+        enable_grid_search=True,
+        grid_search_splits=3,
+    )
+
+    assert train._train_single_run("S001", "R03", resources) is True
+    assert captured["request"].enable_grid_search is True
+    assert captured["request"].grid_search_splits == 3
 
 
 def test_main_train_all_respects_no_normalize_features_flag(monkeypatch, tmp_path):

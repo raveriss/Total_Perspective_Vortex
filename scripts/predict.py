@@ -13,7 +13,6 @@ import importlib.util
 
 # Fournit la sérialisation JSON pour tracer les rapports générés
 import json
-import os
 
 # Fournit dataclass pour regrouper des options de prédiction
 # Fournit field pour définir des factories de dataclass
@@ -36,6 +35,9 @@ import numpy as np
 # Calcule les métriques de classification pour le rapport
 from sklearn.metrics import confusion_matrix
 
+# Centralise les conventions CLI et les chemins partagés avec train/realtime.
+import tpv.utils as tpv_utils
+
 # Centralise le parsing et le contrôle qualité des fichiers EDF
 from tpv import preprocessing
 
@@ -51,7 +53,14 @@ from tpv.features import (
 )
 
 # Expose la configuration de pipeline pour déclencher un auto-train
-from tpv.pipeline import PipelineConfig, load_pipeline
+from tpv.pipeline import (
+    CLASSIFIER_CHOICES,
+    DIMENSIONALITY_METHODS,
+    SCALER_CHOICES,
+    PipelineConfig,
+    load_pipeline,
+    warn_if_spectral_features_follow_spatial_filter,
+)
 
 # Centralise la fenêtre d'epoching par défaut
 from tpv.utils import (
@@ -84,23 +93,20 @@ def _load_train_module() -> ModuleType:
 # Expose l'entraînement programmatique pour générer un modèle manquant
 train_module: Any = _load_train_module()
 
-# Définit le nom de la variable d'environnement pour la racine dataset
-DATA_DIR_ENV_VAR = "EEGMMIDB_DATA_DIR"
-
 # Définit le volume attendu des données EEG brutes (trials, canaux, temps)
-EXPECTED_FEATURES_DIMENSIONS = 3
+EXPECTED_FEATURES_DIMENSIONS = tpv_utils.EXPECTED_FEATURES_DIMENSIONS
 
 # Définit le répertoire par défaut où chercher les enregistrements
-DEFAULT_DATA_DIR = Path(os.environ.get(DATA_DIR_ENV_VAR, "data")).expanduser()
+DEFAULT_DATA_DIR = tpv_utils.DEFAULT_DATA_DIR
 
 # Définit le répertoire par défaut pour récupérer les artefacts
-DEFAULT_ARTIFACTS_DIR = Path("artifacts")
+DEFAULT_ARTIFACTS_DIR = tpv_utils.DEFAULT_ARTIFACTS_DIR
 
 # Définit le répertoire par défaut pour les fichiers EDF bruts
-DEFAULT_RAW_DIR = DEFAULT_DATA_DIR
+DEFAULT_RAW_DIR = tpv_utils.DEFAULT_RAW_DIR
 
 # Définit la référence EEG par défaut pour le re-référencement
-DEFAULT_EEG_REFERENCE = "average"
+DEFAULT_EEG_REFERENCE = tpv_utils.DEFAULT_EEG_REFERENCE
 
 # Définit la durée de fenêtre glissante en secondes pour la stratégie Welch
 DEFAULT_WELCH_WINDOW_SECONDS = 1.0
@@ -251,19 +257,8 @@ class PredictionOptions:
     pipeline_overrides: Mapping[str, str] | None = None
 
 
-# Regroupe les chemins et réglages nécessaires à la génération des numpy
-@dataclass
-class NpyBuildContext:
-    """Encapsule les paramètres nécessaires à la génération des .npy."""
-
-    # Spécifie le répertoire contenant les données numpy
-    data_dir: Path
-    # Spécifie le répertoire des enregistrements EDF bruts
-    raw_dir: Path
-    # Définit la référence EEG à appliquer lors du chargement EDF
-    eeg_reference: str | None
-    # Regroupe les réglages de filtrage et de normalisation
-    preprocess_config: preprocessing.PreprocessingConfig
+# Préserve l'API historique tout en partageant une seule implémentation.
+NpyBuildContext = preprocessing.NpyBuildContext
 
 
 # Regroupe les overrides résolus pour l'auto-train
@@ -286,67 +281,19 @@ DEFAULT_MAX_PEAK_TO_PEAK = 200e-6
 
 
 # Normalise un identifiant brut en appliquant un préfixe standard
-def _normalize_identifier(value: str, prefix: str, width: int, label: str) -> str:
-    """Normalise un identifiant pour respecter le format Physionet."""
-
-    # Nettoie la valeur reçue pour éviter des espaces parasites
-    cleaned_value = value.strip()
-    # Refuse une valeur vide pour éviter un identifiant incomplet
-    if not cleaned_value:
-        # Signale une valeur vide pour forcer la correction côté CLI
-        raise argparse.ArgumentTypeError(f"{label} vide")
-    # Récupère le premier caractère pour détecter un préfixe explicite
-    first_char = cleaned_value[0]
-    # Déduit si l'utilisateur a fourni le préfixe attendu
-    has_prefix = first_char.upper() == prefix.upper()
-    # Extrait la portion numérique selon la présence du préfixe
-    numeric_part = cleaned_value[1:] if has_prefix else cleaned_value
-    # Refuse les valeurs non numériques pour garantir un ID valide
-    if not numeric_part.isdigit():
-        # Signale l'identifiant invalide pour guider l'utilisateur
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Convertit en entier pour normaliser les zéros initiaux
-    numeric_value = int(numeric_part)
-    # Refuse les index non positifs pour respecter la base Physionet
-    if numeric_value < 1:
-        # Signale l'identifiant non valide pour arrêter le parsing
-        raise argparse.ArgumentTypeError(f"{label} invalide: {value}")
-    # Reconstruit l'identifiant normalisé avec le padding attendu
-    return f"{prefix}{numeric_value:0{width}d}"
+_normalize_identifier = tpv_utils.normalize_identifier
 
 
 # Normalise un identifiant de sujet pour la CLI de prédiction
-def _parse_subject(value: str) -> str:
-    """Normalise un identifiant de sujet en format Sxxx."""
-
-    # Délègue la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="S", width=3, label="Sujet")
+_parse_subject = tpv_utils.parse_subject
 
 
 # Normalise un identifiant de run pour la CLI de prédiction
-def _parse_run(value: str) -> str:
-    """Normalise un identifiant de run en format Rxx."""
-
-    # Délègue la normalisation au helper générique
-    return _normalize_identifier(value=value, prefix="R", width=2, label="Run")
+_parse_run = tpv_utils.parse_run
 
 
 # Normalise la référence EEG demandée via CLI
-def _parse_eeg_reference(value: str) -> str | None:
-    """Retourne la référence EEG normalisée ou None."""
-
-    # Nettoie la valeur reçue pour éviter les espaces parasites
-    cleaned_value = value.strip()
-    # Refuse une valeur vide pour éviter une référence ambiguë
-    if not cleaned_value:
-        # Signale une référence vide pour guider l'utilisateur
-        raise argparse.ArgumentTypeError("Référence EEG vide")
-    # Interprète l'alias "none" comme une désactivation explicite
-    if cleaned_value.lower() == "none":
-        # Retourne None pour indiquer l'absence de re-référencement
-        return None
-    # Retourne la valeur brute pour passer à MNE
-    return cleaned_value
+_parse_eeg_reference = tpv_utils.parse_eeg_reference
 
 
 # Construit un argument parser aligné sur l'appel mybci
@@ -357,18 +304,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Charge une pipeline TPV entraînée et produit un rapport",
     )
-    # Ajoute l'argument positionnel du sujet pour cibler les artefacts
-    parser.add_argument(
-        "subject",
-        type=_parse_subject,
-        help="Identifiant du sujet (ex: 4)",
-    )
-    # Ajoute l'argument positionnel du run pour cibler la session
-    parser.add_argument(
-        "run",
-        type=_parse_run,
-        help="Identifiant du run (ex: 14)",
-    )
+    # Partage la normalisation et l'aide des identifiants PhysioNet
+    tpv_utils.add_subject_run_arguments(parser)
 
     # ------------------------------------------------------------------
     # Options de compatibilité avec la CLI mybci (train/predict)
@@ -377,13 +314,13 @@ def build_parser() -> argparse.ArgumentParser:
     # ------------------------------------------------------------------
     parser.add_argument(
         "--classifier",
-        choices=("lda", "logistic", "svm", "centroid"),
+        choices=CLASSIFIER_CHOICES,
         default="lda",
         help="Classifieur final (ignoré en prédiction, pour compatibilité CLI)",
     )
     parser.add_argument(
         "--scaler",
-        choices=("standard", "robust", "none"),
+        choices=SCALER_CHOICES,
         default="none",
         help="Scaler appliqué en entraînement (ignoré en prédiction)",
     )
@@ -398,7 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--dim-method",
-        choices=("pca", "csp", "cssp", "svd"),
+        choices=DIMENSIONALITY_METHODS,
         default="pca",
         help="Méthode de réduction de dimension (ignorée en prédiction)",
     )
@@ -423,24 +360,8 @@ def build_parser() -> argparse.ArgumentParser:
     # ------------------------------------------------------------------
     # Options réellement utilisées par scripts/predict
     # ------------------------------------------------------------------
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=DEFAULT_DATA_DIR,
-        help="Répertoire racine contenant les fichiers numpy",
-    )
-    parser.add_argument(
-        "--artifacts-dir",
-        type=Path,
-        default=DEFAULT_ARTIFACTS_DIR,
-        help="Répertoire racine où lire le modèle",
-    )
-    parser.add_argument(
-        "--raw-dir",
-        type=Path,
-        default=DEFAULT_RAW_DIR,
-        help="Répertoire racine contenant les fichiers EDF bruts",
-    )
+    # Partage les trois racines utilisées par la reconstruction EDF
+    tpv_utils.add_storage_arguments(parser, include_raw=True)
     # Ajoute l'option de re-référencement EEG lors du chargement EDF
     parser.add_argument(
         "--eeg-reference",
@@ -448,117 +369,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_EEG_REFERENCE,
         help="Référence EEG appliquée au chargement (ex: average, none)",
     )
-    # Ajoute la borne basse du filtre passe-bande MI
-    parser.add_argument(
-        # Déclare le nom du flag CLI pour la borne basse
-        "--bandpass-low",
-        # Type float pour accepter des fréquences décimales
-        type=float,
-        # Fixe la valeur par défaut alignée sur la bande MI
-        default=preprocessing.DEFAULT_BANDPASS_BAND[0],
-        # Décrit l'usage utilisateur pour éviter les confusions
-        help="Fréquence basse du passe-bande MI (ex: 8.0)",
-    )
-    # Ajoute la borne haute du filtre passe-bande MI
-    parser.add_argument(
-        # Déclare le nom du flag CLI pour la borne haute
-        "--bandpass-high",
-        # Type float pour accepter des fréquences décimales
-        type=float,
-        # Fixe la valeur par défaut alignée sur la bande MI
-        default=preprocessing.DEFAULT_BANDPASS_BAND[1],
-        # Décrit l'usage utilisateur pour éviter les confusions
-        help="Fréquence haute du passe-bande MI (ex: 30.0)",
-    )
-    # Ajoute la fréquence de notch pour supprimer le bruit secteur
-    parser.add_argument(
-        # Déclare le nom du flag CLI pour le notch
-        "--notch-freq",
-        # Type float pour autoriser 50 ou 60 Hz
-        type=float,
-        # Fixe la valeur par défaut compatible Europe
-        default=preprocessing.DEFAULT_NOTCH_FREQ,
-        # Décrit l'usage utilisateur pour éviter les confusions
-        help="Fréquence de notch pour le bruit secteur (50 ou 60 Hz)",
-    )
-    # Ajoute la méthode de normalisation par canal des epochs
-    parser.add_argument(
-        # Déclare le nom du flag CLI pour la normalisation canal
-        "--normalize-channels",
-        # Liste les méthodes acceptées pour sécuriser les entrées
-        choices=("zscore", "robust", "none"),
-        # Fixe la méthode par défaut alignée sur preprocessing
-        default=preprocessing.DEFAULT_NORMALIZE_METHOD,
-        # Décrit l'usage utilisateur pour éviter les confusions
-        help="Normalisation par canal appliquée aux epochs (zscore/robust/none)",
-    )
-    # Ajoute l'epsilon de stabilisation pour la normalisation
-    parser.add_argument(
-        # Déclare le nom du flag CLI pour l'epsilon
-        "--normalize-epsilon",
-        # Type float pour accepter des epsilon personnalisés
-        type=float,
-        # Fixe la valeur par défaut alignée sur preprocessing
-        default=preprocessing.DEFAULT_NORMALIZE_EPSILON,
-        # Décrit l'usage utilisateur pour éviter les confusions
-        help="Epsilon de stabilité pour la normalisation par canal",
-    )
+    # Ajoute le même contrat de prétraitement que la commande train.
+    train_module.add_preprocessing_arguments(parser)
     # Retourne le parser configuré
     return parser
 
 
 # Construit les chemins des données pour un sujet et un run donnés
-def _resolve_data_paths(subject: str, run: str, data_dir: Path) -> tuple[Path, Path]:
-    """Retourne les chemins des matrices X et y pour un sujet/run."""
-
-    # Localise le sous-dossier spécifique au sujet
-    base_dir = data_dir / subject
-    # Compose le chemin du fichier de données numpy
-    features_path = base_dir / f"{run}_X.npy"
-    # Compose le chemin du fichier d'étiquettes numpy
-    labels_path = base_dir / f"{run}_y.npy"
-    # Retourne les deux chemins pour chargement ultérieur
-    return features_path, labels_path
+_resolve_data_paths = tpv_utils.resolve_data_paths
 
 
-# Construit le chemin du fichier de fenêtre d'epochs pour un run
-def _resolve_epoch_window_path(subject: str, run: str, data_dir: Path) -> Path:
-    """Retourne le chemin du JSON décrivant la fenêtre d'epochs."""
-
-    # Localise le sous-dossier spécifique au sujet
-    base_dir = data_dir / subject
-    # Construit le chemin du fichier de fenêtre pour ce run
-    window_path = base_dir / f"{run}_epoch_window.json"
-    # Retourne le chemin du fichier de fenêtre
-    return window_path
+# Préserve l'API privée tout en supprimant la copie du helper de chemin.
+_resolve_epoch_window_path = tpv_utils.resolve_epoch_window_path
 
 
-# Vérifie la présence des fichiers PhysioNet requis avant le chargement
-# pour éviter un échec tardif pendant le parsing EDF
-def _ensure_physionet_files_exist(
-    subject: str,
-    run: str,
-    raw_path: Path,
-    event_path: Path,
-) -> None:
-    """Valide que l'EDF et son fichier d'événement existent et sont non vides."""
-
-    # Arrête l'exécution si l'EDF est introuvable ou vide
-    if not raw_path.exists() or raw_path.stat().st_size == 0:
-        # Signale explicitement le chemin absent pour guider l'utilisateur
-        raise FileNotFoundError(
-            f"EDF introuvable pour {subject} {run}: {raw_path}. "
-            "Lancez `make download_dataset` ou pointez --raw-dir vers "
-            "un dataset EEGMMIDB complet."
-        )
-    # Arrête l'exécution si le fichier d'événements est absent ou vide
-    if not event_path.exists() or event_path.stat().st_size == 0:
-        # Signale explicitement l'absence du fichier .edf.event
-        raise FileNotFoundError(
-            f"Fichier événement introuvable pour {subject} {run}: {event_path}. "
-            "Le dataset semble incomplet: relancez `make download_dataset` "
-            f"ou définissez {DATA_DIR_ENV_VAR} vers un dossier valide."
-        )
+# Préserve l'API privée tout en utilisant la validation partagée.
+_ensure_physionet_files_exist = tpv_utils.ensure_physionet_files_exist
 
 
 # Applique le contrôle qualité des epochs avec un fallback dédié
@@ -601,19 +427,12 @@ def _read_epoch_window_metadata(
 ) -> tuple[float, float]:
     """Retourne la fenêtre d'epochs à utiliser en prédiction."""
 
-    # Construit le chemin du fichier de fenêtre pour ce run
-    window_path = _resolve_epoch_window_path(subject, run, data_dir)
-    # Utilise la fenêtre par défaut si aucun fichier n'est trouvé
-    if not window_path.exists():
-        return DEFAULT_EPOCH_WINDOW
-    # Charge le contenu JSON pour récupérer la fenêtre
-    payload = json.loads(window_path.read_text())
-    # Extrait tmin du JSON en float
-    tmin = float(payload.get("tmin", DEFAULT_EPOCH_WINDOW[0]))
-    # Extrait tmax du JSON en float
-    tmax = float(payload.get("tmax", DEFAULT_EPOCH_WINDOW[1]))
-    # Retourne la fenêtre reconstruite
-    return (tmin, tmax)
+    # Délègue le parsing commun avec le fallback historique de predict.
+    window = tpv_utils.read_epoch_window_metadata(
+        subject, run, data_dir, default=DEFAULT_EPOCH_WINDOW
+    )
+    # Le fallback non nul garantit ce type de retour.
+    return cast(tuple[float, float], window)
 
 
 # Construit des matrices numpy à partir d'un EDF lorsque nécessaire
@@ -634,8 +453,9 @@ def _build_npy_from_edf(
         build_context.data_dir,
     )
     # Calcule les chemins attendus des fichiers bruts PhysioNet
-    raw_path = build_context.raw_dir / subject / f"{subject}{run}.edf"
-    event_path = raw_path.with_suffix(".edf.event")
+    raw_path, event_path = tpv_utils.resolve_recording_paths(
+        build_context.raw_dir, subject, run
+    )
     # Valide les fichiers bruts PhysioNet avant tout traitement de signal
     _ensure_physionet_files_exist(subject, run, raw_path, event_path)
     # Crée l'arborescence cible pour déposer les .npy
@@ -656,34 +476,15 @@ def _build_npy_from_edf(
         # Transmet le répertoire de base des numpy
         build_context.data_dir,
     )
-    # Applique un notch si une fréquence valide est fournie
-    if build_context.preprocess_config.notch_freq > 0.0:
-        # Applique le notch pour supprimer la pollution secteur
-        notched_raw = preprocessing.apply_notch_filter(
-            # Transmet le signal brut chargé
-            raw,
-            # Transmet la fréquence de notch configurée
-            freq=build_context.preprocess_config.notch_freq,
-        )
-    else:
-        # Conserve le signal brut si le notch est désactivé
-        notched_raw = raw
-    # Applique le filtrage bande-passante pour stabiliser les bandes MI
-    filtered_raw = preprocessing.apply_bandpass_filter(
-        # Transmet le signal après notch (ou brut si désactivé)
-        notched_raw,
-        # Transmet la bande passante configurée pour la MI
-        freq_band=build_context.preprocess_config.bandpass_band,
-    )
-    # Mappe les annotations en événements moteurs après filtrage
-    events, event_id, motor_labels = preprocessing.map_events_to_motor_labels(
-        filtered_raw
+    # Partage la préparation numérique sans fusionner la logique de prédiction.
+    prepared = preprocessing.prepare_motor_recording(
+        raw, build_context.preprocess_config
     )
     # Découpe le signal filtré en epochs exploitables
     epochs = preprocessing.create_epochs_from_raw(
-        filtered_raw,
-        events,
-        event_id,
+        prepared.filtered_raw,
+        prepared.events,
+        prepared.event_id,
         tmin=epoch_window[0],
         tmax=epoch_window[1],
     )
@@ -692,7 +493,7 @@ def _build_npy_from_edf(
         # Transmet les epochs découpés pour le contrôle qualité
         epochs,
         # Transmet les labels moteurs associés aux epochs
-        motor_labels,
+        prepared.motor_labels,
         # Transmet le sujet pour enrichir les messages d'erreur
         subject,
         # Transmet le run pour enrichir les messages d'erreur
@@ -733,56 +534,15 @@ def _load_data(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Charge ou construit les données et étiquettes pour un run."""
 
-    # Détermine les chemins attendus pour les features et labels
-    features_path, labels_path = _resolve_data_paths(
-        # Transmet l'identifiant de sujet pour les chemins
-        subject,
-        # Transmet l'identifiant de run pour les chemins
-        run,
-        # Transmet le répertoire de base des numpy
-        build_context.data_dir,
+    # Predict conserve sa validation historique : X en 3D et longueurs alignées.
+    return preprocessing.load_or_rebuild_npy_cache(
+        (subject, run),
+        build_context,
+        _build_npy_from_edf,
+        lambda X, y, _features_path, _labels_path: (
+            X.ndim == EXPECTED_FEATURES_DIMENSIONS and X.shape[0] == y.shape[0]
+        ),
     )
-
-    # Indique si nous devons régénérer les .npy
-    needs_rebuild = False
-
-    # Construit les .npy depuis l'EDF si l'un d'eux manque
-    if not features_path.exists() or not labels_path.exists():
-        # Force une reconstruction complète pour retrouver les tensors bruts
-        needs_rebuild = True
-    else:
-        # Charge X en mmap pour inspecter la forme sans tout charger
-        candidate_X = np.load(features_path, mmap_mode="r")
-        # Charge y en mmap pour inspecter la longueur
-        candidate_y = np.load(labels_path, mmap_mode="r")
-
-        # Vérifie que X est bien un tenseur 3D attendu par la pipeline
-        if candidate_X.ndim != EXPECTED_FEATURES_DIMENSIONS:
-            # Relance la génération si l'ancien format tabulaire est détecté
-            needs_rebuild = True
-        # Vérifie l'alignement entre le nombre d'epochs et de labels
-        elif candidate_X.shape[0] != candidate_y.shape[0]:
-            # Relance la génération pour réaligner les données et labels
-            needs_rebuild = True
-
-    # Reconstruit les fichiers lorsque nécessaire
-    if needs_rebuild:
-        # Convertit l'EDF associé en fichiers numpy persistés
-        features_path, labels_path = _build_npy_from_edf(
-            # Transmet l'identifiant de sujet pour reconstruire les numpy
-            subject,
-            # Transmet l'identifiant de run pour reconstruire les numpy
-            run,
-            # Transmet le contexte de génération des numpy
-            build_context,
-        )
-
-    # Utilise numpy.load pour récupérer les features en mémoire
-    X = np.load(features_path)
-    # Utilise numpy.load pour récupérer les labels associés
-    y = np.load(labels_path)
-    # Retourne les deux tableaux prêts pour le scoring
-    return X, y
 
 
 # Restaure le réducteur de dimension pour valider l'artefact W
@@ -795,6 +555,34 @@ def _load_w_matrix(path: Path) -> TPVDimReducer:
     reducer.load(path)
     # Retourne le réducteur prêt pour une projection éventuelle
     return reducer
+
+
+# Sépare la métrique de validation des prédictions produites par le modèle final.
+def _load_validation_accuracy(target_dir: Path) -> float:
+    """Charge la moyenne CV persistée pendant l'entraînement du pipeline."""
+
+    # Le manifeste est la preuve reproductible associée au modèle final.
+    manifest_path = target_dir / "manifest.json"
+    # Refuse un score sans provenance plutôt que de mesurer les données apprises.
+    if not manifest_path.is_file():
+        # Le message indique précisément comment régénérer une preuve valide.
+        raise FileNotFoundError(
+            f"Manifeste de validation absent: {manifest_path}. "
+            "Relancez train avant predict."
+        )
+    # Charge uniquement les métadonnées légères, jamais le dataset complet.
+    manifest = tpv_utils.load_json_object(manifest_path)
+    # Récupère la moyenne seulement depuis la section de validation canonique.
+    validation_accuracy = tpv_utils.extract_cv_mean(manifest)
+    # Refuse une validation absente pour ne pas réintroduire un score train-on-train.
+    if validation_accuracy is None:
+        # Le diagnostic rend la correction immédiate pendant la soutenance.
+        raise ValueError(
+            f"Score de validation croisée absent dans {manifest_path}. "
+            "Relancez train avec suffisamment d'epochs."
+        )
+    # Le helper a déjà normalisé les nombres JSON vers un float stable.
+    return validation_accuracy
 
 
 # Normalise un label pour l'écriture des rapports et l'affichage CLI
@@ -914,67 +702,8 @@ def _write_reports(
     }
 
 
-# Résout un alias de features vers une méthode de réduction
-def _resolve_feature_strategy_alias(
-    feature_strategy: str,
-    dim_method: str,
-    dim_method_explicit: bool,
-) -> tuple[str, str] | None:
-    """Résout un alias de features en méthode de réduction."""
-
-    # Quitte si aucune stratégie alias n'est demandée
-    if feature_strategy not in train_module.FEATURE_STRATEGY_ALIASES:
-        # Indique l'absence d'alias à résoudre
-        return None
-    # Force la stratégie FFT pour conserver une extraction valide
-    resolved_feature_strategy = "fft"
-    # Conserve la méthode explicite si elle est fournie
-    if dim_method_explicit:
-        # Informe que l'alias est ignoré au profit du dim_method explicite
-        print(
-            # Décrit la résolution de l'alias pour l'utilisateur
-            "INFO: feature_strategy interprété comme alias de dim_method, "
-            # Précise la conservation de la stratégie FFT
-            "feature_strategy='fft' conservée car --dim-method explicite."
-        )
-        # Retourne la stratégie et la méthode explicite
-        return resolved_feature_strategy, dim_method
-    # Informe que l'alias est utilisé comme méthode de réduction
-    print(
-        # Décrit la résolution de l'alias pour l'utilisateur
-        "INFO: feature_strategy interprété comme alias de dim_method, "
-        # Précise la conservation de la stratégie FFT
-        "feature_strategy='fft' appliquée."
-    )
-    # Retourne la stratégie FFT et l'alias comme méthode
-    return resolved_feature_strategy, feature_strategy
-
-
-# Ajuste la méthode de réduction lorsque les features sont tabulaires
-def _adjust_dim_method_for_tabular_features(
-    feature_strategy: str,
-    dim_method: str,
-    dim_method_explicit: bool,
-) -> str:
-    """Ajuste le dim_method lorsque CSP ignore les features."""
-
-    # Ignore l'ajustement si la stratégie n'est pas spectrale
-    if feature_strategy not in {"wavelet", "welch"}:
-        # Retourne la méthode inchangée
-        return dim_method
-    # Retourne la méthode inchangée si CSP/CSSP est explicitement voulu
-    if dim_method in {"csp", "cssp"}:
-        # Informe sur l'usage de CSP avant l'extraction des features
-        if not dim_method_explicit:
-            # Documente la configuration pour la compatibilité CLI
-            print(
-                "INFO: dim_method='csp/cssp' appliqué avant "
-                "l'extraction des features."
-            )
-        # Retourne la méthode CSP/CSSP pour Welch+CSP
-        return dim_method
-    # Retourne la méthode inchangée pour les autres cas
-    return dim_method
+# Préserve l'API privée depuis l'implémentation unique de train.
+_resolve_feature_strategy_alias = train_module.resolve_feature_strategy_alias
 
 
 # Résout les overrides de pipeline transmis à l'auto-train
@@ -1035,10 +764,13 @@ def _resolve_pipeline_overrides(
             scaler=scaler,
         )
 
-    # Ajuste la méthode de réduction pour les features tabulaires
-    dim_method = _adjust_dim_method_for_tabular_features(
+    # Partage le diagnostic d'ordre sans modifier les overrides résolus
+    warn_if_spectral_features_follow_spatial_filter(
+        # Décrit la famille de features réellement demandée
         feature_strategy,
+        # Décrit la réduction placée avant les features dans la pipeline
         dim_method,
+        # Préserve le silence lorsque l'utilisateur a choisi cette réduction
         dim_method_explicit,
     )
     # Retourne la configuration résolue pour l'auto-train
@@ -1063,24 +795,18 @@ def _train_missing_pipeline(
 
     # Applique les options par défaut si aucune n'est fournie
     resolved_options = options or PredictionOptions()
-    # Extrait le répertoire EDF depuis les options
-    raw_dir = resolved_options.raw_dir
-    # Extrait la référence EEG depuis les options
-    eeg_reference = resolved_options.eeg_reference
-    # Extrait la configuration de prétraitement depuis les options
-    preprocess_config = resolved_options.preprocess_config
-    # Extrait les overrides de pipeline depuis les options
-    pipeline_overrides = resolved_options.pipeline_overrides
     # Résout la fréquence d'échantillonnage à partir de l'EDF si disponible
     resolved_sfreq = train_module.resolve_sampling_rate(
         subject,
         run,
-        raw_dir,
+        resolved_options.raw_dir,
         train_module.DEFAULT_SAMPLING_RATE,
-        eeg_reference,
+        resolved_options.eeg_reference,
     )
     # Résout les overrides CLI pour calibrer l'auto-train
-    resolved_overrides = _resolve_pipeline_overrides(pipeline_overrides)
+    resolved_overrides = _resolve_pipeline_overrides(
+        resolved_options.pipeline_overrides
+    )
     # Utilise la fréquence de référence pour aligner extraction et entraînement
     pipeline_config = PipelineConfig(
         # Propage la fréquence d'échantillonnage résolue
@@ -1113,11 +839,11 @@ def _train_missing_pipeline(
         # Utilise le répertoire d'artefacts pour stocker le modèle
         artifacts_dir=artifacts_dir,
         # Transmet le répertoire des EDF bruts pour les métadonnées
-        raw_dir=raw_dir,
+        raw_dir=resolved_options.raw_dir,
         # Transmet la référence EEG pour aligner train et predict
-        eeg_reference=eeg_reference,
+        eeg_reference=resolved_options.eeg_reference,
         # Transmet la configuration de prétraitement
-        preprocess_config=preprocess_config,
+        preprocess_config=resolved_options.preprocess_config,
         # Désactive la recherche exhaustive pour accélérer l'auto-train
         enable_grid_search=False,
         # Fixe un nombre de splits raisonnable si la recherche est réactivée
@@ -1140,22 +866,16 @@ def evaluate_run(
 
     # Applique les options par défaut si aucune n'est fournie
     resolved_options = options or PredictionOptions()
-    # Extrait le répertoire EDF depuis les options
-    raw_dir = resolved_options.raw_dir
-    # Extrait la référence EEG depuis les options
-    eeg_reference = resolved_options.eeg_reference
-    # Extrait la configuration de prétraitement depuis les options
-    preprocess_config = resolved_options.preprocess_config
     # Construit le contexte de génération des numpy pour ce run
     build_context = NpyBuildContext(
         # Transmet le répertoire des numpy
         data_dir=data_dir,
         # Transmet le répertoire des EDF bruts
-        raw_dir=raw_dir,
+        raw_dir=resolved_options.raw_dir,
         # Transmet la référence EEG configurée
-        eeg_reference=eeg_reference,
+        eeg_reference=resolved_options.eeg_reference,
         # Transmet la configuration de prétraitement
-        preprocess_config=preprocess_config,
+        preprocess_config=resolved_options.preprocess_config,
     )
     # Charge ou génère les tableaux numpy nécessaires au scoring
     X, y = _load_data(
@@ -1166,14 +886,16 @@ def evaluate_run(
         # Transmet le contexte de génération des numpy
         build_context,
     )
-    # Construit le dossier d'artefacts spécifique au sujet et au run
-    target_dir = artifacts_dir / subject / run
+    # Résout tous les artefacts depuis la convention partagée.
+    artifact_paths = tpv_utils.resolve_artifact_paths(artifacts_dir, subject, run)
+    # Conserve le dossier cible pour les rapports de prédiction.
+    target_dir = artifact_paths.directory
     # Assure la présence du dossier pour pouvoir écrire les rapports
     target_dir.mkdir(parents=True, exist_ok=True)
     # Calcule les chemins des artefacts attendus pour détecter les absences
-    model_path = target_dir / "model.joblib"
+    model_path = artifact_paths.model
     # Vérifie la présence de la matrice W utilisée par le temps-réel
-    w_matrix_path = target_dir / "w_matrix.joblib"
+    w_matrix_path = artifact_paths.w_matrix
     # Déclenche un entraînement si le modèle ou la matrice sont manquants
     if not model_path.exists() or not w_matrix_path.exists():
         # Informe l'utilisateur que l'auto-train est lancé faute d'artefacts
@@ -1194,6 +916,8 @@ def evaluate_run(
             # Relaye les options de prédiction pour l'auto-train
             resolved_options,
         )
+    # Charge le score produit sur des folds non appris avant le fit final.
+    validation_accuracy = _load_validation_accuracy(target_dir)
     # Charge la pipeline entraînée depuis le joblib sauvegardé
     pipeline = load_pipeline(str(model_path))
     # Récupère l'extracteur de features pour détecter la stratégie Welch
@@ -1225,13 +949,9 @@ def evaluate_run(
         predict_args = (pipeline, X, sfreq, window_config)
         # Prédit via fenêtres Welch et agrégation probabiliste
         y_pred = predict_with_windows(*predict_args)
-        # Calcule l'accuracy à partir des labels agrégés
-        accuracy = float(np.mean(y_pred == y))
     else:
         # Génère les prédictions individuelles pour le rapport
         y_pred = pipeline.predict(X)
-        # Calcule l'accuracy du pipeline sur les données fournies
-        accuracy = float(pipeline.score(X, y))
     # Recharge la matrice W pour confirmer sa présence
     w_matrix = _load_w_matrix(w_matrix_path)
     # Écrit les rapports JSON et CSV dans le dossier d'artefacts
@@ -1240,13 +960,15 @@ def evaluate_run(
         {"subject": subject, "run": run},
         y,
         y_pred,
-        accuracy,
+        validation_accuracy,
     )
     # Retourne le rapport local incluant la matrice pour les tests
     return {
         "run": run,
         "subject": subject,
-        "accuracy": accuracy,
+        "accuracy": validation_accuracy,
+        # Rend explicite que la métrique ne vient pas des données du fit final.
+        "evaluation_source": "cross_validation",
         "w_matrix": w_matrix,
         "reports": reports,
         "predictions": y_pred,
@@ -1307,23 +1029,21 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     # Parse les arguments fournis par l'utilisateur
     args = parser.parse_args(argv)
-    # Refuse une bande passante incohérente pour éviter un filtrage invalide
-    if args.bandpass_low >= args.bandpass_high:
-        # Informe l'utilisateur de l'erreur de configuration
+    # Construit la configuration depuis l'unique validation partagée avec train.
+    try:
+        preprocess_config = preprocessing.build_preprocessing_config(
+            args.bandpass_low,
+            args.bandpass_high,
+            args.notch_freq,
+            args.normalize_channels,
+            args.normalize_epsilon,
+        )
+    # Le rendu historique de cette erreur CLI reste stable pour les utilisateurs.
+    except ValueError:
+        # Informe l'utilisateur de l'erreur de configuration sans traceback.
         print("ERREUR: bandpass_low doit être inférieur à bandpass_high.")
-        # Retourne un code d'erreur explicite pour la CLI
+        # Retourne un code d'erreur explicite pour la CLI.
         return HANDLED_CLI_ERROR_EXIT_CODE
-    # Construit la configuration de prétraitement à partir des arguments
-    preprocess_config = preprocessing.PreprocessingConfig(
-        # Définit la bande passante MI configurée
-        bandpass_band=(args.bandpass_low, args.bandpass_high),
-        # Définit la fréquence de notch configurée
-        notch_freq=args.notch_freq,
-        # Définit la méthode de normalisation par canal
-        normalize_method=args.normalize_channels,
-        # Définit l'epsilon de stabilité pour la normalisation
-        normalize_epsilon=args.normalize_epsilon,
-    )
     # Évalue le run demandé et récupère la matrice W
     # Construit les overrides de pipeline à partir des arguments CLI
     pipeline_overrides = _build_pipeline_overrides_from_args(args)

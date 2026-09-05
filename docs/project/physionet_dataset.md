@@ -50,7 +50,7 @@ Le fichier `manifest.json` suit la structure :
 ## Script de récupération
 - Le script `scripts/download_dataset.py` choisit dynamiquement une source officielle PhysioNet (`/files/...` puis fallback `/static/published-projects/...`) et sert de backend à `make download_dataset`.
 - En cas d'erreur réseau, il exécute aussi un diagnostic local automatique (`ping -c 1 1.1.1.1`, `getent hosts physionet.org`) pour produire un message personnalisé, transparent et actionnable.
-- Le script `scripts/prepare_physionet.py` automatise le téléchargement ou la copie locale vers `data/`.
+- Le script unique `scripts/download_dataset.py` télécharge et valide EEGMMIDB dans `data/`.
 - Il repose sur un manifeste JSON listant les fichiers attendus avec leurs métadonnées :
   ```json
   {
@@ -65,10 +65,10 @@ Le fichier `manifest.json` suit la structure :
   ```
 - Commande type pour copier depuis un répertoire local :
   ```bash
-  python scripts/prepare_physionet.py --source /chemin/vers/physionet/eegmmidb --manifest manifest.json
+  make download_dataset
   ```
 - Commande type pour télécharger depuis Physionet :
   ```bash
-  python scripts/prepare_physionet.py --source https://physionet.org/static/published-projects/eegmmidb/1.0.0 --manifest manifest.json
+  python scripts/download_dataset.py
   ```
 - Le script vérifie la présence, la taille et le hash SHA-256 de chaque fichier ; un échec explicite est déclenché en cas d’écart ou d’absence, avec des messages contextualisés côté CLI.
